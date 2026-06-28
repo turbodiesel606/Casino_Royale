@@ -1,0 +1,115 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CYBERHIRE_BUILD_TESTS": "OFF"
+      }
+    },
+
+    {
+      "name": "linux-base",
+      "hidden": true,
+      "inherits": "base",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "linux-debug",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/build/linux-debug"
+    },
+    {
+      "name": "linux-debug-tests",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/build/linux-debug-tests",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CYBERHIRE_BUILD_TESTS": "ON"
+      }
+    },
+
+    {
+      "name": "windows-base",
+      "hidden": true,
+      "inherits": "base",
+      "generator": "Visual Studio 17 2022",
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "windows-debug",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/build/windows-debug"
+    },
+    {
+      "name": "windows-debug-tests",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/build/windows-debug-tests",
+      "cacheVariables": {
+        "CYBERHIRE_BUILD_TESTS": "ON"
+      }
+    }
+  ],
+
+  "buildPresets": [
+    {
+      "name": "linux-debug",
+      "configurePreset": "linux-debug"
+    },
+    {
+      "name": "linux-debug-tests",
+      "configurePreset": "linux-debug-tests"
+    },
+    {
+      "name": "windows-debug",
+      "configurePreset": "windows-debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "windows-debug-tests",
+      "configurePreset": "windows-debug-tests",
+      "configuration": "Debug"
+    }
+  ],
+
+  "testPresets": [
+    {
+      "name": "linux-debug-tests",
+      "configurePreset": "linux-debug-tests",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-debug-tests",
+      "configurePreset": "windows-debug-tests",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

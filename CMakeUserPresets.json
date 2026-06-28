@@ -1,0 +1,78 @@
+{
+  "version": 6,
+  "include": [
+    "CMakePresets.json"
+  ],
+  "configurePresets": [
+    {
+      "name": "linux-debug-local",
+      "inherits": "linux-debug",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "/home/elmar/Qt/6.11.0/gcc_64"
+      }
+    },
+    {
+      "name": "linux-debug-tests-local",
+      "inherits": "linux-debug-tests",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "/home/elmar/Qt/6.11.0/gcc_64"
+      }
+    },
+
+    {
+      "name": "windows-debug-local",
+      "inherits": "windows-debug",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "D:/Qt_install/6.9.1/msvc2022_64"
+      }
+    },
+    {
+      "name": "windows-debug-tests-local",
+      "inherits": "windows-debug-tests",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "D:/Qt_install/6.9.1/msvc2022_64"
+      }
+    }
+  ],
+
+  "buildPresets": [
+    {
+      "name": "linux-debug-local",
+      "configurePreset": "linux-debug-local"
+    },
+    {
+      "name": "linux-debug-tests-local",
+      "configurePreset": "linux-debug-tests-local"
+    },
+
+    {
+      "name": "windows-debug-local",
+      "configurePreset": "windows-debug-local",
+      "configuration": "Debug"
+    },
+    {
+      "name": "windows-debug-tests-local",
+      "configurePreset": "windows-debug-tests-local",
+      "configuration": "Debug"
+    }
+  ],
+
+  "testPresets": [
+    {
+      "name": "linux-debug-tests-local",
+      "configurePreset": "linux-debug-tests-local",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+
+    {
+      "name": "windows-debug-tests-local",
+      "configurePreset": "windows-debug-tests-local",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}
