@@ -15,7 +15,19 @@ ApplicationWindow {
     color: "#07131d"
 
     property int currentPage: 0
+    property int previousPage: 0
     property bool jobFormVisible: false
+
+    function openJobForm() {
+        window.previousPage = window.currentPage >= 0 ? window.currentPage : 0
+        window.currentPage = -1
+        window.jobFormVisible = true
+    }
+
+    function closeJobForm() {
+        window.jobFormVisible = false
+        window.currentPage = window.previousPage
+    }
 
     RowLayout {
         anchors.fill: parent
@@ -24,27 +36,27 @@ ApplicationWindow {
         Sidebar {
             Layout.fillHeight: true
             Layout.preferredWidth: 242
-            currentIndex: window.currentPage
+            currentIndex: window.jobFormVisible ? -1 : window.currentPage
             onNavigate: index => {
                 window.currentPage = index
                 window.jobFormVisible = false
             }
-            onAddJob: window.jobFormVisible = true
+            onAddJob: window.openJobForm()
         }
 
         StackLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            currentIndex: window.jobFormVisible ? 5 : window.currentPage
+            currentIndex: window.jobFormVisible ? 5 : Math.max(window.currentPage, 0)
 
-            DashboardPage { onAddJobRequested: window.jobFormVisible = true }
-            JobsPage { onAddJobRequested: window.jobFormVisible = true }
+            DashboardPage { onAddJobRequested: window.openJobForm() }
+            JobsPage { onAddJobRequested: window.openJobForm() }
             CvLibraryPage { }
             CompaniesPage { }
             ContactsPage { }
             JobFormPage {
-                onCancelRequested: window.jobFormVisible = false
-                onSaveRequested: window.jobFormVisible = false
+                onCancelRequested: window.closeJobForm()
+                onSaveRequested: window.closeJobForm()
             }
         }
     }
