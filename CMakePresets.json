@@ -11,7 +11,7 @@
       "hidden": true,
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
-        "CYBERHIRE_BUILD_TESTS": "OFF"
+        "JOBTRACKER_BUILD_TESTS": "OFF"
       }
     },
 
@@ -40,7 +40,7 @@
       "binaryDir": "${sourceDir}/build/linux-debug-tests",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CYBERHIRE_BUILD_TESTS": "ON"
+        "JOBTRACKER_BUILD_TESTS": "ON"
       }
     },
 
@@ -69,7 +69,7 @@
       "inherits": "windows-base",
       "binaryDir": "${sourceDir}/build/windows-debug-tests",
       "cacheVariables": {
-        "CYBERHIRE_BUILD_TESTS": "ON"
+        "JOBTRACKER_BUILD_TESTS": "ON"
       }
     }
   ],

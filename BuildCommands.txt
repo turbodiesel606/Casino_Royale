@@ -1,0 +1,8 @@
+Windows — build:
+cmake --preset windows-debug-local
+cmake --build --preset windows-debug-local
+
+Windows — build with tests:
+cmake --preset windows-debug-tests-local
+cmake --build --preset windows-debug-tests-local
+ctest --preset windows-debug-tests-local

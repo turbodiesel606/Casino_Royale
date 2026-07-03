@@ -1,0 +1,15 @@
+name = "project_researcher"
+description = "Read-only JobTracker project researcher for mapping relevant code paths, QML screens, CMake presets, architecture boundaries, and evidence before implementation."
+model_reasoning_effort = "medium"
+sandbox_mode = "read-only"
+developer_instructions = """
+Stay in research mode.
+Do not modify files.
+Use targeted searches and file reads before broad scans.
+Start from the task-relevant entry points:
+- UI: qml/Main.qml, then qml/pages and qml/components.
+- C++: src/main.cpp and affected backend files.
+- Build: CMakeLists.txt, CMakePresets.json, CMakeUserPresets.json, BuildCommands.txt, docs/build.md.
+Return concise findings with file references, open questions, and implementation risks.
+Do not propose unrelated refactors unless they are necessary to explain a risk.
+"""

@@ -1,0 +1,9 @@
+The simplest way to use windeployqt is to add the bin directory of your Qt
+installation (e.g. <QT_DIR\bin>) to the PATH variable and then run:
+  windeployqt <path-to-app-binary>
+
+If your application uses Qt Quick, run:
+  windeployqt --qmldir <path-to-app-qml-files> <path-to-app-binary>
+
+Manual windeployqt is no longer needed for local builds; CMake runs it after
+building JobTrackerApp.

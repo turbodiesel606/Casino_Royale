@@ -1,0 +1,425 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import "../components"
+
+Item {
+    id: root
+
+    property var selectedCv
+    property color panelColor: '#0b1b27'
+    property color lineColor: '#243746'
+    property color textColor: '#eef3f8'
+    property color mutedColor: '#a8b5c2'
+    property color blueColor: '#1687ff'
+    property color greenColor: '#59d34d'
+    property color yellowColor: '#ffbd21'
+    property color purpleColor: '#b36bff'
+
+    function categoryColor(category) {
+        if (category === 'Office Job')
+            return root.yellowColor
+        if (category === 'English CV')
+            return root.purpleColor
+        return root.blueColor
+    }
+
+    PreviewPanel {
+        anchors.fill: parent
+    }
+    component PreviewPanel: Panel {
+        color: root.panelColor
+        border.color: root.lineColor
+        radius: 8
+
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 0
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 53
+                Layout.leftMargin: 16
+                Layout.rightMargin: 14
+
+                Text {
+                    text: "Preview"
+                    color: root.textColor
+                    font.pixelSize: 18
+                    font.bold: true
+                    Layout.fillWidth: true
+                }
+
+                Rectangle {
+                    Layout.preferredWidth: 113
+                    Layout.preferredHeight: 38
+                    radius: 6
+                    color: "#0c1a24"
+                    border.color: "#2b3d4c"
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.margins: 3
+                        spacing: 0
+
+                        IconButton {
+                            Layout.fillHeight: true
+                            Layout.preferredWidth: 56
+                            label: "▦"
+                            active: true
+                        }
+
+                        IconButton {
+                            Layout.fillHeight: true
+                            Layout.preferredWidth: 48
+                            label: "▣"
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                color: root.lineColor
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.margins: 16
+                spacing: 13
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 152
+                    spacing: 24
+
+                    PdfIcon {
+                        Layout.preferredWidth: 72
+                        Layout.preferredHeight: 91
+                        Layout.alignment: Qt.AlignTop
+                        Layout.topMargin: 20
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignTop
+                        Layout.topMargin: 8
+                        spacing: 7
+
+                        RowLayout {
+                            Layout.fillWidth: true
+
+                            Text {
+                                text: root.selectedCv.file
+                                color: root.textColor
+                                font.pixelSize: 22
+                                font.bold: true
+                                Layout.fillWidth: true
+                                elide: Text.ElideRight
+                            }
+
+                            Text {
+                                text: "★"
+                                color: root.yellowColor
+                                font.pixelSize: 25
+                            }
+
+                            Text {
+                                text: "⋮"
+                                color: root.mutedColor
+                                font.pixelSize: 25
+                            }
+                        }
+
+                        Text {
+                            text: root.selectedCv.title
+                            color: root.mutedColor
+                            font.pixelSize: 16
+                        }
+
+                        StatusChip {
+                            label: root.selectedCv.category
+                            accent: root.categoryColor(root.selectedCv.category)
+                        }
+
+                        StatusChip {
+                            label: root.selectedCv.language
+                            accent: root.greenColor
+                        }
+                    }
+                }
+
+                Text {
+                    text: "Description"
+                    color: root.textColor
+                    font.pixelSize: 16
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    text: root.selectedCv.description
+                    color: root.textColor
+                    font.pixelSize: 15
+                    lineHeight: 1.25
+                    wrapMode: Text.WordWrap
+                }
+
+                InfoDivider {}
+                InfoRow {
+                    label: "Language"
+                    value: root.selectedCv.language
+                }
+                InfoDivider {}
+                InfoRow {
+                    label: "Last Modified"
+                    value: root.selectedCv.updated
+                }
+                InfoDivider {}
+                InfoRow {
+                    label: "File Size"
+                    value: root.selectedCv.size
+                }
+                InfoDivider {}
+                InfoRow {
+                    label: "Used in Jobs"
+                    value: root.selectedCv.jobs
+                }
+                InfoDivider {}
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.topMargin: 8
+
+                    Text {
+                        text: "Linked Applications (" + root.selectedCv.jobs + ")"
+                        color: root.textColor
+                        font.pixelSize: 18
+                        font.bold: true
+                        Layout.fillWidth: true
+                    }
+
+                    Text {
+                        text: "View all"
+                        color: "#45a3ff"
+                        font.pixelSize: 15
+                    }
+                }
+
+                LinkedApplicationCard {
+                    title: "Senior Qt/QML Developer"
+                    company: "TechSoft Solutions"
+                    status: "Interview"
+                    date: "May 10, 2026"
+                    accent: "#23d064"
+                }
+
+                LinkedApplicationCard {
+                    title: "Qt Developer (Desktop)"
+                    company: "Innovatech Systems"
+                    status: "Applied"
+                    date: "May 2, 2026"
+                    accent: root.blueColor
+                }
+
+                LinkedApplicationCard {
+                    title: "Qt/QML Engineer"
+                    company: "CodeVision Ltd."
+                    status: "Screening"
+                    date: "Apr 28, 2026"
+                    accent: root.yellowColor
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 42
+                    Layout.topMargin: 2
+                    radius: 7
+                    color: "#0d1b25"
+                    border.color: root.lineColor
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "View all " + root.selectedCv.jobs + " applications"
+                        color: "#45a3ff"
+                        font.pixelSize: 15
+                    }
+                }
+
+                Item {
+                    Layout.fillHeight: true
+                }
+            }
+        }
+    }
+
+    component IconButton: Rectangle {
+        property string label: ""
+        property bool active: false
+
+        radius: 6
+        color: active ? "#0f4c8f" : "#101f2a"
+        border.color: active ? root.blueColor : "#2b3d4c"
+
+        Text {
+            anchors.centerIn: parent
+            text: label
+            color: active ? "white" : "#d7e5f2"
+            font.pixelSize: 23
+            font.bold: active
+        }
+    }
+
+    component PdfIcon: Item {
+        Rectangle {
+            anchors.fill: parent
+            radius: 5
+            color: "#f3f4f3"
+            border.color: "#cfd3d6"
+        }
+
+        Rectangle {
+            width: parent.width * 0.38
+            height: parent.height * 0.24
+            anchors.right: parent.right
+            anchors.top: parent.top
+            color: "#dde1e4"
+            border.color: "#cfd3d6"
+        }
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.leftMargin: -2
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: parent.height * 0.2
+            width: parent.width * 0.68
+            height: 24
+            color: "#d93625"
+            radius: 2
+
+            Text {
+                anchors.centerIn: parent
+                text: "PDF"
+                color: "white"
+                font.pixelSize: 14
+                font.bold: true
+            }
+        }
+    }
+
+    component InfoDivider: Rectangle {
+        Layout.fillWidth: true
+        Layout.preferredHeight: 1
+        color: "#223440"
+    }
+
+    component InfoRow: RowLayout {
+        property string label: ""
+        property string value: ""
+
+        Layout.fillWidth: true
+        Layout.preferredHeight: 20
+
+        Text {
+            text: label
+            color: root.textColor
+            font.pixelSize: 15
+            Layout.preferredWidth: 132
+        }
+
+        Text {
+            text: value
+            color: root.textColor
+            font.pixelSize: 15
+            Layout.fillWidth: true
+        }
+    }
+
+    component LinkedApplicationCard: Rectangle {
+        property string title: ""
+        property string company: ""
+        property string status: ""
+        property string date: ""
+        property color accent: root.blueColor
+
+        Layout.fillWidth: true
+        Layout.preferredHeight: 73
+        radius: 7
+        color: "#0d1b25"
+        border.color: root.lineColor
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 10
+            anchors.rightMargin: 10
+            spacing: 12
+
+            Rectangle {
+                Layout.preferredWidth: 42
+                Layout.preferredHeight: 42
+                radius: 6
+                color: "#103155"
+                border.color: "#1b62a8"
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "▣"
+                    color: root.blueColor
+                    font.pixelSize: 21
+                    font.bold: true
+                }
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 3
+
+                Text {
+                    text: title
+                    color: root.textColor
+                    font.pixelSize: 14
+                    font.bold: true
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                }
+
+                Text {
+                    text: company
+                    color: root.mutedColor
+                    font.pixelSize: 14
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                }
+            }
+
+            ColumnLayout {
+                Layout.preferredWidth: 95
+                spacing: 3
+
+                RowLayout {
+                    spacing: 6
+
+                    Rectangle {
+                        Layout.preferredWidth: 8
+                        Layout.preferredHeight: 8
+                        radius: 4
+                        color: accent
+                    }
+
+                    Text {
+                        text: status
+                        color: accent
+                        font.pixelSize: 14
+                    }
+                }
+
+                Text {
+                    text: date
+                    color: root.mutedColor
+                    font.pixelSize: 14
+                }
+            }
+        }
+    }
+}

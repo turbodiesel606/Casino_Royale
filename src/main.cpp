@@ -13,7 +13,7 @@ int main(int argc, char *argv[])
         []() { QCoreApplication::exit(-1); },
         Qt::QueuedConnection);
 
-    engine.load(QUrl(QStringLiteral("qrc:/CyberHire/qml/Main.qml")));
+    engine.load(QUrl(QStringLiteral("qrc:/JobTracker/qml/Main.qml")));
 
     return app.exec();
 }
