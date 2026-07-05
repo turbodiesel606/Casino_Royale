@@ -68,10 +68,13 @@ Item {
                 }
 
                 DashboardStatsRow {
+                    statsModel: dashboardController.statsModel
                     textColor: page.textColor
                 }
 
                 DashboardActivityPanels {
+                    funnelModel: dashboardController.funnelModel
+                    recentApplicationsModel: dashboardController.recentApplicationsModel
                     textColor: page.textColor
                     mutedColor: page.mutedColor
                     panelLineColor: page.panelLineColor
@@ -79,6 +82,7 @@ Item {
                 }
 
                 DashboardRecentCvsPanel {
+                    recentCvsModel: dashboardController.recentCvsModel
                     textColor: page.textColor
                     mutedColor: page.mutedColor
                     panelLineColor: page.panelLineColor

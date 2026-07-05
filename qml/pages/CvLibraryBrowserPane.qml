@@ -6,77 +6,86 @@ import "../components"
 Item {
     id: root
 
-    property var cvs: []
+    property var cvModel
+    property var categorySummary: []
+    property string resultSummary: ""
     property int selectedRow: 0
-    property color panelColor: '#0b1b27'
-    property color lineColor: '#243746'
-    property color textColor: '#eef3f8'
-    property color mutedColor: '#a8b5c2'
-    property color blueColor: '#1687ff'
-    property color greenColor: '#59d34d'
-    property color yellowColor: '#ffbd21'
-    property color purpleColor: '#b36bff'
+    property color panelColor: "#0b1b27"
+    property color lineColor: "#243746"
+    property color textColor: "#eef3f8"
+    property color mutedColor: "#a8b5c2"
+    property color blueColor: "#1687ff"
+    property color greenColor: "#59d34d"
+    property color yellowColor: "#ffbd21"
+    property color purpleColor: "#b36bff"
+    property string categoryFilter: ""
+    property string languageFilter: ""
+    property string sortMode: "Last Modified"
 
     signal rowSelected(int row)
+    signal categoryFilterRequested(string category)
+    signal languageFilterRequested(string language)
+    signal sortModeRequested(string mode)
+    signal clearFiltersRequested()
 
-    function categoryColor(category) {
-        if (category === 'Office Job')
-            return root.yellowColor
-        if (category === 'English CV')
-            return root.purpleColor
-        return root.blueColor
+    function categoryOptions() {
+        var options = ["All"]
+        for (var i = 0; i < root.categorySummary.length; ++i) {
+            var title = root.categorySummary[i].title
+            if (title !== "All CVs")
+                options.push(title)
+        }
+        return options
     }
 
-ColumnLayout {
-    anchors.fill: parent
-    spacing: 12
-
-    FilterBar {
-        Layout.fillWidth: true
-        Layout.preferredHeight: 101
-    }
-
-    RowLayout {
-        Layout.fillWidth: true
-        Layout.fillHeight: true
+    ColumnLayout {
+        anchors.fill: parent
         spacing: 12
 
-        CategoriesPanel {
-            Layout.preferredWidth: 222
-            Layout.fillHeight: true
+        FilterBar {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 101
         }
 
-        ColumnLayout {
+        RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 10
+            spacing: 12
 
-            ListHeader {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 60
-            }
-
-            Repeater {
-                model: root.cvs
-
-                delegate: CvCard {
-                    required property var modelData
-                    required property int index
-
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 132
-                    cv: modelData
-                    selected: index === root.selectedRow
-                    onClicked: root.rowSelected(index)
-                }
-            }
-
-            Item {
+            CategoriesPanel {
+                Layout.preferredWidth: 222
                 Layout.fillHeight: true
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                spacing: 10
+
+                ListHeader {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 60
+                }
+
+                Repeater {
+                    model: root.cvModel
+
+                    delegate: CvCard {
+                        required property int index
+
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 132
+                        selected: index === root.selectedRow
+                        onClicked: root.rowSelected(index)
+                    }
+                }
+
+                Item {
+                    Layout.fillHeight: true
+                }
             }
         }
     }
-}
 
     component FilterBar: Panel {
         color: root.panelColor
@@ -88,31 +97,43 @@ ColumnLayout {
             anchors.margins: 18
             spacing: 22
 
-            FilterBox {
+            FilterCombo {
                 label: "Category"
-                value: "All"
+                value: root.categoryFilter.length > 0 ? root.categoryFilter : "All"
+                options: root.categoryOptions()
+                onValueRequested: value => root.categoryFilterRequested(value === "All" ? "" : value)
                 Layout.preferredWidth: 185
             }
-            FilterBox {
+            FilterCombo {
                 label: "Language"
-                value: "All"
+                value: root.languageFilter.length > 0 ? root.languageFilter : "All"
+                options: ["All", "English", "German", "Russian"]
+                onValueRequested: value => root.languageFilterRequested(value === "All" ? "" : value)
                 Layout.preferredWidth: 162
             }
-            FilterBox {
-                label: "Last Modified"
-                value: "Any time"
+            FilterCombo {
+                label: "Sort"
+                value: root.sortMode
+                options: ["Last Modified", "File Name", "Linked Jobs"]
+                onValueRequested: value => root.sortModeRequested(value)
                 Layout.preferredWidth: 205
             }
-            FilterBox {
+            FilterCombo {
                 label: "Used in Jobs"
                 value: "Any"
+                options: ["Any"]
                 Layout.preferredWidth: 155
             }
 
             IconButton {
                 Layout.preferredWidth: 48
                 Layout.preferredHeight: 52
-                label: "☷"
+                label: "Reset"
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: root.clearFiltersRequested()
+                }
             }
 
             Text {
@@ -121,6 +142,12 @@ ColumnLayout {
                 font.pixelSize: 15
                 Layout.leftMargin: 0
                 Layout.alignment: Qt.AlignVCenter
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.clearFiltersRequested()
+                }
             }
 
             Item {
@@ -129,9 +156,11 @@ ColumnLayout {
         }
     }
 
-    component FilterBox: Rectangle {
+    component FilterCombo: Rectangle {
         property string label: ""
         property string value: ""
+        property var options: []
+        signal valueRequested(string value)
 
         Layout.preferredHeight: 65
         radius: 7
@@ -155,17 +184,24 @@ ColumnLayout {
             RowLayout {
                 Layout.fillWidth: true
 
-                Text {
-                    text: value
-                    color: root.textColor
-                    font.pixelSize: 16
+                ComboBox {
                     Layout.fillWidth: true
-                }
+                    Layout.preferredHeight: 30
+                    model: options
+                    currentIndex: Math.max(0, options.indexOf(value))
+                    onActivated: valueRequested(currentText)
 
-                Text {
-                    text: "⌄"
-                    color: "#dbe7f2"
-                    font.pixelSize: 20
+                    contentItem: Text {
+                        text: parent.displayText
+                        color: root.textColor
+                        font.pixelSize: 16
+                        verticalAlignment: Text.AlignVCenter
+                        elide: Text.ElideRight
+                    }
+
+                    background: Rectangle {
+                        color: "transparent"
+                    }
                 }
             }
         }
@@ -183,7 +219,7 @@ ColumnLayout {
             anchors.centerIn: parent
             text: label
             color: active ? "white" : "#d7e5f2"
-            font.pixelSize: 23
+            font.pixelSize: label.length > 2 ? 11 : 23
             font.bold: active
         }
     }
@@ -209,25 +245,15 @@ ColumnLayout {
             }
 
             Repeater {
-                model: [
-                    ["All CVs", "7"],
-                    ["C++ Developer", "2"],
-                    ["Qt/QML Developer", "2"],
-                    ["Flutter Developer", "1"],
-                    ["1C Developer", "1"],
-                    ["Office Job", "1"],
-                    ["English CV", "5"],
-                    ["Russian CV", "2"]
-                ]
+                model: root.categorySummary
 
                 delegate: CategoryRow {
                     required property var modelData
-                    required property int index
 
                     Layout.fillWidth: true
-                    title: modelData[0]
-                    count: modelData[1]
-                    selected: index === 0
+                    title: modelData.title
+                    count: String(modelData.count)
+                    selected: modelData.selected
                 }
             }
 
@@ -249,7 +275,7 @@ ColumnLayout {
                     spacing: 10
 
                     Text {
-                        text: "⚙"
+                        text: "+"
                         color: root.blueColor
                         font.pixelSize: 22
                     }
@@ -320,7 +346,7 @@ ColumnLayout {
             spacing: 12
 
             Text {
-                text: "7 CVs"
+                text: root.resultSummary
                 color: root.mutedColor
                 font.pixelSize: 16
                 Layout.alignment: Qt.AlignVCenter
@@ -337,19 +363,26 @@ ColumnLayout {
                 Layout.alignment: Qt.AlignVCenter
             }
 
-            Text {
-                text: "Last Modified"
-                color: root.textColor
-                font.pixelSize: 15
-                Layout.alignment: Qt.AlignVCenter
-            }
+            ComboBox {
+                Layout.preferredWidth: 146
+                Layout.preferredHeight: 38
+                model: ["Last Modified", "File Name", "Linked Jobs"]
+                currentIndex: Math.max(0, model.indexOf(root.sortMode))
+                onActivated: root.sortModeRequested(currentText)
 
-            Text {
-                text: "⌄"
-                color: "#dbe7f2"
-                font.pixelSize: 20
-                Layout.rightMargin: 10
-                Layout.alignment: Qt.AlignVCenter
+                contentItem: Text {
+                    text: parent.displayText
+                    color: root.textColor
+                    font.pixelSize: 15
+                    verticalAlignment: Text.AlignVCenter
+                    elide: Text.ElideRight
+                }
+
+                background: Rectangle {
+                    color: "#0d1b25"
+                    border.color: "#2b3d4c"
+                    radius: 6
+                }
             }
 
             Rectangle {
@@ -367,14 +400,14 @@ ColumnLayout {
                     IconButton {
                         Layout.fillHeight: true
                         Layout.preferredWidth: 58
-                        label: "▦"
+                        label: "Grid"
                         active: true
                     }
 
                     IconButton {
                         Layout.fillHeight: true
                         Layout.preferredWidth: 58
-                        label: "☷"
+                        label: "List"
                     }
                 }
             }
@@ -384,7 +417,14 @@ ColumnLayout {
     component CvCard: Panel {
         id: card
 
-        property var cv
+        required property string fileName
+        required property string title
+        required property string category
+        required property string categoryAccent
+        required property string language
+        required property string languageAccent
+        required property string lastModifiedLabel
+        required property string linkedApplicationCountLabel
         property bool selected: false
         signal clicked()
 
@@ -416,7 +456,7 @@ ColumnLayout {
                 spacing: 6
 
                 Text {
-                    text: cv.file
+                    text: card.fileName
                     color: root.textColor
                     font.pixelSize: 22
                     font.bold: true
@@ -425,7 +465,7 @@ ColumnLayout {
                 }
 
                 Text {
-                    text: cv.title
+                    text: card.title
                     color: root.mutedColor
                     font.pixelSize: 16
                     elide: Text.ElideRight
@@ -437,13 +477,13 @@ ColumnLayout {
                     spacing: 10
 
                     StatusChip {
-                        label: cv.category
-                        accent: root.categoryColor(cv.category)
+                        label: card.category
+                        accent: card.categoryAccent
                     }
 
                     StatusChip {
-                        label: cv.language
-                        accent: root.greenColor
+                        label: card.language
+                        accent: card.languageAccent
                     }
                 }
             }
@@ -462,12 +502,12 @@ ColumnLayout {
                 RowLayout {
                     spacing: 13
                     Text {
-                        text: "▣"
+                        text: "Updated"
                         color: "#c7d2df"
-                        font.pixelSize: 19
+                        font.pixelSize: 13
                     }
                     Text {
-                        text: "Updated " + cv.updated
+                        text: card.lastModifiedLabel
                         color: root.mutedColor
                         font.pixelSize: 15
                     }
@@ -476,12 +516,12 @@ ColumnLayout {
                 RowLayout {
                     spacing: 13
                     Text {
-                        text: "▣"
+                        text: "Used"
                         color: "#c7d2df"
-                        font.pixelSize: 19
+                        font.pixelSize: 13
                     }
                     Text {
-                        text: "Used in " + cv.jobs + " jobs"
+                        text: card.linkedApplicationCountLabel
                         color: root.mutedColor
                         font.pixelSize: 15
                     }
@@ -545,5 +585,4 @@ ColumnLayout {
             }
         }
     }
-
 }

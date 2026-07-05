@@ -6,7 +6,11 @@ import "../components"
 RowLayout {
     id: root
 
+    property var statsModel
     property color textColor: "#eef3f8"
+
+    Layout.fillWidth: true
+    spacing: 14
 
     component IconBox: Rectangle {
         property string iconText: ""
@@ -26,20 +30,16 @@ RowLayout {
             font.bold: true
         }
     }
-    Layout.fillWidth: true
-    spacing: 14
 
     Repeater {
-        model: [
-            { icon: "▣", title: "Total Jobs", value: "128", note: "▮  All time", color: "#1687ff" },
-            { icon: "➤", title: "Applied", value: "62", note: "▮  48.4% of total", color: "#2ecb68" },
-            { icon: "▣", title: "Interviews", value: "18", note: "▮  14.1% of total", color: "#ffbd21" },
-            { icon: "⊗", title: "Rejected", value: "38", note: "▮  29.7% of total", color: "#ff4b49" },
-            { icon: "♧", title: "Active", value: "44", note: "▮  In progress", color: "#00bfd5" }
-        ]
+        model: root.statsModel
 
         delegate: Panel {
-            required property var modelData
+            required property string icon
+            required property string title
+            required property string value
+            required property string note
+            required property string accent
 
             Layout.fillWidth: true
             Layout.preferredHeight: 124
@@ -50,29 +50,29 @@ RowLayout {
                 spacing: 18
 
                 IconBox {
-                    iconText: modelData.icon
-                    accentColor: modelData.color
+                    iconText: icon
+                    accentColor: accent
                 }
 
                 ColumnLayout {
                     spacing: 4
 
                     Text {
-                        text: modelData.title
+                        text: title
                         color: root.textColor
                         font.pixelSize: 15
                     }
 
                     Text {
-                        text: modelData.value
+                        text: value
                         color: root.textColor
                         font.pixelSize: 30
                         font.bold: true
                     }
 
                     Text {
-                        text: modelData.note
-                        color: modelData.color
+                        text: note
+                        color: accent
                         font.pixelSize: 14
                     }
                 }

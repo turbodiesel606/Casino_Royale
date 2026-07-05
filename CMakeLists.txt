@@ -11,7 +11,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(JOBTRACKER_BUILD_TESTS "Build JobTracker tests" OFF)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Quick)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Quick Test)
 
 qt_standard_project_setup(REQUIRES 6.5)
 
@@ -19,8 +19,76 @@ if(QT_KNOWN_POLICY_QTP0004)
     qt_policy(SET QTP0004 NEW)
 endif()
 
+set(JOBTRACKER_COMMON_SOURCES
+    src/common/RoleFilterProxyModel.cpp
+    src/common/RoleFilterProxyModel.h
+    src/common/ValidationResult.h
+    src/common/ValidationService.cpp
+    src/common/ValidationService.h
+)
+
+set(JOBTRACKER_JOB_SOURCES
+    src/jobs/JobApplication.h
+    src/jobs/JobApplicationListModel.cpp
+    src/jobs/JobApplicationListModel.h
+    src/jobs/JobApplicationsController.cpp
+    src/jobs/JobApplicationsController.h
+)
+
+set(JOBTRACKER_CV_SOURCES
+    src/cvs/CvDocument.h
+    src/cvs/CvLibraryController.cpp
+    src/cvs/CvLibraryController.h
+    src/cvs/CvListModel.cpp
+    src/cvs/CvListModel.h
+    src/cvs/LinkedApplicationListModel.cpp
+    src/cvs/LinkedApplicationListModel.h
+)
+
+set(JOBTRACKER_DASHBOARD_SOURCES
+    src/dashboard/DashboardController.cpp
+    src/dashboard/DashboardController.h
+    src/dashboard/DashboardMetric.h
+    src/dashboard/DashboardMetricListModel.cpp
+    src/dashboard/DashboardMetricListModel.h
+    src/dashboard/DashboardRecentApplicationsModel.cpp
+    src/dashboard/DashboardRecentApplicationsModel.h
+    src/dashboard/DashboardRecentCvsModel.cpp
+    src/dashboard/DashboardRecentCvsModel.h
+)
+
+set(JOBTRACKER_DIRECTORY_SOURCES
+    src/directory/Company.h
+    src/directory/CompanyDirectoryController.cpp
+    src/directory/CompanyDirectoryController.h
+    src/directory/CompanyListModel.cpp
+    src/directory/CompanyListModel.h
+    src/directory/Contact.h
+    src/directory/ContactDirectoryController.cpp
+    src/directory/ContactDirectoryController.h
+    src/directory/ContactInteractionListModel.cpp
+    src/directory/ContactInteractionListModel.h
+    src/directory/ContactListModel.cpp
+    src/directory/ContactListModel.h
+    src/directory/LinkedCompanyContactsModel.cpp
+    src/directory/LinkedCompanyContactsModel.h
+    src/directory/LinkedCompanyJobsModel.cpp
+    src/directory/LinkedCompanyJobsModel.h
+)
+
 qt_add_executable(JobTrackerApp
+    src/app/AppBootstrap.cpp
+    src/app/AppBootstrap.h
+    ${JOBTRACKER_COMMON_SOURCES}
+    ${JOBTRACKER_CV_SOURCES}
+    ${JOBTRACKER_DASHBOARD_SOURCES}
+    ${JOBTRACKER_DIRECTORY_SOURCES}
+    ${JOBTRACKER_JOB_SOURCES}
     src/main.cpp
+)
+
+target_include_directories(JobTrackerApp
+    PRIVATE src
 )
 
 qt_add_qml_module(JobTrackerApp
@@ -74,6 +142,106 @@ endif()
 
 if(JOBTRACKER_BUILD_TESTS)
     enable_testing()
+
+    function(jobtracker_deploy_test_runtime target_name)
+        if(WIN32)
+            add_custom_command(TARGET ${target_name} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "$<TARGET_FILE:Qt6::Core>"
+                    "$<TARGET_FILE:Qt6::Test>"
+                    "$<TARGET_FILE_DIR:${target_name}>"
+                COMMENT "Deploying Qt test runtime dependencies for ${target_name}"
+            )
+        endif()
+    endfunction()
+
+    add_executable(JobTrackerCommonTests
+        tests/common/FilterAndValidationTest.cpp
+        ${JOBTRACKER_COMMON_SOURCES}
+    )
+
+    target_include_directories(JobTrackerCommonTests
+        PRIVATE src
+    )
+
+    target_link_libraries(JobTrackerCommonTests
+        PRIVATE Qt6::Core Qt6::Test
+    )
+
+    add_test(NAME JobTrackerCommonTests COMMAND JobTrackerCommonTests)
+    jobtracker_deploy_test_runtime(JobTrackerCommonTests)
+
+    add_executable(JobTrackerJobsTests
+        tests/jobs/JobApplicationsControllerTest.cpp
+        ${JOBTRACKER_COMMON_SOURCES}
+        ${JOBTRACKER_JOB_SOURCES}
+    )
+
+    target_include_directories(JobTrackerJobsTests
+        PRIVATE src
+    )
+
+    target_link_libraries(JobTrackerJobsTests
+        PRIVATE Qt6::Core Qt6::Test
+    )
+
+    add_test(NAME JobTrackerJobsTests COMMAND JobTrackerJobsTests)
+    jobtracker_deploy_test_runtime(JobTrackerJobsTests)
+
+    add_executable(JobTrackerCvTests
+        tests/cvs/CvLibraryControllerTest.cpp
+        ${JOBTRACKER_COMMON_SOURCES}
+        ${JOBTRACKER_CV_SOURCES}
+        ${JOBTRACKER_JOB_SOURCES}
+    )
+
+    target_include_directories(JobTrackerCvTests
+        PRIVATE src
+    )
+
+    target_link_libraries(JobTrackerCvTests
+        PRIVATE Qt6::Core Qt6::Test
+    )
+
+    add_test(NAME JobTrackerCvTests COMMAND JobTrackerCvTests)
+    jobtracker_deploy_test_runtime(JobTrackerCvTests)
+
+    add_executable(JobTrackerDashboardTests
+        tests/dashboard/DashboardControllerTest.cpp
+        ${JOBTRACKER_COMMON_SOURCES}
+        ${JOBTRACKER_CV_SOURCES}
+        ${JOBTRACKER_DASHBOARD_SOURCES}
+        ${JOBTRACKER_JOB_SOURCES}
+    )
+
+    target_include_directories(JobTrackerDashboardTests
+        PRIVATE src
+    )
+
+    target_link_libraries(JobTrackerDashboardTests
+        PRIVATE Qt6::Core Qt6::Test
+    )
+
+    add_test(NAME JobTrackerDashboardTests COMMAND JobTrackerDashboardTests)
+    jobtracker_deploy_test_runtime(JobTrackerDashboardTests)
+
+    add_executable(JobTrackerDirectoryTests
+        tests/directory/DirectoryControllerTest.cpp
+        ${JOBTRACKER_COMMON_SOURCES}
+        ${JOBTRACKER_DIRECTORY_SOURCES}
+        ${JOBTRACKER_JOB_SOURCES}
+    )
+
+    target_include_directories(JobTrackerDirectoryTests
+        PRIVATE src
+    )
+
+    target_link_libraries(JobTrackerDirectoryTests
+        PRIVATE Qt6::Core Qt6::Test
+    )
+
+    add_test(NAME JobTrackerDirectoryTests COMMAND JobTrackerDirectoryTests)
+    jobtracker_deploy_test_runtime(JobTrackerDirectoryTests)
 endif()
 
 include(GNUInstallDirs)

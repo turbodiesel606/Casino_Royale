@@ -11,6 +11,14 @@ Item {
     property color mutedColor: "#a8b5c2"
     property color panelLineColor: "#223542"
     property color blueColor: "#1687ff"
+    property var selectedApplication: ({})
+    readonly property string selectedTitle: selectedApplication.jobTitle || ""
+    readonly property string selectedCompany: selectedApplication.companyName || ""
+    readonly property string selectedCompanyInitials: selectedApplication.companyInitials || ""
+    readonly property string selectedCompanyAccent: selectedApplication.companyAccent || "#146ce0"
+    readonly property string selectedStatus: selectedApplication.statusLabel || selectedApplication.status || ""
+    readonly property string selectedStatusAccent: selectedApplication.statusAccent || "#c2c7cb"
+    readonly property string selectedDate: selectedApplication.dateLabel || selectedApplication.appliedDate || ""
 
     signal applicationsRequested()
 
@@ -58,7 +66,7 @@ Item {
         Text {
             id: tagText
             anchors.centerIn: parent
-            text: parent.label + "  ×"
+            text: parent.label + "  Р вЂњРІР‚вЂќ"
             color: "#dcefff"
             font.pixelSize: 13
         }
@@ -193,7 +201,7 @@ Item {
                                     FormField {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 38
-                                        text: "C++/Qt Developer"
+                                        text: page.selectedTitle
                                     }
                                 }
 
@@ -204,7 +212,7 @@ Item {
                                     FormField {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 38
-                                        text: "https://example.com/jobs/cpp-qt-developer"
+                                        text: page.selectedApplication.jobUrl || ""
                                         rightPadding: 42
 
                                         Rectangle {
@@ -217,7 +225,7 @@ Item {
 
                                             Text {
                                                 anchors.centerIn: parent
-                                                text: "↗"
+                                                text: "Р Р†РІР‚В РІР‚вЂќ"
                                                 color: page.textColor
                                                 font.pixelSize: 16
                                             }
@@ -232,7 +240,7 @@ Item {
                                     FormField {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 38
-                                        text: "KDAB"
+                                        text: page.selectedCompany
                                     }
                                 }
 
@@ -243,7 +251,7 @@ Item {
                                     FormField {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 38
-                                        text: "⌂  Remote"
+                                        text: page.selectedApplication.workFormat || ""
                                     }
                                 }
 
@@ -254,7 +262,7 @@ Item {
                                     FormField {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 38
-                                        text: "Prague, Czech Republic"
+                                        text: page.selectedApplication.city || ""
                                     }
                                 }
 
@@ -265,7 +273,7 @@ Item {
                                     FormField {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 38
-                                        text: "$4,500"
+                                        text: page.selectedApplication.salary || ""
                                     }
                                 }
 
@@ -276,7 +284,7 @@ Item {
                                     FormField {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 38
-                                        text: "●  Applied"
+                                        text: page.selectedStatus
                                         color: page.textColor
                                     }
                                 }
@@ -288,7 +296,7 @@ Item {
                                     FormField {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 38
-                                        text: "▣  May 12, 2026"
+                                        text: page.selectedDate
                                     }
                                 }
                             }
@@ -326,7 +334,7 @@ Item {
                                     Text {
                                         x: 74
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: "CV_Qt_2026.pdf"
+                                        text: page.selectedApplication.cvFileName || ""
                                         color: page.textColor
                                         font.pixelSize: 15
                                     }
@@ -359,7 +367,7 @@ Item {
                                         anchors.right: parent.right
                                         anchors.rightMargin: 20
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: "×"
+                                        text: "Р вЂњРІР‚вЂќ"
                                         color: page.textColor
                                         font.pixelSize: 20
                                     }
@@ -379,7 +387,7 @@ Item {
                                     FormArea {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 86
-                                        text: "We are looking for an experienced C++/Qt Developer to build cross-platform desktop applications used by millions of users."
+                                        text: page.selectedApplication.description || ""
                                     }
                                 }
 
@@ -390,7 +398,7 @@ Item {
                                     FormArea {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 86
-                                        text: "•  5+ years of C++ development experience\n•  Strong knowledge of Qt, Widgets, QML\n•  Experience with CMake and modern C++"
+                                        text: page.selectedApplication.requirements || ""
                                     }
                                 }
                             }
@@ -414,10 +422,14 @@ Item {
                                         anchors.rightMargin: 12
                                         spacing: 10
 
-                                        TagChip { label: "C++" }
-                                        TagChip { label: "Qt" }
-                                        TagChip { label: "QML" }
-                                        TagChip { label: "CMake" }
+                                        Repeater {
+                                            model: page.selectedApplication.techStack || []
+
+                                            delegate: TagChip {
+                                                required property string modelData
+                                                label: modelData
+                                            }
+                                        }
 
                                         Text {
                                             Layout.fillWidth: true
@@ -428,7 +440,7 @@ Item {
                                         }
 
                                         Text {
-                                            text: "⌄"
+                                            text: "Р Р†Р Р‰РІР‚С›"
                                             color: page.mutedColor
                                             font.pixelSize: 18
                                         }
@@ -445,7 +457,7 @@ Item {
                                 FormArea {
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: 60
-                                    text: "Applied via company website. Strong focus on Qt 6, QML, and cross-platform development."
+                                    text: page.selectedApplication.notes || ""
                                 }
                             }
 
@@ -532,11 +544,11 @@ Item {
                                 width: 72
                                 height: 72
                                 radius: 7
-                                color: "#146ce0"
+                                color: page.selectedCompanyAccent
 
                                 Text {
                                     anchors.centerIn: parent
-                                    text: "KDAB"
+                                    text: page.selectedCompanyInitials
                                     color: "white"
                                     font.pixelSize: 16
                                     font.bold: true
@@ -547,7 +559,7 @@ Item {
                                 x: 94
                                 y: 11
                                 width: parent.width - 104
-                                text: "C++/Qt Developer"
+                                text: page.selectedTitle
                                 color: page.textColor
                                 font.pixelSize: 20
                                 font.bold: true
@@ -557,7 +569,7 @@ Item {
                                 x: 94
                                 y: 43
                                 width: parent.width - 104
-                                text: "KDAB"
+                                text: page.selectedCompany
                                 color: page.mutedColor
                                 font.pixelSize: 15
                             }
@@ -570,12 +582,12 @@ Item {
 
                                 Repeater {
                                     model: [
-                                        ["♕", "CV used", "CV_Qt_2026.pdf", "link"],
-                                        ["♧", "Status", "Applied", "status"],
-                                        ["▣", "Applied", "May 12, 2026", "text"],
-                                        ["〽", "Salary", "$4,500", "text"],
-                                        ["▤", "Format", "Remote", "text"],
-                                        ["◴", "Last saved", "Today 12:25", "text"]
+                                        ["C", "CV used", page.selectedApplication.cvFileName || "", "link"],
+                                        ["S", "Status", page.selectedStatus, "status"],
+                                        ["D", "Applied", page.selectedDate, "text"],
+                                        ["$", "Salary", page.selectedApplication.salary || "", "text"],
+                                        ["F", "Format", page.selectedApplication.workFormat || "", "text"],
+                                        ["N", "Next step", page.selectedApplication.nextStep || "", "text"]
                                     ]
 
                                     delegate: Item {
@@ -611,7 +623,7 @@ Item {
                                             anchors.verticalCenter: parent.verticalCenter
                                             visible: modelData[3] === "status"
                                             label: modelData[2]
-                                            accent: "#38c86b"
+                                            accent: page.selectedStatusAccent
                                         }
 
                                         Text {
@@ -638,8 +650,8 @@ Item {
 
                         Repeater {
                             model: [
-                                ["▤", "Requirements"],
-                                ["‹›", "Tech Stack"]
+                                ["Р Р†РІР‚вЂњР’В¤", "Requirements"],
+                                ["Р Р†Р вЂљРІвЂћвЂ“Р Р†Р вЂљРЎвЂќ", "Tech Stack"]
                             ]
 
                             delegate: Rectangle {
@@ -685,7 +697,7 @@ Item {
                                     anchors.right: parent.right
                                     anchors.rightMargin: 18
                                     height: parent.height
-                                    text: "›"
+                                    text: "Р Р†Р вЂљРЎвЂќ"
                                     color: page.textColor
                                     font.pixelSize: 22
                                     verticalAlignment: Text.AlignVCenter
@@ -727,7 +739,7 @@ Item {
 
                                     Text {
                                         anchors.centerIn: parent
-                                        text: "AM"
+                                        text: page.selectedCompanyInitials
                                         color: "white"
                                         font.pixelSize: 12
                                         font.bold: true
@@ -737,7 +749,7 @@ Item {
                                 Text {
                                     x: 62
                                     y: 10
-                                    text: "Anna Müller"
+                                    text: page.selectedCompany
                                     color: page.textColor
                                     font.pixelSize: 14
                                     font.bold: true
@@ -746,7 +758,7 @@ Item {
                                 Text {
                                     x: 62
                                     y: 30
-                                    text: "HR Manager"
+                                    text: page.selectedTitle
                                     color: page.mutedColor
                                     font.pixelSize: 12
                                 }
@@ -763,7 +775,7 @@ Item {
 
                                     Text {
                                         anchors.centerIn: parent
-                                        text: "✉"
+                                        text: "Р Р†РЎС™РІР‚В°"
                                         color: page.textColor
                                         font.pixelSize: 15
                                     }
@@ -819,7 +831,7 @@ Item {
                         Button {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 54
-                            text: "▣  Mark Next Step / Add Reminder"
+                            text: "Р Р†РІР‚вЂњР в‚¬  Mark Next Step / Add Reminder"
 
                             contentItem: Text {
                                 text: parent.text

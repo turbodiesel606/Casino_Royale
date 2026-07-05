@@ -10,6 +10,7 @@ Panel {
     property color mutedColor: "#a8b5c2"
     property color panelLineColor: "#263845"
     property int tableRightSafeMargin: 92
+    property var recentCvsModel
 
     component HeaderText: Text {
         color: root.mutedColor
@@ -123,16 +124,16 @@ Panel {
         Divider { }
 
         Repeater {
-            model: [
-                ["CV_Qt_2026.pdf", "Qt/QML Developer", "English", "May 12, 2026", "8 jobs"],
-                ["CV_Cpp_Developer.pdf", "C++ Developer", "English", "May 5, 2026", "5 jobs"],
-                ["CV_Remote.pdf", "C++ Developer", "English CV", "Apr 28, 2026", "3 jobs"],
-                ["CV_Office.pdf", "Office Job", "English", "Apr 18, 2026", "2 jobs"],
-                ["CV_Generic.pdf", "General", "English", "Apr 15, 2026", "1 job"]
-            ]
+            model: root.recentCvsModel
 
             delegate: ColumnLayout {
-                required property var modelData
+                required property string fileName
+                required property string category
+                required property string categoryAccent
+                required property string language
+                required property string languageAccent
+                required property string lastModifiedLabel
+                required property string linkedApplicationCountLabel
 
                 Layout.fillWidth: true
                 spacing: 0
@@ -175,34 +176,34 @@ Panel {
                         }
 
                         BodyText {
-                            text: modelData[0]
+                            text: fileName
                             Layout.fillWidth: true
                         }
                     }
 
                     StatusChip {
-                        label: modelData[1]
-                        accent: modelData[1] === "Office Job" ? "#ffbd21" : modelData[1] === "General" ? "#7f8b98" : "#1687ff"
+                        label: category
+                        accent: categoryAccent
                         Layout.preferredWidth: 210
                         Layout.maximumWidth: 210
                     }
 
                     StatusChip {
-                        label: modelData[2]
-                        accent: modelData[2] === "English CV" ? "#c86cff" : "#65bf4c"
+                        label: language
+                        accent: languageAccent
                         Layout.preferredWidth: 150
                         Layout.maximumWidth: 150
                     }
 
                     BodyText {
-                        text: modelData[3]
+                        text: lastModifiedLabel
                         color: root.mutedColor
                         Layout.preferredWidth: 135
                         Layout.maximumWidth: 135
                     }
 
                     BodyText {
-                        text: modelData[4]
+                        text: linkedApplicationCountLabel
                         color: root.mutedColor
                         Layout.preferredWidth: 120
                         Layout.maximumWidth: 120

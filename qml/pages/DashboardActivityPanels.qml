@@ -6,10 +6,15 @@ import "../components"
 RowLayout {
     id: root
 
+    property var funnelModel
+    property var recentApplicationsModel
     property color textColor: "#eef3f8"
     property color mutedColor: "#a8b5c2"
     property color panelLineColor: "#263845"
     property int tableRightSafeMargin: 92
+
+    Layout.fillWidth: true
+    spacing: 14
 
     component HeaderText: Text {
         color: root.mutedColor
@@ -31,8 +36,6 @@ RowLayout {
         Layout.preferredHeight: 1
         color: root.panelLineColor
     }
-    Layout.fillWidth: true
-    spacing: 14
 
     Panel {
         Layout.fillWidth: true
@@ -57,29 +60,26 @@ RowLayout {
                 Item { Layout.fillWidth: true }
 
                 Text {
-                    text: "All time  ˅"
+                    text: "All time"
                     color: root.mutedColor
                     font.pixelSize: 14
                 }
             }
 
             Repeater {
-                model: [
-                    ["Total Jobs", 1.0, "128  (100%)", "#167aff"],
-                    ["Applied", 0.74, "62  (48.4%)", "#2ecb68"],
-                    ["Interviews", 0.26, "18  (14.1%)", "#ffbb1d"],
-                    ["Rejected", 0.47, "38  (29.7%)", "#ff4b49"],
-                    ["Active", 0.58, "44  (34.4%)", "#00b8d4"]
-                ]
+                model: root.funnelModel
 
                 delegate: RowLayout {
-                    required property var modelData
+                    required property string title
+                    required property real ratio
+                    required property string value
+                    required property string accent
 
                     Layout.fillWidth: true
                     spacing: 12
 
                     Text {
-                        text: modelData[0]
+                        text: title
                         color: root.textColor
                         font.pixelSize: 15
                         Layout.preferredWidth: 100
@@ -91,14 +91,14 @@ RowLayout {
                         color: "transparent"
 
                         Rectangle {
-                            width: parent.width * modelData[1]
+                            width: parent.width * ratio
                             height: parent.height
-                            color: modelData[3]
+                            color: accent
                         }
                     }
 
                     Text {
-                        text: modelData[2]
+                        text: value
                         color: root.textColor
                         font.pixelSize: 14
                         Layout.preferredWidth: 88
@@ -180,16 +180,14 @@ RowLayout {
             Divider { }
 
             Repeater {
-                model: [
-                    ["C++/Qt Developer", "KDAB", "Applied", "May 12, 2026"],
-                    ["Qt/QML Engineer", "The Qt Company", "Interview", "May 9, 2026"],
-                    ["C++/Qt Developer", "Basler AG", "Applied", "May 6, 2026"],
-                    ["Qt/QML Engineer", "Siemens", "Interview", "May 2, 2026"],
-                    ["C++ Developer", "Bosch", "Rejected", "Apr 29, 2026"]
-                ]
+                model: root.recentApplicationsModel
 
                 delegate: ColumnLayout {
-                    required property var modelData
+                    required property string jobTitle
+                    required property string companyName
+                    required property string statusLabel
+                    required property string statusAccent
+                    required property string appliedDateLabel
 
                     Layout.fillWidth: true
                     spacing: 0
@@ -202,30 +200,30 @@ RowLayout {
                         spacing: 12
 
                         BodyText {
-                            text: modelData[0]
+                            text: jobTitle
                             Layout.preferredWidth: 205
                             Layout.maximumWidth: 205
                         }
                         BodyText {
-                            text: modelData[1]
+                            text: companyName
                             color: root.mutedColor
                             Layout.preferredWidth: 165
                             Layout.maximumWidth: 165
                         }
                         StatusChip {
-                            label: modelData[2]
-                            accent: modelData[2] === "Interview" ? "#ffbd21" : modelData[2] === "Rejected" ? "#ff4b49" : "#2ecb68"
+                            label: statusLabel
+                            accent: statusAccent
                             Layout.preferredWidth: 108
                             Layout.maximumWidth: 108
                         }
                         BodyText {
-                            text: modelData[3]
+                            text: appliedDateLabel
                             color: root.mutedColor
                             Layout.preferredWidth: 120
                             Layout.maximumWidth: 120
                         }
                         BodyText {
-                            text: "›"
+                            text: ">"
                             color: root.mutedColor
                             font.pixelSize: 24
                             horizontalAlignment: Text.AlignHCenter

@@ -6,27 +6,24 @@ import "../components"
 Item {
     id: root
 
-    property var selectedCv
-    property color panelColor: '#0b1b27'
-    property color lineColor: '#243746'
-    property color textColor: '#eef3f8'
-    property color mutedColor: '#a8b5c2'
-    property color blueColor: '#1687ff'
-    property color greenColor: '#59d34d'
-    property color yellowColor: '#ffbd21'
-    property color purpleColor: '#b36bff'
+    property var selectedCv: ({})
+    property var linkedApplicationsModel
+    property color panelColor: "#0b1b27"
+    property color lineColor: "#243746"
+    property color textColor: "#eef3f8"
+    property color mutedColor: "#a8b5c2"
+    property color blueColor: "#1687ff"
+    property color greenColor: "#59d34d"
+    property color yellowColor: "#ffbd21"
+    property color purpleColor: "#b36bff"
 
-    function categoryColor(category) {
-        if (category === 'Office Job')
-            return root.yellowColor
-        if (category === 'English CV')
-            return root.purpleColor
-        return root.blueColor
-    }
+    signal favoriteToggled()
+    signal openCvRequested()
 
     PreviewPanel {
         anchors.fill: parent
     }
+
     component PreviewPanel: Panel {
         color: root.panelColor
         border.color: root.lineColor
@@ -65,14 +62,14 @@ Item {
                         IconButton {
                             Layout.fillHeight: true
                             Layout.preferredWidth: 56
-                            label: "▦"
+                            label: "Grid"
                             active: true
                         }
 
                         IconButton {
                             Layout.fillHeight: true
                             Layout.preferredWidth: 48
-                            label: "▣"
+                            label: "List"
                         }
                     }
                 }
@@ -112,7 +109,7 @@ Item {
                             Layout.fillWidth: true
 
                             Text {
-                                text: root.selectedCv.file
+                                text: root.selectedCv.fileName || ""
                                 color: root.textColor
                                 font.pixelSize: 22
                                 font.bold: true
@@ -121,32 +118,37 @@ Item {
                             }
 
                             Text {
-                                text: "★"
+                                text: root.selectedCv.isFavorite ? "*" : ""
                                 color: root.yellowColor
                                 font.pixelSize: 25
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: root.favoriteToggled()
+                                }
                             }
 
                             Text {
-                                text: "⋮"
+                                text: "..."
                                 color: root.mutedColor
-                                font.pixelSize: 25
+                                font.pixelSize: 20
                             }
                         }
 
                         Text {
-                            text: root.selectedCv.title
+                            text: root.selectedCv.title || ""
                             color: root.mutedColor
                             font.pixelSize: 16
                         }
 
                         StatusChip {
-                            label: root.selectedCv.category
-                            accent: root.categoryColor(root.selectedCv.category)
+                            label: root.selectedCv.category || ""
+                            accent: root.selectedCv.categoryAccent || root.blueColor
                         }
 
                         StatusChip {
-                            label: root.selectedCv.language
-                            accent: root.greenColor
+                            label: root.selectedCv.language || ""
+                            accent: root.selectedCv.languageAccent || root.greenColor
                         }
                     }
                 }
@@ -159,7 +161,7 @@ Item {
 
                 Text {
                     Layout.fillWidth: true
-                    text: root.selectedCv.description
+                    text: root.selectedCv.description || ""
                     color: root.textColor
                     font.pixelSize: 15
                     lineHeight: 1.25
@@ -169,22 +171,22 @@ Item {
                 InfoDivider {}
                 InfoRow {
                     label: "Language"
-                    value: root.selectedCv.language
+                    value: root.selectedCv.language || ""
                 }
                 InfoDivider {}
                 InfoRow {
                     label: "Last Modified"
-                    value: root.selectedCv.updated
+                    value: root.selectedCv.lastModifiedLabel || ""
                 }
                 InfoDivider {}
                 InfoRow {
                     label: "File Size"
-                    value: root.selectedCv.size
+                    value: root.selectedCv.fileSizeLabel || ""
                 }
                 InfoDivider {}
                 InfoRow {
                     label: "Used in Jobs"
-                    value: root.selectedCv.jobs
+                    value: root.selectedCv.linkedApplicationCountLabel || ""
                 }
                 InfoDivider {}
 
@@ -193,7 +195,7 @@ Item {
                     Layout.topMargin: 8
 
                     Text {
-                        text: "Linked Applications (" + root.selectedCv.jobs + ")"
+                        text: "Linked Applications (" + (root.selectedCv.linkedApplicationCount || 0) + ")"
                         color: root.textColor
                         font.pixelSize: 18
                         font.bold: true
@@ -207,28 +209,12 @@ Item {
                     }
                 }
 
-                LinkedApplicationCard {
-                    title: "Senior Qt/QML Developer"
-                    company: "TechSoft Solutions"
-                    status: "Interview"
-                    date: "May 10, 2026"
-                    accent: "#23d064"
-                }
+                Repeater {
+                    model: root.linkedApplicationsModel
 
-                LinkedApplicationCard {
-                    title: "Qt Developer (Desktop)"
-                    company: "Innovatech Systems"
-                    status: "Applied"
-                    date: "May 2, 2026"
-                    accent: root.blueColor
-                }
-
-                LinkedApplicationCard {
-                    title: "Qt/QML Engineer"
-                    company: "CodeVision Ltd."
-                    status: "Screening"
-                    date: "Apr 28, 2026"
-                    accent: root.yellowColor
+                    delegate: LinkedApplicationCard {
+                        Layout.fillWidth: true
+                    }
                 }
 
                 Rectangle {
@@ -241,9 +227,14 @@ Item {
 
                     Text {
                         anchors.centerIn: parent
-                        text: "View all " + root.selectedCv.jobs + " applications"
+                        text: "View all " + (root.selectedCv.linkedApplicationCount || 0) + " applications"
                         color: "#45a3ff"
                         font.pixelSize: 15
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: root.openCvRequested()
                     }
                 }
 
@@ -266,7 +257,7 @@ Item {
             anchors.centerIn: parent
             text: label
             color: active ? "white" : "#d7e5f2"
-            font.pixelSize: 23
+            font.pixelSize: label.length > 2 ? 11 : 23
             font.bold: active
         }
     }
@@ -333,17 +324,17 @@ Item {
             color: root.textColor
             font.pixelSize: 15
             Layout.fillWidth: true
+            elide: Text.ElideRight
         }
     }
 
     component LinkedApplicationCard: Rectangle {
-        property string title: ""
-        property string company: ""
-        property string status: ""
-        property string date: ""
-        property color accent: root.blueColor
+        required property string jobTitle
+        required property string companyName
+        required property string statusLabel
+        required property string statusAccent
+        required property string dateLabel
 
-        Layout.fillWidth: true
         Layout.preferredHeight: 73
         radius: 7
         color: "#0d1b25"
@@ -364,9 +355,9 @@ Item {
 
                 Text {
                     anchors.centerIn: parent
-                    text: "▣"
+                    text: "Job"
                     color: root.blueColor
-                    font.pixelSize: 21
+                    font.pixelSize: 12
                     font.bold: true
                 }
             }
@@ -376,7 +367,7 @@ Item {
                 spacing: 3
 
                 Text {
-                    text: title
+                    text: jobTitle
                     color: root.textColor
                     font.pixelSize: 14
                     font.bold: true
@@ -385,7 +376,7 @@ Item {
                 }
 
                 Text {
-                    text: company
+                    text: companyName
                     color: root.mutedColor
                     font.pixelSize: 14
                     elide: Text.ElideRight
@@ -404,18 +395,20 @@ Item {
                         Layout.preferredWidth: 8
                         Layout.preferredHeight: 8
                         radius: 4
-                        color: accent
+                        color: statusAccent
                     }
 
                     Text {
-                        text: status
-                        color: accent
+                        text: statusLabel
+                        color: statusAccent
                         font.pixelSize: 14
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
                     }
                 }
 
                 Text {
-                    text: date
+                    text: dateLabel
                     color: root.mutedColor
                     font.pixelSize: 14
                 }

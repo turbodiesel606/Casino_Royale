@@ -6,35 +6,73 @@
   "configurePresets": [
     {
       "name": "linux-debug-local",
-      "inherits": "linux-debug",
+      "inherits": [
+        "linux-debug",
+        "Qt-Default"
+      ],
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "/home/elmar/Qt/6.11.0/gcc_64"
       }
     },
     {
       "name": "linux-debug-tests-local",
-      "inherits": "linux-debug-tests",
+      "inherits": [
+        "linux-debug-tests",
+        "Qt-Default"
+      ],
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "/home/elmar/Qt/6.11.0/gcc_64"
       }
     },
-
     {
       "name": "windows-debug-local",
-      "inherits": "windows-debug",
+      "inherits": [
+        "windows-debug",
+        "Qt-Default"
+      ],
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "D:/Qt_install/6.9.1/msvc2022_64"
       }
     },
     {
       "name": "windows-debug-tests-local",
-      "inherits": "windows-debug-tests",
+      "inherits": [
+        "windows-debug-tests",
+        "Qt-Default"
+      ],
       "cacheVariables": {
         "CMAKE_PREFIX_PATH": "D:/Qt_install/6.9.1/msvc2022_64"
       }
+    },
+    {
+      "hidden": true,
+      "name": "Qt-Default",
+      "inherits": "6.9.1_msvc2022_64",
+      "vendor": {
+        "qt-project.org/Default": {
+          "checksum": "Bb7AR9VKZ6X2fuMIw7hafNcnaMA="
+        }
+      }
+    },
+    {
+      "hidden": true,
+      "name": "6.9.1_msvc2022_64",
+      "inherits": "Qt",
+      "environment": {
+        "QTDIR": "D:/Qt_install/6.9.1/msvc2022_64"
+      },
+      "architecture": {
+        "strategy": "external",
+        "value": "x64"
+      },
+      "generator": "Ninja",
+      "vendor": {
+        "qt-project.org/Version": {
+          "checksum": "gvljcRCQxG0/jZuYUlCRUAeXeqk="
+        }
+      }
     }
   ],
-
   "buildPresets": [
     {
       "name": "linux-debug-local",
@@ -44,7 +82,6 @@
       "name": "linux-debug-tests-local",
       "configurePreset": "linux-debug-tests-local"
     },
-
     {
       "name": "windows-debug-local",
       "configurePreset": "windows-debug-local",
@@ -56,7 +93,6 @@
       "configuration": "Debug"
     }
   ],
-
   "testPresets": [
     {
       "name": "linux-debug-tests-local",
@@ -65,7 +101,6 @@
         "outputOnFailure": true
       }
     },
-
     {
       "name": "windows-debug-tests-local",
       "configurePreset": "windows-debug-tests-local",
@@ -74,5 +109,10 @@
         "outputOnFailure": true
       }
     }
-  ]
+  ],
+  "vendor": {
+    "qt-project.org/Presets": {
+      "checksum": "Ua52OIuqePRzeiSQlFufuTQ16Z8="
+    }
+  }
 }

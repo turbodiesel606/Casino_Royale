@@ -63,7 +63,7 @@ Item {
         Text {
             id: tagText
             anchors.centerIn: parent
-            text: label + "  ×"
+            text: label + "  Г—"
             color: "#dbe9ff"
             font.pixelSize: 14
         }
@@ -133,7 +133,7 @@ Item {
                     FormField {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 40
-                        text: "C++/Qt Developer"
+                        placeholderText: "Job title"
                     }
                 }
 
@@ -150,7 +150,7 @@ Item {
                         FormField {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 40
-                            text: "https://example.com/jobs/cpp-qt-developer"
+                            placeholderText: "https://..."
 
                             background: Rectangle {
                                 color: page.fieldColor
@@ -168,7 +168,7 @@ Item {
 
                             Text {
                                 anchors.centerIn: parent
-                                text: "↗"
+                                text: "в†—"
                                 color: page.textColor
                                 font.pixelSize: 20
                             }
@@ -185,7 +185,7 @@ Item {
                     FormField {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 40
-                        text: "KDAB"
+                        placeholderText: "Company"
                     }
                 }
 
@@ -198,7 +198,7 @@ Item {
                     FormField {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 40
-                        text: "⌂   Remote                                           ⌄"
+                        placeholderText: "Work format"
                     }
                 }
 
@@ -211,7 +211,7 @@ Item {
                     FormField {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 40
-                        text: "Prague, Czech Republic"
+                        placeholderText: "City"
                     }
                 }
 
@@ -224,7 +224,7 @@ Item {
                     FormField {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 40
-                        text: "$4,500"
+                        placeholderText: "Salary"
                     }
                 }
 
@@ -237,7 +237,7 @@ Item {
                     FormField {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 40
-                        text: "●  Applied                                           ⌄"
+                        placeholderText: "Status"
                         color: "#eef3f8"
                     }
                 }
@@ -251,7 +251,7 @@ Item {
                     FormField {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 40
-                        text: "▣   May 12, 2026                                   ⌄"
+                        placeholderText: "Application date"
                     }
                 }
             }
@@ -301,7 +301,7 @@ Item {
                         }
 
                         Text {
-                            text: "CV_Qt_2026.pdf"
+                            text: "No CV selected"
                             color: page.textColor
                             font.pixelSize: 16
                             Layout.fillWidth: true
@@ -328,7 +328,7 @@ Item {
                         }
 
                         Text {
-                            text: "×"
+                            text: "Г—"
                             color: page.textColor
                             font.pixelSize: 26
                         }
@@ -351,7 +351,7 @@ Item {
                     FormArea {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 86
-                        text: "We are looking for an experienced C++/Qt Developer to build cross-platform desktop applications used by millions of users."
+                        placeholderText: "Job description"
                     }
                 }
 
@@ -364,7 +364,7 @@ Item {
                     FormArea {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 86
-                        text: "•  5+ years of C++ development experience\n•  Strong knowledge of Qt, Widgets, QML\n•  Experience with CMake and modern C++"
+                        placeholderText: "Requirements"
                     }
                 }
             }
@@ -388,11 +388,6 @@ Item {
                         anchors.rightMargin: 13
                         spacing: 10
 
-                        TagChip { label: "C++" }
-                        TagChip { label: "Qt" }
-                        TagChip { label: "QML" }
-                        TagChip { label: "CMake" }
-
                         Text {
                             text: "Add technology..."
                             color: page.mutedColor
@@ -401,7 +396,7 @@ Item {
                         }
 
                         Text {
-                            text: "⌄"
+                            text: "вЊ„"
                             color: page.textColor
                             font.pixelSize: 18
                         }
@@ -418,7 +413,7 @@ Item {
                 FormArea {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 62
-                    text: "Applied via company website. Strong focus on Qt 6, QML, and cross-platform development."
+                    placeholderText: "Notes"
                 }
             }
 

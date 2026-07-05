@@ -1,19 +1,23 @@
-#include <QGuiApplication>
-#include <QQmlApplicationEngine>
+#include "app/AppBootstrap.h"
 
+#include <QDebug>
+#include <QGuiApplication>
+
+#include <cstdlib>
+#include <exception>
+#include <iostream>
 int main(int argc, char *argv[])
 {
-    QGuiApplication app(argc, argv);
+    try {
+        QGuiApplication app(argc, argv);
+        AppBootstrap bootstrap(app);
 
-    QQmlApplicationEngine engine;
-    QObject::connect(
-        &engine,
-        &QQmlApplicationEngine::objectCreationFailed,
-        &app,
-        []() { QCoreApplication::exit(-1); },
-        Qt::QueuedConnection);
+        return bootstrap.run();
+    } catch (const std::exception& exception) {
+        qCritical() << "Application startup failed:" << exception.what();
+    } catch (...) {
+        qCritical() << "Application startup failed with an unknown exception.";
+    }
 
-    engine.load(QUrl(QStringLiteral("qrc:/JobTracker/qml/Main.qml")));
-
-    return app.exec();
+    return EXIT_FAILURE;
 }

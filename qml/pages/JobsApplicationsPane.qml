@@ -15,26 +15,26 @@ Item {
     property int tableHeaderHeight: 44
     property int tableRowHeight: 49
     property int tableFooterHeight: 68
-    property var applications: []
+    property var applicationsModel
+    property int applicationCount: 0
     property var columns: []
     property var previewDetails: []
+    property string resultSummary: ""
+    property string searchText: ""
+    property string statusFilter: ""
+    property var statusOptions: ["All Status", "Applied", "Interview", "Offer", "Test Task", "Rejected"]
+    property string previewTitle: ""
+    property string previewCompany: ""
+    property string previewCompanyInitials: ""
+    property string previewCompanyAccent: "#146ce0"
+    property string previewNotes: ""
+    property string previewStatusAccent: "#c2c7cb"
 
     signal rowSelected(int row)
+    signal searchRequested(string text)
+    signal statusFilterRequested(string status)
     signal applicationsRequested()
     signal descriptionRequested()
-
-    function statusAccent(status) {
-        if (status === "Interview")
-            return "#ffbd21"
-        if (status === "Offer")
-            return "#38c86b"
-        if (status === "Rejected")
-            return "#ff4b49"
-        if (status === "Test Task")
-            return "#16c5dd"
-        return "#c2c7cb"
-    }
-
 
     RowLayout {
         anchors.fill: parent
@@ -110,10 +110,16 @@ Item {
                         Layout.preferredWidth: 360
                         Layout.preferredHeight: 45
                         leftPadding: 18
+                        text: page.searchText
                         placeholderText: "⌕   Search applications..."
                         color: page.textColor
                         placeholderTextColor: page.mutedColor
                         font.pixelSize: 15
+
+                        onTextChanged: {
+                            if (text !== page.searchText)
+                                page.searchRequested(text)
+                        }
 
                         background: Rectangle {
                             color: "#0b1b27"
@@ -125,8 +131,9 @@ Item {
                     ComboBox {
                         Layout.preferredWidth: 145
                         Layout.preferredHeight: 45
-                        currentIndex: 0
-                        model: ["▽  All Status", "Applied", "Interview", "Offer"]
+                        currentIndex: Math.max(0, page.statusOptions.indexOf(page.statusFilter.length > 0 ? page.statusFilter : "All Status"))
+                        model: page.statusOptions
+                        onActivated: page.statusFilterRequested(currentText === "All Status" ? "" : currentText)
 
                         contentItem: Text {
                             leftPadding: 14
@@ -149,7 +156,7 @@ Item {
                 Panel {
                     id: applicationsPanel
                     Layout.fillWidth: true
-                    Layout.preferredHeight: page.tableHeaderHeight + page.applications.length * page.tableRowHeight + page.tableFooterHeight
+                    Layout.preferredHeight: page.tableHeaderHeight + page.applicationCount * page.tableRowHeight + page.tableFooterHeight
                     clip: true
 
                     Rectangle {
@@ -179,11 +186,20 @@ Item {
                     }
 
                     Repeater {
-                        model: page.applications
+                        model: page.applicationsModel
 
                         delegate: Rectangle {
-                            required property var modelData
                             required property int index
+                            required property string companyName
+                            required property string cvFileName
+                            required property string dateLabel
+                            required property string jobTitle
+                            required property string statusLabel
+                            required property string statusAccent
+                            required property string appliedDate
+                            required property string nextStep
+                            required property string companyAccent
+                            required property string companyInitials
 
                             x: 0
                             y: page.tableHeaderHeight + index * page.tableRowHeight
@@ -215,14 +231,14 @@ Item {
                                 height: 35
                                 anchors.verticalCenter: parent.verticalCenter
                                 radius: 4
-                                color: modelData[7]
+                                color: companyAccent
 
                                 Text {
                                     anchors.centerIn: parent
-                                    text: modelData[8]
+                                    text: companyInitials
                                     color: "white"
                                     font.bold: true
-                                    font.pixelSize: modelData[8] === "KDAB" ? 10 : 11
+                                    font.pixelSize: companyInitials === "KDAB" ? 10 : 11
                                 }
                             }
 
@@ -230,7 +246,7 @@ Item {
                                 x: page.columns[0].x + 47
                                 width: page.columns[0].width - 47
                                 height: parent.height
-                                text: modelData[0]
+                                text: companyName
                                 color: page.textColor
                                 font.pixelSize: 14
                                 verticalAlignment: Text.AlignVCenter
@@ -241,7 +257,7 @@ Item {
                                 x: page.columns[1].x
                                 width: page.columns[1].width
                                 height: parent.height
-                                text: modelData[1]
+                                text: cvFileName
                                 color: page.textColor
                                 font.pixelSize: 14
                                 verticalAlignment: Text.AlignVCenter
@@ -252,7 +268,7 @@ Item {
                                 x: page.columns[2].x
                                 width: page.columns[2].width
                                 height: parent.height
-                                text: modelData[2]
+                                text: dateLabel
                                 color: page.textColor
                                 font.pixelSize: 14
                                 verticalAlignment: Text.AlignVCenter
@@ -263,7 +279,7 @@ Item {
                                 x: page.columns[3].x
                                 width: page.columns[3].width
                                 height: parent.height
-                                text: modelData[3]
+                                text: jobTitle
                                 color: page.textColor
                                 font.pixelSize: 14
                                 verticalAlignment: Text.AlignVCenter
@@ -275,15 +291,15 @@ Item {
                                 width: page.columns[4].width - 18
                                 height: 32
                                 anchors.verticalCenter: parent.verticalCenter
-                                label: modelData[4]
-                                accent: page.statusAccent(modelData[4])
+                                label: statusLabel
+                                accent: statusAccent
                             }
 
                             Text {
                                 x: page.columns[5].x
                                 width: page.columns[5].width
                                 height: parent.height
-                                text: modelData[5]
+                                text: appliedDate
                                 color: page.textColor
                                 font.pixelSize: 14
                                 verticalAlignment: Text.AlignVCenter
@@ -294,7 +310,7 @@ Item {
                                 x: page.columns[6].x
                                 width: page.columns[6].width
                                 height: parent.height
-                                text: modelData[6]
+                                text: nextStep
                                 color: page.textColor
                                 font.pixelSize: 14
                                 verticalAlignment: Text.AlignVCenter
@@ -306,7 +322,7 @@ Item {
                     Rectangle {
                         id: tableFooter
                         x: 0
-                            y: page.tableHeaderHeight + page.applications.length * page.tableRowHeight
+                            y: page.tableHeaderHeight + page.applicationCount * page.tableRowHeight
                         width: parent.width
                         height: page.tableFooterHeight
                         color: "transparent"
@@ -323,7 +339,7 @@ Item {
                             anchors.left: parent.left
                             anchors.leftMargin: 18
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "Showing 1 to 10 of 24 applications"
+                            text: page.resultSummary
                             color: page.mutedColor
                             font.pixelSize: 13
                         }
@@ -448,11 +464,11 @@ Item {
                             width: 62
                             height: 62
                             radius: 6
-                            color: "#146ce0"
+                            color: page.previewCompanyAccent
 
                             Text {
                                 anchors.centerIn: parent
-                                text: page.applications[page.selectedRow][8]
+                                text: page.previewCompanyInitials
                                 color: "white"
                                 font.pixelSize: 15
                             }
@@ -462,7 +478,7 @@ Item {
                             x: 78
                             y: 8
                             width: parent.width - 84
-                            text: page.applications[page.selectedRow][3]
+                            text: page.previewTitle
                             color: page.textColor
                             font.pixelSize: 20
                             font.bold: true
@@ -473,7 +489,7 @@ Item {
                             x: 78
                             y: 36
                             width: parent.width - 84
-                            text: page.applications[page.selectedRow][0]
+                            text: page.previewCompany
                             color: page.mutedColor
                             font.pixelSize: 15
                             elide: Text.ElideRight
@@ -521,7 +537,7 @@ Item {
                                         anchors.verticalCenter: parent.verticalCenter
                                         visible: modelData[1] === "Status"
                                         label: modelData[2]
-                                        accent: page.statusAccent(modelData[2])
+                                        accent: page.previewStatusAccent
                                     }
 
                                     Text {
@@ -559,7 +575,7 @@ Item {
                             Text {
                                 anchors.fill: parent
                                 anchors.margins: 13
-                                text: "Applied via company website.\n\nStrong focus on Qt 6, QML, and cross-platform development."
+                                text: page.previewNotes
                                 color: page.textColor
                                 font.pixelSize: 14
                                 wrapMode: Text.WordWrap

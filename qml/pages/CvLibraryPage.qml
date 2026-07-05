@@ -7,7 +7,6 @@ Item {
     id: page
     clip: true
 
-    property int selectedRow: 0
     readonly property real uiScale: 0.80
     readonly property color bgColor: "#07131d"
     readonly property color panelColor: "#0b1b27"
@@ -19,57 +18,7 @@ Item {
     readonly property color greenColor: "#59d34d"
     readonly property color yellowColor: "#ffbd21"
     readonly property color purpleColor: "#b36bff"
-    readonly property var cvs: [
-        {
-            file: "CV_Qt_2026.pdf",
-            title: "Qt/QML Engineer",
-            category: "Qt/QML Developer",
-            language: "English",
-            updated: "May 12, 2026",
-            jobs: "8",
-            size: "612 KB",
-            description: "CV focused on Qt/QML development, desktop applications, and cross-platform experience."
-        },
-        {
-            file: "CV_Cpp_Developer.pdf",
-            title: "C++ Developer",
-            category: "C++ Developer",
-            language: "English",
-            updated: "May 5, 2026",
-            jobs: "5",
-            size: "548 KB",
-            description: "CV focused on C++ desktop engineering, Qt Widgets, and modern CMake projects."
-        },
-        {
-            file: "CV_Remote.pdf",
-            title: "Remote Software Engineer",
-            category: "English CV",
-            language: "English",
-            updated: "Apr 28, 2026",
-            jobs: "3",
-            size: "584 KB",
-            description: "Remote-first CV for distributed software teams and cross-platform product work."
-        },
-        {
-            file: "CV_Office.pdf",
-            title: "Office Administrator",
-            category: "Office Job",
-            language: "English",
-            updated: "Apr 18, 2026",
-            jobs: "2",
-            size: "470 KB",
-            description: "Office administration CV focused on operations, documentation, and communication."
-        }
-    ]
-    readonly property var selectedCv: cvs[selectedRow]
-
-    function categoryColor(category) {
-        if (category === "Office Job")
-            return page.yellowColor
-        if (category === "English CV")
-            return page.purpleColor
-        return page.blueColor
-    }
+    readonly property var selectedCv: cvLibraryController.selectedCv
 
     Item {
         id: scaledContent
@@ -111,9 +60,14 @@ Item {
                 CvSearchField {
                     Layout.preferredWidth: 485
                     Layout.preferredHeight: 46
+                    text: cvLibraryController.searchText
                     textColor: page.textColor
                     mutedColor: page.mutedColor
                     lineColor: page.lineColor
+                    onTextChanged: {
+                        if (text !== cvLibraryController.searchText)
+                            cvLibraryController.setSearchText(text)
+                    }
                 }
             }
 
@@ -125,8 +79,13 @@ Item {
                 CvLibraryBrowserPane {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    cvs: page.cvs
-                    selectedRow: page.selectedRow
+                    cvModel: cvLibraryController.cvModel
+                    categorySummary: cvLibraryController.categorySummary
+                    resultSummary: cvLibraryController.resultSummary
+                    categoryFilter: cvLibraryController.categoryFilter
+                    languageFilter: cvLibraryController.languageFilter
+                    sortMode: cvLibraryController.sortMode
+                    selectedRow: cvLibraryController.selectedCvIndex
                     panelColor: page.panelColor
                     lineColor: page.lineColor
                     textColor: page.textColor
@@ -135,13 +94,18 @@ Item {
                     greenColor: page.greenColor
                     yellowColor: page.yellowColor
                     purpleColor: page.purpleColor
-                    onRowSelected: row => page.selectedRow = row
+                    onRowSelected: row => cvLibraryController.selectCv(row)
+                    onCategoryFilterRequested: category => cvLibraryController.setCategoryFilter(category)
+                    onLanguageFilterRequested: language => cvLibraryController.setLanguageFilter(language)
+                    onSortModeRequested: mode => cvLibraryController.setSortMode(mode)
+                    onClearFiltersRequested: cvLibraryController.clearFilters()
                 }
 
                 CvLibraryPreviewPanel {
                     Layout.preferredWidth: 405
                     Layout.fillHeight: true
                     selectedCv: page.selectedCv
+                    linkedApplicationsModel: cvLibraryController.linkedApplicationsModel
                     panelColor: page.panelColor
                     lineColor: page.lineColor
                     textColor: page.textColor
@@ -150,6 +114,8 @@ Item {
                     greenColor: page.greenColor
                     yellowColor: page.yellowColor
                     purpleColor: page.purpleColor
+                    onFavoriteToggled: cvLibraryController.toggleFavorite(page.selectedCv.id)
+                    onOpenCvRequested: cvLibraryController.openCv(page.selectedCv.id)
                 }
             }
         }

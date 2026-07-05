@@ -43,7 +43,6 @@
         "JOBTRACKER_BUILD_TESTS": "ON"
       }
     },
-
     {
       "name": "windows-base",
       "hidden": true,
@@ -62,7 +61,11 @@
     {
       "name": "windows-debug",
       "inherits": "windows-base",
-      "binaryDir": "${sourceDir}/build/windows-debug"
+      "binaryDir": "${sourceDir}/build/windows-debug",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "D:/Qt_install/6.9.1/msvc2022_64"
+      }
+
     },
     {
       "name": "windows-debug-tests",
@@ -71,9 +74,20 @@
       "cacheVariables": {
         "JOBTRACKER_BUILD_TESTS": "ON"
       }
+    },
+    {
+      "hidden": true,
+      "name": "Qt",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "$env{QTDIR}"
+      },
+      "vendor": {
+        "qt-project.org/Qt": {
+          "checksum": "wVa86FgEkvdCTVp1/nxvrkaemJc="
+        }
+      }
     }
   ],
-
   "buildPresets": [
     {
       "name": "linux-debug",
@@ -94,7 +108,6 @@
       "configuration": "Debug"
     }
   ],
-
   "testPresets": [
     {
       "name": "linux-debug-tests",
@@ -111,5 +124,10 @@
         "outputOnFailure": true
       }
     }
-  ]
+  ],
+  "vendor": {
+    "qt-project.org/Presets": {
+      "checksum": "K5khp45o/oZC3LRR0RK7R1dzaeo="
+    }
+  }
 }
