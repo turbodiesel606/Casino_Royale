@@ -9,7 +9,7 @@ Use this skill for C++ backend work in JobTracker.
 
 ## Workflow
 
-1. Read `docs/architecture.md`, `docs/coding-style.md`, and `docs/testing.md`.
+1. Read `For-Agent/Docs/architecture.md`, `For-Agent/Docs/coding-style.md`, and `For-Agent/Docs/testing.md`.
 2. Locate the affected model, service, controller, storage, utility, or startup code.
 3. Keep `src/main.cpp` minimal; move non-trivial startup logic into focused classes when needed.
 4. Prefer required non-owning references for non-QObject parameters.
@@ -20,7 +20,7 @@ Use this skill for C++ backend work in JobTracker.
 
 ## QML Integration
 
-When backend work changes behavior currently owned by QML, read `docs/qml-style.md` and `docs/qml-to-cpp-extraction.md`.
+When backend work changes behavior currently owned by QML, read `For-Agent/Docs/qml-style.md` and `For-Agent/Docs/qml-to-cpp-extraction.md`.
 
 Inspect the QML owner before designing the C++ API.
 

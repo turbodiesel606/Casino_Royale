@@ -9,7 +9,7 @@ Use this skill when moving durable behavior from QML into the JobTracker C++ bac
 
 ## Workflow
 
-1. Read `docs/qml-to-cpp-extraction.md`, `docs/architecture.md`, `docs/qml-style.md`, `docs/coding-style.md`, and `docs/testing.md`.
+1. Read `For-Agent/Docs/qml-to-cpp-extraction.md`, `For-Agent/Docs/architecture.md`, `For-Agent/Docs/qml-style.md`, `For-Agent/Docs/coding-style.md`, and `For-Agent/Docs/testing.md`.
 2. Start from the QML owner of the behavior, then inspect connected pages, components, and C++ objects exposed to QML.
 3. Classify current QML logic as UI-only state or durable product behavior.
 4. Define the QML/C++ contract before editing:

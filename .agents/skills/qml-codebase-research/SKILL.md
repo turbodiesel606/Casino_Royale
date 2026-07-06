@@ -10,7 +10,7 @@ Use this skill for read-only QML architecture research in JobTracker.
 ## Scope
 
 - Inspect `qml/Main.qml`, `qml/pages`, `qml/components`, and QML file registration in `CMakeLists.txt`.
-- Read `docs/qml-style.md` before judging QML structure.
+- Read `For-Agent/Docs/qml-style.md` before judging QML structure.
 - Do only analysis, not implementation. Do not edit any files.
 - Inspect QML concerns separate from C++ backend concerns. Flag business logic in QML as a candidate for C++ only when it is durable product logic, not mock UI state.
 

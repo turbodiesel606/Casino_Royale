@@ -23,23 +23,41 @@ Use this file as the stable root instruction layer.
 
 Read the relevant detailed layer before acting:
 
-- Build and verification: `docs/build.md`.
-- Architecture: `docs/architecture.md`.
-- C++ style: `docs/coding-style.md`.
-- QML/UI style: `docs/qml-style.md`.
-- Testing policy: `docs/testing.md`.
-- QML-to-C++ extraction: `docs/qml-to-cpp-extraction.md`.
+- Build and verification: `For-Agent/Docs/build.md`.
+- Architecture: `For-Agent/Docs/architecture.md`.
+- C++ style: `For-Agent/Docs/coding-style.md`.
+- QML/UI style: `For-Agent/Docs/qml-style.md`.
+- Testing policy: `For-Agent/Docs/testing.md`.
+- QML-to-C++ extraction: `For-Agent/Docs/qml-to-cpp-extraction.md`.
+
+Use `For-Agent/` as the Codex-facing project knowledge area:
+
+- `For-Agent/Docs/`: stable instruction and project guidance documents.
+- `For-Agent/Task-Report/`: reports and handoff notes from recent tasks.
+- `For-Agent/Review/`: documents that compile code review information.
+- `For-Agent/Research/`: research files and investigation notes.
 
 Use project skills from `.agents/skills/` for repeatable workflows:
 
 - `.agents/skills/cmake-build-debug/SKILL.md`.
+- `.agents/skills/cpp-code-research/SKILL.md`.
+- `.agents/skills/cpp-code-review/SKILL.md`.
 - `.agents/skills/qt-qml-ui-task/SKILL.md`.
+- `.agents/skills/qml-code-research/SKILL.md`.
+- `.agents/skills/qml-code-review/SKILL.md`.
 - `.agents/skills/qml-codebase-research/SKILL.md`.
 - `.agents/skills/qml-to-cpp-extraction/SKILL.md`.
 - `.agents/skills/cpp-backend-task/SKILL.md`.
 - `.agents/skills/test-and-review/SKILL.md`.
 
 Use project subagents from `.codex/agents/` when the user requests subagents, parallel review, project research, or an independent review pass.
+
+Project subagents are split by task and code area:
+
+- `cpp_researcher`: read-only C++ backend research.
+- `cpp_reviewer`: read-only C++ backend review.
+- `qml_researcher`: read-only QML/UI research.
+- `qml_reviewer`: read-only QML/UI review.
 
 ## Core Rules
 
@@ -109,7 +127,7 @@ Avoid god classes, god files, and monolithic QML files. Decompose the codebase i
 
 ## Build And Verification
 
-Use only the commands documented in `docs/build.md` or `.agents/skills/cmake-build-debug/SKILL.md`.
+Use only the commands documented in `For-Agent/Docs/build.md` or `.agents/skills/cmake-build-debug/SKILL.md`.
 
 Always run project commands from `D:\Project_CV\Root` in PowerShell.
 

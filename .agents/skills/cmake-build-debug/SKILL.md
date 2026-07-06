@@ -11,7 +11,7 @@ Use this skill for JobTracker build, test, and CMake verification work.
 
 1. Work from `D:\Project_CV\Root`.
 2. Use PowerShell.
-3. Read `docs/build.md` before running build or test commands.
+3. Read `For-Agent/Docs/build.md` before running build or test commands.
 4. Run build and test commands one at a time.
 5. Do not combine build commands with shell separators, pipes, or chained commands.
 6. Do not delete build directories, caches, generated files, or deployment artifacts without explicit user approval.

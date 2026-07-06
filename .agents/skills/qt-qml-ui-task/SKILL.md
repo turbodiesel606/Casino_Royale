@@ -9,7 +9,7 @@ Use this skill for QML and UI work in JobTracker.
 
 ## Workflow
 
-1. Read `docs/qml-style.md`.
+1. Read `For-Agent/Docs/qml-style.md`.
 2. Start from `qml/Main.qml` for navigation and shell context.
 3. Inspect the target page or component under `qml/pages` or `qml/components`.
 4. Preserve existing backend contracts and QML imports.

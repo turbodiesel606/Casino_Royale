@@ -11,7 +11,17 @@ JobTracker is a Qt 6 / QML / C++ desktop application.
 
 ## Current Shape
 
-`src/main.cpp` creates the application, initializes `QQmlApplicationEngine`, connects object creation failure handling, and loads `qrc:/JobTracker/qml/Main.qml`.
+`src/main.cpp` is intentionally small. It creates `QGuiApplication`, constructs `AppBootstrap`, runs it, and reports startup exceptions before returning a non-zero exit code.
+
+`src/app/AppBootstrap.h` and `src/app/AppBootstrap.cpp` own startup wiring. `AppBootstrap` creates and owns the `QQmlApplicationEngine`, connects object creation failure handling, exposes backend controllers to QML through context properties, and loads `qrc:/JobTracker/qml/Main.qml`.
+
+Current QML context properties are:
+
+- `jobApplicationsController`
+- `cvLibraryController`
+- `dashboardController`
+- `companyDirectoryController`
+- `contactDirectoryController`
 
 `qml/Main.qml` owns the main `ApplicationWindow`, sidebar shell, and `StackLayout` navigation.
 
@@ -27,7 +37,7 @@ Keep QML focused on presentation, layout, navigation, binding, and simple UI sta
 
 Place durable business logic, storage, parsing, algorithms, and application state in C++ backend classes when they are introduced.
 
-Use `docs/qml-to-cpp-extraction.md` when moving durable behavior from QML into C++.
+Use `For-Agent/Docs/qml-to-cpp-extraction.md` when moving durable behavior from QML into C++.
 
 Keep `src/main.cpp` minimal. Move non-trivial startup wiring into dedicated bootstrap/application classes when the startup surface grows.
 
@@ -44,6 +54,6 @@ Organize backend code by responsibility:
 - Controllers or view models for QML-facing properties, commands, and signals.
 - Services for validation, parsing, algorithms, and business operations.
 - Storage and configuration classes for persistence and platform-aware file access.
-- Bootstrap/application classes for startup wiring that no longer belongs in `src/main.cpp`.
+- Bootstrap/application classes for startup wiring that does not belong in `src/main.cpp`.
 
 QML-facing controllers should expose a small screen contract and delegate non-trivial behavior to services or models.

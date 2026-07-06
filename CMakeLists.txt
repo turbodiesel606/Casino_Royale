@@ -97,23 +97,29 @@ qt_add_qml_module(JobTrackerApp
     RESOURCE_PREFIX /
     QML_FILES
         qml/Main.qml
-        qml/components/Sidebar.qml
+        qml/components/NeonCard.qml
         qml/components/Panel.qml
+        qml/components/PrimaryButton.qml
+        qml/components/Sidebar.qml
+        qml/components/SidebarButton.qml
         qml/components/StatusChip.qml
-        qml/pages/DashboardPage.qml
-        qml/pages/DashboardStatsRow.qml
-        qml/pages/DashboardActivityPanels.qml
-        qml/pages/DashboardRecentCvsPanel.qml
-        qml/pages/JobsPage.qml
-        qml/pages/JobsApplicationsPane.qml
-        qml/pages/JobDescriptionPane.qml
-        qml/pages/JobFormPage.qml
-        qml/pages/CvLibraryPage.qml
-        qml/pages/CvSearchField.qml
-        qml/pages/CvLibraryBrowserPane.qml
-        qml/pages/CvLibraryPreviewPanel.qml
         qml/pages/CompaniesPage.qml
         qml/pages/ContactsPage.qml
+        qml/pages/CvLibraryBrowserPane.qml
+        qml/pages/CvLibraryPage.qml
+        qml/pages/CvLibraryPreviewPanel.qml
+        qml/pages/CvSearchField.qml
+        qml/pages/DashboardActivityPanels.qml
+        qml/pages/DashboardPage.qml
+        qml/pages/DashboardRecentCvsPanel.qml
+        qml/pages/DashboardStatsRow.qml
+        qml/pages/JobDescriptionPane.qml
+        qml/pages/JobFormPage.qml
+        qml/pages/JobsApplicationsPane.qml
+        qml/pages/JobsPage.qml
+        qml/pages/MemoryPage.qml
+        qml/pages/ProfilePage.qml
+        qml/pages/SettingsPage.qml
 )
 
 target_link_libraries(JobTrackerApp

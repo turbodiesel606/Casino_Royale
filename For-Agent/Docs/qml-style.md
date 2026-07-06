@@ -6,7 +6,7 @@ Never add business logic directly to QML.
 
 Move existing QML business logic into C++.
 
-Use `docs/qml-to-cpp-extraction.md` for the extraction workflow and QML/C++ contract rules.
+Use `For-Agent/Docs/qml-to-cpp-extraction.md` for the extraction workflow and QML/C++ contract rules.
 
 ## Logic Boundaries
 
