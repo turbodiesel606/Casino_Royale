@@ -12,10 +12,11 @@ Use this skill for the final review and validation pass.
 1. Confirm the change stays within the user's scope.
 2. Check that no unrelated files or behavior were changed.
 3. Check whether `AGENTS.md`, docs, skills, or subagent instructions changed the expected workflow.
-4. Check whether build/test verification is required by `For-Agent/Docs/build.md` and `For-Agent/Docs/testing.md`.
-5. Run applicable verification, or explain why it is not applicable or impossible.
-6. List modified files.
-7. Identify manual checks, risks, limitations, and unverified areas.
+4. Check `For-Agent/Docs/artifacts.md` when research or review artifacts are created or reused.
+5. Check whether build/test verification is required by `For-Agent/Docs/build.md` and `For-Agent/Docs/testing.md`.
+6. Run applicable verification, or explain why it is not applicable or impossible.
+7. List modified files.
+8. Identify manual checks, risks, limitations, and unverified areas.
 
 ## Review Stance
 

@@ -13,9 +13,12 @@ Read these files first:
 
 1. `AGENTS.md`
 2. `For-Agent/Docs/architecture.md`
-3. `For-Agent/Docs/qml-style.md`
+3. `For-Agent/Docs/artifacts.md`
+4. `For-Agent/Docs/qml-style.md`
 
 Read `For-Agent/Docs/qml-to-cpp-extraction.md` when the research involves mock data, validation, filtering, sorting, search, cross-screen state, or other durable behavior in QML.
+
+Before repeating broad research, check `For-Agent/Research/` and relevant `For-Agent/Task-Report/` artifacts. Use the most recent relevant artifact by timestamp as context only, then verify current facts against the source.
 
 ## Entry Points
 
@@ -41,7 +44,9 @@ Return concise findings with:
 - Backend contracts the QML depends on.
 - Suggested next step, without changing code.
 
-Write it under `For-Agent/Research/` with a clear name such as `qml-research-YYYY-MM-DD-topic.md`.
+When the lead Codex is doing the research and a durable artifact is needed, write it under `For-Agent/Research/` with a clear name such as `qml-research-YYYY-MM-DD-HHMM-topic.md`. Put a `Created: YYYY-MM-DD HH:MM local time` line at the beginning of the file immediately after the title.
+
+If a read-only subagent is used, treat the subagent output as research input. The lead Codex should compile, verify, and save the final research artifact.
 
 ## Boundaries
 

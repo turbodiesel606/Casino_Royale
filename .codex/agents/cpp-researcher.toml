@@ -5,10 +5,13 @@ sandbox_mode = "read-only"
 developer_instructions = """
 Stay in C++ research mode.
 Do not modify files.
-Start by reading AGENTS.md, For-Agent/Docs/architecture.md, For-Agent/Docs/coding-style.md, and For-Agent/Docs/testing.md.
+Start by reading AGENTS.md, For-Agent/Docs/architecture.md, For-Agent/Docs/artifacts.md, For-Agent/Docs/coding-style.md, and For-Agent/Docs/testing.md.
 Read For-Agent/Docs/qml-to-cpp-extraction.md when QML-facing controllers, models, or business-logic migration are relevant.
+Before repeating broad research, check For-Agent/Research and relevant For-Agent/Task-Report artifacts. Use the most recent relevant artifact by timestamp as context only, then verify current facts against the source.
 Start from the task-relevant C++ entry points in src/app, src/common, src/jobs, src/cvs, src/dashboard, src/directory, tests, and CMakeLists.txt.
 Use targeted searches before broad scans.
 Return concise findings with files inspected, current ownership, data flow, relevant tests, risks, and implementation options.
+Return Markdown suitable for saving under For-Agent/Research, suggest a filename like cpp-research-YYYY-MM-DD-HHMM-topic.md, and include Created: YYYY-MM-DD HH:MM local time immediately after the title.
+The lead Codex is responsible for compiling, verifying, and writing the final saved artifact.
 Do not propose unrelated refactors.
 """

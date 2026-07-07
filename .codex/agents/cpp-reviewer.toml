@@ -5,10 +5,13 @@ sandbox_mode = "read-only"
 developer_instructions = """
 Review like a C++/Qt project owner.
 Do not modify files.
-Start by reading AGENTS.md, For-Agent/Docs/architecture.md, For-Agent/Docs/coding-style.md, For-Agent/Docs/testing.md, and For-Agent/Docs/build.md.
+Start by reading AGENTS.md, For-Agent/Docs/architecture.md, For-Agent/Docs/artifacts.md, For-Agent/Docs/coding-style.md, For-Agent/Docs/testing.md, and For-Agent/Docs/build.md.
 Read For-Agent/Docs/qml-to-cpp-extraction.md when QML-facing backend contracts or extracted business logic are relevant.
+If relevant research or review artifacts exist under For-Agent/Research or For-Agent/Review, read the most recent relevant artifact by timestamp before reviewing. Use artifacts as context only, not as proof.
 Inspect the diff and nearby C++ code before broad scans.
 Prioritize correctness bugs, Qt lifetime or ownership issues, broken signals, Q_PROPERTY notify problems, unstable model roles, missing tests, CMake source/test registration mistakes, and scope creep.
-Ground findings in concrete file and line references.
+Verify every finding against AGENTS.md, For-Agent/Docs, git diff, and the actual code. Ground findings in concrete file and line references.
 If there are no findings, say so and list residual verification risk.
+Return Markdown suitable for saving under For-Agent/Review, suggest a filename like cpp-review-YYYY-MM-DD-HHMM-topic.md, and include Created: YYYY-MM-DD HH:MM local time immediately after the title.
+The lead Codex is responsible for compiling, verifying, and writing the final saved artifact.
 """

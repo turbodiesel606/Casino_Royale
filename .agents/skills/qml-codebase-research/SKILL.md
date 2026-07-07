@@ -11,6 +11,7 @@ Use this skill for read-only QML architecture research in JobTracker.
 
 - Inspect `qml/Main.qml`, `qml/pages`, `qml/components`, and QML file registration in `CMakeLists.txt`.
 - Read `For-Agent/Docs/qml-style.md` before judging QML structure.
+- Read `For-Agent/Docs/artifacts.md` and check the most recent relevant `For-Agent/Research/` artifact before repeating broad QML codebase research.
 - Do only analysis, not implementation. Do not edit any files.
 - Inspect QML concerns separate from C++ backend concerns. Flag business logic in QML as a candidate for C++ only when it is durable product logic, not mock UI state.
 
@@ -40,3 +41,5 @@ Include:
 - Files that should stay as they are.
 - Risks and verification needs for any future split.
 - A short conclusion answering whether more QML refactoring is still necessary.
+
+When saving a durable research artifact, write it under `For-Agent/Research/` with a filename like `qml-research-YYYY-MM-DD-HHMM-topic.md` and put `Created: YYYY-MM-DD HH:MM local time` immediately after the title.

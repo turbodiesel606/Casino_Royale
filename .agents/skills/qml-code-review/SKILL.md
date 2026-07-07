@@ -13,10 +13,13 @@ Read these files first:
 
 1. `AGENTS.md`
 2. `For-Agent/Docs/architecture.md`
-3. `For-Agent/Docs/qml-style.md`
-4. `For-Agent/Docs/build.md`
+3. `For-Agent/Docs/artifacts.md`
+4. `For-Agent/Docs/qml-style.md`
+5. `For-Agent/Docs/build.md`
 
 Read `For-Agent/Docs/qml-to-cpp-extraction.md` when the change adds or modifies QML JavaScript, mock data, validation, filtering, sorting, search, cross-screen state, or backend-facing contracts.
+
+If relevant research or review artifacts exist under `For-Agent/Research/` or `For-Agent/Review/`, read the most recent relevant artifact by timestamp before reviewing. Use artifacts as context only, not as proof. Verify every finding against `AGENTS.md`, `For-Agent/Docs/`, `git diff`, and the actual code.
 
 ## Review Surfaces
 
@@ -55,7 +58,20 @@ Use file and line references for findings. Include:
 - Residual risk.
 - Final recommendation: accept, revise, or block.
 
-Write it under `For-Agent/Review/` with a clear name such as `qml-review-YYYY-MM-DD-topic.md`.
+When saving a durable review artifact, write the final review under `For-Agent/Review/` with a clear name such as `qml-review-YYYY-MM-DD-HHMM-topic.md`. Put a `Created: YYYY-MM-DD HH:MM local time` line at the beginning of the file immediately after the title.
+
+Use this artifact shape:
+
+- Title and reviewed scope.
+- Inputs inspected.
+- Findings ordered by severity, with file and line references.
+- Build or runtime verification performed.
+- Manual UI checks still needed.
+- Missing tests or unverified behavior.
+- Residual risks.
+- Final recommendation.
+
+If a read-only subagent is used, treat the subagent output as review input. The lead Codex should compile, verify, and save the final review artifact.
 
 ## Boundaries
 

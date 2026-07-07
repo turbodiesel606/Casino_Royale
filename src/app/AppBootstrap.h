@@ -23,11 +23,11 @@ private:
     void loadMainQml();
 
     QCoreApplication& app_;
+    QQmlApplicationEngine engine_;
     JobApplicationsController jobApplicationsController_;
     CvLibraryController cvLibraryController_;
     DashboardController dashboardController_;
     ContactListModel contactModel_;
     CompanyDirectoryController companyDirectoryController_;
     ContactDirectoryController contactDirectoryController_;
-    QQmlApplicationEngine engine_;
 };

@@ -25,6 +25,7 @@ Read the relevant detailed layer before acting:
 
 - Build and verification: `For-Agent/Docs/build.md`.
 - Architecture: `For-Agent/Docs/architecture.md`.
+- Artifact creation and reuse: `For-Agent/Docs/artifacts.md`.
 - C++ style: `For-Agent/Docs/coding-style.md`.
 - QML/UI style: `For-Agent/Docs/qml-style.md`.
 - Testing policy: `For-Agent/Docs/testing.md`.
@@ -58,6 +59,22 @@ Project subagents are split by task and code area:
 - `cpp_reviewer`: read-only C++ backend review.
 - `qml_researcher`: read-only QML/UI research.
 - `qml_reviewer`: read-only QML/UI review.
+
+## Research And Review Workflow
+
+Use `cpp-code-research` or `qml-code-research` for investigation before implementation.
+
+Use `cpp-code-review` or `qml-code-review` for review after changes or when the user asks for a review.
+
+Use `.codex/agents/` subagents only when the user requests subagents, parallel research, or independent review. Subagents are read-only and return findings; the lead Codex compiles, verifies, and saves final artifacts when needed.
+
+Save durable research artifacts under `For-Agent/Research/`.
+
+Save durable review artifacts under `For-Agent/Review/`.
+
+When creating durable research or review artifacts, include the creation date and time in the filename using `YYYY-MM-DD-HHMM`, and put a `Created: YYYY-MM-DD HH:MM local time` line at the beginning of the file immediately after the title.
+
+Before repeating broad research or review, check the relevant artifact folders in `For-Agent/Research/`, `For-Agent/Review/`, and `For-Agent/Task-Report/`. Use the most recent relevant artifact by timestamp as context, then verify current facts against the actual source, instructions, and diff. Determine recency from the filename timestamp first; for legacy date-only artifacts, inspect the beginning of the file for a `Created:` timestamp, and if no time exists, treat the artifact as the earliest one for that date.
 
 ## Core Rules
 

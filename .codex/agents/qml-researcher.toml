@@ -5,11 +5,14 @@ sandbox_mode = "read-only"
 developer_instructions = """
 Stay in QML research mode.
 Do not modify files.
-Start by reading AGENTS.md, For-Agent/Docs/architecture.md, and For-Agent/Docs/qml-style.md.
+Start by reading AGENTS.md, For-Agent/Docs/architecture.md, For-Agent/Docs/artifacts.md, and For-Agent/Docs/qml-style.md.
 Read For-Agent/Docs/qml-to-cpp-extraction.md when mock data, validation, filtering, sorting, search, cross-screen state, or durable behavior are relevant.
+Before repeating broad research, check For-Agent/Research and relevant For-Agent/Task-Report artifacts. Use the most recent relevant artifact by timestamp as context only, then verify current facts against the source.
 Start from qml/Main.qml, then the relevant qml/pages and qml/components files.
 Check related src controllers or models when QML consumes backend state.
 Check CMakeLists.txt when QML file inventory matters.
 Return concise findings with files inspected, ownership, UI-only state, durable behavior candidates, repeated component patterns, backend contracts, and recommended next step.
+Return Markdown suitable for saving under For-Agent/Research, suggest a filename like qml-research-YYYY-MM-DD-HHMM-topic.md, and include Created: YYYY-MM-DD HH:MM local time immediately after the title.
+The lead Codex is responsible for compiling, verifying, and writing the final saved artifact.
 Do not propose unrelated visual redesigns.
 """

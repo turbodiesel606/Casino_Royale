@@ -77,6 +77,8 @@ set(JOBTRACKER_DIRECTORY_SOURCES
 )
 
 qt_add_executable(JobTrackerApp
+    src/app/App.cpp
+    src/app/App.h
     src/app/AppBootstrap.cpp
     src/app/AppBootstrap.h
     ${JOBTRACKER_COMMON_SOURCES}
