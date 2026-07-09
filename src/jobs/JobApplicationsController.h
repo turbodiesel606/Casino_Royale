@@ -23,6 +23,7 @@ class JobApplicationsController final : public QObject
 
 public:
     explicit JobApplicationsController(QObject* parent = nullptr);
+    explicit JobApplicationsController(QVector<JobApplication> applications, QObject* parent = nullptr);
 
     QAbstractItemModel* applicationsModel();
     JobApplicationListModel& jobApplicationListModel();
@@ -57,5 +58,5 @@ private:
     RoleFilterProxyModel filteredApplicationsModel_;
     QString searchText_;
     QString statusFilter_;
-    int selectedApplicationIndex_ = 0;
+    int selectedApplicationIndex_ = -1;
 };

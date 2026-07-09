@@ -1,6 +1,8 @@
 #include "cvs/CvLibraryController.h"
 #include "jobs/JobApplicationListModel.h"
 
+#include "../support/JobApplicationTestData.h"
+
 #include <QSignalSpy>
 #include <QtTest/QtTest>
 
@@ -62,7 +64,7 @@ void CvLibraryControllerTest::cvModelExposesSeedDocuments()
 
 void CvLibraryControllerTest::selectedCvControlsLinkedApplications()
 {
-    JobApplicationListModel applicationsModel;
+    JobApplicationListModel applicationsModel(testsupport::makeJobApplications());
     CvLibraryController controller(applicationsModel);
     QSignalSpy selectedSpy(&controller, &CvLibraryController::selectedCvChanged);
     QSignalSpy linkedSpy(&controller, &CvLibraryController::linkedApplicationsModelChanged);
@@ -96,7 +98,7 @@ void CvLibraryControllerTest::favoriteToggleUpdatesSelectedCv()
 
 void CvLibraryControllerTest::controllerFiltersAndSortsCvs()
 {
-    JobApplicationListModel applicationsModel;
+    JobApplicationListModel applicationsModel(testsupport::makeJobApplications());
     CvLibraryController controller(applicationsModel);
 
     controller.setSearchText(QStringLiteral("embedded"));

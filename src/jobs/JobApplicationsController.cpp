@@ -3,9 +3,16 @@
 #include "common/ValidationService.h"
 
 #include <algorithm>
+#include <utility>
 
 JobApplicationsController::JobApplicationsController(QObject* parent)
+    : JobApplicationsController(QVector<JobApplication>{}, parent)
+{
+}
+
+JobApplicationsController::JobApplicationsController(QVector<JobApplication> applications, QObject* parent)
     : QObject(parent)
+    , applicationsModel_(std::move(applications))
 {
     filteredApplicationsModel_.setSourceModel(&applicationsModel_);
     filteredApplicationsModel_.setSearchRoles({
@@ -18,6 +25,7 @@ JobApplicationsController::JobApplicationsController(QObject* parent)
         JobApplicationListModel::SalaryRole,
     });
     filteredApplicationsModel_.setSort(JobApplicationListModel::DateLabelRole, Qt::DescendingOrder);
+    selectedApplicationIndex_ = filteredApplicationsModel_.rowCount() > 0 ? 0 : -1;
 }
 
 QAbstractItemModel* JobApplicationsController::applicationsModel()
@@ -139,6 +147,10 @@ void JobApplicationsController::clearFilters()
 
 QStringList JobApplicationsController::validateSelectedApplication() const
 {
+    if (selectedSourceApplication() == nullptr) {
+        return {};
+    }
+
     const auto application = selectedApplication();
     auto result = ValidationService::validateRequiredFields(
         application,

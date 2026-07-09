@@ -1,5 +1,7 @@
 #include "jobs/JobApplicationsController.h"
 
+#include "../support/JobApplicationTestData.h"
+
 #include <QSignalSpy>
 #include <QtTest/QtTest>
 
@@ -24,7 +26,8 @@ class JobApplicationsControllerTest final : public QObject
 
 private slots:
     void modelExposesNamedRoles();
-    void modelExposesSeedApplications();
+    void modelStartsEmpty();
+    void modelExposesExplicitApplications();
     void controllerExposesSelectedApplication();
     void controllerIgnoresInvalidSelection();
     void controllerFiltersBySearchTextAndStatus();
@@ -46,13 +49,26 @@ void JobApplicationsControllerTest::modelExposesNamedRoles()
     QVERIFY(roleForName(*model, "notes") > 0);
 }
 
-void JobApplicationsControllerTest::modelExposesSeedApplications()
+void JobApplicationsControllerTest::modelStartsEmpty()
 {
     JobApplicationsController controller;
     const auto* model = controller.applicationsModel();
+
+    QCOMPARE(model->rowCount(), 0);
+    QCOMPARE(controller.applicationCount(), 0);
+    QCOMPARE(controller.selectedApplicationIndex(), -1);
+    QVERIFY(controller.selectedApplicationId().isEmpty());
+    QVERIFY(controller.selectedApplication().isEmpty());
+    QCOMPARE(controller.resultSummary(), QStringLiteral("Showing 0 applications"));
+}
+
+void JobApplicationsControllerTest::modelExposesExplicitApplications()
+{
+    JobApplicationsController controller(testsupport::makeJobApplications());
+    const auto* model = controller.applicationsModel();
     const auto firstRow = model->index(0, 0);
 
-    QCOMPARE(model->rowCount(), 10);
+    QCOMPARE(model->rowCount(), 6);
     QCOMPARE(model->data(firstRow, roleForName(*model, "companyName")).toString(), QStringLiteral("KDAB"));
     QCOMPARE(model->data(firstRow, roleForName(*model, "jobTitle")).toString(), QStringLiteral("C++/Qt Developer"));
     QCOMPARE(model->data(firstRow, roleForName(*model, "cvFileName")).toString(), QStringLiteral("CV_Qt_2026.pdf"));
@@ -61,7 +77,7 @@ void JobApplicationsControllerTest::modelExposesSeedApplications()
 
 void JobApplicationsControllerTest::controllerExposesSelectedApplication()
 {
-    JobApplicationsController controller;
+    JobApplicationsController controller(testsupport::makeJobApplications());
     QSignalSpy selectedSpy(&controller, &JobApplicationsController::selectedApplicationChanged);
 
     controller.selectApplication(1);
@@ -82,13 +98,13 @@ void JobApplicationsControllerTest::controllerIgnoresInvalidSelection()
     controller.selectApplication(100);
 
     QCOMPARE(selectedSpy.count(), 0);
-    QCOMPARE(controller.selectedApplicationIndex(), 0);
-    QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-kdab-cpp-qt"));
+    QCOMPARE(controller.selectedApplicationIndex(), -1);
+    QVERIFY(controller.selectedApplicationId().isEmpty());
 }
 
 void JobApplicationsControllerTest::controllerFiltersBySearchTextAndStatus()
 {
-    JobApplicationsController controller;
+    JobApplicationsController controller(testsupport::makeJobApplications());
     QSignalSpy filtersSpy(&controller, &JobApplicationsController::filtersChanged);
 
     controller.setSearchText(QStringLiteral("TechSoft"));
@@ -102,16 +118,16 @@ void JobApplicationsControllerTest::controllerFiltersBySearchTextAndStatus()
     controller.clearFilters();
     controller.setStatusFilter(QStringLiteral("Interview"));
 
-    QCOMPARE(controller.applicationCount(), 3);
+    QCOMPARE(controller.applicationCount(), 2);
     QCOMPARE(controller.selectedApplication().value(QStringLiteral("statusLabel")).toString(), QStringLiteral("Interview"));
 
     controller.clearFilters();
-    QCOMPARE(controller.applicationCount(), 10);
+    QCOMPARE(controller.applicationCount(), 6);
 }
 
 void JobApplicationsControllerTest::controllerValidatesSelectedApplication()
 {
-    JobApplicationsController controller;
+    JobApplicationsController controller(testsupport::makeJobApplications());
 
     QVERIFY(controller.validateSelectedApplication().isEmpty());
 }

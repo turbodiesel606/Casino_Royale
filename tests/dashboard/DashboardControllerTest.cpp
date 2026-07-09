@@ -1,5 +1,7 @@
 #include "dashboard/DashboardController.h"
 
+#include "../support/JobApplicationTestData.h"
+
 #include <QtTest/QtTest>
 
 namespace {
@@ -29,36 +31,36 @@ private slots:
 
 void DashboardControllerTest::statsModelAggregatesJobStatuses()
 {
-    JobApplicationListModel applicationsModel;
+    JobApplicationListModel applicationsModel(testsupport::makeJobApplications());
     CvListModel cvModel;
     DashboardController controller(applicationsModel, cvModel);
     const auto* model = controller.statsModel();
 
     QCOMPARE(model->rowCount(), 5);
     QCOMPARE(model->data(model->index(0, 0), roleForName(*model, "title")).toString(), QStringLiteral("Total Jobs"));
-    QCOMPARE(model->data(model->index(0, 0), roleForName(*model, "value")).toString(), QStringLiteral("10"));
+    QCOMPARE(model->data(model->index(0, 0), roleForName(*model, "value")).toString(), QStringLiteral("6"));
     QCOMPARE(model->data(model->index(1, 0), roleForName(*model, "title")).toString(), QStringLiteral("Applied"));
-    QCOMPARE(model->data(model->index(1, 0), roleForName(*model, "value")).toString(), QStringLiteral("3"));
-    QCOMPARE(model->data(model->index(2, 0), roleForName(*model, "value")).toString(), QStringLiteral("3"));
+    QCOMPARE(model->data(model->index(1, 0), roleForName(*model, "value")).toString(), QStringLiteral("1"));
+    QCOMPARE(model->data(model->index(2, 0), roleForName(*model, "value")).toString(), QStringLiteral("2"));
     QCOMPARE(model->data(model->index(3, 0), roleForName(*model, "value")).toString(), QStringLiteral("1"));
-    QCOMPARE(model->data(model->index(4, 0), roleForName(*model, "value")).toString(), QStringLiteral("8"));
+    QCOMPARE(model->data(model->index(4, 0), roleForName(*model, "value")).toString(), QStringLiteral("4"));
 }
 
 void DashboardControllerTest::funnelModelExposesRatios()
 {
-    JobApplicationListModel applicationsModel;
+    JobApplicationListModel applicationsModel(testsupport::makeJobApplications());
     CvListModel cvModel;
     DashboardController controller(applicationsModel, cvModel);
     const auto* model = controller.funnelModel();
 
     QCOMPARE(model->rowCount(), 5);
     QCOMPARE(model->data(model->index(0, 0), roleForName(*model, "ratio")).toDouble(), 1.0);
-    QCOMPARE(model->data(model->index(1, 0), roleForName(*model, "value")).toString(), QStringLiteral("3 (30.0%)"));
+    QCOMPARE(model->data(model->index(1, 0), roleForName(*model, "value")).toString(), QStringLiteral("1 (16.7%)"));
 }
 
 void DashboardControllerTest::recentModelsExposeBackendRows()
 {
-    JobApplicationListModel applicationsModel;
+    JobApplicationListModel applicationsModel(testsupport::makeJobApplications());
     CvListModel cvModel;
     DashboardController controller(applicationsModel, cvModel);
 

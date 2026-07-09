@@ -238,7 +238,7 @@ Item {
                                     text: companyInitials
                                     color: "white"
                                     font.bold: true
-                                    font.pixelSize: companyInitials === "KDAB" ? 10 : 11
+                                    font.pixelSize: companyInitials.length > 3 ? 10 : 11
                                 }
                             }
 

@@ -3,6 +3,8 @@
 #include "directory/ContactListModel.h"
 #include "jobs/JobApplicationListModel.h"
 
+#include "../support/JobApplicationTestData.h"
+
 #include <QSignalSpy>
 #include <QtTest/QtTest>
 
@@ -56,7 +58,7 @@ void DirectoryControllerTest::companyModelExposesNamedRoles()
 
 void DirectoryControllerTest::companySelectionExposesLinkedJobsAndContacts()
 {
-    JobApplicationListModel applicationsModel;
+    JobApplicationListModel applicationsModel(testsupport::makeJobApplications());
     ContactListModel contactModel;
     CompanyDirectoryController controller(applicationsModel, contactModel);
     QSignalSpy selectedSpy(&controller, &CompanyDirectoryController::selectedCompanyChanged);
