@@ -43,6 +43,8 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     const JobApplication* applicationAt(int row) const;
+    void setApplications(QVector<JobApplication> applications);
+    void appendApplication(JobApplication application);
 
 private:
     QVector<JobApplication> applications_;

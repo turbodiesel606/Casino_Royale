@@ -12,6 +12,18 @@ DashboardRecentCvsModel::DashboardRecentCvsModel(const CvListModel& sourceModel,
     : QAbstractListModel(parent)
     , sourceModel_(sourceModel)
 {
+    connect(&sourceModel_, &QAbstractItemModel::rowsInserted, this, [this]() {
+        beginResetModel();
+        endResetModel();
+    });
+    connect(&sourceModel_, &QAbstractItemModel::modelReset, this, [this]() {
+        beginResetModel();
+        endResetModel();
+    });
+    connect(&sourceModel_, &QAbstractItemModel::dataChanged, this, [this]() {
+        beginResetModel();
+        endResetModel();
+    });
 }
 
 int DashboardRecentCvsModel::rowCount(const QModelIndex& parent) const

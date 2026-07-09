@@ -12,6 +12,7 @@ int App::start(int argc, char* argv[])
 {
     try {
         QGuiApplication app(argc, argv);
+        QCoreApplication::setApplicationName(QStringLiteral("JobTracker"));
         AppBootstrap bootstrap(app);
 
         return bootstrap.run();

@@ -6,14 +6,25 @@
 
 #include <cstdlib>
 #include <stdexcept>
-//t
+
 AppBootstrap::AppBootstrap(QCoreApplication& app)
     : app_(app)
-    , cvLibraryController_(jobApplicationsController_.jobApplicationListModel())
+    , database_(storagePaths_.databasePath())
+    , cvRepository_(database_.connection())
+    , jobRepository_(database_.connection())
+    , cvImportService_(storagePaths_, cvRepository_)
+    , addJobService_(database_.connection(), jobRepository_, cvImportService_)
+    , jobApplicationsController_(jobRepository_.findAll(), addJobService_)
+    , cvLibraryController_(jobApplicationsController_.jobApplicationListModel(), cvRepository_.findAll())
     , dashboardController_(jobApplicationsController_.jobApplicationListModel(), cvLibraryController_.cvListModel())
     , companyDirectoryController_(jobApplicationsController_.jobApplicationListModel(), contactModel_)
     , contactDirectoryController_(contactModel_)
 {
+    QObject::connect(
+        &jobApplicationsController_,
+        &JobApplicationsController::cvUsed,
+        &cvLibraryController_,
+        &CvLibraryController::recordCvUse);
 }
 
 int AppBootstrap::run()

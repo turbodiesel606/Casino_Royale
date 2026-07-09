@@ -27,6 +27,9 @@ public:
     QAbstractItemModel* recentCvsModel();
 
 private:
+    void refreshMetrics();
+
+    const JobApplicationListModel& applicationsModel_;
     DashboardMetricListModel statsModel_;
     DashboardMetricListModel funnelModel_;
     DashboardRecentApplicationsModel recentApplicationsModel_;

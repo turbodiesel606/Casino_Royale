@@ -12,6 +12,14 @@ DashboardRecentApplicationsModel::DashboardRecentApplicationsModel(const JobAppl
     : QAbstractListModel(parent)
     , sourceModel_(sourceModel)
 {
+    connect(&sourceModel_, &QAbstractItemModel::rowsInserted, this, [this]() {
+        beginResetModel();
+        endResetModel();
+    });
+    connect(&sourceModel_, &QAbstractItemModel::modelReset, this, [this]() {
+        beginResetModel();
+        endResetModel();
+    });
 }
 
 int DashboardRecentApplicationsModel::rowCount(const QModelIndex& parent) const

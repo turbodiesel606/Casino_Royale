@@ -27,12 +27,16 @@ public:
     };
 
     explicit CvListModel(QObject* parent = nullptr);
+    explicit CvListModel(QVector<CvDocument> documents, QObject* parent = nullptr);
 
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
     QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 
     const CvDocument* cvAt(int row) const;
+    void setDocuments(QVector<CvDocument> documents);
+    void appendDocument(CvDocument document);
+    bool addLinkedApplication(const QString& cvId, const QString& applicationId);
     bool toggleFavorite(const QString& cvId);
 
 private:

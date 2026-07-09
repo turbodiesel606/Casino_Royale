@@ -49,3 +49,10 @@ QHash<int, QByteArray> DashboardMetricListModel::roleNames() const
         {AccentRole, "accent"},
     };
 }
+
+void DashboardMetricListModel::setMetrics(QVector<DashboardMetric> metrics)
+{
+    beginResetModel();
+    metrics_ = std::move(metrics);
+    endResetModel();
+}

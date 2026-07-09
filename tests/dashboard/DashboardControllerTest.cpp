@@ -62,6 +62,15 @@ void DashboardControllerTest::recentModelsExposeBackendRows()
 {
     JobApplicationListModel applicationsModel(testsupport::makeJobApplications());
     CvListModel cvModel;
+    CvDocument cv;
+    cv.id_ = QStringLiteral("cv-qt-2026");
+    cv.fileName_ = QStringLiteral("CV_Qt_2026.pdf");
+    cv.linkedApplicationIds_ = {
+        QStringLiteral("job-1"),
+        QStringLiteral("job-2"),
+        QStringLiteral("job-3"),
+        QStringLiteral("job-4")};
+    cvModel.appendDocument(cv);
     DashboardController controller(applicationsModel, cvModel);
 
     const auto* applications = controller.recentApplicationsModel();
@@ -70,7 +79,7 @@ void DashboardControllerTest::recentModelsExposeBackendRows()
     QCOMPARE(applications->data(applications->index(0, 0), roleForName(*applications, "companyName")).toString(), QStringLiteral("KDAB"));
 
     const auto* cvs = controller.recentCvsModel();
-    QCOMPARE(cvs->rowCount(), 4);
+    QCOMPARE(cvs->rowCount(), 1);
     QCOMPARE(cvs->data(cvs->index(0, 0), roleForName(*cvs, "fileName")).toString(), QStringLiteral("CV_Qt_2026.pdf"));
     QCOMPARE(cvs->data(cvs->index(0, 0), roleForName(*cvs, "linkedApplicationCountLabel")).toString(), QStringLiteral("4 jobs"));
 }

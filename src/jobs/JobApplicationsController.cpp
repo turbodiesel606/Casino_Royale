@@ -1,5 +1,7 @@
 #include "JobApplicationsController.h"
 
+#include "AddJobService.h"
+#include "JobApplicationDraft.h"
 #include "common/ValidationService.h"
 
 #include <algorithm>
@@ -26,6 +28,15 @@ JobApplicationsController::JobApplicationsController(QVector<JobApplication> app
     });
     filteredApplicationsModel_.setSort(JobApplicationListModel::DateLabelRole, Qt::DescendingOrder);
     selectedApplicationIndex_ = filteredApplicationsModel_.rowCount() > 0 ? 0 : -1;
+}
+
+JobApplicationsController::JobApplicationsController(
+    QVector<JobApplication> applications,
+    AddJobService& addJobService,
+    QObject* parent)
+    : JobApplicationsController(std::move(applications), parent)
+{
+    addJobService_ = &addJobService;
 }
 
 QAbstractItemModel* JobApplicationsController::applicationsModel()
@@ -93,6 +104,11 @@ void JobApplicationsController::selectApplication(int index)
 
     selectedApplicationIndex_ = index;
     emit selectedApplicationChanged();
+}
+
+bool JobApplicationsController::saving() const
+{
+    return saving_;
 }
 
 void JobApplicationsController::setSearchText(const QString& text)
@@ -163,6 +179,56 @@ QStringList JobApplicationsController::validateSelectedApplication() const
     }
 
     return result.messages_;
+}
+
+void JobApplicationsController::createApplication(
+    const QVariantMap& formValues,
+    const QUrl& selectedCvUrl)
+{
+    if (saving_) {
+        return;
+    }
+    if (addJobService_ == nullptr) {
+        emit saveFailed({}, QStringLiteral("Job storage is not available."));
+        return;
+    }
+
+    JobApplicationDraft draft;
+    draft.jobTitle_ = formValues.value(QStringLiteral("jobTitle")).toString();
+    draft.jobUrl_ = formValues.value(QStringLiteral("jobUrl")).toString();
+    draft.companyName_ = formValues.value(QStringLiteral("companyName")).toString();
+    draft.workFormat_ = formValues.value(QStringLiteral("workFormat")).toString();
+    draft.city_ = formValues.value(QStringLiteral("city")).toString();
+    draft.salary_ = formValues.value(QStringLiteral("salary")).toString();
+    draft.status_ = formValues.value(QStringLiteral("status")).toString();
+    draft.appliedDate_ = formValues.value(QStringLiteral("appliedDate")).toString();
+    draft.nextStep_ = formValues.value(QStringLiteral("nextStep")).toString();
+    draft.description_ = formValues.value(QStringLiteral("description")).toString();
+    draft.requirements_ = formValues.value(QStringLiteral("requirements")).toString();
+    draft.notes_ = formValues.value(QStringLiteral("notes")).toString();
+    const auto technologies = formValues.value(QStringLiteral("techStack"));
+    draft.techStack_ = technologies.canConvert<QStringList>()
+        ? technologies.toStringList()
+        : technologies.toString().split(',', Qt::SkipEmptyParts);
+
+    saving_ = true;
+    emit savingChanged();
+    const auto result = addJobService_->create(draft, selectedCvUrl);
+    saving_ = false;
+    emit savingChanged();
+
+    if (!result.success_) {
+        emit saveFailed(result.fieldErrors_, result.message_);
+        return;
+    }
+
+    applicationsModel_.appendApplication(result.application_);
+    filteredApplicationsModel_.sort(filteredApplicationsModel_.sortColumn(), filteredApplicationsModel_.sortOrder());
+    refreshSelectionAfterFilterChange();
+    emit applicationsModelChanged();
+    emit resultSummaryChanged();
+    emit cvUsed(result.cvDocument_, result.application_.id_, result.cvWasInserted_);
+    emit applicationCreated(result.application_.id_);
 }
 
 const JobApplication* JobApplicationsController::selectedSourceApplication() const

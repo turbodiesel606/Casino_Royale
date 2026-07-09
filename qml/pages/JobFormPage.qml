@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 import "../components"
 
@@ -7,13 +8,42 @@ Item {
     id: page
 
     signal cancelRequested()
-    signal saveRequested()
+    signal saved()
+
+    property url selectedCvUrl: ""
+    property var fieldErrors: ({})
+    property string saveError: ""
 
     readonly property color textColor: "#eef3f8"
     readonly property color mutedColor: "#a8b5c2"
     readonly property color fieldColor: "#071925"
     readonly property color lineColor: "#223542"
     readonly property color accentBlue: "#1479ee"
+    readonly property int scrollbarWidth: 11
+    readonly property int scrollbarGap: 12
+
+    function errorFor(fieldName) {
+        return fieldErrors && fieldErrors[fieldName] ? fieldErrors[fieldName] : ""
+    }
+
+    function submit() {
+        saveError = ""
+        jobApplicationsController.createApplication({
+            jobTitle: jobTitleField.text,
+            jobUrl: jobUrlField.text,
+            companyName: companyField.text,
+            workFormat: workFormatField.text,
+            city: cityField.text,
+            salary: salaryField.text,
+            status: statusField.text,
+            appliedDate: appliedDateField.text,
+            nextStep: nextStepField.text,
+            description: descriptionField.text,
+            requirements: requirementsField.text,
+            techStack: techStackField.text,
+            notes: notesField.text
+        }, selectedCvUrl)
+    }
 
     component FieldLabel: Text {
         color: page.textColor
@@ -21,15 +51,17 @@ Item {
     }
 
     component FormField: TextField {
+        property string errorText: ""
+
         color: page.textColor
-        font.pixelSize: 16
+        font.pixelSize: 15
         leftPadding: 14
         rightPadding: 14
         selectByMouse: true
 
         background: Rectangle {
             color: page.fieldColor
-            border.color: page.lineColor
+            border.color: parent.errorText.length > 0 ? "#ff4b49" : page.lineColor
             radius: 6
         }
     }
@@ -51,37 +83,54 @@ Item {
         }
     }
 
-    component TagChip: Rectangle {
-        required property string label
+    component FormError: Text {
+        required property string message
 
-        width: tagText.implicitWidth + 26
-        height: 26
-        radius: 13
-        color: "#123f73"
-        border.color: "#155caa"
+        visible: message.length > 0
+        text: message
+        color: "#ff6b69"
+        font.pixelSize: 12
+        wrapMode: Text.Wrap
+    }
 
-        Text {
-            id: tagText
-            anchors.centerIn: parent
-            text: label + "  Г—"
-            color: "#dbe9ff"
-            font.pixelSize: 14
+    FileDialog {
+        id: cvFileDialog
+        title: "Select CV"
+        nameFilters: ["CV documents (*.pdf *.doc *.docx)"]
+        onAccepted: {
+            page.selectedCvUrl = selectedFile
+            page.fieldErrors = ({})
+            page.saveError = ""
+        }
+    }
+
+    Connections {
+        target: jobApplicationsController
+
+        function onApplicationCreated(applicationId) {
+            page.fieldErrors = ({})
+            page.saveError = ""
+            page.saved()
+        }
+
+        function onSaveFailed(errors, message) {
+            page.fieldErrors = errors
+            page.saveError = message
         }
     }
 
     Panel {
-        id: formCard
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.margins: 22
         width: Math.min(parent.width - 44, 930)
-        height: Math.min(parent.height - 44, 820)
+        height: parent.height - 44
         clip: true
 
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 18
-            spacing: 11
+            spacing: 12
 
             RowLayout {
                 Layout.fillWidth: true
@@ -92,7 +141,6 @@ Item {
                     color: page.textColor
                     font.pixelSize: 24
                     font.bold: true
-                    verticalAlignment: Text.AlignVCenter
                 }
 
                 Item { Layout.fillWidth: true }
@@ -100,8 +148,9 @@ Item {
                 Button {
                     Layout.preferredWidth: 104
                     Layout.preferredHeight: 42
-                    text: "Save"
-                    onClicked: page.saveRequested()
+                    text: jobApplicationsController.saving ? "Saving..." : "Save"
+                    enabled: !jobApplicationsController.saving
+                    onClicked: page.submit()
 
                     contentItem: Text {
                         text: parent.text
@@ -112,338 +161,318 @@ Item {
                     }
 
                     background: Rectangle {
-                        color: page.accentBlue
+                        color: parent.enabled ? page.accentBlue : "#31506d"
                         radius: 6
                     }
                 }
             }
 
-            GridLayout {
+            Item {
                 Layout.fillWidth: true
-                columns: 2
-                columnSpacing: 22
-                rowSpacing: 10
+                Layout.fillHeight: true
 
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 7
+                Flickable {
+                    id: formFlickable
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    anchors.right: formScrollbarSeparator.left
+                    anchors.rightMargin: page.scrollbarGap
+                    clip: true
+                    contentWidth: width
+                    contentHeight: formContent.implicitHeight
+                    boundsBehavior: Flickable.StopAtBounds
 
-                    FieldLabel { text: "Job Title" }
+                    ColumnLayout {
+                        id: formContent
+                        width: formFlickable.width
+                        spacing: 12
 
-                    FormField {
+                    GridLayout {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 40
-                        placeholderText: "Job title"
-                    }
-                }
+                        columns: 2
+                        columnSpacing: 22
+                        rowSpacing: 10
 
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 7
-
-                    FieldLabel { text: "Job URL" }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 0
-
-                        FormField {
+                        ColumnLayout {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 40
-                            placeholderText: "https://..."
+                            FieldLabel { text: "Job Title" }
+                            FormField {
+                                id: jobTitleField
+                                Layout.fillWidth: true
+                                placeholderText: "Job title"
+                                errorText: page.errorFor("jobTitle")
+                            }
+                            FormError { message: jobTitleField.errorText }
+                        }
 
-                            background: Rectangle {
-                                color: page.fieldColor
-                                border.color: page.lineColor
-                                radius: 6
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            FieldLabel { text: "Job URL" }
+                            FormField {
+                                id: jobUrlField
+                                Layout.fillWidth: true
+                                placeholderText: "https://..."
+                                errorText: page.errorFor("jobUrl")
+                            }
+                            FormError { message: jobUrlField.errorText }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            FieldLabel { text: "Company" }
+                            FormField {
+                                id: companyField
+                                Layout.fillWidth: true
+                                placeholderText: "Company"
+                                errorText: page.errorFor("companyName")
+                            }
+                            FormError { message: companyField.errorText }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            FieldLabel { text: "Work Format" }
+                            FormField {
+                                id: workFormatField
+                                Layout.fillWidth: true
+                                placeholderText: "Remote, Hybrid, On-site"
                             }
                         }
 
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            FieldLabel { text: "City" }
+                            FormField {
+                                id: cityField
+                                Layout.fillWidth: true
+                                placeholderText: "City"
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            FieldLabel { text: "Salary" }
+                            FormField {
+                                id: salaryField
+                                Layout.fillWidth: true
+                                placeholderText: "Salary"
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            FieldLabel { text: "Status" }
+                            FormField {
+                                id: statusField
+                                Layout.fillWidth: true
+                                text: "Applied"
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            FieldLabel { text: "Application Date" }
+                            FormField {
+                                id: appliedDateField
+                                Layout.fillWidth: true
+                                placeholderText: "yyyy-MM-dd (today if empty)"
+                                errorText: page.errorFor("appliedDate")
+                            }
+                            FormError { message: appliedDateField.errorText }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.columnSpan: 2
+                            FieldLabel { text: "Next Step" }
+                            FormField {
+                                id: nextStepField
+                                Layout.fillWidth: true
+                                placeholderText: "Optional next action"
+                            }
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        FieldLabel { text: "CV used" }
+
                         Rectangle {
-                            Layout.preferredWidth: 48
-                            Layout.preferredHeight: 40
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 49
+                            color: page.fieldColor
+                            border.color: page.errorFor("cv").length > 0 ? "#ff4b49" : page.lineColor
                             radius: 6
-                            color: "#132737"
-                            border.color: page.lineColor
 
-                            Text {
-                                anchors.centerIn: parent
-                                text: "в†—"
-                                color: page.textColor
-                                font.pixelSize: 20
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 16
+                                anchors.rightMargin: 12
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: page.selectedCvUrl.toString().length > 0
+                                        ? decodeURIComponent(page.selectedCvUrl.toString().split("/").pop())
+                                        : "No CV selected"
+                                    color: page.selectedCvUrl.toString().length > 0 ? page.textColor : page.mutedColor
+                                    elide: Text.ElideMiddle
+                                    font.pixelSize: 15
+                                }
+
+                                Button {
+                                    text: page.selectedCvUrl.toString().length > 0 ? "Change CV" : "Select CV"
+                                    onClicked: cvFileDialog.open()
+                                }
+                            }
+                        }
+
+                        FormError { message: page.errorFor("cv") }
+                    }
+
+                    GridLayout {
+                        Layout.fillWidth: true
+                        columns: 2
+                        columnSpacing: 22
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            FieldLabel { text: "Description" }
+                            FormArea {
+                                id: descriptionField
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 90
+                                placeholderText: "Job description"
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            FieldLabel { text: "Requirements" }
+                            FormArea {
+                                id: requirementsField
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 90
+                                placeholderText: "Requirements"
                             }
                         }
                     }
-                }
 
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 7
-
-                    FieldLabel { text: "Company" }
-
-                    FormField {
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 40
-                        placeholderText: "Company"
+                        FieldLabel { text: "Tech Stack" }
+                        FormField {
+                            id: techStackField
+                            Layout.fillWidth: true
+                            placeholderText: "C++, Qt, QML"
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        FieldLabel { text: "Notes" }
+                        FormArea {
+                            id: notesField
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 70
+                            placeholderText: "Notes"
+                        }
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        visible: page.saveError.length > 0
+                        text: page.saveError
+                        color: "#ff6b69"
+                        font.pixelSize: 13
+                        wrapMode: Text.Wrap
                     }
                 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 7
-
-                    FieldLabel { text: "Work Format" }
-
-                    FormField {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 40
-                        placeholderText: "Work format"
-                    }
                 }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 7
-
-                    FieldLabel { text: "City" }
-
-                    FormField {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 40
-                        placeholderText: "City"
-                    }
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 7
-
-                    FieldLabel { text: "Salary" }
-
-                    FormField {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 40
-                        placeholderText: "Salary"
-                    }
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 7
-
-                    FieldLabel { text: "Status" }
-
-                    FormField {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 40
-                        placeholderText: "Status"
-                        color: "#eef3f8"
-                    }
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 7
-
-                    FieldLabel { text: "Application Date" }
-
-                    FormField {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 40
-                        placeholderText: "Application date"
-                    }
-                }
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 7
-
-                FieldLabel { text: "CV used" }
 
                 Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 49
-                    color: page.fieldColor
-                    border.color: page.lineColor
-                    radius: 6
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 22
-                        anchors.rightMargin: 18
-                        spacing: 14
-
-                        Rectangle {
-                            Layout.preferredWidth: 32
-                            Layout.preferredHeight: 37
-                            radius: 3
-                            color: "#e8edf1"
-
-                            Rectangle {
-                                anchors.left: parent.left
-                                anchors.right: parent.right
-                                anchors.bottom: parent.bottom
-                                height: 13
-                                color: "#2a80f2"
-                            }
-
-                            Text {
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                anchors.bottom: parent.bottom
-                                anchors.bottomMargin: 2
-                                text: "PDF"
-                                color: "white"
-                                font.pixelSize: 8
-                                font.bold: true
-                            }
-                        }
-
-                        Text {
-                            text: "No CV selected"
-                            color: page.textColor
-                            font.pixelSize: 16
-                            Layout.fillWidth: true
-                        }
-
-                        Button {
-                            Layout.preferredWidth: 116
-                            Layout.preferredHeight: 36
-                            text: "Change CV"
-
-                            contentItem: Text {
-                                text: parent.text
-                                color: page.textColor
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                                font.pixelSize: 14
-                            }
-
-                            background: Rectangle {
-                                color: "#0b1b27"
-                                border.color: "#3a5060"
-                                radius: 6
-                            }
-                        }
-
-                        Text {
-                            text: "Г—"
-                            color: page.textColor
-                            font.pixelSize: 26
-                        }
-                    }
+                    id: formScrollbarSeparator
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    anchors.right: formVerticalScrollBar.left
+                    anchors.rightMargin: page.scrollbarGap
+                    width: 1
+                    color: "#263845"
+                    visible: formFlickable.contentHeight > formFlickable.height
                 }
-            }
-
-            GridLayout {
-                Layout.fillWidth: true
-                columns: 2
-                columnSpacing: 22
-                rowSpacing: 10
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 7
-
-                    FieldLabel { text: "Description" }
-
-                    FormArea {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 86
-                        placeholderText: "Job description"
-                    }
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 7
-
-                    FieldLabel { text: "Requirements" }
-
-                    FormArea {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 86
-                        placeholderText: "Requirements"
-                    }
-                }
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 7
-
-                FieldLabel { text: "Tech Stack" }
 
                 Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 39
-                    color: page.fieldColor
-                    border.color: page.lineColor
-                    radius: 6
+                    id: formVerticalScrollBar
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    anchors.right: parent.right
+                    width: page.scrollbarWidth
+                    radius: page.scrollbarWidth / 2
+                    color: "#0a1823"
+                    border.color: "#223542"
+                    visible: formFlickable.contentHeight > formFlickable.height
 
-                    RowLayout {
+                    readonly property real scrollableHeight: Math.max(1, formFlickable.contentHeight - formFlickable.height)
+                    readonly property real thumbHeight: Math.min(height, Math.max(42, height * formFlickable.visibleArea.heightRatio))
+                    readonly property real thumbTravel: Math.max(0, height - thumbHeight)
+
+                    MouseArea {
                         anchors.fill: parent
-                        anchors.leftMargin: 13
-                        anchors.rightMargin: 13
-                        spacing: 10
+                        cursorShape: Qt.PointingHandCursor
 
-                        Text {
-                            text: "Add technology..."
-                            color: page.mutedColor
-                            font.pixelSize: 14
-                            Layout.fillWidth: true
+                        onPressed: function(mouse) {
+                            var targetRatio = (mouse.y - formVerticalScrollBar.thumbHeight / 2)
+                                / Math.max(1, formVerticalScrollBar.thumbTravel)
+                            formFlickable.contentY = Math.max(0, Math.min(
+                                formVerticalScrollBar.scrollableHeight,
+                                targetRatio * formVerticalScrollBar.scrollableHeight))
                         }
+                    }
 
-                        Text {
-                            text: "вЊ„"
-                            color: page.textColor
-                            font.pixelSize: 18
+                    Rectangle {
+                        id: formScrollThumb
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: page.scrollbarWidth - 3
+                        height: formVerticalScrollBar.thumbHeight
+                        y: formVerticalScrollBar.thumbTravel * formFlickable.contentY
+                            / formVerticalScrollBar.scrollableHeight
+                        radius: width / 2
+                        color: "#a8b0b6"
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+
+                            property real pressY: 0
+                            property real pressContentY: 0
+
+                            onPressed: function(mouse) {
+                                var point = mapToItem(formVerticalScrollBar, mouse.x, mouse.y)
+                                pressY = point.y
+                                pressContentY = formFlickable.contentY
+                            }
+
+                            onPositionChanged: function(mouse) {
+                                if (pressed) {
+                                    var point = mapToItem(formVerticalScrollBar, mouse.x, mouse.y)
+                                    var delta = point.y - pressY
+                                    var ratio = formVerticalScrollBar.scrollableHeight
+                                        / Math.max(1, formVerticalScrollBar.thumbTravel)
+                                    formFlickable.contentY = Math.max(0, Math.min(
+                                        formVerticalScrollBar.scrollableHeight,
+                                        pressContentY + delta * ratio))
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 7
-
-                FieldLabel { text: "Notes" }
-
-                FormArea {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 62
-                    placeholderText: "Notes"
-                }
-            }
-
-            Item { Layout.fillHeight: true }
-
-            RowLayout {
-                Layout.fillWidth: true
-
-                Button {
-                    Layout.preferredWidth: 88
-                    Layout.preferredHeight: 40
-                    text: "Discard"
-                    onClicked: page.cancelRequested()
-
-                    contentItem: Text {
-                        text: parent.text
-                        color: page.textColor
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        font.pixelSize: 15
-                    }
-
-                    background: Rectangle {
-                        color: "#0b1b27"
-                        border.color: page.lineColor
-                        radius: 6
-                    }
-                }
-
-                Item { Layout.fillWidth: true }
+            Button {
+                Layout.preferredWidth: 88
+                Layout.preferredHeight: 40
+                text: "Discard"
+                onClicked: page.cancelRequested()
             }
         }
     }

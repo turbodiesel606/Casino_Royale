@@ -69,6 +69,9 @@ QString CompanyDirectoryController::sortMode() const
 QString CompanyDirectoryController::resultSummary() const
 {
     const auto count = companyCount();
+    if (count == 0) {
+        return QStringLiteral("Showing 0 companies");
+    }
     return count == 1 ? QStringLiteral("Showing 1 company") : QStringLiteral("Showing 1 to %1 of %1 companies").arg(count);
 }
 

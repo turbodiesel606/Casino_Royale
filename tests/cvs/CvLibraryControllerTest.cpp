@@ -19,6 +19,41 @@ int roleForName(const QAbstractItemModel& model, const QByteArray& roleName)
     return -1;
 }
 
+QVector<CvDocument> makeCvDocuments()
+{
+    QVector<CvDocument> documents;
+    for (int index = 0; index < 4; ++index) {
+        CvDocument document;
+        document.id_ = QStringList{
+            QStringLiteral("cv-qt-2026"),
+            QStringLiteral("cv-embedded"),
+            QStringLiteral("cv-general"),
+            QStringLiteral("cv-backend")}.at(index);
+        document.fileName_ = QStringList{
+            QStringLiteral("CV_Qt_2026.pdf"),
+            QStringLiteral("CV_Embedded.pdf"),
+            QStringLiteral("CV_General.pdf"),
+            QStringLiteral("CV_Backend.pdf")}.at(index);
+        document.title_ = document.fileName_;
+        document.category_ = index == 2 ? QStringLiteral("General") : QStringLiteral("Engineering");
+        document.language_ = QStringLiteral("English");
+        document.lastModifiedLabel_ = QStringLiteral("May %1, 2026").arg(12 - index);
+        document.isFavorite_ = index == 0;
+        documents.append(document);
+    }
+    documents[0].linkedApplicationIds_ = {
+        QStringLiteral("job-kdab-cpp-qt"),
+        QStringLiteral("job-techsoft-qt-qml"),
+        QStringLiteral("job-codecraft-cpp-qt"),
+        QStringLiteral("job-innotech-qt-qml")};
+    documents[1].linkedApplicationIds_ = {QStringLiteral("job-vision-embedded")};
+    documents[2].linkedApplicationIds_ = {
+        QStringLiteral("job-greenwidget-software"),
+        QStringLiteral("job-byteworks-software"),
+        QStringLiteral("job-platforma-cpp")};
+    return documents;
+}
+
 }
 
 class CvLibraryControllerTest final : public QObject
@@ -36,7 +71,7 @@ private slots:
 void CvLibraryControllerTest::cvModelExposesNamedRoles()
 {
     JobApplicationListModel applicationsModel;
-    CvLibraryController controller(applicationsModel);
+    CvLibraryController controller(applicationsModel, makeCvDocuments());
     const auto* model = controller.cvModel();
 
     QVERIFY(roleForName(*model, "id") > 0);
@@ -51,7 +86,7 @@ void CvLibraryControllerTest::cvModelExposesNamedRoles()
 void CvLibraryControllerTest::cvModelExposesSeedDocuments()
 {
     JobApplicationListModel applicationsModel;
-    CvLibraryController controller(applicationsModel);
+    CvLibraryController controller(applicationsModel, makeCvDocuments());
     const auto* model = controller.cvModel();
     const auto firstRow = model->index(0, 0);
 
@@ -65,7 +100,7 @@ void CvLibraryControllerTest::cvModelExposesSeedDocuments()
 void CvLibraryControllerTest::selectedCvControlsLinkedApplications()
 {
     JobApplicationListModel applicationsModel(testsupport::makeJobApplications());
-    CvLibraryController controller(applicationsModel);
+    CvLibraryController controller(applicationsModel, makeCvDocuments());
     QSignalSpy selectedSpy(&controller, &CvLibraryController::selectedCvChanged);
     QSignalSpy linkedSpy(&controller, &CvLibraryController::linkedApplicationsModelChanged);
 
@@ -86,7 +121,7 @@ void CvLibraryControllerTest::selectedCvControlsLinkedApplications()
 void CvLibraryControllerTest::favoriteToggleUpdatesSelectedCv()
 {
     JobApplicationListModel applicationsModel;
-    CvLibraryController controller(applicationsModel);
+    CvLibraryController controller(applicationsModel, makeCvDocuments());
     QSignalSpy selectedSpy(&controller, &CvLibraryController::selectedCvChanged);
 
     QVERIFY(controller.selectedCv().value(QStringLiteral("isFavorite")).toBool());
@@ -99,7 +134,7 @@ void CvLibraryControllerTest::favoriteToggleUpdatesSelectedCv()
 void CvLibraryControllerTest::controllerFiltersAndSortsCvs()
 {
     JobApplicationListModel applicationsModel(testsupport::makeJobApplications());
-    CvLibraryController controller(applicationsModel);
+    CvLibraryController controller(applicationsModel, makeCvDocuments());
 
     controller.setSearchText(QStringLiteral("embedded"));
 

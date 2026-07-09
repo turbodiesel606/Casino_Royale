@@ -11,7 +11,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(JOBTRACKER_BUILD_TESTS "Build JobTracker tests" OFF)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Quick Test)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Quick Sql Test)
 
 qt_standard_project_setup(REQUIRES 6.5)
 
@@ -29,10 +29,28 @@ set(JOBTRACKER_COMMON_SOURCES
 
 set(JOBTRACKER_JOB_SOURCES
     src/jobs/JobApplication.h
+    src/jobs/JobApplicationDraft.h
     src/jobs/JobApplicationListModel.cpp
     src/jobs/JobApplicationListModel.h
     src/jobs/JobApplicationsController.cpp
     src/jobs/JobApplicationsController.h
+)
+
+set(JOBTRACKER_PERSISTENCE_SOURCES
+    src/cvs/CvImportService.cpp
+    src/cvs/CvImportService.h
+    src/cvs/CvRepository.cpp
+    src/cvs/CvRepository.h
+    src/jobs/AddJobService.cpp
+    src/jobs/AddJobService.h
+    src/jobs/JobRepository.cpp
+    src/jobs/JobRepository.h
+    src/storage/SchemaMigrator.cpp
+    src/storage/SchemaMigrator.h
+    src/storage/SqliteDatabase.cpp
+    src/storage/SqliteDatabase.h
+    src/storage/StoragePaths.cpp
+    src/storage/StoragePaths.h
 )
 
 set(JOBTRACKER_CV_SOURCES
@@ -86,6 +104,7 @@ qt_add_executable(JobTrackerApp
     ${JOBTRACKER_DASHBOARD_SOURCES}
     ${JOBTRACKER_DIRECTORY_SOURCES}
     ${JOBTRACKER_JOB_SOURCES}
+    ${JOBTRACKER_PERSISTENCE_SOURCES}
     src/main.cpp
 )
 
@@ -125,7 +144,7 @@ qt_add_qml_module(JobTrackerApp
 )
 
 target_link_libraries(JobTrackerApp
-    PRIVATE Qt6::Quick
+    PRIVATE Qt6::Quick Qt6::Sql
 )
 
 if(WIN32)
@@ -156,6 +175,7 @@ if(JOBTRACKER_BUILD_TESTS)
             add_custom_command(TARGET ${target_name} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     "$<TARGET_FILE:Qt6::Core>"
+                    "$<TARGET_FILE:Qt6::Sql>"
                     "$<TARGET_FILE:Qt6::Test>"
                     "$<TARGET_FILE_DIR:${target_name}>"
                 COMMENT "Deploying Qt test runtime dependencies for ${target_name}"
@@ -183,6 +203,7 @@ if(JOBTRACKER_BUILD_TESTS)
         tests/jobs/JobApplicationsControllerTest.cpp
         ${JOBTRACKER_COMMON_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
+        ${JOBTRACKER_PERSISTENCE_SOURCES}
     )
 
     target_include_directories(JobTrackerJobsTests
@@ -190,7 +211,7 @@ if(JOBTRACKER_BUILD_TESTS)
     )
 
     target_link_libraries(JobTrackerJobsTests
-        PRIVATE Qt6::Core Qt6::Test
+        PRIVATE Qt6::Core Qt6::Sql Qt6::Test
     )
 
     add_test(NAME JobTrackerJobsTests COMMAND JobTrackerJobsTests)
@@ -201,6 +222,7 @@ if(JOBTRACKER_BUILD_TESTS)
         ${JOBTRACKER_COMMON_SOURCES}
         ${JOBTRACKER_CV_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
+        ${JOBTRACKER_PERSISTENCE_SOURCES}
     )
 
     target_include_directories(JobTrackerCvTests
@@ -208,7 +230,7 @@ if(JOBTRACKER_BUILD_TESTS)
     )
 
     target_link_libraries(JobTrackerCvTests
-        PRIVATE Qt6::Core Qt6::Test
+        PRIVATE Qt6::Core Qt6::Sql Qt6::Test
     )
 
     add_test(NAME JobTrackerCvTests COMMAND JobTrackerCvTests)
@@ -220,6 +242,7 @@ if(JOBTRACKER_BUILD_TESTS)
         ${JOBTRACKER_CV_SOURCES}
         ${JOBTRACKER_DASHBOARD_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
+        ${JOBTRACKER_PERSISTENCE_SOURCES}
     )
 
     target_include_directories(JobTrackerDashboardTests
@@ -227,7 +250,7 @@ if(JOBTRACKER_BUILD_TESTS)
     )
 
     target_link_libraries(JobTrackerDashboardTests
-        PRIVATE Qt6::Core Qt6::Test
+        PRIVATE Qt6::Core Qt6::Sql Qt6::Test
     )
 
     add_test(NAME JobTrackerDashboardTests COMMAND JobTrackerDashboardTests)
@@ -238,6 +261,7 @@ if(JOBTRACKER_BUILD_TESTS)
         ${JOBTRACKER_COMMON_SOURCES}
         ${JOBTRACKER_DIRECTORY_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
+        ${JOBTRACKER_PERSISTENCE_SOURCES}
     )
 
     target_include_directories(JobTrackerDirectoryTests
@@ -245,11 +269,29 @@ if(JOBTRACKER_BUILD_TESTS)
     )
 
     target_link_libraries(JobTrackerDirectoryTests
-        PRIVATE Qt6::Core Qt6::Test
+        PRIVATE Qt6::Core Qt6::Sql Qt6::Test
     )
 
     add_test(NAME JobTrackerDirectoryTests COMMAND JobTrackerDirectoryTests)
     jobtracker_deploy_test_runtime(JobTrackerDirectoryTests)
+
+    add_executable(JobTrackerStorageTests
+        tests/storage/StorageAndAddJobTest.cpp
+        ${JOBTRACKER_COMMON_SOURCES}
+        ${JOBTRACKER_JOB_SOURCES}
+        ${JOBTRACKER_PERSISTENCE_SOURCES}
+    )
+
+    target_include_directories(JobTrackerStorageTests
+        PRIVATE src
+    )
+
+    target_link_libraries(JobTrackerStorageTests
+        PRIVATE Qt6::Core Qt6::Sql Qt6::Test
+    )
+
+    add_test(NAME JobTrackerStorageTests COMMAND JobTrackerStorageTests)
+    jobtracker_deploy_test_runtime(JobTrackerStorageTests)
 endif()
 
 include(GNUInstallDirs)

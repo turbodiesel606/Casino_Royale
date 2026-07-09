@@ -31,6 +31,7 @@ public:
 private:
     QVariant sourceData(int sourceRow, int role) const;
     void rebuildSourceRows();
+    void refresh();
 
     const JobApplicationListModel& applicationsModel_;
     QString cvId_;

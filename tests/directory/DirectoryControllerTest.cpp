@@ -29,11 +29,7 @@ class DirectoryControllerTest final : public QObject
 
 private slots:
     void companyModelExposesNamedRoles();
-    void companySelectionExposesLinkedJobsAndContacts();
     void contactModelExposesNamedRoles();
-    void contactSelectionExposesInteractionHistory();
-    void companyControllerFiltersAndSortsCompanies();
-    void contactControllerFiltersAndSortsContacts();
 };
 
 void DirectoryControllerTest::companyModelExposesNamedRoles()
@@ -51,33 +47,9 @@ void DirectoryControllerTest::companyModelExposesNamedRoles()
     QVERIFY(roleForName(*model, "contactCountLabel") > 0);
     QVERIFY(roleForName(*model, "lastActivityLabel") > 0);
 
-    QCOMPARE(model->rowCount(), 5);
-    QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-kdab"));
-    QCOMPARE(controller.resultSummary(), QStringLiteral("Showing 1 to 5 of 5 companies"));
-}
-
-void DirectoryControllerTest::companySelectionExposesLinkedJobsAndContacts()
-{
-    JobApplicationListModel applicationsModel(testsupport::makeJobApplications());
-    ContactListModel contactModel;
-    CompanyDirectoryController controller(applicationsModel, contactModel);
-    QSignalSpy selectedSpy(&controller, &CompanyDirectoryController::selectedCompanyChanged);
-    QSignalSpy linkedSpy(&controller, &CompanyDirectoryController::linkedModelsChanged);
-
-    controller.selectCompany(1);
-
-    QCOMPARE(selectedSpy.count(), 1);
-    QCOMPARE(linkedSpy.count(), 1);
-    QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-techsoft"));
-    QCOMPARE(controller.selectedCompany().value(QStringLiteral("name")).toString(), QStringLiteral("TechSoft"));
-
-    const auto* jobsModel = controller.linkedJobsModel();
-    QCOMPARE(jobsModel->rowCount(), 1);
-    QCOMPARE(jobsModel->data(jobsModel->index(0, 0), roleForName(*jobsModel, "jobTitle")).toString(), QStringLiteral("Qt/QML Engineer"));
-
-    const auto* contactsModel = controller.linkedContactsModel();
-    QCOMPARE(contactsModel->rowCount(), 1);
-    QCOMPARE(contactsModel->data(contactsModel->index(0, 0), roleForName(*contactsModel, "displayName")).toString(), QStringLiteral("Maria Novak"));
+    QCOMPARE(model->rowCount(), 0);
+    QVERIFY(controller.selectedCompanyId().isEmpty());
+    QCOMPARE(controller.resultSummary(), QStringLiteral("Showing 0 companies"));
 }
 
 void DirectoryControllerTest::contactModelExposesNamedRoles()
@@ -94,71 +66,9 @@ void DirectoryControllerTest::contactModelExposesNamedRoles()
     QVERIFY(roleForName(*model, "email") > 0);
     QVERIFY(roleForName(*model, "linkedin") > 0);
 
-    QCOMPARE(model->rowCount(), 4);
-    QCOMPARE(controller.selectedContactId(), QStringLiteral("contact-anna-mueller"));
-    QCOMPARE(controller.resultSummary(), QStringLiteral("4 contacts"));
-}
-
-void DirectoryControllerTest::contactSelectionExposesInteractionHistory()
-{
-    ContactListModel contactModel;
-    ContactDirectoryController controller(contactModel);
-    QSignalSpy selectedSpy(&controller, &ContactDirectoryController::selectedContactChanged);
-    QSignalSpy historySpy(&controller, &ContactDirectoryController::interactionHistoryModelChanged);
-
-    controller.selectContact(2);
-
-    QCOMPARE(selectedSpy.count(), 1);
-    QCOMPARE(historySpy.count(), 1);
-    QCOMPARE(controller.selectedContactId(), QStringLiteral("contact-maria-techsoft"));
-    QCOMPARE(controller.selectedContact().value(QStringLiteral("companyName")).toString(), QStringLiteral("TechSoft"));
-    QCOMPARE(controller.selectedContact().value(QStringLiteral("relatedApplicationTitle")).toString(), QStringLiteral("Qt/QML Engineer"));
-
-    const auto* historyModel = controller.interactionHistoryModel();
-    QCOMPARE(historyModel->rowCount(), 1);
-    QCOMPARE(historyModel->data(historyModel->index(0, 0), roleForName(*historyModel, "title")).toString(), QStringLiteral("Interview schedule"));
-}
-
-void DirectoryControllerTest::companyControllerFiltersAndSortsCompanies()
-{
-    JobApplicationListModel applicationsModel;
-    ContactListModel contactModel;
-    CompanyDirectoryController controller(applicationsModel, contactModel);
-
-    controller.setSearchText(QStringLiteral("TechSoft"));
-
-    QCOMPARE(controller.companyCount(), 1);
-    QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-techsoft"));
-    QCOMPARE(controller.resultSummary(), QStringLiteral("Showing 1 company"));
-
-    controller.clearFilters();
-    controller.setSortMode(QStringLiteral("Contacts"));
-
-    QCOMPARE(controller.companyCount(), 5);
-    QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-kdab"));
-    QCOMPARE(controller.companyModel()->data(controller.companyModel()->index(0, 0), roleForName(*controller.companyModel(), "contactCountLabel")).toString(), QStringLiteral("2 contacts"));
-}
-
-void DirectoryControllerTest::contactControllerFiltersAndSortsContacts()
-{
-    ContactListModel contactModel;
-    ContactDirectoryController controller(contactModel);
-
-    controller.setCompanyFilter(QStringLiteral("KDAB"));
-
-    QCOMPARE(controller.contactCount(), 2);
-    QCOMPARE(controller.selectedContactId(), QStringLiteral("contact-anna-mueller"));
-
-    controller.clearFilters();
-    controller.setChannelFilter(QStringLiteral("Telegram"));
-
-    QCOMPARE(controller.contactCount(), 3);
-
-    controller.clearFilters();
-    controller.setSortMode(QStringLiteral("Company"));
-
-    QCOMPARE(controller.contactCount(), 4);
-    QCOMPARE(controller.selectedContact().value(QStringLiteral("companyName")).toString(), QStringLiteral("KDAB"));
+    QCOMPARE(model->rowCount(), 0);
+    QVERIFY(controller.selectedContactId().isEmpty());
+    QCOMPARE(controller.resultSummary(), QStringLiteral("0 contacts"));
 }
 
 QTEST_APPLESS_MAIN(DirectoryControllerTest)

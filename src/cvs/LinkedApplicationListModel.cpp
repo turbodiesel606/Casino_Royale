@@ -4,6 +4,9 @@ LinkedApplicationListModel::LinkedApplicationListModel(const JobApplicationListM
     : QAbstractListModel(parent)
     , applicationsModel_(applicationsModel)
 {
+    connect(&applicationsModel_, &QAbstractItemModel::rowsInserted, this, &LinkedApplicationListModel::refresh);
+    connect(&applicationsModel_, &QAbstractItemModel::modelReset, this, &LinkedApplicationListModel::refresh);
+    connect(&applicationsModel_, &QAbstractItemModel::dataChanged, this, &LinkedApplicationListModel::refresh);
 }
 
 int LinkedApplicationListModel::rowCount(const QModelIndex& parent) const
@@ -80,4 +83,11 @@ void LinkedApplicationListModel::rebuildSourceRows()
             sourceRows_.append(row);
         }
     }
+}
+
+void LinkedApplicationListModel::refresh()
+{
+    beginResetModel();
+    rebuildSourceRows();
+    endResetModel();
 }

@@ -137,3 +137,18 @@ const JobApplication* JobApplicationListModel::applicationAt(int row) const
     }
     return &applications_.at(row);
 }
+
+void JobApplicationListModel::setApplications(QVector<JobApplication> applications)
+{
+    beginResetModel();
+    applications_ = std::move(applications);
+    endResetModel();
+}
+
+void JobApplicationListModel::appendApplication(JobApplication application)
+{
+    const auto row = applications_.size();
+    beginInsertRows({}, row, row);
+    applications_.append(std::move(application));
+    endInsertRows();
+}

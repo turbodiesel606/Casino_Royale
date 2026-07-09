@@ -28,6 +28,10 @@ class CvLibraryController final : public QObject
 
 public:
     explicit CvLibraryController(const JobApplicationListModel& applicationsModel, QObject* parent = nullptr);
+    CvLibraryController(
+        const JobApplicationListModel& applicationsModel,
+        QVector<CvDocument> documents,
+        QObject* parent = nullptr);
 
     QAbstractItemModel* cvModel();
     CvListModel& cvListModel();
@@ -52,6 +56,7 @@ public:
     Q_INVOKABLE void clearFilters();
     Q_INVOKABLE void toggleFavorite(const QString& cvId);
     Q_INVOKABLE void openCv(const QString& cvId);
+    void recordCvUse(const CvDocument& document, const QString& applicationId, bool wasInserted);
 
 signals:
     void cvModelChanged();

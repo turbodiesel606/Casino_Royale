@@ -1,13 +1,16 @@
 #pragma once
 
 #include "common/RoleFilterProxyModel.h"
+#include "cvs/CvDocument.h"
 #include "JobApplicationListModel.h"
 
 #include <QObject>
 #include <QStringList>
+#include <QUrl>
 #include <QVariantMap>
 
 class QAbstractItemModel;
+class AddJobService;
 
 class JobApplicationsController final : public QObject
 {
@@ -20,10 +23,15 @@ class JobApplicationsController final : public QObject
     Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY filtersChanged)
     Q_PROPERTY(QString statusFilter READ statusFilter WRITE setStatusFilter NOTIFY filtersChanged)
     Q_PROPERTY(QString resultSummary READ resultSummary NOTIFY resultSummaryChanged)
+    Q_PROPERTY(bool saving READ saving NOTIFY savingChanged)
 
 public:
     explicit JobApplicationsController(QObject* parent = nullptr);
     explicit JobApplicationsController(QVector<JobApplication> applications, QObject* parent = nullptr);
+    JobApplicationsController(
+        QVector<JobApplication> applications,
+        AddJobService& addJobService,
+        QObject* parent = nullptr);
 
     QAbstractItemModel* applicationsModel();
     JobApplicationListModel& jobApplicationListModel();
@@ -35,18 +43,24 @@ public:
     QString searchText() const;
     QString statusFilter() const;
     QString resultSummary() const;
+    bool saving() const;
 
     Q_INVOKABLE void selectApplication(int index);
     Q_INVOKABLE void setSearchText(const QString& text);
     Q_INVOKABLE void setStatusFilter(const QString& status);
     Q_INVOKABLE void clearFilters();
     Q_INVOKABLE QStringList validateSelectedApplication() const;
+    Q_INVOKABLE void createApplication(const QVariantMap& formValues, const QUrl& selectedCvUrl);
 
 signals:
     void applicationsModelChanged();
     void selectedApplicationChanged();
     void filtersChanged();
     void resultSummaryChanged();
+    void savingChanged();
+    void applicationCreated(const QString& applicationId);
+    void saveFailed(const QVariantMap& fieldErrors, const QString& message);
+    void cvUsed(const CvDocument& document, const QString& applicationId, bool wasInserted);
 
 private:
     const JobApplication* selectedSourceApplication() const;
@@ -59,4 +73,6 @@ private:
     QString searchText_;
     QString statusFilter_;
     int selectedApplicationIndex_ = -1;
+    AddJobService* addJobService_ = nullptr;
+    bool saving_ = false;
 };

@@ -14,8 +14,16 @@ namespace {
 }
 
 CvLibraryController::CvLibraryController(const JobApplicationListModel& applicationsModel, QObject* parent)
+    : CvLibraryController(applicationsModel, QVector<CvDocument>{}, parent)
+{
+}
+
+CvLibraryController::CvLibraryController(
+    const JobApplicationListModel& applicationsModel,
+    QVector<CvDocument> documents,
+    QObject* parent)
 	: QObject(parent)
-	, cvModel_(this)
+	, cvModel_(std::move(documents), this)
 	, filteredCvModel_(this)
 	, linkedApplicationsModel_(applicationsModel, this)
 {
@@ -29,6 +37,23 @@ CvLibraryController::CvLibraryController(const JobApplicationListModel& applicat
 		});
 	filteredCvModel_.setSort(CvListModel::LastModifiedLabelRole, Qt::DescendingOrder);
 	updateLinkedApplications();
+}
+
+void CvLibraryController::recordCvUse(
+    const CvDocument& document,
+    const QString& applicationId,
+    bool wasInserted)
+{
+    if (wasInserted) {
+        auto newDocument = document;
+        newDocument.linkedApplicationIds_.append(applicationId);
+        cvModel_.appendDocument(std::move(newDocument));
+    } else {
+        cvModel_.addLinkedApplication(document.id_, applicationId);
+    }
+    refreshSelectionAfterFilterChange();
+    emit cvModelChanged();
+    emit resultSummaryChanged();
 }
 
 QAbstractItemModel* CvLibraryController::cvModel()

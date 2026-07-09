@@ -102,11 +102,14 @@ QVector<DashboardMetric> makeFunnel(const JobApplicationListModel& model)
 
 DashboardController::DashboardController(const JobApplicationListModel& applicationsModel, const CvListModel& cvModel, QObject* parent)
     : QObject(parent)
+    , applicationsModel_(applicationsModel)
     , statsModel_(makeStats(applicationsModel), this)
     , funnelModel_(makeFunnel(applicationsModel), this)
     , recentApplicationsModel_(applicationsModel, this)
     , recentCvsModel_(cvModel, this)
 {
+    connect(&applicationsModel_, &QAbstractItemModel::rowsInserted, this, &DashboardController::refreshMetrics);
+    connect(&applicationsModel_, &QAbstractItemModel::modelReset, this, &DashboardController::refreshMetrics);
 }
 
 QAbstractItemModel* DashboardController::statsModel()
@@ -127,4 +130,10 @@ QAbstractItemModel* DashboardController::recentApplicationsModel()
 QAbstractItemModel* DashboardController::recentCvsModel()
 {
     return &recentCvsModel_;
+}
+
+void DashboardController::refreshMetrics()
+{
+    statsModel_.setMetrics(makeStats(applicationsModel_));
+    funnelModel_.setMetrics(makeFunnel(applicationsModel_));
 }
