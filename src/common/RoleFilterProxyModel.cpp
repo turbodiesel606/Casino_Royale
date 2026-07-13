@@ -1,4 +1,4 @@
-#include "RoleFilterProxyModel.h"
+#include "RoleFilterProxyModel.hpp"
 
 #include <QDate>
 #include <QLocale>

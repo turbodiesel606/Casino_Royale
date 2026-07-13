@@ -129,6 +129,8 @@ Avoid god classes, god files, and monolithic QML files. Decompose the codebase i
 ## C++ / Qt Rules
 
 - Use modern C++20 where supported by the current compiler and where it does not reduce portability.
+- Use `#ifndef` / `#define` include guards instead of `#pragma once` in C++ headers.
+- Use the `.hpp` extension for all C++ header files.
 - For user-defined class and struct fields, use the trailing underscore convention. (Example: field_)
 - Use references for required non-owning parameters when appropriate.
 - Use pointers when Qt ownership, QObject parent-child hierarchy, nullable dependencies, polymorphism, or signal/slot integration makes pointer semantics more correct.

@@ -1,11 +1,11 @@
-#include "cvs/CvImportService.h"
-#include "cvs/CvRepository.h"
-#include "jobs/AddJobService.h"
-#include "jobs/JobApplicationDraft.h"
-#include "jobs/JobApplicationsController.h"
-#include "jobs/JobRepository.h"
-#include "storage/SqliteDatabase.h"
-#include "storage/StoragePaths.h"
+#include "cvs/CvImportService.hpp"
+#include "cvs/CvRepository.hpp"
+#include "jobs/AddJobService.hpp"
+#include "jobs/JobApplicationDraft.hpp"
+#include "jobs/JobApplicationsController.hpp"
+#include "jobs/JobRepository.hpp"
+#include "storage/SqliteDatabase.hpp"
+#include "storage/StoragePaths.hpp"
 
 #include <QDir>
 #include <QFile>

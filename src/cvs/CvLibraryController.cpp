@@ -1,4 +1,4 @@
-#include "CvLibraryController.h"
+#include "CvLibraryController.hpp"
 
 #include <QMap>
 

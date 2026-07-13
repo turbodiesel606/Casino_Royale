@@ -2,6 +2,12 @@
 
 Use C++20+ Standard where supported by the current compiler and where it does not reduce portability between Windows and Linux.
 
+## Header Conventions
+
+Use `#ifndef` / `#define` include guards instead of `#pragma once` in C++ header files.
+
+Use the `.hpp` extension for all C++ header files.
+
 ## Naming
 
 Use trailing underscores for user-defined class and struct fields:
@@ -34,6 +40,8 @@ Do not hide ownership transfer. Prefer explicit ownership through Qt parentage o
 ## Code Organization
 
 Keep large classes, models, services, controllers, and helpers in focused file pairs when that improves maintainability.
+
+Use `.hpp` / implementation file pairs for C++ code instead of `.h`-based pairs.
 
 Prefer small cohesive files over god files and god classes.
 

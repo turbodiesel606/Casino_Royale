@@ -12,11 +12,13 @@ Use this skill for C++ backend work in JobTracker.
 1. Read `For-Agent/Docs/architecture.md`, `For-Agent/Docs/coding-style.md`, and `For-Agent/Docs/testing.md`.
 2. Locate the affected model, service, controller, storage, utility, or startup code.
 3. Keep `src/main.cpp` minimal; move non-trivial startup logic into focused classes when needed.
-4. Prefer required non-owning references for non-QObject parameters.
-5. Use pointers when Qt ownership, QObject parent-child hierarchy, nullable dependencies, polymorphism, or signal/slot integration makes pointer semantics more correct.
-6. Use trailing underscores for user-defined class and struct fields.
-7. Keep changes scoped to the requested behavior.
-8. Add or update tests when changing business logic, storage, parsing, algorithms, or high-risk behavior.
+4. Use the `.hpp` extension for all C++ header files.
+5. Use `#ifndef` / `#define` include guards instead of `#pragma once` in C++ headers.
+6. Prefer required non-owning references for non-QObject parameters.
+7. Use pointers when Qt ownership, QObject parent-child hierarchy, nullable dependencies, polymorphism, or signal/slot integration makes pointer semantics more correct.
+8. Use trailing underscores for user-defined class and struct fields.
+9. Keep changes scoped to the requested behavior.
+10. Add or update tests when changing business logic, storage, parsing, algorithms, or high-risk behavior.
 
 ## QML Integration
 

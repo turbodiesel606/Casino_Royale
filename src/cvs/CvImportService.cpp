@@ -1,7 +1,7 @@
-#include "CvImportService.h"
+#include "CvImportService.hpp"
 
-#include "CvRepository.h"
-#include "storage/StoragePaths.h"
+#include "CvRepository.hpp"
+#include "storage/StoragePaths.hpp"
 
 #include <QCryptographicHash>
 #include <QDateTime>

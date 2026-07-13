@@ -1,4 +1,4 @@
-#include "DashboardController.h"
+#include "DashboardController.hpp"
 
 #include <QLocale>
 

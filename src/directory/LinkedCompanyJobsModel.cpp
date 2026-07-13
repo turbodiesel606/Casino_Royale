@@ -1,4 +1,4 @@
-#include "LinkedCompanyJobsModel.h"
+#include "LinkedCompanyJobsModel.hpp"
 
 LinkedCompanyJobsModel::LinkedCompanyJobsModel(const JobApplicationListModel& applicationsModel, QObject* parent)
     : QAbstractListModel(parent)

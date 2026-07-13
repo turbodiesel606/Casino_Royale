@@ -1,8 +1,8 @@
-#include "JobApplicationsController.h"
+#include "JobApplicationsController.hpp"
 
-#include "AddJobService.h"
-#include "JobApplicationDraft.h"
-#include "common/ValidationService.h"
+#include "AddJobService.hpp"
+#include "JobApplicationDraft.hpp"
+#include "common/ValidationService.hpp"
 
 #include <algorithm>
 #include <utility>

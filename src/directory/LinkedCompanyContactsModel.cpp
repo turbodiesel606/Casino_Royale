@@ -1,4 +1,4 @@
-#include "LinkedCompanyContactsModel.h"
+#include "LinkedCompanyContactsModel.hpp"
 
 LinkedCompanyContactsModel::LinkedCompanyContactsModel(const ContactListModel& contactModel, QObject* parent)
     : QAbstractListModel(parent)

@@ -1,4 +1,4 @@
-#include "DashboardMetricListModel.h"
+#include "DashboardMetricListModel.hpp"
 
 #include <utility>
 

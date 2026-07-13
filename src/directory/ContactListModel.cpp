@@ -1,4 +1,4 @@
-#include "ContactListModel.h"
+#include "ContactListModel.hpp"
 
 namespace {
 

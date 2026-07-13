@@ -1,7 +1,7 @@
-#include "cvs/CvLibraryController.h"
-#include "jobs/JobApplicationListModel.h"
+#include "cvs/CvLibraryController.hpp"
+#include "jobs/JobApplicationListModel.hpp"
 
-#include "../support/JobApplicationTestData.h"
+#include "../support/JobApplicationTestData.hpp"
 
 #include <QSignalSpy>
 #include <QtTest/QtTest>

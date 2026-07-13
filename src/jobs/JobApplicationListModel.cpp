@@ -1,4 +1,4 @@
-#include "JobApplicationListModel.h"
+#include "JobApplicationListModel.hpp"
 
 #include <utility>
 

@@ -1,6 +1,6 @@
-#include "dashboard/DashboardController.h"
+#include "dashboard/DashboardController.hpp"
 
-#include "../support/JobApplicationTestData.h"
+#include "../support/JobApplicationTestData.hpp"
 
 #include <QtTest/QtTest>
 

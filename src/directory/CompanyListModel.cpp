@@ -1,4 +1,4 @@
-#include "CompanyListModel.h"
+#include "CompanyListModel.hpp"
 
 namespace {
 

@@ -1,9 +1,9 @@
-#include "directory/CompanyDirectoryController.h"
-#include "directory/ContactDirectoryController.h"
-#include "directory/ContactListModel.h"
-#include "jobs/JobApplicationListModel.h"
+#include "directory/CompanyDirectoryController.hpp"
+#include "directory/ContactDirectoryController.hpp"
+#include "directory/ContactListModel.hpp"
+#include "jobs/JobApplicationListModel.hpp"
 
-#include "../support/JobApplicationTestData.h"
+#include "../support/JobApplicationTestData.hpp"
 
 #include <QSignalSpy>
 #include <QtTest/QtTest>

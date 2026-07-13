@@ -57,6 +57,8 @@ Prefer this separation:
 
 Avoid placing storage, parsing, validation, or cross-screen state directly in QML-facing controllers when a service or model would keep the boundary cleaner.
 
+When extraction creates or splits C++ headers, use the `.hpp` extension and `#ifndef` / `#define` include guards instead of `#pragma once`.
+
 ## QML Exposure Rules
 
 Use `Q_PROPERTY` for state that QML reads or binds to.

@@ -21,90 +21,96 @@ endif()
 
 set(JOBTRACKER_COMMON_SOURCES
     src/common/RoleFilterProxyModel.cpp
-    src/common/RoleFilterProxyModel.h
-    src/common/ValidationResult.h
+    src/common/RoleFilterProxyModel.hpp
+    src/common/ValidationResult.hpp
     src/common/ValidationService.cpp
-    src/common/ValidationService.h
+    src/common/ValidationService.hpp
 )
 
 set(JOBTRACKER_JOB_SOURCES
-    src/jobs/JobApplication.h
-    src/jobs/JobApplicationDraft.h
+    src/jobs/JobApplication.hpp
+    src/jobs/JobApplicationDraft.hpp
     src/jobs/JobApplicationListModel.cpp
-    src/jobs/JobApplicationListModel.h
+    src/jobs/JobApplicationListModel.hpp
     src/jobs/JobApplicationsController.cpp
-    src/jobs/JobApplicationsController.h
+    src/jobs/JobApplicationsController.hpp
 )
 
 set(JOBTRACKER_PERSISTENCE_SOURCES
     src/cvs/CvImportService.cpp
-    src/cvs/CvImportService.h
+    src/cvs/CvImportService.hpp
     src/cvs/CvRepository.cpp
-    src/cvs/CvRepository.h
+    src/cvs/CvRepository.hpp
     src/jobs/AddJobService.cpp
-    src/jobs/AddJobService.h
+    src/jobs/AddJobService.hpp
     src/jobs/JobRepository.cpp
-    src/jobs/JobRepository.h
+    src/jobs/JobRepository.hpp
     src/storage/SchemaMigrator.cpp
-    src/storage/SchemaMigrator.h
+    src/storage/SchemaMigrator.hpp
     src/storage/SqliteDatabase.cpp
-    src/storage/SqliteDatabase.h
+    src/storage/SqliteDatabase.hpp
     src/storage/StoragePaths.cpp
-    src/storage/StoragePaths.h
+    src/storage/StoragePaths.hpp
 )
 
 set(JOBTRACKER_CV_SOURCES
-    src/cvs/CvDocument.h
+    src/cvs/CvDocument.hpp
     src/cvs/CvLibraryController.cpp
-    src/cvs/CvLibraryController.h
+    src/cvs/CvLibraryController.hpp
     src/cvs/CvListModel.cpp
-    src/cvs/CvListModel.h
+    src/cvs/CvListModel.hpp
     src/cvs/LinkedApplicationListModel.cpp
-    src/cvs/LinkedApplicationListModel.h
+    src/cvs/LinkedApplicationListModel.hpp
 )
 
 set(JOBTRACKER_DASHBOARD_SOURCES
     src/dashboard/DashboardController.cpp
-    src/dashboard/DashboardController.h
-    src/dashboard/DashboardMetric.h
+    src/dashboard/DashboardController.hpp
+    src/dashboard/DashboardMetric.hpp
     src/dashboard/DashboardMetricListModel.cpp
-    src/dashboard/DashboardMetricListModel.h
+    src/dashboard/DashboardMetricListModel.hpp
     src/dashboard/DashboardRecentApplicationsModel.cpp
-    src/dashboard/DashboardRecentApplicationsModel.h
+    src/dashboard/DashboardRecentApplicationsModel.hpp
     src/dashboard/DashboardRecentCvsModel.cpp
-    src/dashboard/DashboardRecentCvsModel.h
+    src/dashboard/DashboardRecentCvsModel.hpp
 )
 
 set(JOBTRACKER_DIRECTORY_SOURCES
-    src/directory/Company.h
+    src/directory/Company.hpp
     src/directory/CompanyDirectoryController.cpp
-    src/directory/CompanyDirectoryController.h
+    src/directory/CompanyDirectoryController.hpp
     src/directory/CompanyListModel.cpp
-    src/directory/CompanyListModel.h
-    src/directory/Contact.h
+    src/directory/CompanyListModel.hpp
+    src/directory/Contact.hpp
     src/directory/ContactDirectoryController.cpp
-    src/directory/ContactDirectoryController.h
+    src/directory/ContactDirectoryController.hpp
     src/directory/ContactInteractionListModel.cpp
-    src/directory/ContactInteractionListModel.h
+    src/directory/ContactInteractionListModel.hpp
     src/directory/ContactListModel.cpp
-    src/directory/ContactListModel.h
+    src/directory/ContactListModel.hpp
     src/directory/LinkedCompanyContactsModel.cpp
-    src/directory/LinkedCompanyContactsModel.h
+    src/directory/LinkedCompanyContactsModel.hpp
     src/directory/LinkedCompanyJobsModel.cpp
-    src/directory/LinkedCompanyJobsModel.h
+    src/directory/LinkedCompanyJobsModel.hpp
+)
+
+set(JOBTRACKER_UTILS_SOURCES
+    src/utils/Utils.cpp
+    src/utils/Utils.hpp
 )
 
 qt_add_executable(JobTrackerApp
     src/app/App.cpp
-    src/app/App.h
+    src/app/App.hpp
     src/app/AppBootstrap.cpp
-    src/app/AppBootstrap.h
+    src/app/AppBootstrap.hpp
     ${JOBTRACKER_COMMON_SOURCES}
     ${JOBTRACKER_CV_SOURCES}
     ${JOBTRACKER_DASHBOARD_SOURCES}
     ${JOBTRACKER_DIRECTORY_SOURCES}
     ${JOBTRACKER_JOB_SOURCES}
     ${JOBTRACKER_PERSISTENCE_SOURCES}
+    ${JOBTRACKER_UTILS_SOURCES}
     src/main.cpp
 )
 

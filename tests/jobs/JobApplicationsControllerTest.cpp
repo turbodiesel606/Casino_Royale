@@ -1,6 +1,6 @@
-#include "jobs/JobApplicationsController.h"
+#include "jobs/JobApplicationsController.hpp"
 
-#include "../support/JobApplicationTestData.h"
+#include "../support/JobApplicationTestData.hpp"
 
 #include <QSignalSpy>
 #include <QtTest/QtTest>

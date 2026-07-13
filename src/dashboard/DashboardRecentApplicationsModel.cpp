@@ -1,4 +1,4 @@
-#include "DashboardRecentApplicationsModel.h"
+#include "DashboardRecentApplicationsModel.hpp"
 
 #include <algorithm>
 

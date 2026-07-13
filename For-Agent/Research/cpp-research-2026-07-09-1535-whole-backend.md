@@ -74,7 +74,7 @@ startup fails (`src/app/App.cpp:11-25`).
 `AppBootstrap` constructs the application graph in dependency order:
 
 1. `StoragePaths`
-2. `SqliteDatabase`
+2. `SQLiteDataBase`
 3. `CvRepository`
 4. `JobRepository`
 5. `CvImportService`
@@ -116,10 +116,10 @@ The implementation uses Qt path APIs and is suitable for Windows and Linux.
 
 ### SQLite Lifecycle
 
-`SqliteDatabase` creates a unique named QSQLITE connection, enables foreign
+`SQLiteDataBase` creates a unique named QSQLITE connection, enables foreign
 keys, sets a three-second busy timeout, runs migration, then closes and
 removes the named Qt SQL connection during destruction
-(`src/storage/SqliteDatabase.cpp:23-41`).
+(`src/storage/SQLiteDataBase.cpp:23-41`).
 
 ### Schema
 

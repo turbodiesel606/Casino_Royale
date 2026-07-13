@@ -1,4 +1,4 @@
-#include "ContactInteractionListModel.h"
+#include "ContactInteractionListModel.hpp"
 
 #include <utility>
 

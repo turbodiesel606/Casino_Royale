@@ -1,4 +1,4 @@
-#include "LinkedApplicationListModel.h"
+#include "LinkedApplicationListModel.hpp"
 
 LinkedApplicationListModel::LinkedApplicationListModel(const JobApplicationListModel& applicationsModel, QObject* parent)
     : QAbstractListModel(parent)

@@ -1,5 +1,5 @@
-#include "common/RoleFilterProxyModel.h"
-#include "common/ValidationService.h"
+#include "common/RoleFilterProxyModel.hpp"
+#include "common/ValidationService.hpp"
 
 #include <QAbstractListModel>
 #include <QtTest/QtTest>

@@ -1,4 +1,4 @@
-#include "ContactDirectoryController.h"
+#include "ContactDirectoryController.hpp"
 
 #include <algorithm>
 

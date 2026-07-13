@@ -1,4 +1,4 @@
-#include "StoragePaths.h"
+#include "StoragePaths.hpp"
 
 #include <QDir>
 #include <QFile>
@@ -6,7 +6,7 @@
 #include <QStandardPaths>
 
 #include <stdexcept>
-
+#include <vector>
 StoragePaths::StoragePaths(QString dataDirectory)
 {
     if (dataDirectory.isEmpty()) {
