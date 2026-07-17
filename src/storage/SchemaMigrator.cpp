@@ -6,19 +6,29 @@
 
 #include <stdexcept>
 
+/*********************************************************************************************************************
+* Code uses PRAGMA user_version as the indicator:																	 *
+*	version == 0 ? the database is treated as not initialized, so the tables are created and create version 1 schema.*
+*	version == 1 ? schema version 1 is already installed, so nothing is created.									 *
+*	version > 1 ? the database is newer than the application supports, so the application throws an error.			 *
+*																													 *
+* But there is an important detail: the code checks the version number, not whether the tables physically exist.	 *
+*********************************************************************************************************************/
+
 namespace {
 
 	int schemaVersion(QSqlDatabase& database)
 	{
-		QSqlQuery query(database);
-		if (!query.exec(QStringLiteral("PRAGMA user_version")) || !query.next()) {
+		QSqlQuery query(database); // create a Query object for given DB
+		if (!query.exec(QStringLiteral("PRAGMA user_version")) || !query.next()) 
+			// check for execute SQL command and confirm that query actually returned at least one row (next)
 			throw std::runtime_error(query.lastError().text().toStdString());
-		}
-		return query.value(0).toInt();
+		
+		return query.value(0).toInt(); // return schema version
 	}
 
 	void migrateToVersionOne(QSqlDatabase& database)
-	{
+	{ // build the first supported schema, then stamp the DB as version 1
 		utils::executeQuery(database, QStringLiteral(
 			"CREATE TABLE cvs ("
 			"id TEXT PRIMARY KEY,"
@@ -67,26 +77,30 @@ namespace {
 
 void SchemaMigrator::migrate(QSqlDatabase& database)
 {
-	const auto version = schemaVersion(database);
-	if (version > 1) {
-		throw std::runtime_error("The JobTracker database schema is newer than this application supports.");
-	}
-	if (version == 1) {
+	const int version = schemaVersion(database);
+	if (version == 1) // DB is already up to date
 		return;
-	}
 
-	if (!database.transaction()) {
+	if (version > 1)
+		/*************************************************************************************************
+		* Checks whether the database version is higher than the app knows how to handle DB.			 *
+		* Example: if the app only supports schema version 1, but the database is already version 2 or 3 *
+		* (someone, build or tests changed it), this app may be too old to work with new schema.		 *
+		*************************************************************************************************/
+		throw std::runtime_error("The JobTracker database schema is newer than this application supports.");
+
+	if (!database.transaction()) { // A transaction groups multiple database changes into one safe unit.
 		throw std::runtime_error(database.lastError().text().toStdString());
-	}
+	} 
 
 	try {
 		migrateToVersionOne(database);
-		if (!database.commit()) {
+		if (!database.commit()) { // commit the transaction 
 			throw std::runtime_error(database.lastError().text().toStdString());
 		}
 	}
 	catch (...) {
-		database.rollback();
+		database.rollback();// Cancel the transaction
 		throw;
 	}
 }

@@ -10,7 +10,6 @@
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QUuid>
-
 #include <stdexcept>
 
 CvImportService::CvImportService(const StoragePaths& paths, CvRepository& repository)

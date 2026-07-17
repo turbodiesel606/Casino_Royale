@@ -5,7 +5,7 @@
 #include <QStringList>
 
 struct CvDocument
-{
+{   // Perhaps there are problems with field names.
     QString id_;
     QString fileName_;
     QString originalFileName_;
