@@ -134,8 +134,10 @@ Avoid god classes, god files, and monolithic QML files. Decompose the codebase i
 - For user-defined class and struct fields, use the trailing underscore convention. (Example: field_)
 - Use references for required non-owning parameters when appropriate.
 - Use pointers when Qt ownership, QObject parent-child hierarchy, nullable dependencies, polymorphism, or signal/slot integration makes pointer semantics more correct.
+- Always use curly braces for object constructors.
 - Document non-trivial classes, functions, data structures, and architectural decisions.
 - Update comments when related code changes make old comments inaccurate.
+- If code logic has not changed, do not change comments for that code.
 
 ## QML Rules
 

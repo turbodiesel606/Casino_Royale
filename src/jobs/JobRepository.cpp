@@ -9,29 +9,8 @@
 
 namespace {
 
-	QString sqlText(const QString& value)
+	JobApplication convertToJobApplication(const QSqlQuery& query)
 	{
-		return value.isNull() ? QStringLiteral("") : value;
-	}
-
-}
-
-JobRepository::JobRepository(QSqlDatabase& database)
-	: database_(database)
-{
-}
-
-QVector<JobApplication> JobRepository::findAll() const
-{
-	QSqlQuery query(database_);
-	if (!query.exec(QStringLiteral(
-		"SELECT jobs.*, cvs.original_file_name FROM jobs"
-		" JOIN cvs ON cvs.id = jobs.cv_id ORDER BY jobs.created_at DESC"))) {
-		utils::throwQueryError(query);
-	}
-
-	QVector<JobApplication> applications;
-	while (query.next()) {
 		JobApplication application;
 		application.id_ = query.value(QStringLiteral("id")).toString();
 		application.companyName_ = query.value(QStringLiteral("company_name")).toString();
@@ -52,18 +31,63 @@ QVector<JobApplication> JobRepository::findAll() const
 		application.requirements_ = query.value(QStringLiteral("requirements")).toString();
 		application.notes_ = query.value(QStringLiteral("notes")).toString();
 
-		QSqlQuery technologies(database_);
-		technologies.prepare(QStringLiteral(
-			"SELECT technology FROM job_technologies WHERE job_id = ? ORDER BY position"));
-		technologies.addBindValue(application.id_);
-		if (!technologies.exec()) {
-			utils::throwQueryError(technologies);
-		}
-		while (technologies.next()) {
-			application.techStack_.append(technologies.value(0).toString());
-		}
+		return application;
+	}
+}
+
+JobRepository::JobRepository(QSqlDatabase& database)
+	: database_(database)
+{
+}
+
+// Load all jobs with their linked CV filenames and ordered technology lists.
+
+QVector<JobApplication> JobRepository::findAll() const
+{
+	QSqlQuery jobsQuery(database_);
+	if (!jobsQuery.exec(QStringLiteral(
+		"SELECT jobs.*, cvs.original_file_name "
+		"FROM jobs "
+		"JOIN cvs ON cvs.id = jobs.cv_id "
+		"ORDER BY jobs.created_at DESC"))) {
+		utils::throwQueryError(jobsQuery);
+	}
+
+	QVector<JobApplication> applications;
+	QHash<QString, qsizetype> applicationIndexes;
+
+	while (jobsQuery.next()) {
+		JobApplication application = convertToJobApplication(jobsQuery);
+
+		const qsizetype index = applications.size();
+		applicationIndexes.insert(application.id_, index);
+
 		applications.append(std::move(application));
 	}
+
+	if (applications.isEmpty())
+		return applications;
+
+	QSqlQuery technologiesQuery(database_);
+	if (!technologiesQuery.exec(QStringLiteral(
+		"SELECT job_id, technology "
+		"FROM job_technologies "
+		"ORDER BY job_id, position"))) {
+		utils::throwQueryError(technologiesQuery);
+	}
+
+	while (technologiesQuery.next()) {
+		const QString jobId =
+			technologiesQuery.value(QStringLiteral("job_id")).toString();
+
+		const auto indexIt = applicationIndexes.constFind(jobId);
+
+		if (indexIt != applicationIndexes.constEnd()) {
+			applications[*indexIt].techStack_.append(
+				technologiesQuery.value(QStringLiteral("technology")).toString());
+		}
+	}
+
 	return applications;
 }
 
@@ -78,22 +102,22 @@ void JobRepository::insert(const JobApplication& application) const
 	query.addBindValue(application.id_);
 	query.addBindValue(application.companyName_);
 	query.addBindValue(application.jobTitle_);
-	query.addBindValue(sqlText(application.jobUrl_));
-	query.addBindValue(sqlText(application.workFormat_));
-	query.addBindValue(sqlText(application.city_));
-	query.addBindValue(sqlText(application.salary_));
+	query.addBindValue(application.jobUrl_.isNull() ? QString{} : application.jobUrl_);
+	query.addBindValue(application.workFormat_.isNull() ? QString{} : application.workFormat_);
+	query.addBindValue(application.city_.isNull() ? QString{} : application.city_);
+	query.addBindValue(application.salary_.isNull() ? QString{} : application.salary_);
 	query.addBindValue(application.status_);
 	query.addBindValue(application.appliedDate_);
-	query.addBindValue(sqlText(application.nextStep_));
+	query.addBindValue(application.nextStep_.isNull() ? QString{} : application.nextStep_);
 	query.addBindValue(application.cvId_);
-	query.addBindValue(sqlText(application.description_));
-	query.addBindValue(sqlText(application.requirements_));
-	query.addBindValue(sqlText(application.notes_));
+	query.addBindValue(application.description_.isNull() ? QString{} : application.description_);
+	query.addBindValue(application.requirements_.isNull() ? QString{} : application.requirements_);
+	query.addBindValue(application.notes_.isNull() ? QString{} : application.notes_);
 	query.addBindValue(now);
 	query.addBindValue(now);
-	if (!query.exec()) {
+
+	if (!query.exec())
 		utils::throwQueryError(query);
-	}
 
 	for (int position = 0; position < application.techStack_.size(); ++position) {
 		QSqlQuery technologyQuery(database_);
@@ -102,8 +126,9 @@ void JobRepository::insert(const JobApplication& application) const
 		technologyQuery.addBindValue(application.id_);
 		technologyQuery.addBindValue(position);
 		technologyQuery.addBindValue(application.techStack_.at(position));
-		if (!technologyQuery.exec()) {
+
+		if (!technologyQuery.exec())
 			utils::throwQueryError(technologyQuery);
-		}
+
 	}
 }

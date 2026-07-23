@@ -153,6 +153,10 @@ target_link_libraries(JobTrackerApp
     PRIVATE Qt6::Quick Qt6::Sql
 )
 
+target_compile_definitions(JobTrackerApp PRIVATE
+    $<$<CONFIG:Debug>:QT_QML_DEBUG>
+)
+
 if(WIN32)
     if(TARGET Qt6::qmake)
         get_target_property(_qt6_qmake_executable Qt6::qmake IMPORTED_LOCATION)

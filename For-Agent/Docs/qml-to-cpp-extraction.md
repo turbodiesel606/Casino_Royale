@@ -59,6 +59,8 @@ Avoid placing storage, parsing, validation, or cross-screen state directly in QM
 
 When extraction creates or splits C++ headers, use the `.hpp` extension and `#ifndef` / `#define` include guards instead of `#pragma once`.
 
+When extraction adds or changes object construction, use curly braces for constructors.
+
 ## QML Exposure Rules
 
 Use `Q_PROPERTY` for state that QML reads or binds to.

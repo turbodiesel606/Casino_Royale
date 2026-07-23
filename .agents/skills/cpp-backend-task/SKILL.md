@@ -17,8 +17,10 @@ Use this skill for C++ backend work in JobTracker.
 6. Prefer required non-owning references for non-QObject parameters.
 7. Use pointers when Qt ownership, QObject parent-child hierarchy, nullable dependencies, polymorphism, or signal/slot integration makes pointer semantics more correct.
 8. Use trailing underscores for user-defined class and struct fields.
-9. Keep changes scoped to the requested behavior.
-10. Add or update tests when changing business logic, storage, parsing, algorithms, or high-risk behavior.
+9. Use curly braces for object constructors.
+10. If code logic has not changed, do not change comments for that code.
+11. Keep changes scoped to the requested behavior.
+12. Add or update tests when changing business logic, storage, parsing, algorithms, or high-risk behavior.
 
 ## QML Integration
 

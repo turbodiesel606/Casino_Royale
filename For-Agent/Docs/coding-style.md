@@ -49,4 +49,10 @@ Document non-trivial classes, functions, data structures, and architectural deci
 
 Update comments when related code changes make old comments inaccurate.
 
+If code logic has not changed, do not change comments for that code.
+
 Do not add unrelated refactoring to task-focused changes.
+
+## Initialization
+
+Use curly braces for object constructors.

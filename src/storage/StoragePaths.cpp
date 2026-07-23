@@ -11,9 +11,9 @@ StoragePaths::StoragePaths(QString dataDirectory)
 {
     if (dataDirectory.isEmpty()) {
         const auto applicationData = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
-        if (applicationData.isEmpty()) {
+        if (applicationData.isEmpty()) 
             throw std::runtime_error("Could not resolve the application data directory.");
-        }
+        
         dataDirectory = QDir(applicationData).filePath(QStringLiteral("Data"));
     }
 
@@ -53,7 +53,7 @@ void StoragePaths::removeTemporaryFiles() const
         {QStringLiteral("*.part")},
         QDir::Files | QDir::NoDotAndDotDot);
 
-    for (const auto& file : temporaryFiles) {
+    for (const auto& file : temporaryFiles) 
         QFile::remove(file.absoluteFilePath());
-    }
+    
 }

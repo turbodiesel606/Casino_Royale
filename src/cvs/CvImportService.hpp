@@ -8,6 +8,8 @@
 class CvRepository;
 class StoragePaths;
 
+// This class is responsible for importing a CV file into JobTracker’s managed storage.
+
 struct CvImportResult
 {
     CvDocument document_;
