@@ -60,6 +60,7 @@ signals:
     void resultSummaryChanged();
     void savingChanged();
     void applicationCreated(const QString& applicationId);
+    void companyResolved(const QString& companyId, const QString& companyName);
     void saveFailed(const QVariantMap& fieldErrors, const QString& message);
     void cvUsed(const CvDocument& document, const QString& applicationId, bool wasInserted);
 

@@ -122,11 +122,11 @@ bool CvListModel::addLinkedApplication(const QString& cvId, const QString& appli
     return false;
 }
 
-bool CvListModel::toggleFavorite(const QString& cvId)
+bool CvListModel::setFavorite(const QString& cvId, bool isFavorite)
 {
     for (int row = 0; row < cvs_.size(); ++row) {
         if (cvs_[row].id_ == cvId) {
-            cvs_[row].isFavorite_ = !cvs_[row].isFavorite_;
+            cvs_[row].isFavorite_ = isFavorite;
             const auto modelIndex = index(row, 0);
             emit dataChanged(modelIndex, modelIndex, {IsFavoriteRole});
             return true;

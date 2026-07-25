@@ -46,11 +46,6 @@ CvImportService::CvImportService(const StoragePaths& paths, CvRepository& reposi
 {
 }
 
-/*
-change dublicate file logic later:
-../Root/Requirements/File Storage.docx
-*/
-
 CvImportResult CvImportService::importDocument(const QUrl& sourceUrl) const
 {   // Import a local CV file into managed storage and save its metadata in the database.
 	if (!sourceUrl.isLocalFile()) // Only local files can be copied into JobTracker storage.
@@ -68,7 +63,7 @@ CvImportResult CvImportService::importDocument(const QUrl& sourceUrl) const
 		throw std::runtime_error("The CV must be a PDF, DOC, or DOCX file.");
 	}
 
-	// Hash the file contents so duplicate CVs can be detected by content, not filename.
+	// A duplicate must have both the same content hash and the same original filename.
 	QFile source(sourceInfo.absoluteFilePath());
 	if (!source.open(QIODevice::ReadOnly))
 		throw std::runtime_error("The selected CV file could not be opened.");
@@ -76,8 +71,7 @@ CvImportResult CvImportService::importDocument(const QUrl& sourceUrl) const
 	const auto hash = QString::fromLatin1(QCryptographicHash::hash(source.readAll(), QCryptographicHash::Sha256).toHex());
 	source.close();
 
-	// if there is a file with that hash, return it (Reuse)
-	if (const auto existing = repository_.findBySha256(hash))
+	if (const auto existing = repository_.findByIdentity(hash, sourceInfo.fileName()))
 		return { *existing, {}, false };
 
 

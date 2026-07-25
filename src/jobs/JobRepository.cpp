@@ -1,6 +1,8 @@
 #include "JobRepository.hpp"
-#include"utils/Utils.hpp"
+#include "utils/Utils.hpp"
+
 #include <QDate>
+#include <QDateTime>
 #include <QSqlDatabase>
 #include <QSqlError>
 #include <QSqlQuery>
@@ -9,10 +11,16 @@
 
 namespace {
 
+	QString sqlText(const QString& value)
+	{
+		return value.isNull() ? QStringLiteral("") : value;
+	}
+
 	JobApplication convertToJobApplication(const QSqlQuery& query)
 	{
 		JobApplication application;
 		application.id_ = query.value(QStringLiteral("id")).toString();
+		application.companyId_ = query.value(QStringLiteral("company_id")).toString();
 		application.companyName_ = query.value(QStringLiteral("company_name")).toString();
 		application.companyInitials_ = application.companyName_.left(2).toUpper();
 		application.companyAccent_ = QStringLiteral("#146ce0");
@@ -46,8 +54,9 @@ QVector<JobApplication> JobRepository::findAll() const
 {
 	QSqlQuery jobsQuery(database_);
 	if (!jobsQuery.exec(QStringLiteral(
-		"SELECT jobs.*, cvs.original_file_name "
+		"SELECT jobs.*, companies.display_name AS company_name, cvs.original_file_name "
 		"FROM jobs "
+		"JOIN companies ON companies.id = jobs.company_id "
 		"JOIN cvs ON cvs.id = jobs.cv_id "
 		"ORDER BY jobs.created_at DESC"))) {
 		utils::throwQueryError(jobsQuery);
@@ -95,24 +104,24 @@ void JobRepository::insert(const JobApplication& application) const
 {
 	QSqlQuery query(database_);
 	query.prepare(QStringLiteral(
-		"INSERT INTO jobs (id, company_name, job_title, job_url, work_format, city, salary,"
+		"INSERT INTO jobs (id, company_id, job_title, job_url, work_format, city, salary,"
 		" status, applied_date, next_step, cv_id, description, requirements, notes, created_at, updated_at)"
 		" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
 	const auto now = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
 	query.addBindValue(application.id_);
-	query.addBindValue(application.companyName_);
+	query.addBindValue(application.companyId_);
 	query.addBindValue(application.jobTitle_);
-	query.addBindValue(application.jobUrl_.isNull() ? QString{} : application.jobUrl_);
-	query.addBindValue(application.workFormat_.isNull() ? QString{} : application.workFormat_);
-	query.addBindValue(application.city_.isNull() ? QString{} : application.city_);
-	query.addBindValue(application.salary_.isNull() ? QString{} : application.salary_);
+	query.addBindValue(sqlText(application.jobUrl_));
+	query.addBindValue(sqlText(application.workFormat_));
+	query.addBindValue(sqlText(application.city_));
+	query.addBindValue(sqlText(application.salary_));
 	query.addBindValue(application.status_);
 	query.addBindValue(application.appliedDate_);
-	query.addBindValue(application.nextStep_.isNull() ? QString{} : application.nextStep_);
+	query.addBindValue(sqlText(application.nextStep_));
 	query.addBindValue(application.cvId_);
-	query.addBindValue(application.description_.isNull() ? QString{} : application.description_);
-	query.addBindValue(application.requirements_.isNull() ? QString{} : application.requirements_);
-	query.addBindValue(application.notes_.isNull() ? QString{} : application.notes_);
+	query.addBindValue(sqlText(application.description_));
+	query.addBindValue(sqlText(application.requirements_));
+	query.addBindValue(sqlText(application.notes_));
 	query.addBindValue(now);
 	query.addBindValue(now);
 

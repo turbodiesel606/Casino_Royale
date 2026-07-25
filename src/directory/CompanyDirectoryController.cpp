@@ -1,10 +1,22 @@
 #include "CompanyDirectoryController.hpp"
 
 #include <algorithm>
+#include <QHash>
+#include <utility>
 
 CompanyDirectoryController::CompanyDirectoryController(const JobApplicationListModel& applicationsModel, const ContactListModel& contactModel, QObject* parent)
+    : CompanyDirectoryController(QVector<Company>{}, applicationsModel, contactModel, parent)
+{
+}
+
+CompanyDirectoryController::CompanyDirectoryController(
+    QVector<Company> companies,
+    const JobApplicationListModel& applicationsModel,
+    const ContactListModel& contactModel,
+    QObject* parent)
     : QObject(parent)
-    , companyModel_(this)
+    , applicationsModel_(applicationsModel)
+    , companyModel_(std::move(companies), this)
     , filteredCompanyModel_(this)
     , linkedJobsModel_(applicationsModel, this)
     , linkedContactsModel_(contactModel, this)
@@ -16,6 +28,17 @@ CompanyDirectoryController::CompanyDirectoryController(const JobApplicationListM
         CompanyListModel::DescriptionRole,
         CompanyListModel::NotesRole,
     });
+    QObject::connect(
+        &applicationsModel_,
+        &QAbstractItemModel::rowsInserted,
+        this,
+        [this]() { refreshCompanyJobCounts(); });
+    QObject::connect(
+        &applicationsModel_,
+        &QAbstractItemModel::modelReset,
+        this,
+        [this]() { refreshCompanyJobCounts(); });
+    refreshCompanyJobCounts();
     updateLinkedModels();
 }
 
@@ -136,6 +159,27 @@ void CompanyDirectoryController::clearFilters()
     emit resultSummaryChanged();
 }
 
+void CompanyDirectoryController::publishCompany(
+    const QString& companyId,
+    const QString& companyName)
+{
+    const auto displayName = companyName.trimmed();
+    if (companyId.isEmpty() || displayName.isEmpty()) {
+        return;
+    }
+
+    Company company;
+    company.id_ = companyId;
+    company.name_ = displayName;
+    company.logoText_ = displayName.left(2).toUpper();
+    company.logoAccent_ = QStringLiteral("#146ce0");
+    companyModel_.upsertCompany(std::move(company));
+    refreshCompanyJobCounts();
+    refreshSelectionAfterFilterChange();
+    emit companyModelChanged();
+    emit resultSummaryChanged();
+}
+
 const Company* CompanyDirectoryController::selectedSourceCompany() const
 {
     const auto sourceRow = selectedSourceRow();
@@ -161,6 +205,27 @@ void CompanyDirectoryController::refreshSelectionAfterFilterChange()
     if (selectedCompanyIndex_ != previousIndex || selectedCompanyIndex_ >= 0) {
         emit selectedCompanyChanged();
         emit linkedModelsChanged();
+    }
+}
+
+void CompanyDirectoryController::refreshCompanyJobCounts()
+{
+    QHash<QString, int> jobCounts;
+    for (int row = 0; row < applicationsModel_.rowCount(); ++row) {
+        const auto index = applicationsModel_.index(row, 0);
+        const auto companyId = applicationsModel_.data(
+            index,
+            JobApplicationListModel::CompanyIdRole).toString();
+        if (!companyId.isEmpty()) {
+            ++jobCounts[companyId];
+        }
+    }
+
+    for (int row = 0; row < companyModel_.rowCount(); ++row) {
+        const auto* company = companyModel_.companyAt(row);
+        if (company != nullptr) {
+            companyModel_.setOpenJobCount(company->id_, jobCounts.value(company->id_));
+        }
     }
 }
 

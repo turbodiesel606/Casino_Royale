@@ -6,3 +6,12 @@ Windows — build with tests:
 cmake --preset windows-debug-tests-local
 cmake --build --preset windows-debug-tests-local
 ctest --preset windows-debug-tests-local
+
+Linux — build:
+cmake --preset linux-debug-local
+cmake --build --preset linux-debug-local
+
+Linux — build with tests:
+cmake --preset linux-debug-tests-local
+cmake --build --preset linux-debug-tests-local
+ctest --preset linux-debug-tests-local

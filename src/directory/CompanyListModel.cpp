@@ -1,5 +1,7 @@
 #include "CompanyListModel.hpp"
 
+#include <utility>
+
 namespace {
 
 QString countLabel(int count, const QString& singular, const QString& plural)
@@ -42,7 +44,13 @@ QVariant roleValue(const Company& company, int role)
 }
 
 CompanyListModel::CompanyListModel(QObject* parent)
+    : CompanyListModel(QVector<Company>{}, parent)
+{
+}
+
+CompanyListModel::CompanyListModel(QVector<Company> companies, QObject* parent)
     : QAbstractListModel(parent)
+    , companies_(std::move(companies))
 {
 }
 
@@ -80,4 +88,42 @@ QHash<int, QByteArray> CompanyListModel::roleNames() const
 const Company* CompanyListModel::companyAt(int row) const
 {
     return row >= 0 && row < companies_.size() ? &companies_.at(row) : nullptr;
+}
+
+bool CompanyListModel::upsertCompany(Company company)
+{
+    if (company.id_.isEmpty() || indexOfCompany(company.id_) >= 0) {
+        return false;
+    }
+
+    const auto row = companies_.size();
+    beginInsertRows({}, row, row);
+    companies_.append(std::move(company));
+    endInsertRows();
+    return true;
+}
+
+void CompanyListModel::setOpenJobCount(const QString& companyId, int count)
+{
+    const auto row = indexOfCompany(companyId);
+    if (row < 0 || companies_[row].openJobCount_ == count) {
+        return;
+    }
+
+    companies_[row].openJobCount_ = count;
+    const auto modelIndex = index(row, 0);
+    emit dataChanged(
+        modelIndex,
+        modelIndex,
+        {OpenJobCountRole, OpenJobCountLabelRole});
+}
+
+int CompanyListModel::indexOfCompany(const QString& companyId) const
+{
+    for (int row = 0; row < companies_.size(); ++row) {
+        if (companies_.at(row).id_ == companyId) {
+            return row;
+        }
+    }
+    return -1;
 }

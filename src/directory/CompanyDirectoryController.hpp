@@ -27,6 +27,11 @@ class CompanyDirectoryController final : public QObject
 
 public:
     CompanyDirectoryController(const JobApplicationListModel& applicationsModel, const ContactListModel& contactModel, QObject* parent = nullptr);
+    CompanyDirectoryController(
+        QVector<Company> companies,
+        const JobApplicationListModel& applicationsModel,
+        const ContactListModel& contactModel,
+        QObject* parent = nullptr);
 
     QAbstractItemModel* companyModel();
     QAbstractItemModel* linkedJobsModel();
@@ -44,6 +49,8 @@ public:
     Q_INVOKABLE void setSortMode(const QString& sortMode);
     Q_INVOKABLE void clearFilters();
 
+    void publishCompany(const QString& companyId, const QString& companyName);
+
 signals:
     void companyModelChanged();
     void linkedModelsChanged();
@@ -55,9 +62,11 @@ private:
     const Company* selectedSourceCompany() const;
     int selectedSourceRow() const;
     void refreshSelectionAfterFilterChange();
+    void refreshCompanyJobCounts();
     QVariantMap companyToMap(const Company& company) const;
     void updateLinkedModels();
 
+    const JobApplicationListModel& applicationsModel_;
     CompanyListModel companyModel_;
     RoleFilterProxyModel filteredCompanyModel_;
     LinkedCompanyJobsModel linkedJobsModel_;

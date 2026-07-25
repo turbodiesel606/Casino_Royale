@@ -1,6 +1,7 @@
 #include "AddJobService.hpp"
 #include "JobRepository.hpp"
 #include "cvs/CvImportService.hpp"
+#include "directory/CompanyRepository.hpp"
 
 #include <QDate>
 #include <QFile>
@@ -80,11 +81,16 @@ namespace {
 		
 		return result;
 	}
-	JobApplication buildJobApplication(const JobApplicationDraft& jADraft, const CvImportResult& cvImport) {
+	JobApplication buildJobApplication(
+		const JobApplicationDraft& jADraft,
+		const Company& company,
+		const CvImportResult& cvImport)
+	{
 		JobApplication application;
 		application.id_ = QUuid::createUuid().toString(QUuid::WithoutBraces);
-		application.companyName_ = jADraft.companyName_;
-		application.companyInitials_ = jADraft.companyName_.left(2).toUpper();
+		application.companyId_ = company.id_;
+		application.companyName_ = company.name_;
+		application.companyInitials_ = company.name_.left(2).toUpper();
 		application.companyAccent_ = QStringLiteral("#146ce0");
 		application.jobTitle_ = jADraft.jobTitle_;
 		application.jobUrl_ = jADraft.jobUrl_;
@@ -109,9 +115,11 @@ namespace {
 AddJobService::AddJobService(
 	QSqlDatabase& database,
 	JobRepository& jobRepository,
+	CompanyRepository& companyRepository,
 	CvImportService& cvImportService)
 	: database_(database)
 	, jobRepository_(jobRepository)
+	, companyRepository_(companyRepository)
 	, cvImportService_(cvImportService)
 {
 }
@@ -134,10 +142,11 @@ AddJobResult AddJobService::create(const JobApplicationDraft& draft, const QUrl&
 
 	QString copiedFilePath;
 	try {
+		const auto company = companyRepository_.findOrCreateByName(jADraft.companyName_);
 		const auto cvImport = cvImportService_.importDocument(selectedCvUrl);
 		copiedFilePath = cvImport.copiedFilePath_;
 
-		JobApplication application=buildJobApplication(jADraft,cvImport);
+		JobApplication application = buildJobApplication(jADraft, company, cvImport);
 		
 		jobRepository_.insert(application);
 
@@ -146,6 +155,7 @@ AddJobResult AddJobService::create(const JobApplicationDraft& draft, const QUrl&
 
 		addJobresult.success_ = true;
 		addJobresult.application_ = std::move(application);
+		addJobresult.company_ = company;
 		addJobresult.cvDocument_ = cvImport.document_;
 		addJobresult.cvWasInserted_ = cvImport.wasInserted_;
 	}

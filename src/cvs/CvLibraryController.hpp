@@ -10,6 +10,8 @@
 #include <QVariantMap>
 
 class QAbstractItemModel;
+class CvFileAccessService;
+class CvRepository;
 
 class CvLibraryController final : public QObject
 {
@@ -28,10 +30,16 @@ class CvLibraryController final : public QObject
     Q_PROPERTY(QString resultSummary READ resultSummary NOTIFY resultSummaryChanged)
 
 public:
-    explicit CvLibraryController(const JobApplicationListModel& applicationsModel, QObject* parent = nullptr);
+    CvLibraryController(
+        const JobApplicationListModel& applicationsModel,
+        CvRepository& repository,
+        CvFileAccessService& fileAccessService,
+        QObject* parent = nullptr);
     CvLibraryController(
         const JobApplicationListModel& applicationsModel,
         QVector<CvDocument> documents,
+        CvRepository& repository,
+        CvFileAccessService& fileAccessService,
         QObject* parent = nullptr);
 
     QAbstractItemModel* cvModel();
@@ -65,16 +73,18 @@ signals:
     void selectedCvChanged();
     void filtersChanged();
     void resultSummaryChanged();
-    void openCvRequested(QString filePath);
     void operationFailed(QString message);
 
 private:
     QVariantMap cvToMap(const CvDocument& cv) const;
+    const CvDocument* findCv(const QString& cvId) const;
     const CvDocument* selectedSourceCv() const;
     int selectedSourceRow() const;
     void refreshSelectionAfterFilterChange();
     void updateLinkedApplications();
 
+    CvRepository& repository_;
+    CvFileAccessService& fileAccessService_;
     CvListModel cvModel_;
     RoleFilterProxyModel filteredCvModel_;
     LinkedApplicationListModel linkedApplicationsModel_;

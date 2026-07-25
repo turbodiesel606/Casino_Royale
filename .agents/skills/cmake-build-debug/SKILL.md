@@ -14,8 +14,11 @@ Use this skill for JobTracker build, test, and CMake verification work.
 3. Read `For-Agent/Docs/build.md` before running build or test commands.
 4. Run build and test commands one at a time.
 5. Do not combine build commands with shell separators, pipes, or chained commands.
-6. Do not delete build directories, caches, generated files, or deployment artifacts without explicit user approval.
-7. If a command fails, stop and report the exact command, exit code, and key error excerpt.
+6. Run every `cmake --build ...` command with elevated access from the first attempt. Do not first attempt a build with restricted or sandboxed access.
+7. Wait for the active build process to finish and return its final exit code. If the command runner yields a still-running build, keep waiting on that same process until it completes; do not infer completion from silence or start a duplicate build.
+8. If an external timeout terminates a build, confirm that no build process remains before retrying once with a longer timeout and elevated access.
+9. Do not delete build directories, caches, generated files, or deployment artifacts without explicit user approval.
+10. If a command fails, stop and report the exact command, exit code, and key error excerpt.
 
 ## Normal Windows Build
 

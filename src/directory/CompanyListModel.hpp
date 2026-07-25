@@ -27,14 +27,19 @@ public:
     };
 
     explicit CompanyListModel(QObject* parent = nullptr);
+    explicit CompanyListModel(QVector<Company> companies, QObject* parent = nullptr);
 
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
     QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 
     const Company* companyAt(int row) const;
+    bool upsertCompany(Company company);
+    void setOpenJobCount(const QString& companyId, int count);
 
 private:
+    int indexOfCompany(const QString& companyId) const;
+
     QVector<Company> companies_;
 };
 

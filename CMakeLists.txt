@@ -41,6 +41,8 @@ set(JOBTRACKER_PERSISTENCE_SOURCES
     src/cvs/CvImportService.hpp
     src/cvs/CvRepository.cpp
     src/cvs/CvRepository.hpp
+    src/directory/CompanyRepository.cpp
+    src/directory/CompanyRepository.hpp
     src/jobs/AddJobService.cpp
     src/jobs/AddJobService.hpp
     src/jobs/JobRepository.cpp
@@ -55,6 +57,8 @@ set(JOBTRACKER_PERSISTENCE_SOURCES
 
 set(JOBTRACKER_CV_SOURCES
     src/cvs/CvDocument.hpp
+    src/cvs/CvFileAccessService.cpp
+    src/cvs/CvFileAccessService.hpp
     src/cvs/CvLibraryController.cpp
     src/cvs/CvLibraryController.hpp
     src/cvs/CvListModel.cpp
@@ -157,6 +161,8 @@ target_compile_definitions(JobTrackerApp PRIVATE
     $<$<CONFIG:Debug>:QT_QML_DEBUG>
 )
 
+# Windows deployment remains unchanged: windeployqt copies the runtime next to
+# the executable in the Windows build directory.
 if(WIN32)
     if(TARGET Qt6::qmake)
         get_target_property(_qt6_qmake_executable Qt6::qmake IMPORTED_LOCATION)
@@ -177,6 +183,37 @@ if(WIN32)
     endif()
 endif()
 
+# On Linux, a normal build also creates a self-contained deploy directory.
+# Usage stays exactly:
+#   cmake --preset linux-debug-local
+#   cmake --build --preset linux-debug-local
+# The second command produces ${CMAKE_SOURCE_DIR}/deploy automatically.
+if(UNIX AND NOT APPLE)
+    include(GNUInstallDirs)
+
+    install(TARGETS JobTrackerApp
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+
+    qt_generate_deploy_qml_app_script(
+        TARGET JobTrackerApp
+        OUTPUT_SCRIPT JOBTRACKER_LINUX_DEPLOY_SCRIPT
+        NO_UNSUPPORTED_PLATFORM_ERROR
+    )
+
+    install(SCRIPT ${JOBTRACKER_LINUX_DEPLOY_SCRIPT})
+
+    add_custom_command(TARGET JobTrackerApp POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E rm -rf "${CMAKE_SOURCE_DIR}/deploy"
+        COMMAND ${CMAKE_COMMAND}
+            --install "${CMAKE_BINARY_DIR}"
+            --config "$<CONFIG>"
+            --prefix "${CMAKE_SOURCE_DIR}/deploy"
+        COMMENT "Deploying JobTracker and Qt runtime dependencies to ${CMAKE_SOURCE_DIR}/deploy"
+        VERBATIM
+    )
+endif()
+
 if(JOBTRACKER_BUILD_TESTS)
     enable_testing()
 
@@ -185,6 +222,7 @@ if(JOBTRACKER_BUILD_TESTS)
             add_custom_command(TARGET ${target_name} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     "$<TARGET_FILE:Qt6::Core>"
+                    "$<TARGET_FILE:Qt6::Gui>"
                     "$<TARGET_FILE:Qt6::Sql>"
                     "$<TARGET_FILE:Qt6::Test>"
                     "$<TARGET_FILE_DIR:${target_name}>"
@@ -214,6 +252,7 @@ if(JOBTRACKER_BUILD_TESTS)
         ${JOBTRACKER_COMMON_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
         ${JOBTRACKER_PERSISTENCE_SOURCES}
+        ${JOBTRACKER_UTILS_SOURCES}
     )
 
     target_include_directories(JobTrackerJobsTests
@@ -233,6 +272,7 @@ if(JOBTRACKER_BUILD_TESTS)
         ${JOBTRACKER_CV_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
         ${JOBTRACKER_PERSISTENCE_SOURCES}
+        ${JOBTRACKER_UTILS_SOURCES}
     )
 
     target_include_directories(JobTrackerCvTests
@@ -240,7 +280,7 @@ if(JOBTRACKER_BUILD_TESTS)
     )
 
     target_link_libraries(JobTrackerCvTests
-        PRIVATE Qt6::Core Qt6::Sql Qt6::Test
+        PRIVATE Qt6::Core Qt6::Gui Qt6::Sql Qt6::Test
     )
 
     add_test(NAME JobTrackerCvTests COMMAND JobTrackerCvTests)
@@ -253,6 +293,7 @@ if(JOBTRACKER_BUILD_TESTS)
         ${JOBTRACKER_DASHBOARD_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
         ${JOBTRACKER_PERSISTENCE_SOURCES}
+        ${JOBTRACKER_UTILS_SOURCES}
     )
 
     target_include_directories(JobTrackerDashboardTests
@@ -260,7 +301,7 @@ if(JOBTRACKER_BUILD_TESTS)
     )
 
     target_link_libraries(JobTrackerDashboardTests
-        PRIVATE Qt6::Core Qt6::Sql Qt6::Test
+        PRIVATE Qt6::Core Qt6::Gui Qt6::Sql Qt6::Test
     )
 
     add_test(NAME JobTrackerDashboardTests COMMAND JobTrackerDashboardTests)
@@ -272,6 +313,7 @@ if(JOBTRACKER_BUILD_TESTS)
         ${JOBTRACKER_DIRECTORY_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
         ${JOBTRACKER_PERSISTENCE_SOURCES}
+        ${JOBTRACKER_UTILS_SOURCES}
     )
 
     target_include_directories(JobTrackerDirectoryTests
@@ -288,8 +330,10 @@ if(JOBTRACKER_BUILD_TESTS)
     add_executable(JobTrackerStorageTests
         tests/storage/StorageAndAddJobTest.cpp
         ${JOBTRACKER_COMMON_SOURCES}
+        ${JOBTRACKER_DIRECTORY_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
         ${JOBTRACKER_PERSISTENCE_SOURCES}
+        ${JOBTRACKER_UTILS_SOURCES}
     )
 
     target_include_directories(JobTrackerStorageTests

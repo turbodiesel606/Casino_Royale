@@ -1,8 +1,12 @@
 #include "CvLibraryController.hpp"
 
+#include "CvFileAccessService.hpp"
+#include "CvRepository.hpp"
+
 #include <QMap>
 
 #include <algorithm>
+#include <exception>
 
 namespace {
 
@@ -13,16 +17,29 @@ namespace {
 
 }
 
-CvLibraryController::CvLibraryController(const JobApplicationListModel& applicationsModel, QObject* parent)
-    : CvLibraryController(applicationsModel, QVector<CvDocument>{}, parent)
+CvLibraryController::CvLibraryController(
+    const JobApplicationListModel& applicationsModel,
+    CvRepository& repository,
+    CvFileAccessService& fileAccessService,
+    QObject* parent)
+    : CvLibraryController(
+        applicationsModel,
+        QVector<CvDocument>{},
+        repository,
+        fileAccessService,
+        parent)
 {
 }
 
 CvLibraryController::CvLibraryController(
     const JobApplicationListModel& applicationsModel,
     QVector<CvDocument> documents,
+    CvRepository& repository,
+    CvFileAccessService& fileAccessService,
     QObject* parent)
 	: QObject(parent)
+	, repository_(repository)
+	, fileAccessService_(fileAccessService)
 	, cvModel_(std::move(documents), this)
 	, filteredCvModel_(this)
 	, linkedApplicationsModel_(applicationsModel, this)
@@ -250,27 +267,52 @@ void CvLibraryController::clearFilters()
 
 void CvLibraryController::toggleFavorite(const QString& cvId)
 {
-	if (!cvModel_.toggleFavorite(cvId)) {
+	const auto* cv = findCv(cvId);
+	if (cv == nullptr) {
 		emit operationFailed(QStringLiteral("CV was not found."));
 		return;
 	}
 
-	if (selectedCvId() == cvId) {
+	const bool isFavorite = !cv->isFavorite_;
+	try {
+		if (!repository_.updateFavorite(cvId, isFavorite)) {
+			emit operationFailed(QStringLiteral("CV was not found."));
+			return;
+		}
+	}
+	catch (const std::exception& error) {
+		emit operationFailed(QStringLiteral("The favorite state could not be saved: %1")
+			.arg(QString::fromUtf8(error.what())));
+		return;
+	}
+	catch (...) {
+		emit operationFailed(QStringLiteral("The favorite state could not be saved."));
+		return;
+	}
+
+	const bool wasSelected = selectedCvId() == cvId;
+	if (!cvModel_.setFavorite(cvId, isFavorite)) {
+		emit operationFailed(QStringLiteral("The favorite state was saved but the CV model could not be updated."));
+		return;
+	}
+
+	if (wasSelected) {
 		emit selectedCvChanged();
 	}
 }
 
 void CvLibraryController::openCv(const QString& cvId)
 {
-	for (int row = 0; row < cvModel_.rowCount(); ++row) {
-		const auto* cv = cvModel_.cvAt(row);
-		if (cv != nullptr && cv->id_ == cvId) {
-			emit openCvRequested(cv->fileName_);
-			return;
-		}
+	const auto* cv = findCv(cvId);
+	if (cv == nullptr) {
+		emit operationFailed(QStringLiteral("CV was not found."));
+		return;
 	}
 
-	emit operationFailed(QStringLiteral("CV was not found."));
+	const auto result = fileAccessService_.openDocument(*cv);
+	if (!result.opened_) {
+		emit operationFailed(result.message_);
+	}
 }
 
 QVariantMap CvLibraryController::cvToMap(const CvDocument& cv) const
@@ -291,6 +333,18 @@ QVariantMap CvLibraryController::cvToMap(const CvDocument& cv) const
 		{QStringLiteral("linkedApplicationCountLabel"), linkedApplicationCountLabel(linkedCount)},
 		{QStringLiteral("isFavorite"), cv.isFavorite_},
 	};
+}
+
+const CvDocument* CvLibraryController::findCv(const QString& cvId) const
+{
+	for (int row = 0; row < cvModel_.rowCount(); ++row) {
+		const auto* cv = cvModel_.cvAt(row);
+		if (cv != nullptr && cv->id_ == cvId) {
+			return cv;
+		}
+	}
+
+	return nullptr;
 }
 
 const CvDocument* CvLibraryController::selectedSourceCv() const

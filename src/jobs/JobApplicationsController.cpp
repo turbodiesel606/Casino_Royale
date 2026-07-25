@@ -223,6 +223,7 @@ void JobApplicationsController::createApplication(
     }
 
     applicationsModel_.appendApplication(result.application_);
+    emit companyResolved(result.company_.id_, result.company_.name_);
     filteredApplicationsModel_.sort(filteredApplicationsModel_.sortColumn(), filteredApplicationsModel_.sortOrder());
     refreshSelectionAfterFilterChange();
     emit applicationsModelChanged();

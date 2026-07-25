@@ -9,7 +9,7 @@ namespace utils {
 		throw std::runtime_error(query.lastError().text().toStdString());
 	}
 
-	[[noreturn]] void executeQuery(QSqlDatabase& database, const QString& statement)
+	 void executeQuery(QSqlDatabase& database, const QString& statement)
 	{
 		QSqlQuery query(database); // create a Query object for this database connection
 		if (!query.exec(statement))

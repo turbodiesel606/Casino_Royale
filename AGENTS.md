@@ -64,6 +64,8 @@ Project subagents are split by task and code area:
 
 Use `cpp-code-research` or `qml-code-research` for investigation before implementation.
 
+Use `cpp-backend-task` as the entry point for C++ backend implementation. Complete applicable build and test verification through `cmake-build-debug`, then use `test-and-review` for the final scope, documentation, verification, and risk pass.
+
 Use `cpp-code-review` or `qml-code-review` for review after changes or when the user asks for a review.
 
 Use `.codex/agents/` subagents only when the user requests subagents, parallel research, or independent review. Subagents are read-only and return findings; the lead Codex compiles, verifies, and saves final artifacts when needed.
@@ -154,6 +156,10 @@ Always run project commands from `D:\Project_CV\Root` in PowerShell.
 
 Run commands one at a time. Do not combine build or test commands with `;`, `&&`, pipes, or other shell separators.
 
+Always run every `cmake --build ...` command with elevated access from the first attempt. Do not first attempt a build with restricted or sandboxed access.
+
+Wait for each build process to finish and return its final exit code before continuing or reporting its status. If the command runner yields a still-running build, keep waiting on that same process until it completes. Do not treat missing output as completion, and do not start a duplicate build while the original process is still running.
+
 Do not delete build directories, caches, generated files, or artifacts without explicit user approval.
 
 After code, QML, CMake, resource, storage, or runtime-behavior changes, run the applicable build unless impossible.
@@ -175,6 +181,10 @@ Start from the most relevant entry points:
 
 Do not perform broad project scans unless the task requires it.
 
+## Documentation Synchronization
+
+After changes to architecture, code, build configuration, testing workflow, or runtime behavior, review `For-Agent/Docs/` and update only the documentation files affected by the change. Do not make unrelated documentation edits. If no documentation is affected, state that the review was completed and no update was required.
+
 ## Definition Of Done
 
 A task is complete when:
@@ -183,6 +193,7 @@ A task is complete when:
 - Modified files are listed.
 - The solution is briefly explained.
 - Build/test status is reported, or the reason verification was impossible is stated.
+- Relevant `For-Agent/Docs/` guidance was updated, or its review confirmed that no update was needed.
 - Manual checks are listed when relevant.
 - Risks, limitations, and unverified areas are stated.
 

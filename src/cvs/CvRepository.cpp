@@ -128,11 +128,15 @@ QVector<CvDocument> CvRepository::findAll() const
 	return documents;
 }
 	
-std::optional<CvDocument> CvRepository::findBySha256(const QString& sha256) const
+std::optional<CvDocument> CvRepository::findByIdentity(
+	const QString& sha256,
+	const QString& originalFileName) const
 {
 	QSqlQuery query{ database_ };
-	query.prepare(QStringLiteral("SELECT * FROM cvs WHERE sha256 = ?"));
+	query.prepare(QStringLiteral(
+		"SELECT * FROM cvs WHERE sha256 = ? AND original_file_name = ?"));
 	query.addBindValue(sha256);
+	query.addBindValue(originalFileName);
 
 	if (!query.exec())
 		utils::throwQueryError(query);
@@ -156,10 +160,10 @@ void CvRepository::insert(const CvDocument& document) const
 	query.addBindValue(document.relativePath_);
 	query.addBindValue(document.sha256_);
 	query.addBindValue(document.sizeBytes_);
-	query.addBindValue(document.title_.isNull() ? QString{} : document.title_);
-	query.addBindValue(document.category_.isNull() ? QString{} : document.category_);
-	query.addBindValue(document.language_.isNull() ? QString{} : document.language_);
-	query.addBindValue(document.description_.isNull() ? QString{} : document.description_);
+	query.addBindValue(sqlText(document.title_));
+	query.addBindValue(sqlText(document.category_));
+	query.addBindValue(sqlText(document.language_));
+	query.addBindValue(sqlText(document.description_));
 	query.addBindValue(document.isFavorite_);
 	query.addBindValue(document.createdAt_);
 	query.addBindValue(document.updatedAt_);
@@ -167,4 +171,19 @@ void CvRepository::insert(const CvDocument& document) const
 	if (!query.exec())
 		utils::throwQueryError(query);
 
+}
+
+bool CvRepository::updateFavorite(const QString& cvId, bool isFavorite) const
+{
+	QSqlQuery query{ database_ };
+	query.prepare(QStringLiteral(
+		"UPDATE cvs SET is_favorite = ?, updated_at = ? WHERE id = ?"));
+	query.addBindValue(isFavorite);
+	query.addBindValue(QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+	query.addBindValue(cvId);
+
+	if (!query.exec())
+		utils::throwQueryError(query);
+
+	return query.numRowsAffected() == 1;
 }

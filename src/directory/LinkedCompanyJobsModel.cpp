@@ -4,6 +4,16 @@ LinkedCompanyJobsModel::LinkedCompanyJobsModel(const JobApplicationListModel& ap
     : QAbstractListModel(parent)
     , applicationsModel_(applicationsModel)
 {
+    QObject::connect(
+        &applicationsModel_,
+        &QAbstractItemModel::rowsInserted,
+        this,
+        [this]() { refreshSourceRows(); });
+    QObject::connect(
+        &applicationsModel_,
+        &QAbstractItemModel::modelReset,
+        this,
+        [this]() { refreshSourceRows(); });
 }
 
 int LinkedCompanyJobsModel::rowCount(const QModelIndex& parent) const
@@ -57,10 +67,8 @@ void LinkedCompanyJobsModel::setCompanyId(const QString& companyId)
         return;
     }
 
-    beginResetModel();
     companyId_ = companyId;
-    rebuildSourceRows();
-    endResetModel();
+    refreshSourceRows();
 }
 
 QVariant LinkedCompanyJobsModel::sourceData(int sourceRow, int role) const
@@ -68,9 +76,20 @@ QVariant LinkedCompanyJobsModel::sourceData(int sourceRow, int role) const
     return applicationsModel_.data(applicationsModel_.index(sourceRow, 0), role);
 }
 
+void LinkedCompanyJobsModel::refreshSourceRows()
+{
+    beginResetModel();
+    rebuildSourceRows();
+    endResetModel();
+}
+
 void LinkedCompanyJobsModel::rebuildSourceRows()
 {
     sourceRows_.clear();
+
+    if (companyId_.isEmpty()) {
+        return;
+    }
 
     for (int row = 0; row < applicationsModel_.rowCount(); ++row) {
         if (sourceData(row, JobApplicationListModel::CompanyIdRole).toString() == companyId_) {

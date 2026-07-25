@@ -1,9 +1,17 @@
+#include "cvs/CvFileAccessService.hpp"
 #include "cvs/CvLibraryController.hpp"
+#include "cvs/CvRepository.hpp"
 #include "jobs/JobApplicationListModel.hpp"
+#include "storage/SqliteDatabase.hpp"
+#include "storage/StoragePaths.hpp"
 
 #include "../support/JobApplicationTestData.hpp"
 
+#include <QDir>
+#include <QFile>
 #include <QSignalSpy>
+#include <QSqlQuery>
+#include <QTemporaryDir>
 #include <QtTest/QtTest>
 
 namespace {
@@ -18,6 +26,24 @@ int roleForName(const QAbstractItemModel& model, const QByteArray& roleName)
     }
     return -1;
 }
+
+class CvTestStorage final
+{
+public:
+    CvTestStorage()
+        : paths_(QDir(temporaryDirectory_.path()).filePath(QStringLiteral("Data")))
+        , database_(paths_.databasePath())
+        , repository_(database_.connection())
+        , fileAccessService_(paths_)
+    {
+    }
+
+    QTemporaryDir temporaryDirectory_;
+    StoragePaths paths_;
+    SQLiteDataBase database_;
+    CvRepository repository_;
+    CvFileAccessService fileAccessService_;
+};
 
 QVector<CvDocument> makeCvDocuments()
 {
@@ -34,11 +60,18 @@ QVector<CvDocument> makeCvDocuments()
             QStringLiteral("CV_Embedded.pdf"),
             QStringLiteral("CV_General.pdf"),
             QStringLiteral("CV_Backend.pdf")}.at(index);
+        document.originalFileName_ = document.fileName_;
+        document.storedFileName_ = QStringLiteral("stored-%1.pdf").arg(index);
+        document.relativePath_ = QStringLiteral("Resumes/%1").arg(document.storedFileName_);
+        document.sha256_ = QStringLiteral("test-hash-%1").arg(index);
+        document.sizeBytes_ = 1024 + index;
         document.title_ = document.fileName_;
         document.category_ = index == 2 ? QStringLiteral("General") : QStringLiteral("Engineering");
         document.language_ = QStringLiteral("English");
         document.lastModifiedLabel_ = QStringLiteral("May %1, 2026").arg(12 - index);
         document.isFavorite_ = index == 0;
+        document.createdAt_ = QStringLiteral("2026-05-%1T10:00:00Z").arg(12 - index, 2, 10, QLatin1Char('0'));
+        document.updatedAt_ = document.createdAt_;
         documents.append(document);
     }
     documents[0].linkedApplicationIds_ = {
@@ -65,13 +98,23 @@ private slots:
     void cvModelExposesSeedDocuments();
     void selectedCvControlsLinkedApplications();
     void favoriteToggleUpdatesSelectedCv();
+    void favoriteFailureLeavesModelUnchanged();
+    void fileAccessRejectsInvalidManagedPaths();
+    void fileAccessRejectsTraversalPaths();
+    void fileAccessRejectsMissingFiles();
+    void openCvPublishesFileAccessFailure();
     void controllerFiltersAndSortsCvs();
 };
 
 void CvLibraryControllerTest::cvModelExposesNamedRoles()
 {
+    CvTestStorage storage;
     JobApplicationListModel applicationsModel;
-    CvLibraryController controller(applicationsModel, makeCvDocuments());
+    CvLibraryController controller(
+        applicationsModel,
+        makeCvDocuments(),
+        storage.repository_,
+        storage.fileAccessService_);
     const auto* model = controller.cvModel();
 
     QVERIFY(roleForName(*model, "id") > 0);
@@ -85,8 +128,13 @@ void CvLibraryControllerTest::cvModelExposesNamedRoles()
 
 void CvLibraryControllerTest::cvModelExposesSeedDocuments()
 {
+    CvTestStorage storage;
     JobApplicationListModel applicationsModel;
-    CvLibraryController controller(applicationsModel, makeCvDocuments());
+    CvLibraryController controller(
+        applicationsModel,
+        makeCvDocuments(),
+        storage.repository_,
+        storage.fileAccessService_);
     const auto* model = controller.cvModel();
     const auto firstRow = model->index(0, 0);
 
@@ -99,8 +147,13 @@ void CvLibraryControllerTest::cvModelExposesSeedDocuments()
 
 void CvLibraryControllerTest::selectedCvControlsLinkedApplications()
 {
+    CvTestStorage storage;
     JobApplicationListModel applicationsModel(testsupport::makeJobApplications());
-    CvLibraryController controller(applicationsModel, makeCvDocuments());
+    CvLibraryController controller(
+        applicationsModel,
+        makeCvDocuments(),
+        storage.repository_,
+        storage.fileAccessService_);
     QSignalSpy selectedSpy(&controller, &CvLibraryController::selectedCvChanged);
     QSignalSpy linkedSpy(&controller, &CvLibraryController::linkedApplicationsModelChanged);
 
@@ -120,21 +173,129 @@ void CvLibraryControllerTest::selectedCvControlsLinkedApplications()
 
 void CvLibraryControllerTest::favoriteToggleUpdatesSelectedCv()
 {
+    CvTestStorage storage;
+    const auto documents = makeCvDocuments();
+    storage.repository_.insert(documents.first());
     JobApplicationListModel applicationsModel;
-    CvLibraryController controller(applicationsModel, makeCvDocuments());
+    CvLibraryController controller(
+        applicationsModel,
+        documents,
+        storage.repository_,
+        storage.fileAccessService_);
     QSignalSpy selectedSpy(&controller, &CvLibraryController::selectedCvChanged);
+    QSignalSpy failedSpy(&controller, &CvLibraryController::operationFailed);
 
     QVERIFY(controller.selectedCv().value(QStringLiteral("isFavorite")).toBool());
     controller.toggleFavorite(QStringLiteral("cv-qt-2026"));
 
+    QCOMPARE(failedSpy.count(), 0);
     QCOMPARE(selectedSpy.count(), 1);
     QVERIFY(!controller.selectedCv().value(QStringLiteral("isFavorite")).toBool());
+    QVERIFY(!storage.repository_.findAll().first().isFavorite_);
+}
+
+void CvLibraryControllerTest::favoriteFailureLeavesModelUnchanged()
+{
+    CvTestStorage storage;
+    auto documents = makeCvDocuments();
+    documents.first().isFavorite_ = false;
+    storage.repository_.insert(documents.first());
+
+    QSqlQuery trigger{storage.database_.connection()};
+    QVERIFY(trigger.exec(QStringLiteral(
+        "CREATE TRIGGER reject_favorite_update BEFORE UPDATE OF is_favorite ON cvs "
+        "BEGIN SELECT RAISE(FAIL, 'forced favorite failure'); END")));
+
+    JobApplicationListModel applicationsModel;
+    CvLibraryController controller(
+        applicationsModel,
+        documents,
+        storage.repository_,
+        storage.fileAccessService_);
+    QSignalSpy failedSpy(&controller, &CvLibraryController::operationFailed);
+    QSignalSpy dataChangedSpy(
+        &controller.cvListModel(),
+        &QAbstractItemModel::dataChanged);
+
+    controller.toggleFavorite(QStringLiteral("cv-qt-2026"));
+
+    QCOMPARE(failedSpy.count(), 1);
+    QCOMPARE(dataChangedSpy.count(), 0);
+    QVERIFY(!controller.selectedCv().value(QStringLiteral("isFavorite")).toBool());
+    QVERIFY(!storage.repository_.findAll().first().isFavorite_);
+}
+
+void CvLibraryControllerTest::fileAccessRejectsInvalidManagedPaths()
+{
+    CvTestStorage storage;
+    CvDocument document;
+
+    auto result = storage.fileAccessService_.openDocument(document);
+    QVERIFY(!result.opened_);
+    QVERIFY(!result.message_.isEmpty());
+
+    const auto absolutePath = QDir(storage.paths_.resumesDirectory()).filePath(QStringLiteral("absolute.pdf"));
+    QFile file{absolutePath};
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write(QByteArrayLiteral("%PDF-1.4 test"));
+    file.close();
+
+    document.relativePath_ = absolutePath;
+    result = storage.fileAccessService_.openDocument(document);
+    QVERIFY(!result.opened_);
+    QVERIFY(!result.message_.isEmpty());
+}
+
+void CvLibraryControllerTest::fileAccessRejectsTraversalPaths()
+{
+    CvTestStorage storage;
+    CvDocument document;
+    document.relativePath_ = QStringLiteral("Resumes/../outside.pdf");
+
+    const auto result = storage.fileAccessService_.openDocument(document);
+
+    QVERIFY(!result.opened_);
+    QVERIFY(!result.message_.isEmpty());
+}
+
+void CvLibraryControllerTest::fileAccessRejectsMissingFiles()
+{
+    CvTestStorage storage;
+    CvDocument document;
+    document.relativePath_ = QStringLiteral("Resumes/missing.pdf");
+
+    const auto result = storage.fileAccessService_.openDocument(document);
+
+    QVERIFY(!result.opened_);
+    QVERIFY(!result.message_.isEmpty());
+}
+
+void CvLibraryControllerTest::openCvPublishesFileAccessFailure()
+{
+    CvTestStorage storage;
+    JobApplicationListModel applicationsModel;
+    CvLibraryController controller(
+        applicationsModel,
+        makeCvDocuments(),
+        storage.repository_,
+        storage.fileAccessService_);
+    QSignalSpy failedSpy(&controller, &CvLibraryController::operationFailed);
+
+    controller.openCv(QStringLiteral("cv-qt-2026"));
+
+    QCOMPARE(failedSpy.count(), 1);
+    QVERIFY(!failedSpy.first().first().toString().isEmpty());
 }
 
 void CvLibraryControllerTest::controllerFiltersAndSortsCvs()
 {
+    CvTestStorage storage;
     JobApplicationListModel applicationsModel(testsupport::makeJobApplications());
-    CvLibraryController controller(applicationsModel, makeCvDocuments());
+    CvLibraryController controller(
+        applicationsModel,
+        makeCvDocuments(),
+        storage.repository_,
+        storage.fileAccessService_);
 
     controller.setSearchText(QStringLiteral("embedded"));
 
@@ -156,6 +317,6 @@ void CvLibraryControllerTest::controllerFiltersAndSortsCvs()
     QCOMPARE(controller.cvModel()->data(controller.cvModel()->index(0, 0), roleForName(*controller.cvModel(), "linkedApplicationCount")).toInt(), 4);
 }
 
-QTEST_APPLESS_MAIN(CvLibraryControllerTest)
+QTEST_GUILESS_MAIN(CvLibraryControllerTest)
 
 #include "CvLibraryControllerTest.moc"

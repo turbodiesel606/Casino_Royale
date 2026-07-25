@@ -11,7 +11,7 @@ namespace utils {
 
     [[noreturn]] void throwQueryError(const QSqlQuery& query);
 
-    [[noreturn]] void executeQuery(QSqlDatabase& database, const QString& statement);
+     void executeQuery(QSqlDatabase& database, const QString& statement);
 
 }
 

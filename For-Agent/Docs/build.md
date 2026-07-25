@@ -8,6 +8,14 @@ Run commands one at a time. Do not combine build or test commands with `;`, `&&`
 
 Do not delete build directories, CMake caches, generated files, Qt deployment output, or other build artifacts without explicit user approval.
 
+## Build Execution Requirements
+
+Always run every `cmake --build ...` command with elevated access from the first attempt. Do not first attempt a build with restricted or sandboxed access.
+
+Allow enough execution time for the build to finish and return its final exit code. If the command runner yields a still-running build, keep waiting on that same process until it completes. Do not infer completion from a period without output, do not report a final build status while it is still running, and do not launch a duplicate build process.
+
+If an external command timeout terminates the build, confirm that no build process remains before retrying once with a longer timeout and elevated access.
+
 ## Windows Build
 
 Configure:

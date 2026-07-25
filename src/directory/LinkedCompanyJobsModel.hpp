@@ -30,6 +30,7 @@ public:
 
 private:
     QVariant sourceData(int sourceRow, int role) const;
+    void refreshSourceRows();
     void rebuildSourceRows();
 
     const JobApplicationListModel& applicationsModel_;

@@ -11,7 +11,7 @@
         "Qt-Default"
       ],
       "cacheVariables": {
-        "CMAKE_PREFIX_PATH": "/home/elmar/Qt/6.11.0/gcc_64"
+        "CMAKE_PREFIX_PATH": "/home/elmar/Qt/6.9.3/gcc_64"
       }
     },
     {
@@ -21,7 +21,7 @@
         "Qt-Default"
       ],
       "cacheVariables": {
-        "CMAKE_PREFIX_PATH": "/home/elmar/Qt/6.11.0/gcc_64"
+        "CMAKE_PREFIX_PATH": "/home/elmar/Qt/6.9.3/gcc_64"
       }
     },
     {

@@ -10,14 +10,18 @@ class QSqlDatabase;
 class CvRepository final
 {
 public:
-    explicit CvRepository(QSqlDatabase& database);
+	explicit CvRepository(QSqlDatabase& database);
 
-    QVector<CvDocument> findAll() const;
-    std::optional<CvDocument> findBySha256(const QString& sha256) const;
-    void insert(const CvDocument& document) const;
+	QVector<CvDocument> findAll() const;
+	std::optional<CvDocument>
+		findByIdentity(
+			const QString& sha256,
+			const QString& originalFileName) const;
+	void insert(const CvDocument& document) const;
+	bool updateFavorite(const QString& cvId, bool isFavorite) const;
 
 private:
-    QSqlDatabase& database_;
+	QSqlDatabase& database_;
 };
 
 #endif // JOBTRACKER_SRC_CVS_CVREPOSITORY_HPP

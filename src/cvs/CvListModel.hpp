@@ -38,7 +38,7 @@ public:
     void setDocuments(QVector<CvDocument> documents);
     void appendDocument(CvDocument document);
     bool addLinkedApplication(const QString& cvId, const QString& applicationId);
-    bool toggleFavorite(const QString& cvId);
+    bool setFavorite(const QString& cvId, bool isFavorite);
 
 private:
     QVector<CvDocument> cvs_;
