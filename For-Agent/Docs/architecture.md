@@ -181,6 +181,11 @@ Organize backend code by responsibility:
 
 QML-facing controllers should expose a small screen contract and delegate non-trivial behavior to services or models.
 
+The jobs, CV, company, and contact controllers keep selection by stable domain
+ID and derive their QML-facing proxy row after filtering, sorting, insertion,
+and model changes. Linked selection-dependent models refresh only when the
+effective selected ID changes.
+
 Current backend areas are:
 
 - `src/app`: process startup, exception boundary, dependency construction, QML engine setup, context properties, and main QML loading.
@@ -253,6 +258,5 @@ Treat these as current constraints when planning implementation:
 - Completed CV files can be orphaned if the process crashes after the file copy but before SQLite commit.
 - Company editing and all contact persistence/mutation workflows are still
   unavailable.
-- Selection is still index-based across filtering and sorting in some controllers.
 - Several QML option lists use display strings that C++ also interprets, which is fragile once localization or durable option contracts are introduced.
 - Add Job validation and existing selected-job validation are separate code paths and can drift.

@@ -1,6 +1,5 @@
 #include "CompanyDirectoryController.hpp"
 
-#include <algorithm>
 #include <QHash>
 #include <utility>
 
@@ -39,7 +38,40 @@ CompanyDirectoryController::CompanyDirectoryController(
         this,
         [this]() { refreshCompanyJobCounts(); });
     refreshCompanyJobCounts();
-    updateLinkedModels();
+    connect(
+        &companyModel_,
+        &QAbstractItemModel::rowsInserted,
+        this,
+        [this]() { refreshSelection(); });
+    connect(
+        &companyModel_,
+        &QAbstractItemModel::rowsRemoved,
+        this,
+        [this]() { refreshSelection(); });
+    connect(
+        &companyModel_,
+        &QAbstractItemModel::rowsMoved,
+        this,
+        [this]() { refreshSelection(); });
+    connect(
+        &companyModel_,
+        &QAbstractItemModel::modelReset,
+        this,
+        [this]() { refreshSelection(!selectedCompanyId_.isEmpty()); });
+    connect(
+        &companyModel_,
+        &QAbstractItemModel::layoutChanged,
+        this,
+        [this]() { refreshSelection(); });
+    connect(
+        &companyModel_,
+        &QAbstractItemModel::dataChanged,
+        this,
+        [this](const QModelIndex& topLeft, const QModelIndex& bottomRight) {
+            const auto selectedRow = selectedSourceRow();
+            refreshSelection(selectedRow >= topLeft.row() && selectedRow <= bottomRight.row());
+        });
+    refreshSelection();
 }
 
 QAbstractItemModel* CompanyDirectoryController::companyModel()
@@ -69,8 +101,7 @@ int CompanyDirectoryController::selectedCompanyIndex() const
 
 QString CompanyDirectoryController::selectedCompanyId() const
 {
-    const auto* company = selectedSourceCompany();
-    return company != nullptr ? company->id_ : QString();
+    return selectedCompanyId_;
 }
 
 QVariantMap CompanyDirectoryController::selectedCompany() const
@@ -100,14 +131,27 @@ QString CompanyDirectoryController::resultSummary() const
 
 void CompanyDirectoryController::selectCompany(int index)
 {
-    if (index == selectedCompanyIndex_ || index < 0 || index >= filteredCompanyModel_.rowCount()) {
+    if (index < 0 || index >= filteredCompanyModel_.rowCount()) {
         return;
     }
 
+    const auto companyId = filteredCompanyModel_.data(
+        filteredCompanyModel_.index(index, 0),
+        CompanyListModel::IdRole).toString();
+    const bool idChanged = companyId != selectedCompanyId_;
+    if (!idChanged && index == selectedCompanyIndex_) {
+        return;
+    }
+
+    selectedCompanyId_ = companyId;
     selectedCompanyIndex_ = index;
-    updateLinkedModels();
+    if (idChanged) {
+        updateLinkedModels();
+    }
     emit selectedCompanyChanged();
-    emit linkedModelsChanged();
+    if (idChanged) {
+        emit linkedModelsChanged();
+    }
 }
 
 void CompanyDirectoryController::setSearchText(const QString& text)
@@ -119,7 +163,7 @@ void CompanyDirectoryController::setSearchText(const QString& text)
 
     searchText_ = normalized;
     filteredCompanyModel_.setSearchText(searchText_);
-    refreshSelectionAfterFilterChange();
+    refreshSelection();
     emit filtersChanged();
     emit companyModelChanged();
     emit resultSummaryChanged();
@@ -140,7 +184,7 @@ void CompanyDirectoryController::setSortMode(const QString& sortMode)
     } else {
         filteredCompanyModel_.setSort(CompanyListModel::NameRole, Qt::AscendingOrder);
     }
-    refreshSelectionAfterFilterChange();
+    refreshSelection();
     emit filtersChanged();
     emit companyModelChanged();
 }
@@ -153,7 +197,7 @@ void CompanyDirectoryController::clearFilters()
 
     searchText_.clear();
     filteredCompanyModel_.setSearchText(QString());
-    refreshSelectionAfterFilterChange();
+    refreshSelection();
     emit filtersChanged();
     emit companyModelChanged();
     emit resultSummaryChanged();
@@ -175,7 +219,7 @@ void CompanyDirectoryController::publishCompany(
     company.logoAccent_ = QStringLiteral("#146ce0");
     companyModel_.upsertCompany(std::move(company));
     refreshCompanyJobCounts();
-    refreshSelectionAfterFilterChange();
+    refreshSelection();
     emit companyModelChanged();
     emit resultSummaryChanged();
 }
@@ -188,22 +232,57 @@ const Company* CompanyDirectoryController::selectedSourceCompany() const
 
 int CompanyDirectoryController::selectedSourceRow() const
 {
-    const auto proxyIndex = filteredCompanyModel_.index(selectedCompanyIndex_, 0);
-    if (!proxyIndex.isValid()) {
+    if (selectedCompanyId_.isEmpty()) {
         return -1;
     }
 
-    return filteredCompanyModel_.mapToSource(proxyIndex).row();
+    for (int row = 0; row < companyModel_.rowCount(); ++row) {
+        const auto* company = companyModel_.companyAt(row);
+        if (company != nullptr && company->id_ == selectedCompanyId_) {
+            return row;
+        }
+    }
+
+    return -1;
 }
 
-void CompanyDirectoryController::refreshSelectionAfterFilterChange()
+void CompanyDirectoryController::refreshSelection(bool selectedDataChanged)
 {
+    const auto previousId = selectedCompanyId_;
     const auto previousIndex = selectedCompanyIndex_;
-    const auto rowCount = filteredCompanyModel_.rowCount();
-    selectedCompanyIndex_ = rowCount > 0 ? std::clamp(selectedCompanyIndex_, 0, rowCount - 1) : -1;
-    updateLinkedModels();
-    if (selectedCompanyIndex_ != previousIndex || selectedCompanyIndex_ >= 0) {
+    auto nextIndex = -1;
+
+    if (!selectedCompanyId_.isEmpty()) {
+        for (int row = 0; row < filteredCompanyModel_.rowCount(); ++row) {
+            if (filteredCompanyModel_.data(
+                    filteredCompanyModel_.index(row, 0),
+                    CompanyListModel::IdRole).toString() == selectedCompanyId_) {
+                nextIndex = row;
+                break;
+            }
+        }
+    }
+
+    if (nextIndex < 0) {
+        if (filteredCompanyModel_.rowCount() > 0) {
+            nextIndex = 0;
+            selectedCompanyId_ = filteredCompanyModel_.data(
+                filteredCompanyModel_.index(0, 0),
+                CompanyListModel::IdRole).toString();
+        } else {
+            selectedCompanyId_.clear();
+        }
+    }
+
+    selectedCompanyIndex_ = nextIndex;
+    const bool idChanged = selectedCompanyId_ != previousId;
+    if (idChanged) {
+        updateLinkedModels();
+    }
+    if (idChanged || selectedCompanyIndex_ != previousIndex || selectedDataChanged) {
         emit selectedCompanyChanged();
+    }
+    if (idChanged) {
         emit linkedModelsChanged();
     }
 }

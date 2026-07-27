@@ -4,7 +4,6 @@
 #include "JobApplicationDraft.hpp"
 #include "common/ValidationService.hpp"
 
-#include <algorithm>
 #include <utility>
 
 JobApplicationsController::JobApplicationsController(QObject* parent)
@@ -27,7 +26,40 @@ JobApplicationsController::JobApplicationsController(QVector<JobApplication> app
         JobApplicationListModel::SalaryRole,
     });
     filteredApplicationsModel_.setSort(JobApplicationListModel::DateLabelRole, Qt::DescendingOrder);
-    selectedApplicationIndex_ = filteredApplicationsModel_.rowCount() > 0 ? 0 : -1;
+    connect(
+        &applicationsModel_,
+        &QAbstractItemModel::rowsInserted,
+        this,
+        [this]() { refreshSelection(); });
+    connect(
+        &applicationsModel_,
+        &QAbstractItemModel::rowsRemoved,
+        this,
+        [this]() { refreshSelection(); });
+    connect(
+        &applicationsModel_,
+        &QAbstractItemModel::rowsMoved,
+        this,
+        [this]() { refreshSelection(); });
+    connect(
+        &applicationsModel_,
+        &QAbstractItemModel::modelReset,
+        this,
+        [this]() { refreshSelection(!selectedApplicationId_.isEmpty()); });
+    connect(
+        &applicationsModel_,
+        &QAbstractItemModel::layoutChanged,
+        this,
+        [this]() { refreshSelection(); });
+    connect(
+        &applicationsModel_,
+        &QAbstractItemModel::dataChanged,
+        this,
+        [this](const QModelIndex& topLeft, const QModelIndex& bottomRight) {
+            const auto selectedRow = selectedSourceRow();
+            refreshSelection(selectedRow >= topLeft.row() && selectedRow <= bottomRight.row());
+        });
+    refreshSelection();
 }
 
 JobApplicationsController::JobApplicationsController(
@@ -66,8 +98,7 @@ int JobApplicationsController::selectedApplicationIndex() const
 
 QString JobApplicationsController::selectedApplicationId() const
 {
-    const auto* application = selectedSourceApplication();
-    return application != nullptr ? application->id_ : QString();
+    return selectedApplicationId_;
 }
 
 QVariantMap JobApplicationsController::selectedApplication() const
@@ -98,10 +129,18 @@ QString JobApplicationsController::resultSummary() const
 
 void JobApplicationsController::selectApplication(int index)
 {
-    if (index == selectedApplicationIndex_ || index < 0 || index >= filteredApplicationsModel_.rowCount()) {
+    if (index < 0 || index >= filteredApplicationsModel_.rowCount()) {
         return;
     }
 
+    const auto applicationId = filteredApplicationsModel_.data(
+        filteredApplicationsModel_.index(index, 0),
+        JobApplicationListModel::IdRole).toString();
+    if (applicationId == selectedApplicationId_ && index == selectedApplicationIndex_) {
+        return;
+    }
+
+    selectedApplicationId_ = applicationId;
     selectedApplicationIndex_ = index;
     emit selectedApplicationChanged();
 }
@@ -120,7 +159,7 @@ void JobApplicationsController::setSearchText(const QString& text)
 
     searchText_ = normalized;
     filteredApplicationsModel_.setSearchText(searchText_);
-    refreshSelectionAfterFilterChange();
+    refreshSelection();
     emit filtersChanged();
     emit applicationsModelChanged();
     emit resultSummaryChanged();
@@ -139,7 +178,7 @@ void JobApplicationsController::setStatusFilter(const QString& status)
     } else {
         filteredApplicationsModel_.setExactFilter(JobApplicationListModel::StatusLabelRole, statusFilter_);
     }
-    refreshSelectionAfterFilterChange();
+    refreshSelection();
     emit filtersChanged();
     emit applicationsModelChanged();
     emit resultSummaryChanged();
@@ -155,7 +194,7 @@ void JobApplicationsController::clearFilters()
     statusFilter_.clear();
     filteredApplicationsModel_.setSearchText(QString());
     filteredApplicationsModel_.clearExactFilter();
-    refreshSelectionAfterFilterChange();
+    refreshSelection();
     emit filtersChanged();
     emit applicationsModelChanged();
     emit resultSummaryChanged();
@@ -225,7 +264,7 @@ void JobApplicationsController::createApplication(
     applicationsModel_.appendApplication(result.application_);
     emit companyResolved(result.company_.id_, result.company_.name_);
     filteredApplicationsModel_.sort(filteredApplicationsModel_.sortColumn(), filteredApplicationsModel_.sortOrder());
-    refreshSelectionAfterFilterChange();
+    refreshSelection();
     emit applicationsModelChanged();
     emit resultSummaryChanged();
     emit cvUsed(result.cvDocument_, result.application_.id_, result.cvWasInserted_);
@@ -240,20 +279,52 @@ const JobApplication* JobApplicationsController::selectedSourceApplication() con
 
 int JobApplicationsController::selectedSourceRow() const
 {
-    const auto proxyIndex = filteredApplicationsModel_.index(selectedApplicationIndex_, 0);
-    if (!proxyIndex.isValid()) {
+    if (selectedApplicationId_.isEmpty()) {
         return -1;
     }
 
-    return filteredApplicationsModel_.mapToSource(proxyIndex).row();
+    for (int row = 0; row < applicationsModel_.rowCount(); ++row) {
+        const auto* application = applicationsModel_.applicationAt(row);
+        if (application != nullptr && application->id_ == selectedApplicationId_) {
+            return row;
+        }
+    }
+
+    return -1;
 }
 
-void JobApplicationsController::refreshSelectionAfterFilterChange()
+void JobApplicationsController::refreshSelection(bool selectedDataChanged)
 {
+    const auto previousId = selectedApplicationId_;
     const auto previousIndex = selectedApplicationIndex_;
-    const auto rowCount = filteredApplicationsModel_.rowCount();
-    selectedApplicationIndex_ = rowCount > 0 ? std::clamp(selectedApplicationIndex_, 0, rowCount - 1) : -1;
-    if (selectedApplicationIndex_ != previousIndex || selectedApplicationIndex_ >= 0) {
+    auto nextIndex = -1;
+
+    if (!selectedApplicationId_.isEmpty()) {
+        for (int row = 0; row < filteredApplicationsModel_.rowCount(); ++row) {
+            if (filteredApplicationsModel_.data(
+                    filteredApplicationsModel_.index(row, 0),
+                    JobApplicationListModel::IdRole).toString() == selectedApplicationId_) {
+                nextIndex = row;
+                break;
+            }
+        }
+    }
+
+    if (nextIndex < 0) {
+        if (filteredApplicationsModel_.rowCount() > 0) {
+            nextIndex = 0;
+            selectedApplicationId_ = filteredApplicationsModel_.data(
+                filteredApplicationsModel_.index(0, 0),
+                JobApplicationListModel::IdRole).toString();
+        } else {
+            selectedApplicationId_.clear();
+        }
+    }
+
+    selectedApplicationIndex_ = nextIndex;
+    if (selectedApplicationId_ != previousId
+        || selectedApplicationIndex_ != previousIndex
+        || selectedDataChanged) {
         emit selectedApplicationChanged();
     }
 }

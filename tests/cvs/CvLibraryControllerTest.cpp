@@ -104,6 +104,7 @@ private slots:
     void fileAccessRejectsMissingFiles();
     void openCvPublishesFileAccessFailure();
     void controllerFiltersAndSortsCvs();
+    void selectionRemainsStableAcrossProxyChanges();
 };
 
 void CvLibraryControllerTest::cvModelExposesNamedRoles()
@@ -313,8 +314,80 @@ void CvLibraryControllerTest::controllerFiltersAndSortsCvs()
     controller.setSortMode(QStringLiteral("Linked Jobs"));
 
     QCOMPARE(controller.cvCount(), 4);
-    QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-qt-2026"));
+    QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-general"));
     QCOMPARE(controller.cvModel()->data(controller.cvModel()->index(0, 0), roleForName(*controller.cvModel(), "linkedApplicationCount")).toInt(), 4);
+}
+
+void CvLibraryControllerTest::selectionRemainsStableAcrossProxyChanges()
+{
+    CvTestStorage storage;
+    JobApplicationListModel applicationsModel{testsupport::makeJobApplications()};
+    CvLibraryController controller{
+        applicationsModel,
+        makeCvDocuments(),
+        storage.repository_,
+        storage.fileAccessService_};
+    QSignalSpy selectedSpy{&controller, &CvLibraryController::selectedCvChanged};
+    QSignalSpy linkedSpy{&controller, &CvLibraryController::linkedApplicationsModelChanged};
+
+    QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-qt-2026"));
+    controller.setSortMode(QStringLiteral("File Name"));
+    QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-qt-2026"));
+    QCOMPARE(controller.selectedCvIndex(), 3);
+    QCOMPARE(selectedSpy.count(), 1);
+    QCOMPARE(linkedSpy.count(), 0);
+
+    controller.setCategoryFilter(QStringLiteral("Engineering"));
+    QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-qt-2026"));
+    QCOMPARE(controller.selectedCvIndex(), 2);
+    QCOMPARE(linkedSpy.count(), 0);
+
+    controller.clearFilters();
+    QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-qt-2026"));
+    QCOMPARE(controller.selectedCvIndex(), 3);
+    QCOMPARE(linkedSpy.count(), 0);
+
+    controller.setCategoryFilter(QStringLiteral("General"));
+    QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-general"));
+    QCOMPARE(controller.selectedCvIndex(), 0);
+    QCOMPARE(linkedSpy.count(), 1);
+
+    controller.clearFilters();
+    QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-general"));
+    QCOMPARE(controller.selectedCvIndex(), 2);
+    QCOMPARE(linkedSpy.count(), 1);
+
+    controller.setSearchText(QStringLiteral("does-not-match"));
+    QCOMPARE(controller.cvCount(), 0);
+    QCOMPARE(controller.selectedCvIndex(), -1);
+    QVERIFY(controller.selectedCvId().isEmpty());
+    QCOMPARE(linkedSpy.count(), 2);
+
+    controller.clearFilters();
+    QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-backend"));
+    QCOMPARE(controller.selectedCvIndex(), 0);
+    QCOMPARE(linkedSpy.count(), 3);
+
+    selectedSpy.clear();
+    linkedSpy.clear();
+    auto insertedDocument = makeCvDocuments().first();
+    insertedDocument.id_ = QStringLiteral("cv-alphabetical-first");
+    insertedDocument.fileName_ = QStringLiteral("AAA_CV.pdf");
+    insertedDocument.originalFileName_ = insertedDocument.fileName_;
+    insertedDocument.storedFileName_ = QStringLiteral("stored-alphabetical-first.pdf");
+    insertedDocument.relativePath_ = QStringLiteral("Resumes/stored-alphabetical-first.pdf");
+    insertedDocument.sha256_ = QStringLiteral("test-hash-alphabetical-first");
+    insertedDocument.linkedApplicationIds_.clear();
+
+    controller.recordCvUse(
+        insertedDocument,
+        QStringLiteral("job-alphabetical-first"),
+        true);
+
+    QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-backend"));
+    QCOMPARE(controller.selectedCvIndex(), 1);
+    QCOMPARE(selectedSpy.count(), 1);
+    QCOMPARE(linkedSpy.count(), 0);
 }
 
 QTEST_GUILESS_MAIN(CvLibraryControllerTest)

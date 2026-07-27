@@ -29,6 +29,7 @@ public:
     };
 
     explicit ContactListModel(QObject* parent = nullptr);
+    explicit ContactListModel(QVector<Contact> contacts, QObject* parent = nullptr);
 
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
     QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;

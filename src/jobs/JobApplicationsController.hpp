@@ -67,13 +67,14 @@ signals:
 private:
     const JobApplication* selectedSourceApplication() const;
     int selectedSourceRow() const;
-    void refreshSelectionAfterFilterChange();
+    void refreshSelection(bool selectedDataChanged = false);
     QVariantMap applicationToMap(const JobApplication& application) const;
 
     JobApplicationListModel applicationsModel_;
     RoleFilterProxyModel filteredApplicationsModel_;
     QString searchText_;
     QString statusFilter_;
+    QString selectedApplicationId_;
     int selectedApplicationIndex_ = -1;
     AddJobService* addJobService_ = nullptr;
     bool saving_ = false;

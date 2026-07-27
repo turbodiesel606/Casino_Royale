@@ -1,7 +1,5 @@
 #include "ContactDirectoryController.hpp"
 
-#include <algorithm>
-
 ContactDirectoryController::ContactDirectoryController(ContactListModel& contactModel, QObject* parent)
     : QObject(parent)
     , contactModel_(contactModel)
@@ -19,7 +17,40 @@ ContactDirectoryController::ContactDirectoryController(ContactListModel& contact
         ContactListModel::LinkedinRole,
         ContactListModel::NotesRole,
     });
-    updateInteractionHistory();
+    connect(
+        &contactModel_,
+        &QAbstractItemModel::rowsInserted,
+        this,
+        [this]() { refreshSelection(); });
+    connect(
+        &contactModel_,
+        &QAbstractItemModel::rowsRemoved,
+        this,
+        [this]() { refreshSelection(); });
+    connect(
+        &contactModel_,
+        &QAbstractItemModel::rowsMoved,
+        this,
+        [this]() { refreshSelection(); });
+    connect(
+        &contactModel_,
+        &QAbstractItemModel::modelReset,
+        this,
+        [this]() { refreshSelection(!selectedContactId_.isEmpty()); });
+    connect(
+        &contactModel_,
+        &QAbstractItemModel::layoutChanged,
+        this,
+        [this]() { refreshSelection(); });
+    connect(
+        &contactModel_,
+        &QAbstractItemModel::dataChanged,
+        this,
+        [this](const QModelIndex& topLeft, const QModelIndex& bottomRight) {
+            const auto selectedRow = selectedSourceRow();
+            refreshSelection(selectedRow >= topLeft.row() && selectedRow <= bottomRight.row());
+        });
+    refreshSelection();
 }
 
 QAbstractItemModel* ContactDirectoryController::contactModel()
@@ -44,8 +75,7 @@ int ContactDirectoryController::selectedContactIndex() const
 
 QString ContactDirectoryController::selectedContactId() const
 {
-    const auto* contact = selectedSourceContact();
-    return contact != nullptr ? contact->id_ : QString();
+    return selectedContactId_;
 }
 
 QVariantMap ContactDirectoryController::selectedContact() const
@@ -82,14 +112,27 @@ QString ContactDirectoryController::resultSummary() const
 
 void ContactDirectoryController::selectContact(int index)
 {
-    if (index == selectedContactIndex_ || index < 0 || index >= filteredContactModel_.rowCount()) {
+    if (index < 0 || index >= filteredContactModel_.rowCount()) {
         return;
     }
 
+    const auto contactId = filteredContactModel_.data(
+        filteredContactModel_.index(index, 0),
+        ContactListModel::IdRole).toString();
+    const bool idChanged = contactId != selectedContactId_;
+    if (!idChanged && index == selectedContactIndex_) {
+        return;
+    }
+
+    selectedContactId_ = contactId;
     selectedContactIndex_ = index;
-    updateInteractionHistory();
+    if (idChanged) {
+        updateInteractionHistory();
+    }
     emit selectedContactChanged();
-    emit interactionHistoryModelChanged();
+    if (idChanged) {
+        emit interactionHistoryModelChanged();
+    }
 }
 
 void ContactDirectoryController::setSearchText(const QString& text)
@@ -101,7 +144,7 @@ void ContactDirectoryController::setSearchText(const QString& text)
 
     searchText_ = normalized;
     filteredContactModel_.setSearchText(searchText_);
-    refreshSelectionAfterFilterChange();
+    refreshSelection();
     emit filtersChanged();
     emit contactModelChanged();
     emit resultSummaryChanged();
@@ -116,7 +159,7 @@ void ContactDirectoryController::setCompanyFilter(const QString& company)
 
     companyFilter_ = normalized;
     filteredContactModel_.setExactFilter(ContactListModel::CompanyNameRole, companyFilter_ == QStringLiteral("All") ? QString() : companyFilter_);
-    refreshSelectionAfterFilterChange();
+    refreshSelection();
     emit filtersChanged();
     emit contactModelChanged();
     emit resultSummaryChanged();
@@ -139,7 +182,7 @@ void ContactDirectoryController::setChannelFilter(const QString& channel)
     } else {
         filteredContactModel_.clearRequiredNonEmptyRole();
     }
-    refreshSelectionAfterFilterChange();
+    refreshSelection();
     emit filtersChanged();
     emit contactModelChanged();
     emit resultSummaryChanged();
@@ -160,7 +203,7 @@ void ContactDirectoryController::setSortMode(const QString& sortMode)
     } else {
         filteredContactModel_.setSort(ContactListModel::DisplayNameRole, Qt::AscendingOrder);
     }
-    refreshSelectionAfterFilterChange();
+    refreshSelection();
     emit filtersChanged();
     emit contactModelChanged();
 }
@@ -177,7 +220,7 @@ void ContactDirectoryController::clearFilters()
     filteredContactModel_.setSearchText(QString());
     filteredContactModel_.clearExactFilter();
     filteredContactModel_.clearRequiredNonEmptyRole();
-    refreshSelectionAfterFilterChange();
+    refreshSelection();
     emit filtersChanged();
     emit contactModelChanged();
     emit resultSummaryChanged();
@@ -191,22 +234,57 @@ const Contact* ContactDirectoryController::selectedSourceContact() const
 
 int ContactDirectoryController::selectedSourceRow() const
 {
-    const auto proxyIndex = filteredContactModel_.index(selectedContactIndex_, 0);
-    if (!proxyIndex.isValid()) {
+    if (selectedContactId_.isEmpty()) {
         return -1;
     }
 
-    return filteredContactModel_.mapToSource(proxyIndex).row();
+    for (int row = 0; row < contactModel_.rowCount(); ++row) {
+        const auto* contact = contactModel_.contactAt(row);
+        if (contact != nullptr && contact->id_ == selectedContactId_) {
+            return row;
+        }
+    }
+
+    return -1;
 }
 
-void ContactDirectoryController::refreshSelectionAfterFilterChange()
+void ContactDirectoryController::refreshSelection(bool selectedDataChanged)
 {
+    const auto previousId = selectedContactId_;
     const auto previousIndex = selectedContactIndex_;
-    const auto rowCount = filteredContactModel_.rowCount();
-    selectedContactIndex_ = rowCount > 0 ? std::clamp(selectedContactIndex_, 0, rowCount - 1) : -1;
-    updateInteractionHistory();
-    if (selectedContactIndex_ != previousIndex || selectedContactIndex_ >= 0) {
+    auto nextIndex = -1;
+
+    if (!selectedContactId_.isEmpty()) {
+        for (int row = 0; row < filteredContactModel_.rowCount(); ++row) {
+            if (filteredContactModel_.data(
+                    filteredContactModel_.index(row, 0),
+                    ContactListModel::IdRole).toString() == selectedContactId_) {
+                nextIndex = row;
+                break;
+            }
+        }
+    }
+
+    if (nextIndex < 0) {
+        if (filteredContactModel_.rowCount() > 0) {
+            nextIndex = 0;
+            selectedContactId_ = filteredContactModel_.data(
+                filteredContactModel_.index(0, 0),
+                ContactListModel::IdRole).toString();
+        } else {
+            selectedContactId_.clear();
+        }
+    }
+
+    selectedContactIndex_ = nextIndex;
+    const bool idChanged = selectedContactId_ != previousId;
+    if (idChanged) {
+        updateInteractionHistory();
+    }
+    if (idChanged || selectedContactIndex_ != previousIndex || selectedDataChanged) {
         emit selectedContactChanged();
+    }
+    if (idChanged) {
         emit interactionHistoryModelChanged();
     }
 }

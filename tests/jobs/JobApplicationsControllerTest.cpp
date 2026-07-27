@@ -5,6 +5,8 @@
 #include <QSignalSpy>
 #include <QtTest/QtTest>
 
+#include <utility>
+
 namespace {
 
 int roleForName(const QAbstractItemModel& model, const QByteArray& roleName)
@@ -31,6 +33,7 @@ private slots:
     void controllerExposesSelectedApplication();
     void controllerIgnoresInvalidSelection();
     void controllerFiltersBySearchTextAndStatus();
+    void selectionRemainsStableAcrossProxyChanges();
     void controllerValidatesSelectedApplication();
 };
 
@@ -123,6 +126,60 @@ void JobApplicationsControllerTest::controllerFiltersBySearchTextAndStatus()
 
     controller.clearFilters();
     QCOMPARE(controller.applicationCount(), 6);
+}
+
+void JobApplicationsControllerTest::selectionRemainsStableAcrossProxyChanges()
+{
+    JobApplicationsController controller{testsupport::makeJobApplications()};
+    controller.selectApplication(1);
+    QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-techsoft-qt-qml"));
+
+    QSignalSpy selectedSpy{&controller, &JobApplicationsController::selectedApplicationChanged};
+    auto insertedApplication = testsupport::makeJobApplication(
+        QStringLiteral("job-newest"),
+        QStringLiteral("company-newest"),
+        QStringLiteral("Newest Company"),
+        QStringLiteral("Ne"),
+        QStringLiteral("#146ce0"),
+        QStringLiteral("Newest Role"),
+        QStringLiteral("cv-newest"),
+        QStringLiteral("CV_Newest.pdf"),
+        QStringLiteral("May 20, 2026"),
+        QStringLiteral("Offer"),
+        QStringLiteral("Decision"));
+
+    controller.jobApplicationListModel().appendApplication(std::move(insertedApplication));
+
+    QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-techsoft-qt-qml"));
+    QCOMPARE(controller.selectedApplicationIndex(), 2);
+    QCOMPARE(selectedSpy.count(), 1);
+
+    selectedSpy.clear();
+    controller.setSearchText(QStringLiteral("TechSoft"));
+    QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-techsoft-qt-qml"));
+    QCOMPARE(controller.selectedApplicationIndex(), 0);
+    QCOMPARE(selectedSpy.count(), 1);
+
+    controller.clearFilters();
+    QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-techsoft-qt-qml"));
+    QCOMPARE(controller.selectedApplicationIndex(), 2);
+
+    controller.setStatusFilter(QStringLiteral("Applied"));
+    QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-kdab-cpp-qt"));
+    QCOMPARE(controller.selectedApplicationIndex(), 0);
+
+    controller.clearFilters();
+    QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-kdab-cpp-qt"));
+    QCOMPARE(controller.selectedApplicationIndex(), 1);
+
+    controller.setSearchText(QStringLiteral("does-not-match"));
+    QCOMPARE(controller.applicationCount(), 0);
+    QCOMPARE(controller.selectedApplicationIndex(), -1);
+    QVERIFY(controller.selectedApplicationId().isEmpty());
+
+    controller.clearFilters();
+    QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-newest"));
+    QCOMPARE(controller.selectedApplicationIndex(), 0);
 }
 
 void JobApplicationsControllerTest::controllerValidatesSelectedApplication()

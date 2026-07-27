@@ -80,7 +80,7 @@ private:
     const CvDocument* findCv(const QString& cvId) const;
     const CvDocument* selectedSourceCv() const;
     int selectedSourceRow() const;
-    void refreshSelectionAfterFilterChange();
+    void refreshSelection(bool selectedDataChanged = false);
     void updateLinkedApplications();
 
     CvRepository& repository_;
@@ -92,7 +92,8 @@ private:
     QString categoryFilter_;
     QString languageFilter_;
     QString sortMode_ = QStringLiteral("Last Modified");
-    int selectedCvIndex_ = 0;
+    QString selectedCvId_;
+    int selectedCvIndex_ = -1;
 };
 
 #endif // JOBTRACKER_SRC_CVS_CVLIBRARYCONTROLLER_HPP

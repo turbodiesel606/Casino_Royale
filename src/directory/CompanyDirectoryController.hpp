@@ -61,7 +61,7 @@ signals:
 private:
     const Company* selectedSourceCompany() const;
     int selectedSourceRow() const;
-    void refreshSelectionAfterFilterChange();
+    void refreshSelection(bool selectedDataChanged = false);
     void refreshCompanyJobCounts();
     QVariantMap companyToMap(const Company& company) const;
     void updateLinkedModels();
@@ -73,7 +73,8 @@ private:
     LinkedCompanyContactsModel linkedContactsModel_;
     QString searchText_;
     QString sortMode_ = QStringLiteral("Name");
-    int selectedCompanyIndex_ = 0;
+    QString selectedCompanyId_;
+    int selectedCompanyIndex_ = -1;
 };
 
 #endif // JOBTRACKER_SRC_DIRECTORY_COMPANYDIRECTORYCONTROLLER_HPP

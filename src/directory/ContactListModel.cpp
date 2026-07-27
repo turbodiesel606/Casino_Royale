@@ -1,5 +1,7 @@
 #include "ContactListModel.hpp"
 
+#include <utility>
+
 namespace {
 
 QVariant roleValue(const Contact& contact, int role)
@@ -42,6 +44,12 @@ QVariant roleValue(const Contact& contact, int role)
 
 ContactListModel::ContactListModel(QObject* parent)
     : QAbstractListModel(parent)
+{
+}
+
+ContactListModel::ContactListModel(QVector<Contact> contacts, QObject* parent)
+    : QAbstractListModel(parent)
+    , contacts_(std::move(contacts))
 {
 }
 

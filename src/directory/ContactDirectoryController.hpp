@@ -57,7 +57,7 @@ signals:
 private:
     const Contact* selectedSourceContact() const;
     int selectedSourceRow() const;
-    void refreshSelectionAfterFilterChange();
+    void refreshSelection(bool selectedDataChanged = false);
     QVariantMap contactToMap(const Contact& contact) const;
     void updateInteractionHistory();
 
@@ -68,7 +68,8 @@ private:
     QString companyFilter_;
     QString channelFilter_;
     QString sortMode_ = QStringLiteral("Name");
-    int selectedContactIndex_ = 0;
+    QString selectedContactId_;
+    int selectedContactIndex_ = -1;
 };
 
 #endif // JOBTRACKER_SRC_DIRECTORY_CONTACTDIRECTORYCONTROLLER_HPP
