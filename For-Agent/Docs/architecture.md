@@ -181,10 +181,23 @@ Organize backend code by responsibility:
 
 QML-facing controllers should expose a small screen contract and delegate non-trivial behavior to services or models.
 
-The jobs, CV, company, and contact controllers keep selection by stable domain
-ID and derive their QML-facing proxy row after filtering, sorting, insertion,
-and model changes. Linked selection-dependent models refresh only when the
-effective selected ID changes.
+`StableIdSelectionTracker` is the shared selection contract for the jobs, CV,
+company, and contact controllers. Each controller composes one tracker with
+its proxy model and ID role. The tracker owns the selected domain ID and
+derived proxy row, reconciles proxy insert, remove, move, reset, layout, and
+data changes, and applies the common fallback policy: choose the first visible
+row when the selected ID is hidden, or clear selection when no row is visible.
+Controller-owned filter and sort updates are reconciled as one completed model
+update so transient proxy-removal batches do not publish intermediate fallback
+selections. Linked selection-dependent models refresh only when the effective
+selected ID changes.
+
+Controller model-pointer properties are constant because their model objects
+do not change after construction. Model content changes are published through
+the models' row, reset, layout, and data signals. Scalar controller properties
+use semantic notify signals: selected ID, selected proxy index, selected data,
+individual filters, visible counts, result summaries, and the CV category
+summary notify only for their own contract changes.
 
 Current backend areas are:
 

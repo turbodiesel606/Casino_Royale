@@ -81,11 +81,15 @@ void JobApplicationsControllerTest::modelExposesExplicitApplications()
 void JobApplicationsControllerTest::controllerExposesSelectedApplication()
 {
     JobApplicationsController controller(testsupport::makeJobApplications());
-    QSignalSpy selectedSpy(&controller, &JobApplicationsController::selectedApplicationChanged);
+    QSignalSpy selectedIndexSpy(&controller, &JobApplicationsController::selectedApplicationIndexChanged);
+    QSignalSpy selectedIdSpy(&controller, &JobApplicationsController::selectedApplicationIdChanged);
+    QSignalSpy selectedDataSpy(&controller, &JobApplicationsController::selectedApplicationChanged);
 
     controller.selectApplication(1);
 
-    QCOMPARE(selectedSpy.count(), 1);
+    QCOMPARE(selectedIndexSpy.count(), 1);
+    QCOMPARE(selectedIdSpy.count(), 1);
+    QCOMPARE(selectedDataSpy.count(), 1);
     QCOMPARE(controller.selectedApplicationIndex(), 1);
     QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-techsoft-qt-qml"));
     QCOMPARE(controller.selectedApplication().value(QStringLiteral("companyName")).toString(), QStringLiteral("TechSoft"));
@@ -95,12 +99,16 @@ void JobApplicationsControllerTest::controllerExposesSelectedApplication()
 void JobApplicationsControllerTest::controllerIgnoresInvalidSelection()
 {
     JobApplicationsController controller;
-    QSignalSpy selectedSpy(&controller, &JobApplicationsController::selectedApplicationChanged);
+    QSignalSpy selectedIndexSpy(&controller, &JobApplicationsController::selectedApplicationIndexChanged);
+    QSignalSpy selectedIdSpy(&controller, &JobApplicationsController::selectedApplicationIdChanged);
+    QSignalSpy selectedDataSpy(&controller, &JobApplicationsController::selectedApplicationChanged);
 
     controller.selectApplication(-1);
     controller.selectApplication(100);
 
-    QCOMPARE(selectedSpy.count(), 0);
+    QCOMPARE(selectedIndexSpy.count(), 0);
+    QCOMPARE(selectedIdSpy.count(), 0);
+    QCOMPARE(selectedDataSpy.count(), 0);
     QCOMPARE(controller.selectedApplicationIndex(), -1);
     QVERIFY(controller.selectedApplicationId().isEmpty());
 }
@@ -108,11 +116,17 @@ void JobApplicationsControllerTest::controllerIgnoresInvalidSelection()
 void JobApplicationsControllerTest::controllerFiltersBySearchTextAndStatus()
 {
     JobApplicationsController controller(testsupport::makeJobApplications());
-    QSignalSpy filtersSpy(&controller, &JobApplicationsController::filtersChanged);
+    QSignalSpy searchTextSpy(&controller, &JobApplicationsController::searchTextChanged);
+    QSignalSpy statusFilterSpy(&controller, &JobApplicationsController::statusFilterChanged);
+    QSignalSpy countSpy(&controller, &JobApplicationsController::applicationCountChanged);
+    QSignalSpy resultSummarySpy(&controller, &JobApplicationsController::resultSummaryChanged);
 
     controller.setSearchText(QStringLiteral("TechSoft"));
 
-    QCOMPARE(filtersSpy.count(), 1);
+    QCOMPARE(searchTextSpy.count(), 1);
+    QCOMPARE(statusFilterSpy.count(), 0);
+    QCOMPARE(countSpy.count(), 1);
+    QCOMPARE(resultSummarySpy.count(), 1);
     QCOMPARE(controller.applicationCount(), 1);
     QCOMPARE(controller.selectedApplicationIndex(), 0);
     QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-techsoft-qt-qml"));
@@ -121,11 +135,23 @@ void JobApplicationsControllerTest::controllerFiltersBySearchTextAndStatus()
     controller.clearFilters();
     controller.setStatusFilter(QStringLiteral("Interview"));
 
+    QCOMPARE(searchTextSpy.count(), 2);
+    QCOMPARE(statusFilterSpy.count(), 1);
+    QCOMPARE(countSpy.count(), 3);
+    QCOMPARE(resultSummarySpy.count(), 3);
     QCOMPARE(controller.applicationCount(), 2);
     QCOMPARE(controller.selectedApplication().value(QStringLiteral("statusLabel")).toString(), QStringLiteral("Interview"));
 
     controller.clearFilters();
     QCOMPARE(controller.applicationCount(), 6);
+    QCOMPARE(statusFilterSpy.count(), 2);
+    QCOMPARE(countSpy.count(), 4);
+    QCOMPARE(resultSummarySpy.count(), 4);
+
+    controller.clearFilters();
+    QCOMPARE(searchTextSpy.count(), 2);
+    QCOMPARE(statusFilterSpy.count(), 2);
+    QCOMPARE(countSpy.count(), 4);
 }
 
 void JobApplicationsControllerTest::selectionRemainsStableAcrossProxyChanges()
@@ -134,7 +160,9 @@ void JobApplicationsControllerTest::selectionRemainsStableAcrossProxyChanges()
     controller.selectApplication(1);
     QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-techsoft-qt-qml"));
 
-    QSignalSpy selectedSpy{&controller, &JobApplicationsController::selectedApplicationChanged};
+    QSignalSpy selectedIndexSpy{&controller, &JobApplicationsController::selectedApplicationIndexChanged};
+    QSignalSpy selectedIdSpy{&controller, &JobApplicationsController::selectedApplicationIdChanged};
+    QSignalSpy selectedDataSpy{&controller, &JobApplicationsController::selectedApplicationChanged};
     auto insertedApplication = testsupport::makeJobApplication(
         QStringLiteral("job-newest"),
         QStringLiteral("company-newest"),
@@ -152,13 +180,17 @@ void JobApplicationsControllerTest::selectionRemainsStableAcrossProxyChanges()
 
     QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-techsoft-qt-qml"));
     QCOMPARE(controller.selectedApplicationIndex(), 2);
-    QCOMPARE(selectedSpy.count(), 1);
+    QCOMPARE(selectedIndexSpy.count(), 1);
+    QCOMPARE(selectedIdSpy.count(), 0);
+    QCOMPARE(selectedDataSpy.count(), 0);
 
-    selectedSpy.clear();
+    selectedIndexSpy.clear();
     controller.setSearchText(QStringLiteral("TechSoft"));
     QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-techsoft-qt-qml"));
     QCOMPARE(controller.selectedApplicationIndex(), 0);
-    QCOMPARE(selectedSpy.count(), 1);
+    QCOMPARE(selectedIndexSpy.count(), 1);
+    QCOMPARE(selectedIdSpy.count(), 0);
+    QCOMPARE(selectedDataSpy.count(), 0);
 
     controller.clearFilters();
     QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-techsoft-qt-qml"));

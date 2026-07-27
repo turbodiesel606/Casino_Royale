@@ -2,6 +2,7 @@
 #define JOBTRACKER_SRC_CVS_CVLIBRARYCONTROLLER_HPP
 
 #include "common/RoleFilterProxyModel.hpp"
+#include "common/StableIdSelectionTracker.hpp"
 #include "CvListModel.hpp"
 #include "LinkedApplicationListModel.hpp"
 
@@ -17,16 +18,16 @@ class CvLibraryController final : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QAbstractItemModel* cvModel READ cvModel CONSTANT)
-    Q_PROPERTY(QAbstractItemModel* linkedApplicationsModel READ linkedApplicationsModel NOTIFY linkedApplicationsModelChanged)
-    Q_PROPERTY(QVariantList categorySummary READ categorySummary NOTIFY filtersChanged)
-    Q_PROPERTY(int cvCount READ cvCount NOTIFY cvModelChanged)
-    Q_PROPERTY(int selectedCvIndex READ selectedCvIndex NOTIFY selectedCvChanged)
-    Q_PROPERTY(QString selectedCvId READ selectedCvId NOTIFY selectedCvChanged)
+    Q_PROPERTY(QAbstractItemModel* linkedApplicationsModel READ linkedApplicationsModel CONSTANT)
+    Q_PROPERTY(QVariantList categorySummary READ categorySummary NOTIFY categorySummaryChanged)
+    Q_PROPERTY(int cvCount READ cvCount NOTIFY cvCountChanged)
+    Q_PROPERTY(int selectedCvIndex READ selectedCvIndex NOTIFY selectedCvIndexChanged)
+    Q_PROPERTY(QString selectedCvId READ selectedCvId NOTIFY selectedCvIdChanged)
     Q_PROPERTY(QVariantMap selectedCv READ selectedCv NOTIFY selectedCvChanged)
-    Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY filtersChanged)
-    Q_PROPERTY(QString categoryFilter READ categoryFilter WRITE setCategoryFilter NOTIFY filtersChanged)
-    Q_PROPERTY(QString languageFilter READ languageFilter WRITE setLanguageFilter NOTIFY filtersChanged)
-    Q_PROPERTY(QString sortMode READ sortMode WRITE setSortMode NOTIFY filtersChanged)
+    Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY searchTextChanged)
+    Q_PROPERTY(QString categoryFilter READ categoryFilter WRITE setCategoryFilter NOTIFY categoryFilterChanged)
+    Q_PROPERTY(QString languageFilter READ languageFilter WRITE setLanguageFilter NOTIFY languageFilterChanged)
+    Q_PROPERTY(QString sortMode READ sortMode WRITE setSortMode NOTIFY sortModeChanged)
     Q_PROPERTY(QString resultSummary READ resultSummary NOTIFY resultSummaryChanged)
 
 public:
@@ -68,10 +69,15 @@ public:
     void recordCvUse(const CvDocument& document, const QString& applicationId, bool wasInserted);
 
 signals:
-    void cvModelChanged();
-    void linkedApplicationsModelChanged();
+    void categorySummaryChanged();
+    void cvCountChanged();
+    void selectedCvIndexChanged();
+    void selectedCvIdChanged();
     void selectedCvChanged();
-    void filtersChanged();
+    void searchTextChanged();
+    void categoryFilterChanged();
+    void languageFilterChanged();
+    void sortModeChanged();
     void resultSummaryChanged();
     void operationFailed(QString message);
 
@@ -79,8 +85,8 @@ private:
     QVariantMap cvToMap(const CvDocument& cv) const;
     const CvDocument* findCv(const QString& cvId) const;
     const CvDocument* selectedSourceCv() const;
-    int selectedSourceRow() const;
-    void refreshSelection(bool selectedDataChanged = false);
+    void handleSelectionChanged(bool idChanged, bool rowChanged, bool dataChanged);
+    void handleVisibleCountChanged();
     void updateLinkedApplications();
 
     CvRepository& repository_;
@@ -88,12 +94,13 @@ private:
     CvListModel cvModel_;
     RoleFilterProxyModel filteredCvModel_;
     LinkedApplicationListModel linkedApplicationsModel_;
+    StableIdSelectionTracker selectionTracker_;
     QString searchText_;
     QString categoryFilter_;
     QString languageFilter_;
     QString sortMode_ = QStringLiteral("Last Modified");
-    QString selectedCvId_;
-    int selectedCvIndex_ = -1;
+    int publishedCvCount_ = 0;
+    bool visibleCountNotificationsSuppressed_ = false;
 };
 
 #endif // JOBTRACKER_SRC_CVS_CVLIBRARYCONTROLLER_HPP

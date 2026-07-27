@@ -5,8 +5,8 @@ ContactDirectoryController::ContactDirectoryController(ContactListModel& contact
     , contactModel_(contactModel)
     , filteredContactModel_(this)
     , interactionHistoryModel_(this)
+    , selectionTracker_(filteredContactModel_, ContactListModel::IdRole)
 {
-    filteredContactModel_.setSourceModel(&contactModel_);
     filteredContactModel_.setSearchRoles({
         ContactListModel::DisplayNameRole,
         ContactListModel::RoleTitleRole,
@@ -18,39 +18,28 @@ ContactDirectoryController::ContactDirectoryController(ContactListModel& contact
         ContactListModel::NotesRole,
     });
     connect(
-        &contactModel_,
+        &selectionTracker_,
+        &StableIdSelectionTracker::selectionChanged,
+        this,
+        &ContactDirectoryController::handleSelectionChanged);
+    filteredContactModel_.setSourceModel(&contactModel_);
+    selectionTracker_.synchronize();
+    publishedContactCount_ = contactCount();
+    connect(
+        &filteredContactModel_,
         &QAbstractItemModel::rowsInserted,
         this,
-        [this]() { refreshSelection(); });
+        [this]() { handleVisibleCountChanged(); });
     connect(
-        &contactModel_,
+        &filteredContactModel_,
         &QAbstractItemModel::rowsRemoved,
         this,
-        [this]() { refreshSelection(); });
+        [this]() { handleVisibleCountChanged(); });
     connect(
-        &contactModel_,
-        &QAbstractItemModel::rowsMoved,
-        this,
-        [this]() { refreshSelection(); });
-    connect(
-        &contactModel_,
+        &filteredContactModel_,
         &QAbstractItemModel::modelReset,
         this,
-        [this]() { refreshSelection(!selectedContactId_.isEmpty()); });
-    connect(
-        &contactModel_,
-        &QAbstractItemModel::layoutChanged,
-        this,
-        [this]() { refreshSelection(); });
-    connect(
-        &contactModel_,
-        &QAbstractItemModel::dataChanged,
-        this,
-        [this](const QModelIndex& topLeft, const QModelIndex& bottomRight) {
-            const auto selectedRow = selectedSourceRow();
-            refreshSelection(selectedRow >= topLeft.row() && selectedRow <= bottomRight.row());
-        });
-    refreshSelection();
+        [this]() { handleVisibleCountChanged(); });
 }
 
 QAbstractItemModel* ContactDirectoryController::contactModel()
@@ -70,12 +59,12 @@ int ContactDirectoryController::contactCount() const
 
 int ContactDirectoryController::selectedContactIndex() const
 {
-    return selectedContactIndex_;
+    return selectionTracker_.selectedRow();
 }
 
 QString ContactDirectoryController::selectedContactId() const
 {
-    return selectedContactId_;
+    return selectionTracker_.selectedId();
 }
 
 QVariantMap ContactDirectoryController::selectedContact() const
@@ -112,27 +101,7 @@ QString ContactDirectoryController::resultSummary() const
 
 void ContactDirectoryController::selectContact(int index)
 {
-    if (index < 0 || index >= filteredContactModel_.rowCount()) {
-        return;
-    }
-
-    const auto contactId = filteredContactModel_.data(
-        filteredContactModel_.index(index, 0),
-        ContactListModel::IdRole).toString();
-    const bool idChanged = contactId != selectedContactId_;
-    if (!idChanged && index == selectedContactIndex_) {
-        return;
-    }
-
-    selectedContactId_ = contactId;
-    selectedContactIndex_ = index;
-    if (idChanged) {
-        updateInteractionHistory();
-    }
-    emit selectedContactChanged();
-    if (idChanged) {
-        emit interactionHistoryModelChanged();
-    }
+    selectionTracker_.selectRow(index);
 }
 
 void ContactDirectoryController::setSearchText(const QString& text)
@@ -143,11 +112,13 @@ void ContactDirectoryController::setSearchText(const QString& text)
     }
 
     searchText_ = normalized;
+    selectionTracker_.beginModelUpdate();
+    visibleCountNotificationsSuppressed_ = true;
     filteredContactModel_.setSearchText(searchText_);
-    refreshSelection();
-    emit filtersChanged();
-    emit contactModelChanged();
-    emit resultSummaryChanged();
+    visibleCountNotificationsSuppressed_ = false;
+    selectionTracker_.endModelUpdate();
+    handleVisibleCountChanged();
+    emit searchTextChanged();
 }
 
 void ContactDirectoryController::setCompanyFilter(const QString& company)
@@ -158,11 +129,13 @@ void ContactDirectoryController::setCompanyFilter(const QString& company)
     }
 
     companyFilter_ = normalized;
+    selectionTracker_.beginModelUpdate();
+    visibleCountNotificationsSuppressed_ = true;
     filteredContactModel_.setExactFilter(ContactListModel::CompanyNameRole, companyFilter_ == QStringLiteral("All") ? QString() : companyFilter_);
-    refreshSelection();
-    emit filtersChanged();
-    emit contactModelChanged();
-    emit resultSummaryChanged();
+    visibleCountNotificationsSuppressed_ = false;
+    selectionTracker_.endModelUpdate();
+    handleVisibleCountChanged();
+    emit companyFilterChanged();
 }
 
 void ContactDirectoryController::setChannelFilter(const QString& channel)
@@ -173,6 +146,8 @@ void ContactDirectoryController::setChannelFilter(const QString& channel)
     }
 
     channelFilter_ = normalized;
+    selectionTracker_.beginModelUpdate();
+    visibleCountNotificationsSuppressed_ = true;
     if (channelFilter_ == QStringLiteral("Email")) {
         filteredContactModel_.setRequiredNonEmptyRole(ContactListModel::EmailRole);
     } else if (channelFilter_ == QStringLiteral("Telegram")) {
@@ -182,10 +157,10 @@ void ContactDirectoryController::setChannelFilter(const QString& channel)
     } else {
         filteredContactModel_.clearRequiredNonEmptyRole();
     }
-    refreshSelection();
-    emit filtersChanged();
-    emit contactModelChanged();
-    emit resultSummaryChanged();
+    visibleCountNotificationsSuppressed_ = false;
+    selectionTracker_.endModelUpdate();
+    handleVisibleCountChanged();
+    emit channelFilterChanged();
 }
 
 void ContactDirectoryController::setSortMode(const QString& sortMode)
@@ -196,6 +171,7 @@ void ContactDirectoryController::setSortMode(const QString& sortMode)
     }
 
     sortMode_ = normalized;
+    selectionTracker_.beginModelUpdate();
     if (sortMode_ == QStringLiteral("Company")) {
         filteredContactModel_.setSort(ContactListModel::CompanyNameRole, Qt::AscendingOrder);
     } else if (sortMode_ == QStringLiteral("Last Contact")) {
@@ -203,9 +179,8 @@ void ContactDirectoryController::setSortMode(const QString& sortMode)
     } else {
         filteredContactModel_.setSort(ContactListModel::DisplayNameRole, Qt::AscendingOrder);
     }
-    refreshSelection();
-    emit filtersChanged();
-    emit contactModelChanged();
+    selectionTracker_.endModelUpdate();
+    emit sortModeChanged();
 }
 
 void ContactDirectoryController::clearFilters()
@@ -214,79 +189,68 @@ void ContactDirectoryController::clearFilters()
         return;
     }
 
+    const bool didSearchTextChange = !searchText_.isEmpty();
+    const bool didCompanyFilterChange = !companyFilter_.isEmpty();
+    const bool didChannelFilterChange = !channelFilter_.isEmpty();
     searchText_.clear();
     companyFilter_.clear();
     channelFilter_.clear();
+    selectionTracker_.beginModelUpdate();
+    visibleCountNotificationsSuppressed_ = true;
     filteredContactModel_.setSearchText(QString());
     filteredContactModel_.clearExactFilter();
     filteredContactModel_.clearRequiredNonEmptyRole();
-    refreshSelection();
-    emit filtersChanged();
-    emit contactModelChanged();
-    emit resultSummaryChanged();
+    visibleCountNotificationsSuppressed_ = false;
+    selectionTracker_.endModelUpdate();
+    handleVisibleCountChanged();
+    if (didSearchTextChange) {
+        emit searchTextChanged();
+    }
+    if (didCompanyFilterChange) {
+        emit companyFilterChanged();
+    }
+    if (didChannelFilterChange) {
+        emit channelFilterChanged();
+    }
 }
 
 const Contact* ContactDirectoryController::selectedSourceContact() const
 {
-    const auto sourceRow = selectedSourceRow();
-    return sourceRow >= 0 ? contactModel_.contactAt(sourceRow) : nullptr;
+    const auto sourceIndex = selectionTracker_.selectedSourceIndex();
+    return sourceIndex.isValid() ? contactModel_.contactAt(sourceIndex.row()) : nullptr;
 }
 
-int ContactDirectoryController::selectedSourceRow() const
+void ContactDirectoryController::handleSelectionChanged(
+    bool idChanged,
+    bool rowChanged,
+    bool dataChanged)
 {
-    if (selectedContactId_.isEmpty()) {
-        return -1;
-    }
-
-    for (int row = 0; row < contactModel_.rowCount(); ++row) {
-        const auto* contact = contactModel_.contactAt(row);
-        if (contact != nullptr && contact->id_ == selectedContactId_) {
-            return row;
-        }
-    }
-
-    return -1;
-}
-
-void ContactDirectoryController::refreshSelection(bool selectedDataChanged)
-{
-    const auto previousId = selectedContactId_;
-    const auto previousIndex = selectedContactIndex_;
-    auto nextIndex = -1;
-
-    if (!selectedContactId_.isEmpty()) {
-        for (int row = 0; row < filteredContactModel_.rowCount(); ++row) {
-            if (filteredContactModel_.data(
-                    filteredContactModel_.index(row, 0),
-                    ContactListModel::IdRole).toString() == selectedContactId_) {
-                nextIndex = row;
-                break;
-            }
-        }
-    }
-
-    if (nextIndex < 0) {
-        if (filteredContactModel_.rowCount() > 0) {
-            nextIndex = 0;
-            selectedContactId_ = filteredContactModel_.data(
-                filteredContactModel_.index(0, 0),
-                ContactListModel::IdRole).toString();
-        } else {
-            selectedContactId_.clear();
-        }
-    }
-
-    selectedContactIndex_ = nextIndex;
-    const bool idChanged = selectedContactId_ != previousId;
     if (idChanged) {
         updateInteractionHistory();
+        emit selectedContactIdChanged();
     }
-    if (idChanged || selectedContactIndex_ != previousIndex || selectedDataChanged) {
+    if (rowChanged) {
+        emit selectedContactIndexChanged();
+    }
+    if (idChanged || dataChanged) {
         emit selectedContactChanged();
     }
-    if (idChanged) {
-        emit interactionHistoryModelChanged();
+}
+
+void ContactDirectoryController::handleVisibleCountChanged()
+{
+    if (visibleCountNotificationsSuppressed_) {
+        return;
     }
+
+    const auto count = contactCount();
+    if (publishedContactCount_ == count) {
+        return;
+    }
+
+    publishedContactCount_ = count;
+    emit contactCountChanged();
+    emit resultSummaryChanged();
 }
 
 QVariantMap ContactDirectoryController::contactToMap(const Contact& contact) const

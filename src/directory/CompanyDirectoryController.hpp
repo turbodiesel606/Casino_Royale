@@ -2,6 +2,7 @@
 #define JOBTRACKER_SRC_DIRECTORY_COMPANYDIRECTORYCONTROLLER_HPP
 
 #include "common/RoleFilterProxyModel.hpp"
+#include "common/StableIdSelectionTracker.hpp"
 #include "CompanyListModel.hpp"
 #include "LinkedCompanyContactsModel.hpp"
 #include "LinkedCompanyJobsModel.hpp"
@@ -15,14 +16,14 @@ class CompanyDirectoryController final : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QAbstractItemModel* companyModel READ companyModel CONSTANT)
-    Q_PROPERTY(QAbstractItemModel* linkedJobsModel READ linkedJobsModel NOTIFY linkedModelsChanged)
-    Q_PROPERTY(QAbstractItemModel* linkedContactsModel READ linkedContactsModel NOTIFY linkedModelsChanged)
-    Q_PROPERTY(int companyCount READ companyCount NOTIFY companyModelChanged)
-    Q_PROPERTY(int selectedCompanyIndex READ selectedCompanyIndex NOTIFY selectedCompanyChanged)
-    Q_PROPERTY(QString selectedCompanyId READ selectedCompanyId NOTIFY selectedCompanyChanged)
+    Q_PROPERTY(QAbstractItemModel* linkedJobsModel READ linkedJobsModel CONSTANT)
+    Q_PROPERTY(QAbstractItemModel* linkedContactsModel READ linkedContactsModel CONSTANT)
+    Q_PROPERTY(int companyCount READ companyCount NOTIFY companyCountChanged)
+    Q_PROPERTY(int selectedCompanyIndex READ selectedCompanyIndex NOTIFY selectedCompanyIndexChanged)
+    Q_PROPERTY(QString selectedCompanyId READ selectedCompanyId NOTIFY selectedCompanyIdChanged)
     Q_PROPERTY(QVariantMap selectedCompany READ selectedCompany NOTIFY selectedCompanyChanged)
-    Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY filtersChanged)
-    Q_PROPERTY(QString sortMode READ sortMode WRITE setSortMode NOTIFY filtersChanged)
+    Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY searchTextChanged)
+    Q_PROPERTY(QString sortMode READ sortMode WRITE setSortMode NOTIFY sortModeChanged)
     Q_PROPERTY(QString resultSummary READ resultSummary NOTIFY resultSummaryChanged)
 
 public:
@@ -52,16 +53,18 @@ public:
     void publishCompany(const QString& companyId, const QString& companyName);
 
 signals:
-    void companyModelChanged();
-    void linkedModelsChanged();
+    void companyCountChanged();
+    void selectedCompanyIndexChanged();
+    void selectedCompanyIdChanged();
     void selectedCompanyChanged();
-    void filtersChanged();
+    void searchTextChanged();
+    void sortModeChanged();
     void resultSummaryChanged();
 
 private:
     const Company* selectedSourceCompany() const;
-    int selectedSourceRow() const;
-    void refreshSelection(bool selectedDataChanged = false);
+    void handleSelectionChanged(bool idChanged, bool rowChanged, bool dataChanged);
+    void handleVisibleCountChanged();
     void refreshCompanyJobCounts();
     QVariantMap companyToMap(const Company& company) const;
     void updateLinkedModels();
@@ -71,10 +74,11 @@ private:
     RoleFilterProxyModel filteredCompanyModel_;
     LinkedCompanyJobsModel linkedJobsModel_;
     LinkedCompanyContactsModel linkedContactsModel_;
+    StableIdSelectionTracker selectionTracker_;
     QString searchText_;
     QString sortMode_ = QStringLiteral("Name");
-    QString selectedCompanyId_;
-    int selectedCompanyIndex_ = -1;
+    int publishedCompanyCount_ = 0;
+    bool visibleCountNotificationsSuppressed_ = false;
 };
 
 #endif // JOBTRACKER_SRC_DIRECTORY_COMPANYDIRECTORYCONTROLLER_HPP

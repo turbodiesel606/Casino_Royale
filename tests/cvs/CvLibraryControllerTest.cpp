@@ -155,13 +155,17 @@ void CvLibraryControllerTest::selectedCvControlsLinkedApplications()
         makeCvDocuments(),
         storage.repository_,
         storage.fileAccessService_);
-    QSignalSpy selectedSpy(&controller, &CvLibraryController::selectedCvChanged);
-    QSignalSpy linkedSpy(&controller, &CvLibraryController::linkedApplicationsModelChanged);
+    QSignalSpy selectedIndexSpy(&controller, &CvLibraryController::selectedCvIndexChanged);
+    QSignalSpy selectedIdSpy(&controller, &CvLibraryController::selectedCvIdChanged);
+    QSignalSpy selectedDataSpy(&controller, &CvLibraryController::selectedCvChanged);
+    QSignalSpy linkedResetSpy(controller.linkedApplicationsModel(), &QAbstractItemModel::modelReset);
 
     controller.selectCv(2);
 
-    QCOMPARE(selectedSpy.count(), 1);
-    QCOMPARE(linkedSpy.count(), 1);
+    QCOMPARE(selectedIndexSpy.count(), 1);
+    QCOMPARE(selectedIdSpy.count(), 1);
+    QCOMPARE(selectedDataSpy.count(), 1);
+    QCOMPARE(linkedResetSpy.count(), 1);
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-general"));
     QCOMPARE(controller.selectedCv().value(QStringLiteral("fileName")).toString(), QStringLiteral("CV_General.pdf"));
 
@@ -183,14 +187,18 @@ void CvLibraryControllerTest::favoriteToggleUpdatesSelectedCv()
         documents,
         storage.repository_,
         storage.fileAccessService_);
-    QSignalSpy selectedSpy(&controller, &CvLibraryController::selectedCvChanged);
+    QSignalSpy selectedIndexSpy(&controller, &CvLibraryController::selectedCvIndexChanged);
+    QSignalSpy selectedIdSpy(&controller, &CvLibraryController::selectedCvIdChanged);
+    QSignalSpy selectedDataSpy(&controller, &CvLibraryController::selectedCvChanged);
     QSignalSpy failedSpy(&controller, &CvLibraryController::operationFailed);
 
     QVERIFY(controller.selectedCv().value(QStringLiteral("isFavorite")).toBool());
     controller.toggleFavorite(QStringLiteral("cv-qt-2026"));
 
     QCOMPARE(failedSpy.count(), 0);
-    QCOMPARE(selectedSpy.count(), 1);
+    QCOMPARE(selectedIndexSpy.count(), 0);
+    QCOMPARE(selectedIdSpy.count(), 0);
+    QCOMPARE(selectedDataSpy.count(), 1);
     QVERIFY(!controller.selectedCv().value(QStringLiteral("isFavorite")).toBool());
     QVERIFY(!storage.repository_.findAll().first().isFavorite_);
 }
@@ -297,9 +305,15 @@ void CvLibraryControllerTest::controllerFiltersAndSortsCvs()
         makeCvDocuments(),
         storage.repository_,
         storage.fileAccessService_);
+    QSignalSpy categorySummarySpy(&controller, &CvLibraryController::categorySummaryChanged);
+    QSignalSpy categoryFilterSpy(&controller, &CvLibraryController::categoryFilterChanged);
+    QSignalSpy countSpy(&controller, &CvLibraryController::cvCountChanged);
+    QSignalSpy resultSummarySpy(&controller, &CvLibraryController::resultSummaryChanged);
 
     controller.setSearchText(QStringLiteral("embedded"));
 
+    QCOMPARE(countSpy.count(), 1);
+    QCOMPARE(resultSummarySpy.count(), 1);
     QCOMPARE(controller.cvCount(), 1);
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-embedded"));
     QCOMPARE(controller.resultSummary(), QStringLiteral("1 CV"));
@@ -307,12 +321,18 @@ void CvLibraryControllerTest::controllerFiltersAndSortsCvs()
     controller.clearFilters();
     controller.setCategoryFilter(QStringLiteral("General"));
 
+    QCOMPARE(categoryFilterSpy.count(), 1);
+    QCOMPARE(categorySummarySpy.count(), 1);
+    QCOMPARE(countSpy.count(), 3);
+    QCOMPARE(resultSummarySpy.count(), 3);
     QCOMPARE(controller.cvCount(), 1);
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-general"));
 
     controller.clearFilters();
     controller.setSortMode(QStringLiteral("Linked Jobs"));
 
+    QCOMPARE(categoryFilterSpy.count(), 2);
+    QCOMPARE(categorySummarySpy.count(), 2);
     QCOMPARE(controller.cvCount(), 4);
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-general"));
     QCOMPARE(controller.cvModel()->data(controller.cvModel()->index(0, 0), roleForName(*controller.cvModel(), "linkedApplicationCount")).toInt(), 4);
@@ -327,49 +347,58 @@ void CvLibraryControllerTest::selectionRemainsStableAcrossProxyChanges()
         makeCvDocuments(),
         storage.repository_,
         storage.fileAccessService_};
-    QSignalSpy selectedSpy{&controller, &CvLibraryController::selectedCvChanged};
-    QSignalSpy linkedSpy{&controller, &CvLibraryController::linkedApplicationsModelChanged};
+    QSignalSpy selectedIndexSpy{&controller, &CvLibraryController::selectedCvIndexChanged};
+    QSignalSpy selectedIdSpy{&controller, &CvLibraryController::selectedCvIdChanged};
+    QSignalSpy selectedDataSpy{&controller, &CvLibraryController::selectedCvChanged};
+    QSignalSpy linkedResetSpy{controller.linkedApplicationsModel(), &QAbstractItemModel::modelReset};
 
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-qt-2026"));
     controller.setSortMode(QStringLiteral("File Name"));
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-qt-2026"));
     QCOMPARE(controller.selectedCvIndex(), 3);
-    QCOMPARE(selectedSpy.count(), 1);
-    QCOMPARE(linkedSpy.count(), 0);
+    QCOMPARE(selectedIndexSpy.count(), 1);
+    QCOMPARE(selectedIdSpy.count(), 0);
+    QCOMPARE(selectedDataSpy.count(), 0);
+    QCOMPARE(linkedResetSpy.count(), 0);
 
     controller.setCategoryFilter(QStringLiteral("Engineering"));
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-qt-2026"));
     QCOMPARE(controller.selectedCvIndex(), 2);
-    QCOMPARE(linkedSpy.count(), 0);
+    QCOMPARE(linkedResetSpy.count(), 0);
 
     controller.clearFilters();
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-qt-2026"));
     QCOMPARE(controller.selectedCvIndex(), 3);
-    QCOMPARE(linkedSpy.count(), 0);
+    QCOMPARE(linkedResetSpy.count(), 0);
 
     controller.setCategoryFilter(QStringLiteral("General"));
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-general"));
     QCOMPARE(controller.selectedCvIndex(), 0);
-    QCOMPARE(linkedSpy.count(), 1);
+    QCOMPARE(linkedResetSpy.count(), 1);
 
     controller.clearFilters();
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-general"));
     QCOMPARE(controller.selectedCvIndex(), 2);
-    QCOMPARE(linkedSpy.count(), 1);
+    QCOMPARE(linkedResetSpy.count(), 1);
 
     controller.setSearchText(QStringLiteral("does-not-match"));
     QCOMPARE(controller.cvCount(), 0);
     QCOMPARE(controller.selectedCvIndex(), -1);
     QVERIFY(controller.selectedCvId().isEmpty());
-    QCOMPARE(linkedSpy.count(), 2);
+    QCOMPARE(linkedResetSpy.count(), 2);
 
     controller.clearFilters();
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-backend"));
     QCOMPARE(controller.selectedCvIndex(), 0);
-    QCOMPARE(linkedSpy.count(), 3);
+    QCOMPARE(linkedResetSpy.count(), 3);
 
-    selectedSpy.clear();
-    linkedSpy.clear();
+    selectedIndexSpy.clear();
+    selectedIdSpy.clear();
+    selectedDataSpy.clear();
+    linkedResetSpy.clear();
+    QSignalSpy categorySummarySpy{&controller, &CvLibraryController::categorySummaryChanged};
+    QSignalSpy countSpy{&controller, &CvLibraryController::cvCountChanged};
+    QSignalSpy resultSummarySpy{&controller, &CvLibraryController::resultSummaryChanged};
     auto insertedDocument = makeCvDocuments().first();
     insertedDocument.id_ = QStringLiteral("cv-alphabetical-first");
     insertedDocument.fileName_ = QStringLiteral("AAA_CV.pdf");
@@ -386,8 +415,13 @@ void CvLibraryControllerTest::selectionRemainsStableAcrossProxyChanges()
 
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-backend"));
     QCOMPARE(controller.selectedCvIndex(), 1);
-    QCOMPARE(selectedSpy.count(), 1);
-    QCOMPARE(linkedSpy.count(), 0);
+    QCOMPARE(selectedIndexSpy.count(), 1);
+    QCOMPARE(selectedIdSpy.count(), 0);
+    QCOMPARE(selectedDataSpy.count(), 0);
+    QCOMPARE(linkedResetSpy.count(), 0);
+    QCOMPARE(categorySummarySpy.count(), 1);
+    QCOMPARE(countSpy.count(), 1);
+    QCOMPARE(resultSummarySpy.count(), 1);
 }
 
 QTEST_GUILESS_MAIN(CvLibraryControllerTest)

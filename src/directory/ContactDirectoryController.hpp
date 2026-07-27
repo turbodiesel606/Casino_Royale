@@ -2,6 +2,7 @@
 #define JOBTRACKER_SRC_DIRECTORY_CONTACTDIRECTORYCONTROLLER_HPP
 
 #include "common/RoleFilterProxyModel.hpp"
+#include "common/StableIdSelectionTracker.hpp"
 #include "ContactInteractionListModel.hpp"
 #include "ContactListModel.hpp"
 
@@ -14,15 +15,15 @@ class ContactDirectoryController final : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QAbstractItemModel* contactModel READ contactModel CONSTANT)
-    Q_PROPERTY(QAbstractItemModel* interactionHistoryModel READ interactionHistoryModel NOTIFY interactionHistoryModelChanged)
-    Q_PROPERTY(int contactCount READ contactCount NOTIFY contactModelChanged)
-    Q_PROPERTY(int selectedContactIndex READ selectedContactIndex NOTIFY selectedContactChanged)
-    Q_PROPERTY(QString selectedContactId READ selectedContactId NOTIFY selectedContactChanged)
+    Q_PROPERTY(QAbstractItemModel* interactionHistoryModel READ interactionHistoryModel CONSTANT)
+    Q_PROPERTY(int contactCount READ contactCount NOTIFY contactCountChanged)
+    Q_PROPERTY(int selectedContactIndex READ selectedContactIndex NOTIFY selectedContactIndexChanged)
+    Q_PROPERTY(QString selectedContactId READ selectedContactId NOTIFY selectedContactIdChanged)
     Q_PROPERTY(QVariantMap selectedContact READ selectedContact NOTIFY selectedContactChanged)
-    Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY filtersChanged)
-    Q_PROPERTY(QString companyFilter READ companyFilter WRITE setCompanyFilter NOTIFY filtersChanged)
-    Q_PROPERTY(QString channelFilter READ channelFilter WRITE setChannelFilter NOTIFY filtersChanged)
-    Q_PROPERTY(QString sortMode READ sortMode WRITE setSortMode NOTIFY filtersChanged)
+    Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY searchTextChanged)
+    Q_PROPERTY(QString companyFilter READ companyFilter WRITE setCompanyFilter NOTIFY companyFilterChanged)
+    Q_PROPERTY(QString channelFilter READ channelFilter WRITE setChannelFilter NOTIFY channelFilterChanged)
+    Q_PROPERTY(QString sortMode READ sortMode WRITE setSortMode NOTIFY sortModeChanged)
     Q_PROPERTY(QString resultSummary READ resultSummary NOTIFY resultSummaryChanged)
 
 public:
@@ -48,28 +49,33 @@ public:
     Q_INVOKABLE void clearFilters();
 
 signals:
-    void contactModelChanged();
-    void interactionHistoryModelChanged();
+    void contactCountChanged();
+    void selectedContactIndexChanged();
+    void selectedContactIdChanged();
     void selectedContactChanged();
-    void filtersChanged();
+    void searchTextChanged();
+    void companyFilterChanged();
+    void channelFilterChanged();
+    void sortModeChanged();
     void resultSummaryChanged();
 
 private:
     const Contact* selectedSourceContact() const;
-    int selectedSourceRow() const;
-    void refreshSelection(bool selectedDataChanged = false);
+    void handleSelectionChanged(bool idChanged, bool rowChanged, bool dataChanged);
+    void handleVisibleCountChanged();
     QVariantMap contactToMap(const Contact& contact) const;
     void updateInteractionHistory();
 
     ContactListModel& contactModel_;
     RoleFilterProxyModel filteredContactModel_;
     ContactInteractionListModel interactionHistoryModel_;
+    StableIdSelectionTracker selectionTracker_;
     QString searchText_;
     QString companyFilter_;
     QString channelFilter_;
     QString sortMode_ = QStringLiteral("Name");
-    QString selectedContactId_;
-    int selectedContactIndex_ = -1;
+    int publishedContactCount_ = 0;
+    bool visibleCountNotificationsSuppressed_ = false;
 };
 
 #endif // JOBTRACKER_SRC_DIRECTORY_CONTACTDIRECTORYCONTROLLER_HPP

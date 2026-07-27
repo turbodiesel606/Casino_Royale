@@ -22,6 +22,8 @@ endif()
 set(JOBTRACKER_COMMON_SOURCES
     src/common/RoleFilterProxyModel.cpp
     src/common/RoleFilterProxyModel.hpp
+    src/common/StableIdSelectionTracker.cpp
+    src/common/StableIdSelectionTracker.hpp
     src/common/ValidationResult.hpp
     src/common/ValidationService.cpp
     src/common/ValidationService.hpp

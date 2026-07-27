@@ -2,6 +2,7 @@
 #define JOBTRACKER_SRC_JOBS_JOBAPPLICATIONSCONTROLLER_HPP
 
 #include "common/RoleFilterProxyModel.hpp"
+#include "common/StableIdSelectionTracker.hpp"
 #include "cvs/CvDocument.hpp"
 #include "JobApplicationListModel.hpp"
 
@@ -17,12 +18,12 @@ class JobApplicationsController final : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QAbstractItemModel* applicationsModel READ applicationsModel CONSTANT)
-    Q_PROPERTY(int applicationCount READ applicationCount NOTIFY applicationsModelChanged)
-    Q_PROPERTY(int selectedApplicationIndex READ selectedApplicationIndex NOTIFY selectedApplicationChanged)
-    Q_PROPERTY(QString selectedApplicationId READ selectedApplicationId NOTIFY selectedApplicationChanged)
+    Q_PROPERTY(int applicationCount READ applicationCount NOTIFY applicationCountChanged)
+    Q_PROPERTY(int selectedApplicationIndex READ selectedApplicationIndex NOTIFY selectedApplicationIndexChanged)
+    Q_PROPERTY(QString selectedApplicationId READ selectedApplicationId NOTIFY selectedApplicationIdChanged)
     Q_PROPERTY(QVariantMap selectedApplication READ selectedApplication NOTIFY selectedApplicationChanged)
-    Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY filtersChanged)
-    Q_PROPERTY(QString statusFilter READ statusFilter WRITE setStatusFilter NOTIFY filtersChanged)
+    Q_PROPERTY(QString searchText READ searchText WRITE setSearchText NOTIFY searchTextChanged)
+    Q_PROPERTY(QString statusFilter READ statusFilter WRITE setStatusFilter NOTIFY statusFilterChanged)
     Q_PROPERTY(QString resultSummary READ resultSummary NOTIFY resultSummaryChanged)
     Q_PROPERTY(bool saving READ saving NOTIFY savingChanged)
 
@@ -54,9 +55,12 @@ public:
     Q_INVOKABLE void createApplication(const QVariantMap& formValues, const QUrl& selectedCvUrl);
 
 signals:
-    void applicationsModelChanged();
+    void applicationCountChanged();
+    void selectedApplicationIndexChanged();
+    void selectedApplicationIdChanged();
     void selectedApplicationChanged();
-    void filtersChanged();
+    void searchTextChanged();
+    void statusFilterChanged();
     void resultSummaryChanged();
     void savingChanged();
     void applicationCreated(const QString& applicationId);
@@ -66,16 +70,17 @@ signals:
 
 private:
     const JobApplication* selectedSourceApplication() const;
-    int selectedSourceRow() const;
-    void refreshSelection(bool selectedDataChanged = false);
+    void handleSelectionChanged(bool idChanged, bool rowChanged, bool dataChanged);
+    void handleVisibleCountChanged();
     QVariantMap applicationToMap(const JobApplication& application) const;
 
     JobApplicationListModel applicationsModel_;
     RoleFilterProxyModel filteredApplicationsModel_;
+    StableIdSelectionTracker selectionTracker_;
     QString searchText_;
     QString statusFilter_;
-    QString selectedApplicationId_;
-    int selectedApplicationIndex_ = -1;
+    int publishedApplicationCount_ = 0;
+    bool visibleCountNotificationsSuppressed_ = false;
     AddJobService* addJobService_ = nullptr;
     bool saving_ = false;
 };

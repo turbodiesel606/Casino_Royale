@@ -14,8 +14,8 @@ JobApplicationsController::JobApplicationsController(QObject* parent)
 JobApplicationsController::JobApplicationsController(QVector<JobApplication> applications, QObject* parent)
     : QObject(parent)
     , applicationsModel_(std::move(applications))
+    , selectionTracker_(filteredApplicationsModel_, JobApplicationListModel::IdRole)
 {
-    filteredApplicationsModel_.setSourceModel(&applicationsModel_);
     filteredApplicationsModel_.setSearchRoles({
         JobApplicationListModel::CompanyNameRole,
         JobApplicationListModel::JobTitleRole,
@@ -27,39 +27,33 @@ JobApplicationsController::JobApplicationsController(QVector<JobApplication> app
     });
     filteredApplicationsModel_.setSort(JobApplicationListModel::DateLabelRole, Qt::DescendingOrder);
     connect(
-        &applicationsModel_,
+        &selectionTracker_,
+        &StableIdSelectionTracker::selectionChanged,
+        this,
+        &JobApplicationsController::handleSelectionChanged);
+    filteredApplicationsModel_.setSourceModel(&applicationsModel_);
+    selectionTracker_.synchronize();
+    publishedApplicationCount_ = applicationCount();
+    connect(
+        &filteredApplicationsModel_,
         &QAbstractItemModel::rowsInserted,
         this,
-        [this]() { refreshSelection(); });
+        [this]() { handleVisibleCountChanged(); });
     connect(
-        &applicationsModel_,
-        &QAbstractItemModel::rowsRemoved,
-        this,
-        [this]() { refreshSelection(); });
-    connect(
-        &applicationsModel_,
+        &filteredApplicationsModel_,
         &QAbstractItemModel::rowsMoved,
         this,
-        [this]() { refreshSelection(); });
+        [this]() { handleVisibleCountChanged(); });
     connect(
-        &applicationsModel_,
+        &filteredApplicationsModel_,
+        &QAbstractItemModel::rowsRemoved,
+        this,
+        [this]() { handleVisibleCountChanged(); });
+    connect(
+        &filteredApplicationsModel_,
         &QAbstractItemModel::modelReset,
         this,
-        [this]() { refreshSelection(!selectedApplicationId_.isEmpty()); });
-    connect(
-        &applicationsModel_,
-        &QAbstractItemModel::layoutChanged,
-        this,
-        [this]() { refreshSelection(); });
-    connect(
-        &applicationsModel_,
-        &QAbstractItemModel::dataChanged,
-        this,
-        [this](const QModelIndex& topLeft, const QModelIndex& bottomRight) {
-            const auto selectedRow = selectedSourceRow();
-            refreshSelection(selectedRow >= topLeft.row() && selectedRow <= bottomRight.row());
-        });
-    refreshSelection();
+        [this]() { handleVisibleCountChanged(); });
 }
 
 JobApplicationsController::JobApplicationsController(
@@ -93,12 +87,12 @@ int JobApplicationsController::applicationCount() const
 
 int JobApplicationsController::selectedApplicationIndex() const
 {
-    return selectedApplicationIndex_;
+    return selectionTracker_.selectedRow();
 }
 
 QString JobApplicationsController::selectedApplicationId() const
 {
-    return selectedApplicationId_;
+    return selectionTracker_.selectedId();
 }
 
 QVariantMap JobApplicationsController::selectedApplication() const
@@ -129,20 +123,7 @@ QString JobApplicationsController::resultSummary() const
 
 void JobApplicationsController::selectApplication(int index)
 {
-    if (index < 0 || index >= filteredApplicationsModel_.rowCount()) {
-        return;
-    }
-
-    const auto applicationId = filteredApplicationsModel_.data(
-        filteredApplicationsModel_.index(index, 0),
-        JobApplicationListModel::IdRole).toString();
-    if (applicationId == selectedApplicationId_ && index == selectedApplicationIndex_) {
-        return;
-    }
-
-    selectedApplicationId_ = applicationId;
-    selectedApplicationIndex_ = index;
-    emit selectedApplicationChanged();
+    selectionTracker_.selectRow(index);
 }
 
 bool JobApplicationsController::saving() const
@@ -158,11 +139,13 @@ void JobApplicationsController::setSearchText(const QString& text)
     }
 
     searchText_ = normalized;
+    selectionTracker_.beginModelUpdate();
+    visibleCountNotificationsSuppressed_ = true;
     filteredApplicationsModel_.setSearchText(searchText_);
-    refreshSelection();
-    emit filtersChanged();
-    emit applicationsModelChanged();
-    emit resultSummaryChanged();
+    visibleCountNotificationsSuppressed_ = false;
+    selectionTracker_.endModelUpdate();
+    handleVisibleCountChanged();
+    emit searchTextChanged();
 }
 
 void JobApplicationsController::setStatusFilter(const QString& status)
@@ -173,15 +156,17 @@ void JobApplicationsController::setStatusFilter(const QString& status)
     }
 
     statusFilter_ = normalized;
+    selectionTracker_.beginModelUpdate();
+    visibleCountNotificationsSuppressed_ = true;
     if (statusFilter_.isEmpty() || statusFilter_ == QStringLiteral("All")) {
         filteredApplicationsModel_.clearExactFilter();
     } else {
         filteredApplicationsModel_.setExactFilter(JobApplicationListModel::StatusLabelRole, statusFilter_);
     }
-    refreshSelection();
-    emit filtersChanged();
-    emit applicationsModelChanged();
-    emit resultSummaryChanged();
+    visibleCountNotificationsSuppressed_ = false;
+    selectionTracker_.endModelUpdate();
+    handleVisibleCountChanged();
+    emit statusFilterChanged();
 }
 
 void JobApplicationsController::clearFilters()
@@ -190,14 +175,23 @@ void JobApplicationsController::clearFilters()
         return;
     }
 
+    const bool didSearchTextChange = !searchText_.isEmpty();
+    const bool didStatusFilterChange = !statusFilter_.isEmpty();
     searchText_.clear();
     statusFilter_.clear();
+    selectionTracker_.beginModelUpdate();
+    visibleCountNotificationsSuppressed_ = true;
     filteredApplicationsModel_.setSearchText(QString());
     filteredApplicationsModel_.clearExactFilter();
-    refreshSelection();
-    emit filtersChanged();
-    emit applicationsModelChanged();
-    emit resultSummaryChanged();
+    visibleCountNotificationsSuppressed_ = false;
+    selectionTracker_.endModelUpdate();
+    handleVisibleCountChanged();
+    if (didSearchTextChange) {
+        emit searchTextChanged();
+    }
+    if (didStatusFilterChange) {
+        emit statusFilterChanged();
+    }
 }
 
 QStringList JobApplicationsController::validateSelectedApplication() const
@@ -264,74 +258,51 @@ void JobApplicationsController::createApplication(
     applicationsModel_.appendApplication(result.application_);
     emit companyResolved(result.company_.id_, result.company_.name_);
     filteredApplicationsModel_.sort(filteredApplicationsModel_.sortColumn(), filteredApplicationsModel_.sortOrder());
-    refreshSelection();
-    emit applicationsModelChanged();
-    emit resultSummaryChanged();
     emit cvUsed(result.cvDocument_, result.application_.id_, result.cvWasInserted_);
     emit applicationCreated(result.application_.id_);
 }
 
 const JobApplication* JobApplicationsController::selectedSourceApplication() const
 {
-    const auto sourceRow = selectedSourceRow();
-    return sourceRow >= 0 ? applicationsModel_.applicationAt(sourceRow) : nullptr;
+    const auto sourceIndex = selectionTracker_.selectedSourceIndex();
+    return sourceIndex.isValid() ? applicationsModel_.applicationAt(sourceIndex.row()) : nullptr;
 }
 
-int JobApplicationsController::selectedSourceRow() const
+void JobApplicationsController::handleSelectionChanged(
+    bool idChanged,
+    bool rowChanged,
+    bool dataChanged)
 {
-    if (selectedApplicationId_.isEmpty()) {
-        return -1;
+    if (idChanged) {
+        emit selectedApplicationIdChanged();
     }
-
-    for (int row = 0; row < applicationsModel_.rowCount(); ++row) {
-        const auto* application = applicationsModel_.applicationAt(row);
-        if (application != nullptr && application->id_ == selectedApplicationId_) {
-            return row;
-        }
+    if (rowChanged) {
+        emit selectedApplicationIndexChanged();
     }
-
-    return -1;
-}
-
-void JobApplicationsController::refreshSelection(bool selectedDataChanged)
-{
-    const auto previousId = selectedApplicationId_;
-    const auto previousIndex = selectedApplicationIndex_;
-    auto nextIndex = -1;
-
-    if (!selectedApplicationId_.isEmpty()) {
-        for (int row = 0; row < filteredApplicationsModel_.rowCount(); ++row) {
-            if (filteredApplicationsModel_.data(
-                    filteredApplicationsModel_.index(row, 0),
-                    JobApplicationListModel::IdRole).toString() == selectedApplicationId_) {
-                nextIndex = row;
-                break;
-            }
-        }
-    }
-
-    if (nextIndex < 0) {
-        if (filteredApplicationsModel_.rowCount() > 0) {
-            nextIndex = 0;
-            selectedApplicationId_ = filteredApplicationsModel_.data(
-                filteredApplicationsModel_.index(0, 0),
-                JobApplicationListModel::IdRole).toString();
-        } else {
-            selectedApplicationId_.clear();
-        }
-    }
-
-    selectedApplicationIndex_ = nextIndex;
-    if (selectedApplicationId_ != previousId
-        || selectedApplicationIndex_ != previousIndex
-        || selectedDataChanged) {
+    if (idChanged || dataChanged) {
         emit selectedApplicationChanged();
     }
 }
 
+void JobApplicationsController::handleVisibleCountChanged()
+{
+    if (visibleCountNotificationsSuppressed_) {
+        return;
+    }
+
+    const auto count = applicationCount();
+    if (publishedApplicationCount_ == count) {
+        return;
+    }
+
+    publishedApplicationCount_ = count;
+    emit applicationCountChanged();
+    emit resultSummaryChanged();
+}
+
 QVariantMap JobApplicationsController::applicationToMap(const JobApplication& application) const
 {
-    const auto sourceRow = selectedSourceRow();
+    const auto sourceRow = selectionTracker_.selectedSourceIndex().row();
     return {
         {QStringLiteral("id"), application.id_},
         {QStringLiteral("companyId"), application.companyId_},

@@ -42,8 +42,8 @@ CvLibraryController::CvLibraryController(
 	, cvModel_(std::move(documents), this)
 	, filteredCvModel_(this)
 	, linkedApplicationsModel_(applicationsModel, this)
+	, selectionTracker_(filteredCvModel_, CvListModel::IdRole)
 {
-	filteredCvModel_.setSourceModel(&cvModel_);
 	filteredCvModel_.setSearchRoles({
 		CvListModel::FileNameRole,
 		CvListModel::TitleRole,
@@ -53,39 +53,52 @@ CvLibraryController::CvLibraryController(
 		});
 	filteredCvModel_.setSort(CvListModel::LastModifiedLabelRole, Qt::DescendingOrder);
 	connect(
+		&selectionTracker_,
+		&StableIdSelectionTracker::selectionChanged,
+		this,
+		&CvLibraryController::handleSelectionChanged);
+	filteredCvModel_.setSourceModel(&cvModel_);
+	selectionTracker_.synchronize();
+	publishedCvCount_ = cvCount();
+	connect(
+		&filteredCvModel_,
+		&QAbstractItemModel::rowsInserted,
+		this,
+		[this]() { handleVisibleCountChanged(); });
+	connect(
+		&filteredCvModel_,
+		&QAbstractItemModel::rowsRemoved,
+		this,
+		[this]() { handleVisibleCountChanged(); });
+	connect(
+		&filteredCvModel_,
+		&QAbstractItemModel::modelReset,
+		this,
+		[this]() { handleVisibleCountChanged(); });
+	connect(
 		&cvModel_,
 		&QAbstractItemModel::rowsInserted,
 		this,
-		[this]() { refreshSelection(); });
+		[this]() { emit categorySummaryChanged(); });
 	connect(
 		&cvModel_,
 		&QAbstractItemModel::rowsRemoved,
 		this,
-		[this]() { refreshSelection(); });
-	connect(
-		&cvModel_,
-		&QAbstractItemModel::rowsMoved,
-		this,
-		[this]() { refreshSelection(); });
+		[this]() { emit categorySummaryChanged(); });
 	connect(
 		&cvModel_,
 		&QAbstractItemModel::modelReset,
 		this,
-		[this]() { refreshSelection(!selectedCvId_.isEmpty()); });
-	connect(
-		&cvModel_,
-		&QAbstractItemModel::layoutChanged,
-		this,
-		[this]() { refreshSelection(); });
+		[this]() { emit categorySummaryChanged(); });
 	connect(
 		&cvModel_,
 		&QAbstractItemModel::dataChanged,
 		this,
-		[this](const QModelIndex& topLeft, const QModelIndex& bottomRight) {
-			const auto selectedRow = selectedSourceRow();
-			refreshSelection(selectedRow >= topLeft.row() && selectedRow <= bottomRight.row());
+		[this](const QModelIndex&, const QModelIndex&, const QList<int>& roles) {
+			if (roles.isEmpty() || roles.contains(CvListModel::CategoryRole)) {
+				emit categorySummaryChanged();
+			}
 		});
-	refreshSelection();
 }
 
 void CvLibraryController::recordCvUse(
@@ -100,8 +113,6 @@ void CvLibraryController::recordCvUse(
     } else {
         cvModel_.addLinkedApplication(document.id_, applicationId);
     }
-    emit cvModelChanged();
-    emit resultSummaryChanged();
 }
 
 QAbstractItemModel* CvLibraryController::cvModel()
@@ -159,12 +170,12 @@ int CvLibraryController::cvCount() const
 
 int CvLibraryController::selectedCvIndex() const
 {
-	return selectedCvIndex_;
+	return selectionTracker_.selectedRow();
 }
 
 QString CvLibraryController::selectedCvId() const
 {
-	return selectedCvId_;
+	return selectionTracker_.selectedId();
 }
 
 QVariantMap CvLibraryController::selectedCv() const
@@ -201,27 +212,7 @@ QString CvLibraryController::resultSummary() const
 
 void CvLibraryController::selectCv(int index)
 {
-	if (index < 0 || index >= filteredCvModel_.rowCount()) {
-		return;
-	}
-
-	const auto cvId = filteredCvModel_.data(
-		filteredCvModel_.index(index, 0),
-		CvListModel::IdRole).toString();
-	const bool idChanged = cvId != selectedCvId_;
-	if (!idChanged && index == selectedCvIndex_) {
-		return;
-	}
-
-	selectedCvId_ = cvId;
-	selectedCvIndex_ = index;
-	if (idChanged) {
-		updateLinkedApplications();
-	}
-	emit selectedCvChanged();
-	if (idChanged) {
-		emit linkedApplicationsModelChanged();
-	}
+	selectionTracker_.selectRow(index);
 }
 
 void CvLibraryController::setSearchText(const QString& text)
@@ -232,11 +223,13 @@ void CvLibraryController::setSearchText(const QString& text)
 	}
 
 	searchText_ = normalized;
+	selectionTracker_.beginModelUpdate();
+	visibleCountNotificationsSuppressed_ = true;
 	filteredCvModel_.setSearchText(searchText_);
-	refreshSelection();
-	emit filtersChanged();
-	emit cvModelChanged();
-	emit resultSummaryChanged();
+	visibleCountNotificationsSuppressed_ = false;
+	selectionTracker_.endModelUpdate();
+	handleVisibleCountChanged();
+	emit searchTextChanged();
 }
 
 void CvLibraryController::setCategoryFilter(const QString& category)
@@ -246,12 +239,23 @@ void CvLibraryController::setCategoryFilter(const QString& category)
 		return;
 	}
 
+	const auto previousSummarySelection = categoryFilter_ == QStringLiteral("All")
+		? QString()
+		: categoryFilter_;
+	const auto nextSummarySelection = normalized == QStringLiteral("All")
+		? QString()
+		: normalized;
 	categoryFilter_ = normalized;
+	selectionTracker_.beginModelUpdate();
+	visibleCountNotificationsSuppressed_ = true;
 	filteredCvModel_.setExactFilter(CvListModel::CategoryRole, categoryFilter_ == QStringLiteral("All") ? QString() : categoryFilter_);
-	refreshSelection();
-	emit filtersChanged();
-	emit cvModelChanged();
-	emit resultSummaryChanged();
+	visibleCountNotificationsSuppressed_ = false;
+	selectionTracker_.endModelUpdate();
+	handleVisibleCountChanged();
+	emit categoryFilterChanged();
+	if (previousSummarySelection != nextSummarySelection) {
+		emit categorySummaryChanged();
+	}
 }
 
 void CvLibraryController::setLanguageFilter(const QString& language)
@@ -262,11 +266,13 @@ void CvLibraryController::setLanguageFilter(const QString& language)
 	}
 
 	languageFilter_ = normalized;
+	selectionTracker_.beginModelUpdate();
+	visibleCountNotificationsSuppressed_ = true;
 	filteredCvModel_.setExactFilter(CvListModel::LanguageRole, languageFilter_ == QStringLiteral("All") ? QString() : languageFilter_);
-	refreshSelection();
-	emit filtersChanged();
-	emit cvModelChanged();
-	emit resultSummaryChanged();
+	visibleCountNotificationsSuppressed_ = false;
+	selectionTracker_.endModelUpdate();
+	handleVisibleCountChanged();
+	emit languageFilterChanged();
 }
 
 void CvLibraryController::setSortMode(const QString& sortMode)
@@ -277,6 +283,7 @@ void CvLibraryController::setSortMode(const QString& sortMode)
 	}
 
 	sortMode_ = normalized;
+	selectionTracker_.beginModelUpdate();
 	if (sortMode_ == QStringLiteral("File Name")) {
 		filteredCvModel_.setSort(CvListModel::FileNameRole, Qt::AscendingOrder);
 	}
@@ -286,9 +293,8 @@ void CvLibraryController::setSortMode(const QString& sortMode)
 	else {
 		filteredCvModel_.setSort(CvListModel::LastModifiedLabelRole, Qt::DescendingOrder);
 	}
-	refreshSelection();
-	emit filtersChanged();
-	emit cvModelChanged();
+	selectionTracker_.endModelUpdate();
+	emit sortModeChanged();
 }
 
 void CvLibraryController::clearFilters()
@@ -297,15 +303,33 @@ void CvLibraryController::clearFilters()
 		return;
 	}
 
+	const bool didSearchTextChange = !searchText_.isEmpty();
+	const bool didCategoryFilterChange = !categoryFilter_.isEmpty();
+	const bool didCategorySummaryChange = didCategoryFilterChange
+		&& categoryFilter_ != QStringLiteral("All");
+	const bool didLanguageFilterChange = !languageFilter_.isEmpty();
 	searchText_.clear();
 	categoryFilter_.clear();
 	languageFilter_.clear();
+	selectionTracker_.beginModelUpdate();
+	visibleCountNotificationsSuppressed_ = true;
 	filteredCvModel_.setSearchText(QString());
 	filteredCvModel_.clearExactFilter();
-	refreshSelection();
-	emit filtersChanged();
-	emit cvModelChanged();
-	emit resultSummaryChanged();
+	visibleCountNotificationsSuppressed_ = false;
+	selectionTracker_.endModelUpdate();
+	handleVisibleCountChanged();
+	if (didSearchTextChange) {
+		emit searchTextChanged();
+	}
+	if (didCategoryFilterChange) {
+		emit categoryFilterChanged();
+	}
+	if (didCategorySummaryChange) {
+		emit categorySummaryChanged();
+	}
+	if (didLanguageFilterChange) {
+		emit languageFilterChanged();
+	}
 }
 
 void CvLibraryController::toggleFavorite(const QString& cvId)
@@ -387,65 +411,41 @@ const CvDocument* CvLibraryController::findCv(const QString& cvId) const
 
 const CvDocument* CvLibraryController::selectedSourceCv() const
 {
-	const auto sourceRow = selectedSourceRow();
-	return sourceRow >= 0 ? cvModel_.cvAt(sourceRow) : nullptr;
+	const auto sourceIndex = selectionTracker_.selectedSourceIndex();
+	return sourceIndex.isValid() ? cvModel_.cvAt(sourceIndex.row()) : nullptr;
 }
 
-int CvLibraryController::selectedSourceRow() const
+void CvLibraryController::handleSelectionChanged(
+	bool idChanged,
+	bool rowChanged,
+	bool dataChanged)
 {
-	if (selectedCvId_.isEmpty()) {
-		return -1;
-	}
-
-	for (int row = 0; row < cvModel_.rowCount(); ++row) {
-		const auto* cv = cvModel_.cvAt(row);
-		if (cv != nullptr && cv->id_ == selectedCvId_) {
-			return row;
-		}
-	}
-
-	return -1;
-}
-
-void CvLibraryController::refreshSelection(bool selectedDataChanged)
-{
-	const auto previousId = selectedCvId_;
-	const auto previousIndex = selectedCvIndex_;
-	auto nextIndex = -1;
-
-	if (!selectedCvId_.isEmpty()) {
-		for (int row = 0; row < filteredCvModel_.rowCount(); ++row) {
-			if (filteredCvModel_.data(
-					filteredCvModel_.index(row, 0),
-					CvListModel::IdRole).toString() == selectedCvId_) {
-				nextIndex = row;
-				break;
-			}
-		}
-	}
-
-	if (nextIndex < 0) {
-		if (filteredCvModel_.rowCount() > 0) {
-			nextIndex = 0;
-			selectedCvId_ = filteredCvModel_.data(
-				filteredCvModel_.index(0, 0),
-				CvListModel::IdRole).toString();
-		} else {
-			selectedCvId_.clear();
-		}
-	}
-
-	selectedCvIndex_ = nextIndex;
-	const bool idChanged = selectedCvId_ != previousId;
 	if (idChanged) {
 		updateLinkedApplications();
+		emit selectedCvIdChanged();
 	}
-	if (idChanged || selectedCvIndex_ != previousIndex || selectedDataChanged) {
+	if (rowChanged) {
+		emit selectedCvIndexChanged();
+	}
+	if (idChanged || dataChanged) {
 		emit selectedCvChanged();
 	}
-	if (idChanged) {
-		emit linkedApplicationsModelChanged();
+}
+
+void CvLibraryController::handleVisibleCountChanged()
+{
+	if (visibleCountNotificationsSuppressed_) {
+		return;
 	}
+
+	const auto count = cvCount();
+	if (publishedCvCount_ == count) {
+		return;
+	}
+
+	publishedCvCount_ = count;
+	emit cvCountChanged();
+	emit resultSummaryChanged();
 }
 
 void CvLibraryController::updateLinkedApplications()

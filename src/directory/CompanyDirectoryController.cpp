@@ -19,8 +19,8 @@ CompanyDirectoryController::CompanyDirectoryController(
     , filteredCompanyModel_(this)
     , linkedJobsModel_(applicationsModel, this)
     , linkedContactsModel_(contactModel, this)
+    , selectionTracker_(filteredCompanyModel_, CompanyListModel::IdRole)
 {
-    filteredCompanyModel_.setSourceModel(&companyModel_);
     filteredCompanyModel_.setSearchRoles({
         CompanyListModel::NameRole,
         CompanyListModel::WebsiteRole,
@@ -39,39 +39,28 @@ CompanyDirectoryController::CompanyDirectoryController(
         [this]() { refreshCompanyJobCounts(); });
     refreshCompanyJobCounts();
     connect(
-        &companyModel_,
+        &selectionTracker_,
+        &StableIdSelectionTracker::selectionChanged,
+        this,
+        &CompanyDirectoryController::handleSelectionChanged);
+    filteredCompanyModel_.setSourceModel(&companyModel_);
+    selectionTracker_.synchronize();
+    publishedCompanyCount_ = companyCount();
+    connect(
+        &filteredCompanyModel_,
         &QAbstractItemModel::rowsInserted,
         this,
-        [this]() { refreshSelection(); });
+        [this]() { handleVisibleCountChanged(); });
     connect(
-        &companyModel_,
+        &filteredCompanyModel_,
         &QAbstractItemModel::rowsRemoved,
         this,
-        [this]() { refreshSelection(); });
+        [this]() { handleVisibleCountChanged(); });
     connect(
-        &companyModel_,
-        &QAbstractItemModel::rowsMoved,
-        this,
-        [this]() { refreshSelection(); });
-    connect(
-        &companyModel_,
+        &filteredCompanyModel_,
         &QAbstractItemModel::modelReset,
         this,
-        [this]() { refreshSelection(!selectedCompanyId_.isEmpty()); });
-    connect(
-        &companyModel_,
-        &QAbstractItemModel::layoutChanged,
-        this,
-        [this]() { refreshSelection(); });
-    connect(
-        &companyModel_,
-        &QAbstractItemModel::dataChanged,
-        this,
-        [this](const QModelIndex& topLeft, const QModelIndex& bottomRight) {
-            const auto selectedRow = selectedSourceRow();
-            refreshSelection(selectedRow >= topLeft.row() && selectedRow <= bottomRight.row());
-        });
-    refreshSelection();
+        [this]() { handleVisibleCountChanged(); });
 }
 
 QAbstractItemModel* CompanyDirectoryController::companyModel()
@@ -96,12 +85,12 @@ int CompanyDirectoryController::companyCount() const
 
 int CompanyDirectoryController::selectedCompanyIndex() const
 {
-    return selectedCompanyIndex_;
+    return selectionTracker_.selectedRow();
 }
 
 QString CompanyDirectoryController::selectedCompanyId() const
 {
-    return selectedCompanyId_;
+    return selectionTracker_.selectedId();
 }
 
 QVariantMap CompanyDirectoryController::selectedCompany() const
@@ -131,27 +120,7 @@ QString CompanyDirectoryController::resultSummary() const
 
 void CompanyDirectoryController::selectCompany(int index)
 {
-    if (index < 0 || index >= filteredCompanyModel_.rowCount()) {
-        return;
-    }
-
-    const auto companyId = filteredCompanyModel_.data(
-        filteredCompanyModel_.index(index, 0),
-        CompanyListModel::IdRole).toString();
-    const bool idChanged = companyId != selectedCompanyId_;
-    if (!idChanged && index == selectedCompanyIndex_) {
-        return;
-    }
-
-    selectedCompanyId_ = companyId;
-    selectedCompanyIndex_ = index;
-    if (idChanged) {
-        updateLinkedModels();
-    }
-    emit selectedCompanyChanged();
-    if (idChanged) {
-        emit linkedModelsChanged();
-    }
+    selectionTracker_.selectRow(index);
 }
 
 void CompanyDirectoryController::setSearchText(const QString& text)
@@ -162,11 +131,13 @@ void CompanyDirectoryController::setSearchText(const QString& text)
     }
 
     searchText_ = normalized;
+    selectionTracker_.beginModelUpdate();
+    visibleCountNotificationsSuppressed_ = true;
     filteredCompanyModel_.setSearchText(searchText_);
-    refreshSelection();
-    emit filtersChanged();
-    emit companyModelChanged();
-    emit resultSummaryChanged();
+    visibleCountNotificationsSuppressed_ = false;
+    selectionTracker_.endModelUpdate();
+    handleVisibleCountChanged();
+    emit searchTextChanged();
 }
 
 void CompanyDirectoryController::setSortMode(const QString& sortMode)
@@ -177,6 +148,7 @@ void CompanyDirectoryController::setSortMode(const QString& sortMode)
     }
 
     sortMode_ = normalized;
+    selectionTracker_.beginModelUpdate();
     if (sortMode_ == QStringLiteral("Open Jobs")) {
         filteredCompanyModel_.setSort(CompanyListModel::OpenJobCountRole, Qt::DescendingOrder);
     } else if (sortMode_ == QStringLiteral("Contacts")) {
@@ -184,9 +156,8 @@ void CompanyDirectoryController::setSortMode(const QString& sortMode)
     } else {
         filteredCompanyModel_.setSort(CompanyListModel::NameRole, Qt::AscendingOrder);
     }
-    refreshSelection();
-    emit filtersChanged();
-    emit companyModelChanged();
+    selectionTracker_.endModelUpdate();
+    emit sortModeChanged();
 }
 
 void CompanyDirectoryController::clearFilters()
@@ -196,11 +167,13 @@ void CompanyDirectoryController::clearFilters()
     }
 
     searchText_.clear();
+    selectionTracker_.beginModelUpdate();
+    visibleCountNotificationsSuppressed_ = true;
     filteredCompanyModel_.setSearchText(QString());
-    refreshSelection();
-    emit filtersChanged();
-    emit companyModelChanged();
-    emit resultSummaryChanged();
+    visibleCountNotificationsSuppressed_ = false;
+    selectionTracker_.endModelUpdate();
+    handleVisibleCountChanged();
+    emit searchTextChanged();
 }
 
 void CompanyDirectoryController::publishCompany(
@@ -219,72 +192,45 @@ void CompanyDirectoryController::publishCompany(
     company.logoAccent_ = QStringLiteral("#146ce0");
     companyModel_.upsertCompany(std::move(company));
     refreshCompanyJobCounts();
-    refreshSelection();
-    emit companyModelChanged();
-    emit resultSummaryChanged();
 }
 
 const Company* CompanyDirectoryController::selectedSourceCompany() const
 {
-    const auto sourceRow = selectedSourceRow();
-    return sourceRow >= 0 ? companyModel_.companyAt(sourceRow) : nullptr;
+    const auto sourceIndex = selectionTracker_.selectedSourceIndex();
+    return sourceIndex.isValid() ? companyModel_.companyAt(sourceIndex.row()) : nullptr;
 }
 
-int CompanyDirectoryController::selectedSourceRow() const
+void CompanyDirectoryController::handleSelectionChanged(
+    bool idChanged,
+    bool rowChanged,
+    bool dataChanged)
 {
-    if (selectedCompanyId_.isEmpty()) {
-        return -1;
-    }
-
-    for (int row = 0; row < companyModel_.rowCount(); ++row) {
-        const auto* company = companyModel_.companyAt(row);
-        if (company != nullptr && company->id_ == selectedCompanyId_) {
-            return row;
-        }
-    }
-
-    return -1;
-}
-
-void CompanyDirectoryController::refreshSelection(bool selectedDataChanged)
-{
-    const auto previousId = selectedCompanyId_;
-    const auto previousIndex = selectedCompanyIndex_;
-    auto nextIndex = -1;
-
-    if (!selectedCompanyId_.isEmpty()) {
-        for (int row = 0; row < filteredCompanyModel_.rowCount(); ++row) {
-            if (filteredCompanyModel_.data(
-                    filteredCompanyModel_.index(row, 0),
-                    CompanyListModel::IdRole).toString() == selectedCompanyId_) {
-                nextIndex = row;
-                break;
-            }
-        }
-    }
-
-    if (nextIndex < 0) {
-        if (filteredCompanyModel_.rowCount() > 0) {
-            nextIndex = 0;
-            selectedCompanyId_ = filteredCompanyModel_.data(
-                filteredCompanyModel_.index(0, 0),
-                CompanyListModel::IdRole).toString();
-        } else {
-            selectedCompanyId_.clear();
-        }
-    }
-
-    selectedCompanyIndex_ = nextIndex;
-    const bool idChanged = selectedCompanyId_ != previousId;
     if (idChanged) {
         updateLinkedModels();
+        emit selectedCompanyIdChanged();
     }
-    if (idChanged || selectedCompanyIndex_ != previousIndex || selectedDataChanged) {
+    if (rowChanged) {
+        emit selectedCompanyIndexChanged();
+    }
+    if (idChanged || dataChanged) {
         emit selectedCompanyChanged();
     }
-    if (idChanged) {
-        emit linkedModelsChanged();
+}
+
+void CompanyDirectoryController::handleVisibleCountChanged()
+{
+    if (visibleCountNotificationsSuppressed_) {
+        return;
     }
+
+    const auto count = companyCount();
+    if (publishedCompanyCount_ == count) {
+        return;
+    }
+
+    publishedCompanyCount_ = count;
+    emit companyCountChanged();
+    emit resultSummaryChanged();
 }
 
 void CompanyDirectoryController::refreshCompanyJobCounts()

@@ -84,6 +84,7 @@ class DirectoryControllerTest final : public QObject
 private slots:
     void companyModelExposesNamedRoles();
     void contactModelExposesNamedRoles();
+    void scalarNotificationsAreSemantic();
     void companySelectionRemainsStableAcrossProxyChanges();
     void contactSelectionRemainsStableAcrossProxyChanges();
 };
@@ -129,6 +130,62 @@ void DirectoryControllerTest::contactModelExposesNamedRoles()
     QCOMPARE(controller.resultSummary(), QStringLiteral("0 contacts"));
 }
 
+void DirectoryControllerTest::scalarNotificationsAreSemantic()
+{
+    JobApplicationListModel applicationsModel;
+    ContactListModel contactModel{makeContacts()};
+    CompanyDirectoryController companyController{
+        makeCompanies(),
+        applicationsModel,
+        contactModel};
+    QSignalSpy companySearchSpy{&companyController, &CompanyDirectoryController::searchTextChanged};
+    QSignalSpy companySortSpy{&companyController, &CompanyDirectoryController::sortModeChanged};
+    QSignalSpy companyCountSpy{&companyController, &CompanyDirectoryController::companyCountChanged};
+    QSignalSpy companySummarySpy{&companyController, &CompanyDirectoryController::resultSummaryChanged};
+
+    companyController.setSearchText(QStringLiteral("Alpha"));
+    QCOMPARE(companySearchSpy.count(), 1);
+    QCOMPARE(companyCountSpy.count(), 1);
+    QCOMPARE(companySummarySpy.count(), 1);
+
+    companyController.setSearchText(QStringLiteral("Alpha"));
+    companyController.setSortMode(QStringLiteral("Contacts"));
+    QCOMPARE(companySearchSpy.count(), 1);
+    QCOMPARE(companySortSpy.count(), 1);
+    QCOMPARE(companyCountSpy.count(), 1);
+    QCOMPARE(companySummarySpy.count(), 1);
+
+    companyController.clearFilters();
+    QCOMPARE(companySearchSpy.count(), 2);
+    QCOMPARE(companyCountSpy.count(), 2);
+    QCOMPARE(companySummarySpy.count(), 2);
+
+    ContactDirectoryController contactController{contactModel};
+    QSignalSpy companyFilterSpy{&contactController, &ContactDirectoryController::companyFilterChanged};
+    QSignalSpy channelFilterSpy{&contactController, &ContactDirectoryController::channelFilterChanged};
+    QSignalSpy contactSortSpy{&contactController, &ContactDirectoryController::sortModeChanged};
+    QSignalSpy contactCountSpy{&contactController, &ContactDirectoryController::contactCountChanged};
+    QSignalSpy contactSummarySpy{&contactController, &ContactDirectoryController::resultSummaryChanged};
+
+    contactController.setCompanyFilter(QStringLiteral("Acme"));
+    contactController.setChannelFilter(QStringLiteral("Email"));
+    QCOMPARE(companyFilterSpy.count(), 1);
+    QCOMPARE(channelFilterSpy.count(), 1);
+    QCOMPARE(contactCountSpy.count(), 2);
+    QCOMPARE(contactSummarySpy.count(), 2);
+
+    contactController.setSortMode(QStringLiteral("Company"));
+    QCOMPARE(contactSortSpy.count(), 1);
+    QCOMPARE(contactCountSpy.count(), 2);
+    QCOMPARE(contactSummarySpy.count(), 2);
+
+    contactController.clearFilters();
+    QCOMPARE(companyFilterSpy.count(), 2);
+    QCOMPARE(channelFilterSpy.count(), 2);
+    QCOMPARE(contactCountSpy.count(), 3);
+    QCOMPARE(contactSummarySpy.count(), 3);
+}
+
 void DirectoryControllerTest::companySelectionRemainsStableAcrossProxyChanges()
 {
     JobApplicationListModel applicationsModel;
@@ -140,51 +197,66 @@ void DirectoryControllerTest::companySelectionRemainsStableAcrossProxyChanges()
     controller.selectCompany(1);
     QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-alpha"));
 
-    QSignalSpy selectedSpy{&controller, &CompanyDirectoryController::selectedCompanyChanged};
-    QSignalSpy linkedSpy{&controller, &CompanyDirectoryController::linkedModelsChanged};
+    QSignalSpy selectedIndexSpy{&controller, &CompanyDirectoryController::selectedCompanyIndexChanged};
+    QSignalSpy selectedIdSpy{&controller, &CompanyDirectoryController::selectedCompanyIdChanged};
+    QSignalSpy selectedDataSpy{&controller, &CompanyDirectoryController::selectedCompanyChanged};
+    QSignalSpy linkedJobsResetSpy{controller.linkedJobsModel(), &QAbstractItemModel::modelReset};
+    QSignalSpy linkedContactsResetSpy{controller.linkedContactsModel(), &QAbstractItemModel::modelReset};
 
     controller.setSortMode(QStringLiteral("Contacts"));
     QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-alpha"));
     QCOMPARE(controller.selectedCompanyIndex(), 2);
-    QCOMPARE(selectedSpy.count(), 1);
-    QCOMPARE(linkedSpy.count(), 0);
+    QCOMPARE(selectedIndexSpy.count(), 1);
+    QCOMPARE(selectedIdSpy.count(), 0);
+    QCOMPARE(selectedDataSpy.count(), 0);
+    QCOMPARE(linkedJobsResetSpy.count(), 0);
+    QCOMPARE(linkedContactsResetSpy.count(), 0);
 
     controller.setSearchText(QStringLiteral("Alpha"));
     QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-alpha"));
     QCOMPARE(controller.selectedCompanyIndex(), 0);
-    QCOMPARE(linkedSpy.count(), 0);
+    QCOMPARE(linkedJobsResetSpy.count(), 0);
+    QCOMPARE(linkedContactsResetSpy.count(), 0);
 
     controller.clearFilters();
     QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-alpha"));
     QCOMPARE(controller.selectedCompanyIndex(), 2);
-    QCOMPARE(linkedSpy.count(), 0);
+    QCOMPARE(linkedJobsResetSpy.count(), 0);
+    QCOMPARE(linkedContactsResetSpy.count(), 0);
 
     controller.setSearchText(QStringLiteral("Beta"));
     QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-beta"));
     QCOMPARE(controller.selectedCompanyIndex(), 0);
-    QCOMPARE(linkedSpy.count(), 1);
+    QCOMPARE(linkedJobsResetSpy.count(), 1);
+    QCOMPARE(linkedContactsResetSpy.count(), 1);
 
     controller.clearFilters();
     QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-beta"));
     QCOMPARE(controller.selectedCompanyIndex(), 1);
-    QCOMPARE(linkedSpy.count(), 1);
+    QCOMPARE(linkedJobsResetSpy.count(), 1);
+    QCOMPARE(linkedContactsResetSpy.count(), 1);
 
     controller.setSearchText(QStringLiteral("does-not-match"));
     QCOMPARE(controller.companyCount(), 0);
     QCOMPARE(controller.selectedCompanyIndex(), -1);
     QVERIFY(controller.selectedCompanyId().isEmpty());
-    QCOMPARE(linkedSpy.count(), 2);
+    QCOMPARE(linkedJobsResetSpy.count(), 2);
+    QCOMPARE(linkedContactsResetSpy.count(), 2);
 
     controller.clearFilters();
     QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-gamma"));
     QCOMPARE(controller.selectedCompanyIndex(), 0);
-    QCOMPARE(linkedSpy.count(), 3);
+    QCOMPARE(linkedJobsResetSpy.count(), 3);
+    QCOMPARE(linkedContactsResetSpy.count(), 3);
 
     controller.setSortMode(QStringLiteral("Name"));
     controller.selectCompany(1);
     QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-beta"));
-    selectedSpy.clear();
-    linkedSpy.clear();
+    selectedIndexSpy.clear();
+    selectedIdSpy.clear();
+    selectedDataSpy.clear();
+    linkedJobsResetSpy.clear();
+    linkedContactsResetSpy.clear();
 
     controller.publishCompany(
         QStringLiteral("company-aardvark"),
@@ -192,8 +264,11 @@ void DirectoryControllerTest::companySelectionRemainsStableAcrossProxyChanges()
 
     QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-beta"));
     QCOMPARE(controller.selectedCompanyIndex(), 2);
-    QCOMPARE(selectedSpy.count(), 1);
-    QCOMPARE(linkedSpy.count(), 0);
+    QCOMPARE(selectedIndexSpy.count(), 1);
+    QCOMPARE(selectedIdSpy.count(), 0);
+    QCOMPARE(selectedDataSpy.count(), 0);
+    QCOMPARE(linkedJobsResetSpy.count(), 0);
+    QCOMPARE(linkedContactsResetSpy.count(), 0);
 }
 
 void DirectoryControllerTest::contactSelectionRemainsStableAcrossProxyChanges()
@@ -203,48 +278,52 @@ void DirectoryControllerTest::contactSelectionRemainsStableAcrossProxyChanges()
     controller.selectContact(1);
     QCOMPARE(controller.selectedContactId(), QStringLiteral("contact-alice"));
 
-    QSignalSpy selectedSpy{&controller, &ContactDirectoryController::selectedContactChanged};
-    QSignalSpy interactionSpy{&controller, &ContactDirectoryController::interactionHistoryModelChanged};
+    QSignalSpy selectedIndexSpy{&controller, &ContactDirectoryController::selectedContactIndexChanged};
+    QSignalSpy selectedIdSpy{&controller, &ContactDirectoryController::selectedContactIdChanged};
+    QSignalSpy selectedDataSpy{&controller, &ContactDirectoryController::selectedContactChanged};
+    QSignalSpy interactionResetSpy{controller.interactionHistoryModel(), &QAbstractItemModel::modelReset};
 
     controller.setSortMode(QStringLiteral("Company"));
     QCOMPARE(controller.selectedContactId(), QStringLiteral("contact-alice"));
     QCOMPARE(controller.selectedContactIndex(), 0);
-    QCOMPARE(selectedSpy.count(), 1);
-    QCOMPARE(interactionSpy.count(), 0);
+    QCOMPARE(selectedIndexSpy.count(), 1);
+    QCOMPARE(selectedIdSpy.count(), 0);
+    QCOMPARE(selectedDataSpy.count(), 0);
+    QCOMPARE(interactionResetSpy.count(), 0);
 
     controller.setCompanyFilter(QStringLiteral("Acme"));
     QCOMPARE(controller.selectedContactId(), QStringLiteral("contact-alice"));
     QCOMPARE(controller.selectedContactIndex(), 0);
-    QCOMPARE(interactionSpy.count(), 0);
+    QCOMPARE(interactionResetSpy.count(), 0);
 
     controller.clearFilters();
     QCOMPARE(controller.selectedContactId(), QStringLiteral("contact-alice"));
     QCOMPARE(controller.selectedContactIndex(), 0);
-    QCOMPARE(interactionSpy.count(), 0);
+    QCOMPARE(interactionResetSpy.count(), 0);
 
     controller.setChannelFilter(QStringLiteral("Telegram"));
     QCOMPARE(controller.selectedContactId(), QStringLiteral("contact-bob"));
     QCOMPARE(controller.selectedContactIndex(), 0);
     QCOMPARE(controller.interactionHistoryModel()->rowCount(), 2);
-    QCOMPARE(interactionSpy.count(), 1);
+    QCOMPARE(interactionResetSpy.count(), 1);
 
     controller.clearFilters();
     QCOMPARE(controller.selectedContactId(), QStringLiteral("contact-bob"));
     QCOMPARE(controller.selectedContactIndex(), 2);
-    QCOMPARE(interactionSpy.count(), 1);
+    QCOMPARE(interactionResetSpy.count(), 1);
 
     controller.setSearchText(QStringLiteral("does-not-match"));
     QCOMPARE(controller.contactCount(), 0);
     QCOMPARE(controller.selectedContactIndex(), -1);
     QVERIFY(controller.selectedContactId().isEmpty());
     QCOMPARE(controller.interactionHistoryModel()->rowCount(), 0);
-    QCOMPARE(interactionSpy.count(), 2);
+    QCOMPARE(interactionResetSpy.count(), 2);
 
     controller.clearFilters();
     QCOMPARE(controller.selectedContactId(), QStringLiteral("contact-alice"));
     QCOMPARE(controller.selectedContactIndex(), 0);
     QCOMPARE(controller.interactionHistoryModel()->rowCount(), 1);
-    QCOMPARE(interactionSpy.count(), 3);
+    QCOMPARE(interactionResetSpy.count(), 3);
 }
 
 QTEST_APPLESS_MAIN(DirectoryControllerTest)
