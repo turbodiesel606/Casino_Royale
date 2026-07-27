@@ -1,5 +1,5 @@
 #include "JobRepository.hpp"
-#include "utils/Utils.hpp"
+#include "storage/SqlQuery.hpp"
 
 #include <QDateTime>
 #include <QSqlDatabase>
@@ -67,7 +67,7 @@ QVector<JobApplication> JobRepository::findAll() const
 		"JOIN companies ON companies.id = jobs.company_id "
 		"JOIN cvs ON cvs.id = jobs.cv_id "
 		"ORDER BY jobs.created_at DESC"))) {
-		utils::throwQueryError(jobsQuery);
+		storage::sql::throwQueryError(jobsQuery, QStringLiteral("load job applications"));
 	}
 
 	QVector<JobApplication> applications;
@@ -90,7 +90,9 @@ QVector<JobApplication> JobRepository::findAll() const
 		"SELECT job_id, technology "
 		"FROM job_technologies "
 		"ORDER BY job_id, position"))) {
-		utils::throwQueryError(technologiesQuery);
+		storage::sql::throwQueryError(
+			technologiesQuery,
+			QStringLiteral("load job application technologies"));
 	}
 
 	while (technologiesQuery.next()) {
@@ -133,7 +135,7 @@ void JobRepository::insert(const JobApplication& application) const
 	query.addBindValue(application.updatedAt_.toUTC().toString(Qt::ISODate));
 
 	if (!query.exec())
-		utils::throwQueryError(query);
+		storage::sql::throwQueryError(query, QStringLiteral("insert a job application"));
 
 	for (int position = 0; position < application.techStack_.size(); ++position) {
 		QSqlQuery technologyQuery(database_);
@@ -144,7 +146,9 @@ void JobRepository::insert(const JobApplication& application) const
 		technologyQuery.addBindValue(application.techStack_.at(position));
 
 		if (!technologyQuery.exec())
-			utils::throwQueryError(technologyQuery);
+			storage::sql::throwQueryError(
+				technologyQuery,
+				QStringLiteral("insert a job application technology"));
 
 	}
 }

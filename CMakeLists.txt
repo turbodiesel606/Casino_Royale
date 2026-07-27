@@ -61,8 +61,16 @@ set(JOBTRACKER_PERSISTENCE_SOURCES
     src/jobs/AddJobService.hpp
     src/jobs/JobRepository.cpp
     src/jobs/JobRepository.hpp
+    src/storage/SchemaInitializationV3.cpp
+    src/storage/SchemaMigrationSteps.hpp
+    src/storage/SchemaMigrationV1ToV2.cpp
+    src/storage/SchemaMigrationV2ToV3.cpp
     src/storage/SchemaMigrator.cpp
     src/storage/SchemaMigrator.hpp
+    src/storage/SqlQuery.cpp
+    src/storage/SqlQuery.hpp
+    src/storage/SqlTransaction.cpp
+    src/storage/SqlTransaction.hpp
     src/storage/SqliteDatabase.cpp
     src/storage/SqliteDatabase.hpp
     src/storage/StoragePaths.cpp
@@ -102,11 +110,6 @@ set(JOBTRACKER_DIRECTORY_SOURCES
     src/directory/ContactListModel.hpp
 )
 
-set(JOBTRACKER_UTILS_SOURCES
-    src/utils/Utils.cpp
-    src/utils/Utils.hpp
-)
-
 qt_add_executable(JobTrackerApp
     src/app/App.cpp
     src/app/App.hpp
@@ -118,7 +121,6 @@ qt_add_executable(JobTrackerApp
     ${JOBTRACKER_DIRECTORY_SOURCES}
     ${JOBTRACKER_JOB_SOURCES}
     ${JOBTRACKER_PERSISTENCE_SOURCES}
-    ${JOBTRACKER_UTILS_SOURCES}
     src/main.cpp
 )
 
@@ -257,7 +259,6 @@ if(JOBTRACKER_BUILD_TESTS)
         ${JOBTRACKER_COMMON_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
         ${JOBTRACKER_PERSISTENCE_SOURCES}
-        ${JOBTRACKER_UTILS_SOURCES}
     )
 
     target_include_directories(JobTrackerJobsTests
@@ -277,7 +278,6 @@ if(JOBTRACKER_BUILD_TESTS)
         ${JOBTRACKER_CV_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
         ${JOBTRACKER_PERSISTENCE_SOURCES}
-        ${JOBTRACKER_UTILS_SOURCES}
     )
 
     target_include_directories(JobTrackerCvTests
@@ -298,7 +298,6 @@ if(JOBTRACKER_BUILD_TESTS)
         ${JOBTRACKER_DASHBOARD_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
         ${JOBTRACKER_PERSISTENCE_SOURCES}
-        ${JOBTRACKER_UTILS_SOURCES}
     )
 
     target_include_directories(JobTrackerDashboardTests
@@ -318,7 +317,6 @@ if(JOBTRACKER_BUILD_TESTS)
         ${JOBTRACKER_DIRECTORY_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
         ${JOBTRACKER_PERSISTENCE_SOURCES}
-        ${JOBTRACKER_UTILS_SOURCES}
     )
 
     target_include_directories(JobTrackerDirectoryTests
@@ -338,7 +336,6 @@ if(JOBTRACKER_BUILD_TESTS)
         ${JOBTRACKER_DIRECTORY_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
         ${JOBTRACKER_PERSISTENCE_SOURCES}
-        ${JOBTRACKER_UTILS_SOURCES}
     )
 
     target_include_directories(JobTrackerStorageTests

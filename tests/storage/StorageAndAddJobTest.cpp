@@ -12,6 +12,8 @@
 #include "jobs/JobRepository.hpp"
 #include "storage/SqliteDatabase.hpp"
 #include "storage/SchemaMigrator.hpp"
+#include "storage/SqlQuery.hpp"
+#include "storage/SqlTransaction.hpp"
 #include "storage/StoragePaths.hpp"
 
 #include <QDir>
@@ -265,6 +267,9 @@ class StorageAndAddJobTest final : public QObject
 
 private slots:
     void createsDatabaseAndMigratesOnce();
+    void queryErrorsIncludeOperationContext();
+    void transactionGuardRollsBackUntilCommitted();
+    void rejectsNewerSchemaVersion();
     void createsJobAndCopiesCv();
     void streamsHashAndStagesCopy();
     void reportsStagedCopyFailure();
@@ -311,6 +316,96 @@ void StorageAndAddJobTest::createsDatabaseAndMigratesOnce()
     QVERIFY(companies.findAll().isEmpty());
     QVERIFY(jobs.findAll().isEmpty());
     QVERIFY(cvs.findAll().isEmpty());
+}
+
+void StorageAndAddJobTest::queryErrorsIncludeOperationContext()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+    StoragePaths paths(QDir(temporaryDirectory.path()).filePath(QStringLiteral("Data")));
+    SQLiteDataBase database(paths.databasePath());
+
+    QString errorMessage;
+    try {
+        storage::sql::execute(
+            database.connection(),
+            QStringLiteral("INSERT INTO missing_table VALUES (1)"),
+            QStringLiteral("insert a query-helper test row"));
+    } catch (const std::exception& error) {
+        errorMessage = QString::fromUtf8(error.what());
+    }
+
+    QVERIFY(errorMessage.contains(QStringLiteral("insert a query-helper test row")));
+    QVERIFY(errorMessage.contains(QStringLiteral("missing_table")));
+}
+
+void StorageAndAddJobTest::transactionGuardRollsBackUntilCommitted()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+    StoragePaths paths(QDir(temporaryDirectory.path()).filePath(QStringLiteral("Data")));
+    SQLiteDataBase database(paths.databasePath());
+    auto& connection = database.connection();
+    storage::sql::execute(
+        connection,
+        QStringLiteral("CREATE TABLE transaction_probe (value INTEGER NOT NULL)"),
+        QStringLiteral("create the transaction-guard probe table"));
+
+    {
+        SqlTransaction transaction{connection, QStringLiteral("transaction-guard rollback test")};
+        storage::sql::execute(
+            connection,
+            QStringLiteral("INSERT INTO transaction_probe VALUES (1)"),
+            QStringLiteral("insert the rollback probe row"));
+    }
+
+    QSqlQuery countAfterRollback{connection};
+    QVERIFY(countAfterRollback.exec(QStringLiteral("SELECT COUNT(*) FROM transaction_probe")));
+    QVERIFY(countAfterRollback.next());
+    QCOMPARE(countAfterRollback.value(0).toInt(), 0);
+
+    {
+        SqlTransaction transaction{connection, QStringLiteral("transaction-guard commit test")};
+        storage::sql::execute(
+            connection,
+            QStringLiteral("INSERT INTO transaction_probe VALUES (2)"),
+            QStringLiteral("insert the commit probe row"));
+        transaction.commit();
+    }
+
+    QSqlQuery countAfterCommit{connection};
+    QVERIFY(countAfterCommit.exec(QStringLiteral("SELECT COUNT(*) FROM transaction_probe")));
+    QVERIFY(countAfterCommit.next());
+    QCOMPARE(countAfterCommit.value(0).toInt(), 1);
+}
+
+void StorageAndAddJobTest::rejectsNewerSchemaVersion()
+{
+    QTemporaryDir temporaryDirectory;
+    QVERIFY(temporaryDirectory.isValid());
+    const auto databasePath = QDir(temporaryDirectory.path()).filePath(
+        QStringLiteral("newer-schema.sqlite"));
+    const auto connectionName = QStringLiteral("jobtracker-newer-schema-%1")
+        .arg(QUuid::createUuid().toString(QUuid::WithoutBraces));
+    auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
+    database.setDatabaseName(databasePath);
+    QVERIFY(database.open());
+    {
+        QSqlQuery version{database};
+        QVERIFY(version.exec(QStringLiteral("PRAGMA user_version = 4")));
+    }
+
+    QString migrationError;
+    try {
+        SchemaMigrator::migrate(database);
+    } catch (const std::exception& error) {
+        migrationError = QString::fromUtf8(error.what());
+    }
+    QVERIFY(migrationError.contains(QStringLiteral("newer")));
+
+    database.close();
+    database = {};
+    QSqlDatabase::removeDatabase(connectionName);
 }
 
 void StorageAndAddJobTest::createsJobAndCopiesCv()

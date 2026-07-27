@@ -1,6 +1,6 @@
 #include "CompanyRepository.hpp"
 
-#include "utils/Utils.hpp"
+#include "storage/SqlQuery.hpp"
 
 #include <QDateTime>
 #include <QSqlDatabase>
@@ -43,7 +43,7 @@ QVector<Company> CompanyRepository::findAll() const
     if (!query.exec(QStringLiteral(
             "SELECT id, display_name, created_at, updated_at "
             "FROM companies ORDER BY normalized_name"))) {
-        utils::throwQueryError(query);
+        storage::sql::throwQueryError(query, QStringLiteral("load companies"));
     }
 
     QVector<Company> companies;
@@ -67,7 +67,9 @@ Company CompanyRepository::findOrCreateByName(const QString& name) const
         "FROM companies WHERE normalized_name = ?"));
     findQuery.addBindValue(normalizedName);
     if (!findQuery.exec()) {
-        utils::throwQueryError(findQuery);
+        storage::sql::throwQueryError(
+            findQuery,
+            QStringLiteral("find a company by normalized name"));
     }
     if (findQuery.next()) {
         return companyFromQuery(findQuery);
@@ -90,7 +92,7 @@ Company CompanyRepository::findOrCreateByName(const QString& name) const
     insertQuery.addBindValue(now.toString(Qt::ISODateWithMs));
     insertQuery.addBindValue(now.toString(Qt::ISODateWithMs));
     if (!insertQuery.exec()) {
-        utils::throwQueryError(insertQuery);
+        storage::sql::throwQueryError(insertQuery, QStringLiteral("insert a company"));
     }
 
     return company;

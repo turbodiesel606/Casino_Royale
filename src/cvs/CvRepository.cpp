@@ -1,5 +1,5 @@
 #include "CvRepository.hpp"
-#include "utils/Utils.hpp"
+#include "storage/SqlQuery.hpp"
 #include <QDateTime>
 #include <QSqlDatabase>
 #include <QSqlQuery>
@@ -86,7 +86,7 @@ QVector<CvDocument> CvRepository::findAll() const
 	QSqlQuery cvsRowCountQuery{ database_ };
 	// find out row count
 	if (!cvsRowCountQuery.exec(QStringLiteral("SELECT COUNT(*) FROM cvs")) || !cvsRowCountQuery.next())
-		utils::throwQueryError(cvsRowCountQuery);
+		storage::sql::throwQueryError(cvsRowCountQuery, QStringLiteral("count stored CVs"));
 
 	const qsizetype cvsRowCount = static_cast<qsizetype>(cvsRowCountQuery.value(0).toLongLong());
 
@@ -94,7 +94,9 @@ QVector<CvDocument> CvRepository::findAll() const
 
 	QSqlQuery cvsJoinedQuery(database_);
 	if (!cvsJoinedQuery.exec(selectCvsWithLinkedJob()))
-		utils::throwQueryError(cvsJoinedQuery);
+		storage::sql::throwQueryError(
+			cvsJoinedQuery,
+			QStringLiteral("load CVs and linked job applications"));
 
 	QVector<CvDocument> documents;
 	QHash<QString, qsizetype> documentIndexes;
@@ -132,7 +134,7 @@ std::optional<CvDocument> CvRepository::findByIdentity(
 	query.addBindValue(originalFileName);
 
 	if (!query.exec())
-		utils::throwQueryError(query);
+		storage::sql::throwQueryError(query, QStringLiteral("find a CV by identity"));
 
 	if (!query.next())
 		return std::nullopt;
@@ -162,7 +164,7 @@ void CvRepository::insert(const CvDocument& document) const
 	query.addBindValue(document.updatedAt_.toUTC().toString(Qt::ISODate));
 
 	if (!query.exec())
-		utils::throwQueryError(query);
+		storage::sql::throwQueryError(query, QStringLiteral("insert a CV"));
 
 }
 
@@ -177,7 +179,7 @@ std::optional<QDateTime> CvRepository::updateFavorite(const QString& cvId, bool 
 	query.addBindValue(cvId);
 
 	if (!query.exec())
-		utils::throwQueryError(query);
+		storage::sql::throwQueryError(query, QStringLiteral("update a CV favorite"));
 
 	return query.numRowsAffected() == 1
 		? std::optional<QDateTime>{updatedAt}

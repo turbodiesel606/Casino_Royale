@@ -4,9 +4,9 @@
 #include "JobRepository.hpp"
 #include "cvs/CvImportService.hpp"
 #include "directory/CompanyRepository.hpp"
+#include "storage/SqlTransaction.hpp"
 
 #include <QSqlDatabase>
-#include <QSqlError>
 #include <QThread>
 #include <QUrl>
 
@@ -63,13 +63,9 @@ AddJobResult AddJobService::complete(AddJobPreparationResult preparation) const
 		return result;
 	}
 
-	if (!database_.transaction()) {
-		result.message_ = database_.lastError().text();
-		return result;
-	}
-
 	QString completedFilePath;
 	try {
+		SqlTransaction transaction{database_, QStringLiteral("Add Job persistence")};
 		const auto company = companyRepository_.findOrCreateByName(preparation.draft_.companyName_);
 		const auto cvImport = cvImportService_.importPreparedDocument(preparation.cvPreparation_);
 		completedFilePath = cvImport.completedFilePath_;
@@ -80,9 +76,7 @@ AddJobResult AddJobService::complete(AddJobPreparationResult preparation) const
 			cvImport.document_);
 		jobRepository_.insert(application);
 
-		if (!database_.commit()) {
-			throw std::runtime_error(database_.lastError().text().toStdString());
-		}
+		transaction.commit();
 
 		result.success_ = true;
 		result.application_ = std::move(application);
@@ -91,7 +85,6 @@ AddJobResult AddJobService::complete(AddJobPreparationResult preparation) const
 		result.cvWasInserted_ = cvImport.wasInserted_;
 	}
 	catch (const std::exception& error) {
-		database_.rollback();
 		result.message_ = QString::fromUtf8(error.what());
 		if (!cvImportService_.removeCompletedFile(completedFilePath)) {
 			result.message_.append(QStringLiteral(

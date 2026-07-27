@@ -68,6 +68,11 @@ Jobs, CVs, and company identities are currently backed by SQLite.
 `StoragePaths` resolves the application data location, creates the managed resume folder, and provides the database path.
 
 `SQLiteDataBase` owns the Qt SQL connection lifetime and schema migration.
+Storage-specific SQL helpers execute standalone statements and translate Qt SQL
+failures into exceptions that identify the failed operation. Repositories use
+the same contextual error boundary for prepared queries. `SqlTransaction`
+starts one transaction, requires an explicit successful commit, and
+automatically rolls back while still active.
 
 The current SQLite schema is version 3 and contains:
 
@@ -81,14 +86,17 @@ The current SQLite schema is version 3 and contains:
   `(job_id, position)` primary key preserves ordering, and its `job_id` foreign
   key references `jobs.id` with `ON DELETE CASCADE`.
 
-`SchemaMigrator` initializes new databases directly at version 3. Version 1
-databases first receive the CV identity migration to version 2, then continue
-through the company identity migration. The `v2 -> v3` step trims and
-case-folds existing job company names, creates one company per normalized
-identity, rebuilds jobs with required company foreign keys, and preserves
-technology rows. Blank legacy company names abort the transaction with a clear
-error. Initialization and all upgrades run transactionally and verify foreign
-keys before commit.
+`SchemaMigrator` reads `PRAGMA user_version`, rejects unsupported newer
+databases, selects the direct version-3 initialization or applies each forward
+migration sequentially, verifies foreign keys, and commits through
+`SqlTransaction`. The explicit initialization, `v1 -> v2`, and `v2 -> v3` SQL
+live in separate version-specific implementation units. Version 1 databases
+first receive the CV identity migration to version 2, then continue through the
+company identity migration. The `v2 -> v3` step trims and case-folds existing
+job company names, creates one company per normalized identity, rebuilds jobs
+with required company foreign keys, and preserves technology rows. Blank
+legacy company names abort the transaction with a clear error. Initialization
+and all upgrades run transactionally and verify foreign keys before commit.
 
 `CvRepository` loads and inserts CV metadata, persists favorite changes with an
 updated timestamp, and reconstructs each CV's linked application IDs with a
