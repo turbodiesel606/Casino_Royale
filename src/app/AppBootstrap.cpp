@@ -1,6 +1,7 @@
 #include "AppBootstrap.hpp"
 
 #include <QObject>
+#include <QDebug>
 #include <QQmlContext>
 #include <QUrl>
 
@@ -11,10 +12,11 @@ AppBootstrap::AppBootstrap(QCoreApplication& app)
 	: app_(app)
 	, database_(storagePaths_.databasePath())
 	, cvRepository_(database_.connection())
+	, cvManagedFileStore_(storagePaths_)
 	, cvFileAccessService_(storagePaths_)
 	, companyRepository_(database_.connection())
 	, jobRepository_(database_.connection())
-	, cvImportService_(storagePaths_, cvRepository_)
+	, cvImportService_(cvManagedFileStore_, cvRepository_)
 	, addJobService_(database_.connection(), jobRepository_, companyRepository_, cvImportService_)
 	, jobApplicationsController_(jobRepository_.findAll(), addJobService_)
 	, cvLibraryController_(
@@ -29,6 +31,16 @@ AppBootstrap::AppBootstrap(QCoreApplication& app)
 		contactModel_)
 	, contactDirectoryController_(contactModel_)
 {
+	const auto recovery = cvManagedFileStore_.reconcile(cvRepository_.findAll());
+	if (recovery.removedStagedFileCount_ > 0
+		|| !recovery.quarantinedFileNames_.isEmpty()) {
+		qInfo() << "Managed CV recovery removed"
+			<< recovery.removedStagedFileCount_
+			<< "staged files and quarantined"
+			<< recovery.quarantinedFileNames_.size()
+			<< "orphaned files.";
+	}
+
 	// Forward CV usage events from the job applications controller to the CV library controller.
 	QObject::connect(
 		&jobApplicationsController_,

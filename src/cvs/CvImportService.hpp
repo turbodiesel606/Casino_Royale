@@ -2,30 +2,37 @@
 #define JOBTRACKER_SRC_CVS_CVIMPORTSERVICE_HPP
 
 #include "CvDocument.hpp"
+#include "CvManagedFileStore.hpp"
 
 #include <QUrl>
 
+#include <atomic>
+#include <memory>
+
 class CvRepository;
-class StoragePaths;
 
-// This class is responsible for importing a CV file into JobTracker’s managed storage.
-
-struct CvImportResult
+struct CvImportResult final
 {
     CvDocument document_;
-    QString copiedFilePath_;
+    QString completedFilePath_;
     bool wasInserted_ = false;
 };
 
+// Coordinates worker-safe file preparation with database-thread CV resolution.
 class CvImportService final
 {
 public:
-    CvImportService(const StoragePaths& paths, CvRepository& repository);
+    CvImportService(const CvManagedFileStore& managedFileStore, CvRepository& repository);
 
-    CvImportResult importDocument(const QUrl& sourceUrl) const;
+    CvManagedFilePreparationResult prepareDocument(
+        const QUrl& sourceUrl,
+        const std::shared_ptr<std::atomic_bool>& cancellation) const;
+    CvImportResult importPreparedDocument(
+        const std::shared_ptr<CvManagedFilePreparation>& preparation) const;
+    bool removeCompletedFile(const QString& completedFilePath) const;
 
 private:
-    const StoragePaths& paths_;
+    const CvManagedFileStore& managedFileStore_;
     CvRepository& repository_;
 };
 

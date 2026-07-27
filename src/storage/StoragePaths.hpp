@@ -13,7 +13,6 @@ public:
     const QString& databasePath() const;
 
     void ensureDirectories() const;
-    void removeTemporaryFiles() const;
 
 private:
     QString dataDirectory_;

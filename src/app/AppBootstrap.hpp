@@ -4,6 +4,7 @@
 #include "cvs/CvFileAccessService.hpp"
 #include "cvs/CvImportService.hpp"
 #include "cvs/CvLibraryController.hpp"
+#include "cvs/CvManagedFileStore.hpp"
 #include "cvs/CvRepository.hpp"
 #include "dashboard/DashboardController.hpp"
 #include "directory/CompanyDirectoryController.hpp"
@@ -38,10 +39,11 @@ private:
     StoragePaths storagePaths_; // provides filesystem paths the app uses, especially the database location.
     SQLiteDataBase database_; // opens/manages the SQLite database using the path from StoragePaths.
     CvRepository cvRepository_; // data-access layer for CV records. It talks to the database connection.
+    CvManagedFileStore cvManagedFileStore_; // prepares managed files and reconciles interrupted imports.
     CvFileAccessService cvFileAccessService_; // validates and opens CV files from managed storage.
     CompanyRepository companyRepository_; // data-access layer for durable company identities.
     JobRepository jobRepository_; // data-access layer for job application records.
-    CvImportService cvImportService_; // service layer for importing/handling CV files, built on storage paths plus the CV repository.
+    CvImportService cvImportService_; // coordinates managed CV files with durable CV identities.
     AddJobService addJobService_; // service that handles adding jobs and related persistence/workflow, using DB, job repository, and CV import service.
     JobApplicationsController jobApplicationsController_; // controller exposed to QML for the job applications area. It starts from stored job data and uses AddJobService for operations.
     CvLibraryController cvLibraryController_; // controller for the CV library area. It depends on the job applications model plus CV data.

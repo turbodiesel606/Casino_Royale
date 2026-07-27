@@ -8,11 +8,16 @@
 
 #include <QObject>
 #include <QStringList>
+#include <QThreadPool>
 #include <QUrl>
 #include <QVariantMap>
 
+#include <atomic>
+#include <memory>
+
 class QAbstractItemModel;
 class AddJobService;
+struct AddJobPreparationResult;
 
 class JobApplicationsController final : public QObject
 {
@@ -34,6 +39,7 @@ public:
         QVector<JobApplication> applications,
         AddJobService& addJobService,
         QObject* parent = nullptr);
+    ~JobApplicationsController() override;
 
     QAbstractItemModel* applicationsModel();
     JobApplicationListModel& jobApplicationListModel();
@@ -53,6 +59,7 @@ public:
     Q_INVOKABLE void clearFilters();
     Q_INVOKABLE QStringList validateSelectedApplication() const;
     Q_INVOKABLE void createApplication(const QVariantMap& formValues, const QUrl& selectedCvUrl);
+    Q_INVOKABLE void cancelCreateApplication();
 
 signals:
     void applicationCountChanged();
@@ -72,6 +79,10 @@ private:
     const JobApplication* selectedSourceApplication() const;
     void handleSelectionChanged(bool idChanged, bool rowChanged, bool dataChanged);
     void handleVisibleCountChanged();
+    void finishCreateApplication(
+        quint64 operationId,
+        const std::shared_ptr<std::atomic_bool>& cancellation,
+        AddJobPreparationResult preparation);
     QVariantMap applicationToMap(int sourceRow) const;
 
     JobApplicationListModel applicationsModel_;
@@ -83,6 +94,10 @@ private:
     bool visibleCountNotificationsSuppressed_ = false;
     AddJobService* addJobService_ = nullptr;
     bool saving_ = false;
+    QThreadPool filePreparationPool_;
+    std::shared_ptr<std::atomic_bool> createCancellation_;
+    quint64 createOperationId_ = 0;
+    bool shuttingDown_ = false;
 };
 
 #endif // JOBTRACKER_SRC_JOBS_JOBAPPLICATIONSCONTROLLER_HPP

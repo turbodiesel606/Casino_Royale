@@ -51,6 +51,8 @@ set(JOBTRACKER_JOB_SOURCES
 set(JOBTRACKER_PERSISTENCE_SOURCES
     src/cvs/CvImportService.cpp
     src/cvs/CvImportService.hpp
+    src/cvs/CvManagedFileStore.cpp
+    src/cvs/CvManagedFileStore.hpp
     src/cvs/CvRepository.cpp
     src/cvs/CvRepository.hpp
     src/directory/CompanyRepository.cpp

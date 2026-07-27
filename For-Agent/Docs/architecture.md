@@ -22,16 +22,17 @@ The current bootstrap dependency order is:
 1. `StoragePaths`
 2. `SQLiteDataBase`
 3. `CvRepository`
-4. `CvFileAccessService`
-5. `CompanyRepository`
-6. `JobRepository`
-7. `CvImportService`
-8. `AddJobService`
-9. `JobApplicationsController`
-10. `CvLibraryController`
-11. `DashboardController`
-12. `CompanyDirectoryController`
-13. `ContactDirectoryController`
+4. `CvManagedFileStore`
+5. `CvFileAccessService`
+6. `CompanyRepository`
+7. `JobRepository`
+8. `CvImportService`
+9. `AddJobService`
+10. `JobApplicationsController`
+11. `CvLibraryController`
+12. `DashboardController`
+13. `CompanyDirectoryController`
+14. `ContactDirectoryController`
 
 Current QML context properties are:
 
@@ -97,6 +98,14 @@ left join from `cvs.id` to `jobs.cv_id`.
 directory, rejects unsafe or unavailable files, and delegates valid local-file
 URLs to the platform desktop opener.
 
+`CvManagedFileStore` owns the managed CV filesystem boundary. It validates PDF,
+DOC, and DOCX inputs, streams SHA-256 while copying into uniquely named `.part`
+files, atomically finalizes staged files, and removes abandoned stages through
+RAII cleanup. Startup reconciliation removes stale `.part` files and moves any
+completed top-level managed file without a matching `cvs.stored_file_name` row
+into `Resumes/Quarantine`; completed orphaned user files are never silently
+deleted.
+
 `CompanyRepository` loads durable companies and resolves Add Job company names
 through the same trimmed, case-folded identity rule.
 
@@ -126,7 +135,16 @@ Add Job is implemented as a QML-to-C++ workflow.
 
 `JobFormPage.qml` gathers form fields and calls `jobApplicationsController.createApplication(formValues, selectedCvUrl)`.
 
-`JobApplicationsController::createApplication()` converts the QML map into `JobApplicationDraft`, publishes `saving`, calls `AddJobService`, appends the created row on success, updates filtering/selection summaries, emits `applicationCreated`, and emits `saveFailed` with field errors on failure.
+`JobApplicationsController::createApplication()` converts the QML map into
+`JobApplicationDraft`, publishes `saving`, and starts worker-thread validation,
+streaming hash, and staged copy through `AddJobService`. The controller owns a
+dedicated single-thread pool and cancellation token. Shutdown cancels and waits
+for preparation, while queued completion is tied to controller lifetime so a
+late result cannot mutate a destroyed controller or model. The unchanged
+`saving` property prevents overlapping operations. On GUI-thread completion,
+the controller appends the created row, updates filtering/selection summaries,
+emits `applicationCreated`, or emits `saveFailed` with field errors and a
+message.
 
 `JobApplicationFactory` owns draft trimming, status/date defaults,
 case-insensitive technology deduplication, typed conversion, and final job
@@ -138,13 +156,20 @@ with a required host, ISO dates, and allowed status/work-format choices.
 `AddJobService` owns durable Add Job orchestration:
 
 - delegation to the factory and validator;
+- worker-safe managed-file preparation without database access;
 - durable company resolution by normalized name;
-- CV import coordination;
+- database-thread duplicate resolution by `(sha256, original_file_name)`;
+- staged-file finalization and CV insertion;
 - job insertion;
 - SQLite transaction handling;
-- copied-file cleanup on ordinary failures.
+- completed-file cleanup on ordinary failures.
 
-`CvImportService` accepts local PDF, DOC, and DOCX files, hashes file content, deduplicates by SHA-256, copies new files into managed storage, and inserts CV metadata.
+`CvImportService` connects the filesystem-only store to `CvRepository`. It
+prepares no SQL on the worker thread, then resolves the existing composite CV
+identity or finalizes and inserts a new CV on the database-owning thread. The
+transaction orders new-file work as finalization, CV insertion, job insertion,
+and commit. A process crash after finalization but before commit leaves a
+completed orphan that startup recovery quarantines.
 
 After successful job creation, `AppBootstrap` forwards CV usage to
 `CvLibraryController` and the resolved company to `CompanyDirectoryController`,
@@ -240,7 +265,8 @@ Current backend areas are:
 - `src/storage`: application data paths, SQLite connection lifetime, and schema migration.
 - `src/common`: reusable role-based filtering, sorting, search, and stable-ID selection helpers.
 - `src/jobs`: typed job value/draft types, canonical factory and validator, job list model, QML controller, repository, and Add Job service.
-- `src/cvs`: CV value type, CV list model, linked-job adapter model, QML controller, repository, and managed-file import service.
+- `src/cvs`: CV value type, CV list model, QML controller, repository,
+  managed-file store, import coordination, and safe file access.
 - `src/dashboard`: metric and recent-item read models over jobs and CVs.
 - `src/directory`: company/contact value types, durable company repository,
   directory list models and controllers, and linked read models. Contacts remain
@@ -281,6 +307,9 @@ Use the dependency direction `QML -> controllers/models -> services -> repositor
 - Return worker results through queued delivery and apply model or property changes on the owning thread.
 - Define worker ownership, cancellation, shutdown, and late-result handling before moving work off the GUI thread.
 - Create, use, and close each Qt SQL connection in one thread. Do not share `QSqlDatabase` connections or active `QSqlQuery` objects across threads.
+- Managed CV validation, streaming hash, and staged copy may run on the
+  controller-owned worker. Duplicate lookup, transactions, repositories, and
+  model mutation remain on the service/controller owning thread.
 
 ### Storage And Transactions
 
@@ -301,7 +330,5 @@ Use the dependency direction `QML -> controllers/models -> services -> repositor
 
 Treat these as current constraints when planning implementation:
 
-- CV import and Add Job persistence run synchronously from the QML invocation and can block the GUI thread for large files.
-- Completed CV files can be orphaned if the process crashes after the file copy but before SQLite commit.
 - Company editing and all contact persistence/mutation workflows are still
   unavailable.

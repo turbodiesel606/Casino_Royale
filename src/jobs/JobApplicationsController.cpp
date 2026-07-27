@@ -4,6 +4,11 @@
 #include "JobApplicationDraft.hpp"
 #include "JobApplicationValidator.hpp"
 
+#include <QMetaObject>
+
+#include <atomic>
+#include <exception>
+#include <memory>
 #include <utility>
 
 JobApplicationsController::JobApplicationsController(QObject* parent)
@@ -16,6 +21,7 @@ JobApplicationsController::JobApplicationsController(QVector<JobApplication> app
     , applicationsModel_(std::move(applications))
     , selectionTracker_(filteredApplicationsModel_, JobApplicationListModel::IdRole)
 {
+	filePreparationPool_.setMaxThreadCount(1);
     filteredApplicationsModel_.setSearchRoles({
         JobApplicationListModel::CompanyNameRole,
         JobApplicationListModel::JobTitleRole,
@@ -63,6 +69,15 @@ JobApplicationsController::JobApplicationsController(
     : JobApplicationsController(std::move(applications), parent)
 {
     addJobService_ = &addJobService;
+}
+
+JobApplicationsController::~JobApplicationsController()
+{
+	shuttingDown_ = true;
+	if (createCancellation_ != nullptr) {
+		createCancellation_->store(true, std::memory_order_relaxed);
+	}
+	filePreparationPool_.waitForDone();
 }
 
 QAbstractItemModel* JobApplicationsController::applicationsModel()
@@ -237,9 +252,55 @@ void JobApplicationsController::createApplication(
 
     saving_ = true;
     emit savingChanged();
-    const auto result = addJobService_->create(draft, selectedCvUrl);
-    saving_ = false;
-    emit savingChanged();
+	createCancellation_ = std::make_shared<std::atomic_bool>(false);
+	const auto cancellation = createCancellation_;
+	const auto operationId = ++createOperationId_;
+	filePreparationPool_.start([
+		this,
+		draft = std::move(draft),
+		selectedCvUrl,
+		cancellation,
+		operationId]() mutable {
+		AddJobPreparationResult preparation;
+		try {
+			preparation = addJobService_->prepare(draft, selectedCvUrl, cancellation);
+		} catch (const std::exception& error) {
+			preparation.message_ = QString::fromUtf8(error.what());
+		}
+		QMetaObject::invokeMethod(
+			this,
+			[this, operationId, cancellation, preparation = std::move(preparation)]() mutable {
+				finishCreateApplication(operationId, cancellation, std::move(preparation));
+			},
+			Qt::QueuedConnection);
+	});
+}
+
+void JobApplicationsController::cancelCreateApplication()
+{
+	if (createCancellation_ != nullptr) {
+		createCancellation_->store(true, std::memory_order_relaxed);
+	}
+}
+
+void JobApplicationsController::finishCreateApplication(
+	quint64 operationId,
+	const std::shared_ptr<std::atomic_bool>& cancellation,
+	AddJobPreparationResult preparation)
+{
+	if (shuttingDown_ || operationId != createOperationId_) {
+		return;
+	}
+
+	if (cancellation->load(std::memory_order_relaxed)) {
+		preparation.success_ = false;
+		preparation.cancelled_ = true;
+		preparation.message_ = QStringLiteral("Job creation was canceled.");
+	}
+	const auto result = addJobService_->complete(std::move(preparation));
+	createCancellation_.reset();
+	saving_ = false;
+	emit savingChanged();
 
     if (!result.success_) {
         emit saveFailed(result.fieldErrors_, result.message_);

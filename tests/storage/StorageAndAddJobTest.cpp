@@ -1,4 +1,5 @@
 #include "cvs/CvImportService.hpp"
+#include "cvs/CvManagedFileStore.hpp"
 #include "cvs/CvRepository.hpp"
 #include "directory/CompanyListModel.hpp"
 #include "directory/CompanyDirectoryController.hpp"
@@ -14,6 +15,7 @@
 #include "storage/StoragePaths.hpp"
 
 #include <QDir>
+#include <QCryptographicHash>
 #include <QFile>
 #include <QFileInfo>
 #include <QSignalSpy>
@@ -264,6 +266,10 @@ class StorageAndAddJobTest final : public QObject
 private slots:
     void createsDatabaseAndMigratesOnce();
     void createsJobAndCopiesCv();
+    void streamsHashAndStagesCopy();
+    void reportsStagedCopyFailure();
+    void cancelsFilePreparationAndCleansStage();
+    void reconcilesStaleStagesAndQuarantinesOrphans();
     void reusesCvWithSameIdentity();
     void createsSeparateCvForSameContentWithDifferentName();
     void createsSeparateCvForDifferentContentWithSameName();
@@ -275,6 +281,8 @@ private slots:
     void removesCopiedCvWhenJobInsertFails();
     void rejectsInvalidInputWithoutWriting();
     void controllerPublishesSuccessfulCreation();
+    void controllerCancellationLeavesNoDurableState();
+    void controllerShutdownCleansLatePreparation();
 };
 
 void StorageAndAddJobTest::createsDatabaseAndMigratesOnce()
@@ -313,7 +321,8 @@ void StorageAndAddJobTest::createsJobAndCopiesCv()
     CvRepository cvs(database.connection());
     CompanyRepository companies(database.connection());
     JobRepository jobs(database.connection());
-    CvImportService importer(paths, cvs);
+    CvManagedFileStore fileStore(paths);
+    CvImportService importer(fileStore, cvs);
     AddJobService service(database.connection(), jobs, companies, importer);
     const auto sourcePath = createCvFile(temporaryDirectory.path());
 
@@ -379,6 +388,88 @@ void StorageAndAddJobTest::createsJobAndCopiesCv()
     QVERIFY(!invalidCompany.exec());
 }
 
+void StorageAndAddJobTest::streamsHashAndStagesCopy()
+{
+    QTemporaryDir temporaryDirectory;
+    StoragePaths paths(QDir(temporaryDirectory.path()).filePath(QStringLiteral("Data")));
+    CvManagedFileStore fileStore(paths);
+    const QByteArray contents(3 * 1024 * 1024 + 137, 'x');
+    const auto sourcePath = createCvFile(
+        temporaryDirectory.path(),
+        QStringLiteral("streamed.pdf"),
+        contents);
+    const auto cancellation = std::make_shared<std::atomic_bool>(false);
+
+    const auto result = fileStore.prepare(QUrl::fromLocalFile(sourcePath), cancellation);
+
+    QVERIFY2(result.succeeded(), qPrintable(result.message_));
+    QCOMPARE(result.preparation_->sizeBytes_, static_cast<qint64>(contents.size()));
+    QCOMPARE(
+        result.preparation_->sha256_,
+        QString::fromLatin1(QCryptographicHash::hash(contents, QCryptographicHash::Sha256).toHex()));
+    QVERIFY(QFileInfo::exists(result.preparation_->stagedFilePath_));
+    QVERIFY(!QFileInfo::exists(result.preparation_->finalFilePath_));
+}
+
+void StorageAndAddJobTest::reportsStagedCopyFailure()
+{
+    QTemporaryDir temporaryDirectory;
+    StoragePaths paths(QDir(temporaryDirectory.path()).filePath(QStringLiteral("Data")));
+    CvManagedFileStore fileStore(paths);
+    const auto sourcePath = createCvFile(temporaryDirectory.path());
+    QVERIFY(QDir(paths.resumesDirectory()).removeRecursively());
+    QFile directoryBlocker(paths.resumesDirectory());
+    QVERIFY(directoryBlocker.open(QIODevice::WriteOnly));
+    directoryBlocker.close();
+    const auto cancellation = std::make_shared<std::atomic_bool>(false);
+
+    const auto result = fileStore.prepare(QUrl::fromLocalFile(sourcePath), cancellation);
+
+    QVERIFY(!result.succeeded());
+    QVERIFY(!result.cancelled_);
+    QVERIFY(result.message_.contains(QStringLiteral("staged"), Qt::CaseInsensitive));
+}
+
+void StorageAndAddJobTest::cancelsFilePreparationAndCleansStage()
+{
+    QTemporaryDir temporaryDirectory;
+    StoragePaths paths(QDir(temporaryDirectory.path()).filePath(QStringLiteral("Data")));
+    CvManagedFileStore fileStore(paths);
+    const auto sourcePath = createCvFile(
+        temporaryDirectory.path(),
+        QStringLiteral("cancel.pdf"),
+        QByteArray(2 * 1024 * 1024, 'c'));
+    const auto cancellation = std::make_shared<std::atomic_bool>(true);
+
+    const auto result = fileStore.prepare(QUrl::fromLocalFile(sourcePath), cancellation);
+
+    QVERIFY(!result.succeeded());
+    QVERIFY(result.cancelled_);
+    QCOMPARE(QDir(paths.resumesDirectory()).entryList(QDir::Files).size(), 0);
+}
+
+void StorageAndAddJobTest::reconcilesStaleStagesAndQuarantinesOrphans()
+{
+    QTemporaryDir temporaryDirectory;
+    StoragePaths paths(QDir(temporaryDirectory.path()).filePath(QStringLiteral("Data")));
+    CvManagedFileStore fileStore(paths);
+    const auto knownPath = createCvFile(paths.resumesDirectory(), QStringLiteral("known.pdf"));
+    const auto orphanPath = createCvFile(paths.resumesDirectory(), QStringLiteral("orphan.docx"));
+    const auto stagedPath = createCvFile(paths.resumesDirectory(), QStringLiteral("interrupted.pdf.part"));
+    CvDocument knownDocument;
+    knownDocument.storedFileName_ = QStringLiteral("known.pdf");
+
+    const auto report = fileStore.reconcile({knownDocument});
+
+    QCOMPARE(report.removedStagedFileCount_, 1);
+    QCOMPARE(report.quarantinedFileNames_.size(), 1);
+    QVERIFY(QFileInfo::exists(knownPath));
+    QVERIFY(!QFileInfo::exists(orphanPath));
+    QVERIFY(!QFileInfo::exists(stagedPath));
+    QVERIFY(QFileInfo::exists(
+        QDir(fileStore.quarantineDirectory()).filePath(report.quarantinedFileNames_.first())));
+}
+
 void StorageAndAddJobTest::reusesCvWithSameIdentity()
 {
     QTemporaryDir temporaryDirectory;
@@ -387,7 +478,8 @@ void StorageAndAddJobTest::reusesCvWithSameIdentity()
     CvRepository cvs(database.connection());
     CompanyRepository companies(database.connection());
     JobRepository jobs(database.connection());
-    CvImportService importer(paths, cvs);
+    CvManagedFileStore fileStore(paths);
+    CvImportService importer(fileStore, cvs);
     AddJobService service(database.connection(), jobs, companies, importer);
     const auto sourcePath = createCvFile(temporaryDirectory.path());
 
@@ -417,7 +509,8 @@ void StorageAndAddJobTest::createsSeparateCvForSameContentWithDifferentName()
     CvRepository cvs(database.connection());
     CompanyRepository companies(database.connection());
     JobRepository jobs(database.connection());
-    CvImportService importer(paths, cvs);
+    CvManagedFileStore fileStore(paths);
+    CvImportService importer(fileStore, cvs);
     AddJobService service(database.connection(), jobs, companies, importer);
     const auto firstPath = createCvFile(temporaryDirectory.path(), QStringLiteral("first.pdf"));
     const auto secondPath = createCvFile(temporaryDirectory.path(), QStringLiteral("second.pdf"));
@@ -444,7 +537,8 @@ void StorageAndAddJobTest::createsSeparateCvForDifferentContentWithSameName()
     CvRepository cvs(database.connection());
     CompanyRepository companies(database.connection());
     JobRepository jobs(database.connection());
-    CvImportService importer(paths, cvs);
+    CvManagedFileStore fileStore(paths);
+    CvImportService importer(fileStore, cvs);
     AddJobService service(database.connection(), jobs, companies, importer);
     const auto firstSourceDirectory = QDir(temporaryDirectory.path()).filePath(QStringLiteral("first"));
     const auto secondSourceDirectory = QDir(temporaryDirectory.path()).filePath(QStringLiteral("second"));
@@ -620,7 +714,8 @@ void StorageAndAddJobTest::persistsJobAcrossDatabaseReopen()
         CvRepository cvs(database.connection());
         CompanyRepository companies(database.connection());
         JobRepository jobs(database.connection());
-        CvImportService importer(paths, cvs);
+        CvManagedFileStore fileStore(paths);
+        CvImportService importer(fileStore, cvs);
         AddJobService service(database.connection(), jobs, companies, importer);
         const auto result = service.create(validDraft(), QUrl::fromLocalFile(sourcePath));
         QVERIFY(result.success_);
@@ -665,7 +760,8 @@ void StorageAndAddJobTest::persistsFavoriteAcrossDatabaseReopen()
         CvRepository cvs(database.connection());
         CompanyRepository companies(database.connection());
         JobRepository jobs(database.connection());
-        CvImportService importer(paths, cvs);
+        CvManagedFileStore fileStore(paths);
+        CvImportService importer(fileStore, cvs);
         AddJobService service(database.connection(), jobs, companies, importer);
         const auto result = service.create(validDraft(), QUrl::fromLocalFile(sourcePath));
         QVERIFY(result.success_);
@@ -697,7 +793,8 @@ void StorageAndAddJobTest::removesCopiedCvWhenJobInsertFails()
     CvRepository cvs(database.connection());
     CompanyRepository companies(database.connection());
     JobRepository jobs(database.connection());
-    CvImportService importer(paths, cvs);
+    CvManagedFileStore fileStore(paths);
+    CvImportService importer(fileStore, cvs);
     AddJobService service(database.connection(), jobs, companies, importer);
     QSqlQuery trigger(database.connection());
     QVERIFY(trigger.exec(QStringLiteral(
@@ -723,7 +820,8 @@ void StorageAndAddJobTest::rejectsInvalidInputWithoutWriting()
     CvRepository cvs(database.connection());
     CompanyRepository companies(database.connection());
     JobRepository jobs(database.connection());
-    CvImportService importer(paths, cvs);
+    CvManagedFileStore fileStore(paths);
+    CvImportService importer(fileStore, cvs);
     AddJobService service(database.connection(), jobs, companies, importer);
     auto draft = validDraft();
     draft.jobTitle_.clear();
@@ -749,7 +847,8 @@ void StorageAndAddJobTest::controllerPublishesSuccessfulCreation()
     CvRepository cvs(database.connection());
     CompanyRepository companies(database.connection());
     JobRepository jobs(database.connection());
-    CvImportService importer(paths, cvs);
+    CvManagedFileStore fileStore(paths);
+    CvImportService importer(fileStore, cvs);
     AddJobService service(database.connection(), jobs, companies, importer);
     JobApplicationsController controller({}, service);
     ContactListModel contacts;
@@ -776,8 +875,8 @@ void StorageAndAddJobTest::controllerPublishesSuccessfulCreation()
         },
         QUrl::fromLocalFile(sourcePath));
 
+    QTRY_COMPARE(createdSpy.count(), 1);
     QCOMPARE(failedSpy.count(), 0);
-    QCOMPARE(createdSpy.count(), 1);
     QCOMPARE(companySpy.count(), 1);
     QCOMPARE(controller.applicationCount(), 1);
     QCOMPARE(companyDirectory.companyCount(), 1);
@@ -787,6 +886,77 @@ void StorageAndAddJobTest::controllerPublishesSuccessfulCreation()
         QStringLiteral("Example Company"));
     QCOMPARE(companyDirectory.linkedJobsModel()->rowCount(), 1);
     QVERIFY(!controller.saving());
+}
+
+void StorageAndAddJobTest::controllerCancellationLeavesNoDurableState()
+{
+    QTemporaryDir temporaryDirectory;
+    StoragePaths paths(QDir(temporaryDirectory.path()).filePath(QStringLiteral("Data")));
+    SQLiteDataBase database(paths.databasePath());
+    CvRepository cvs(database.connection());
+    CompanyRepository companies(database.connection());
+    JobRepository jobs(database.connection());
+    CvManagedFileStore fileStore(paths);
+    CvImportService importer(fileStore, cvs);
+    AddJobService service(database.connection(), jobs, companies, importer);
+    JobApplicationsController controller({}, service);
+    QSignalSpy failedSpy(&controller, &JobApplicationsController::saveFailed);
+    const auto sourcePath = createCvFile(
+        temporaryDirectory.path(),
+        QStringLiteral("cancel-controller.pdf"),
+        QByteArray(8 * 1024 * 1024, 'c'));
+
+    controller.createApplication(
+        {
+            {QStringLiteral("jobTitle"), QStringLiteral("Qt Developer")},
+            {QStringLiteral("companyName"), QStringLiteral("Example Company")},
+            {QStringLiteral("status"), QStringLiteral("Applied")},
+            {QStringLiteral("appliedDate"), QStringLiteral("2026-07-09")},
+        },
+        QUrl::fromLocalFile(sourcePath));
+    controller.cancelCreateApplication();
+
+    QTRY_VERIFY(!controller.saving());
+    QCOMPARE(failedSpy.count(), 1);
+    QVERIFY(jobs.findAll().isEmpty());
+    QVERIFY(companies.findAll().isEmpty());
+    QVERIFY(cvs.findAll().isEmpty());
+    QCOMPARE(QDir(paths.resumesDirectory()).entryList(QDir::Files).size(), 0);
+}
+
+void StorageAndAddJobTest::controllerShutdownCleansLatePreparation()
+{
+    QTemporaryDir temporaryDirectory;
+    StoragePaths paths(QDir(temporaryDirectory.path()).filePath(QStringLiteral("Data")));
+    SQLiteDataBase database(paths.databasePath());
+    CvRepository cvs(database.connection());
+    CompanyRepository companies(database.connection());
+    JobRepository jobs(database.connection());
+    CvManagedFileStore fileStore(paths);
+    CvImportService importer(fileStore, cvs);
+    AddJobService service(database.connection(), jobs, companies, importer);
+    const auto sourcePath = createCvFile(
+        temporaryDirectory.path(),
+        QStringLiteral("shutdown.pdf"),
+        QByteArray(8 * 1024 * 1024, 's'));
+
+    {
+        JobApplicationsController controller({}, service);
+        controller.createApplication(
+            {
+                {QStringLiteral("jobTitle"), QStringLiteral("Qt Developer")},
+                {QStringLiteral("companyName"), QStringLiteral("Example Company")},
+                {QStringLiteral("status"), QStringLiteral("Applied")},
+                {QStringLiteral("appliedDate"), QStringLiteral("2026-07-09")},
+            },
+            QUrl::fromLocalFile(sourcePath));
+    }
+
+    QCoreApplication::processEvents();
+    QVERIFY(jobs.findAll().isEmpty());
+    QVERIFY(companies.findAll().isEmpty());
+    QVERIFY(cvs.findAll().isEmpty());
+    QCOMPARE(QDir(paths.resumesDirectory()).entryList(QDir::Files).size(), 0);
 }
 
 QTEST_GUILESS_MAIN(StorageAndAddJobTest)
