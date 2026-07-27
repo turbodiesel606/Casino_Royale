@@ -20,7 +20,7 @@ JobTracker is a Qt 6 / QML / C++ desktop application.
 The current bootstrap dependency order is:
 
 1. `StoragePaths`
-2. `SQLiteDataBase`
+2. `SqliteDatabase`
 3. `CvRepository`
 4. `CvManagedFileStore`
 5. `CvFileAccessService`
@@ -67,7 +67,7 @@ Jobs, CVs, and company identities are currently backed by SQLite.
 
 `StoragePaths` resolves the application data location, creates the managed resume folder, and provides the database path.
 
-`SQLiteDataBase` owns the Qt SQL connection lifetime and schema migration.
+`SqliteDatabase` owns the Qt SQL connection lifetime and schema migration.
 Storage-specific SQL helpers execute standalone statements and translate Qt SQL
 failures into exceptions that identify the failed operation. Repositories use
 the same contextual error boundary for prepared queries. `SqlTransaction`

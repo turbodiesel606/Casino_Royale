@@ -30,14 +30,17 @@ public:
     int run();
 
 private:
+
     void connectEngineFailureHandler();
     void configureContextProperties();
     void loadMainQml();
 
+private:
+
     QCoreApplication& app_;
     QQmlApplicationEngine engine_;
     StoragePaths storagePaths_; // provides filesystem paths the app uses, especially the database location.
-    SQLiteDataBase database_; // opens/manages the SQLite database using the path from StoragePaths.
+    SqliteDatabase database_;
     CvRepository cvRepository_; // data-access layer for CV records. It talks to the database connection.
     CvManagedFileStore cvManagedFileStore_; // prepares managed files and reconciles interrupted imports.
     CvFileAccessService cvFileAccessService_; // validates and opens CV files from managed storage.

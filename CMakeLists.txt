@@ -48,19 +48,28 @@ set(JOBTRACKER_JOB_SOURCES
     src/jobs/JobApplicationsController.hpp
 )
 
-set(JOBTRACKER_PERSISTENCE_SOURCES
+set(JOBTRACKER_CV_PERSISTENCE_SOURCES
     src/cvs/CvImportService.cpp
     src/cvs/CvImportService.hpp
     src/cvs/CvManagedFileStore.cpp
     src/cvs/CvManagedFileStore.hpp
     src/cvs/CvRepository.cpp
     src/cvs/CvRepository.hpp
+)
+
+set(JOBTRACKER_DIRECTORY_PERSISTENCE_SOURCES
     src/directory/CompanyRepository.cpp
     src/directory/CompanyRepository.hpp
+)
+
+set(JOBTRACKER_JOB_PERSISTENCE_SOURCES
     src/jobs/AddJobService.cpp
     src/jobs/AddJobService.hpp
     src/jobs/JobRepository.cpp
     src/jobs/JobRepository.hpp
+)
+
+set(JOBTRACKER_STORAGE_SOURCES
     src/storage/SchemaInitializationV3.cpp
     src/storage/SchemaMigrationSteps.hpp
     src/storage/SchemaMigrationV1ToV2.cpp
@@ -75,6 +84,13 @@ set(JOBTRACKER_PERSISTENCE_SOURCES
     src/storage/SqliteDatabase.hpp
     src/storage/StoragePaths.cpp
     src/storage/StoragePaths.hpp
+)
+
+set(JOBTRACKER_PERSISTENCE_SOURCES
+    ${JOBTRACKER_CV_PERSISTENCE_SOURCES}
+    ${JOBTRACKER_DIRECTORY_PERSISTENCE_SOURCES}
+    ${JOBTRACKER_JOB_PERSISTENCE_SOURCES}
+    ${JOBTRACKER_STORAGE_SOURCES}
 )
 
 set(JOBTRACKER_CV_SOURCES
@@ -237,6 +253,24 @@ if(JOBTRACKER_BUILD_TESTS)
         endif()
     endfunction()
 
+    function(jobtracker_add_backend_test target_name test_source)
+        add_executable(${target_name}
+            ${test_source}
+            ${ARGN}
+        )
+
+        target_include_directories(${target_name}
+            PRIVATE src
+        )
+
+        target_link_libraries(${target_name}
+            PRIVATE Qt6::Core Qt6::Sql Qt6::Test
+        )
+
+        add_test(NAME ${target_name} COMMAND ${target_name})
+        jobtracker_deploy_test_runtime(${target_name})
+    endfunction()
+
     add_executable(JobTrackerCommonTests
         tests/common/FilterAndValidationTest.cpp
         ${JOBTRACKER_COMMON_SOURCES}
@@ -253,6 +287,22 @@ if(JOBTRACKER_BUILD_TESTS)
 
     add_test(NAME JobTrackerCommonTests COMMAND JobTrackerCommonTests)
     jobtracker_deploy_test_runtime(JobTrackerCommonTests)
+
+    jobtracker_add_backend_test(
+        JobTrackerRelationProxyTests
+        tests/common/RelationFilterProxyModelTest.cpp
+        src/common/RelationFilterProxyModel.cpp
+        src/common/RelationFilterProxyModel.hpp
+    )
+
+    jobtracker_add_backend_test(
+        JobTrackerSelectionTrackerTests
+        tests/common/StableIdSelectionTrackerTest.cpp
+        src/common/RoleFilterProxyModel.cpp
+        src/common/RoleFilterProxyModel.hpp
+        src/common/StableIdSelectionTracker.cpp
+        src/common/StableIdSelectionTracker.hpp
+    )
 
     add_executable(JobTrackerJobsTests
         tests/jobs/JobApplicationsControllerTest.cpp
@@ -330,24 +380,51 @@ if(JOBTRACKER_BUILD_TESTS)
     add_test(NAME JobTrackerDirectoryTests COMMAND JobTrackerDirectoryTests)
     jobtracker_deploy_test_runtime(JobTrackerDirectoryTests)
 
-    add_executable(JobTrackerStorageTests
-        tests/storage/StorageAndAddJobTest.cpp
+    jobtracker_add_backend_test(
+        JobTrackerMigrationTests
+        tests/storage/MigrationTest.cpp
+        ${JOBTRACKER_JOB_DOMAIN_SOURCES}
+        src/cvs/CvRepository.cpp
+        src/cvs/CvRepository.hpp
+        ${JOBTRACKER_DIRECTORY_PERSISTENCE_SOURCES}
+        src/jobs/JobRepository.cpp
+        src/jobs/JobRepository.hpp
+        ${JOBTRACKER_STORAGE_SOURCES}
+    )
+
+    jobtracker_add_backend_test(
+        JobTrackerRepositoryTests
+        tests/storage/RepositoryTest.cpp
+        src/cvs/CvRepository.cpp
+        src/cvs/CvRepository.hpp
+        ${JOBTRACKER_STORAGE_SOURCES}
+    )
+
+    jobtracker_add_backend_test(
+        JobTrackerCvImportTests
+        tests/storage/CvFileStoreImportTest.cpp
+        ${JOBTRACKER_CV_PERSISTENCE_SOURCES}
+        ${JOBTRACKER_STORAGE_SOURCES}
+    )
+
+    jobtracker_add_backend_test(
+        JobTrackerAddJobTests
+        tests/storage/AddJobServiceTest.cpp
+        ${JOBTRACKER_JOB_DOMAIN_SOURCES}
+        ${JOBTRACKER_CV_PERSISTENCE_SOURCES}
+        ${JOBTRACKER_DIRECTORY_PERSISTENCE_SOURCES}
+        ${JOBTRACKER_JOB_PERSISTENCE_SOURCES}
+        ${JOBTRACKER_STORAGE_SOURCES}
+    )
+
+    jobtracker_add_backend_test(
+        JobTrackerIntegrationTests
+        tests/storage/EndToEndIntegrationTest.cpp
         ${JOBTRACKER_COMMON_SOURCES}
         ${JOBTRACKER_DIRECTORY_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
         ${JOBTRACKER_PERSISTENCE_SOURCES}
     )
-
-    target_include_directories(JobTrackerStorageTests
-        PRIVATE src
-    )
-
-    target_link_libraries(JobTrackerStorageTests
-        PRIVATE Qt6::Core Qt6::Sql Qt6::Test
-    )
-
-    add_test(NAME JobTrackerStorageTests COMMAND JobTrackerStorageTests)
-    jobtracker_deploy_test_runtime(JobTrackerStorageTests)
 endif()
 
 include(GNUInstallDirs)

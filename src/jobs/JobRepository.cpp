@@ -3,10 +3,7 @@
 
 #include <QDateTime>
 #include <QSqlDatabase>
-#include <QSqlError>
 #include <QSqlQuery>
-
-#include <stdexcept>
 
 namespace {
 

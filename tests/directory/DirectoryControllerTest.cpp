@@ -85,8 +85,8 @@ private slots:
     void companyModelExposesNamedRoles();
     void contactModelExposesNamedRoles();
     void scalarNotificationsAreSemantic();
-    void companySelectionRemainsStableAcrossProxyChanges();
-    void contactSelectionRemainsStableAcrossProxyChanges();
+    void companySelectionPublishesLinkedViewContracts();
+    void contactSelectionPublishesInteractionContracts();
 };
 
 void DirectoryControllerTest::companyModelExposesNamedRoles()
@@ -188,7 +188,7 @@ void DirectoryControllerTest::scalarNotificationsAreSemantic()
     QCOMPARE(contactSummarySpy.count(), 3);
 }
 
-void DirectoryControllerTest::companySelectionRemainsStableAcrossProxyChanges()
+void DirectoryControllerTest::companySelectionPublishesLinkedViewContracts()
 {
     auto applications = testsupport::makeJobApplications();
     applications[0].companyId_ = QStringLiteral("company-beta");
@@ -223,43 +223,6 @@ void DirectoryControllerTest::companySelectionRemainsStableAcrossProxyChanges()
     QCOMPARE(linkedJobsModel->rowCount(), 2);
     QCOMPARE(linkedContactsModel->rowCount(), 2);
 
-    controller.setSearchText(QStringLiteral("Alpha"));
-    QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-alpha"));
-    QCOMPARE(controller.selectedCompanyIndex(), 0);
-    QCOMPARE(linkedJobsModel->rowCount(), 2);
-    QCOMPARE(linkedContactsModel->rowCount(), 2);
-
-    controller.clearFilters();
-    QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-alpha"));
-    QCOMPARE(controller.selectedCompanyIndex(), 2);
-    QCOMPARE(linkedJobsModel->rowCount(), 2);
-    QCOMPARE(linkedContactsModel->rowCount(), 2);
-
-    controller.setSearchText(QStringLiteral("Beta"));
-    QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-beta"));
-    QCOMPARE(controller.selectedCompanyIndex(), 0);
-    QCOMPARE(linkedJobsModel->rowCount(), 1);
-    QCOMPARE(linkedContactsModel->rowCount(), 1);
-
-    controller.clearFilters();
-    QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-beta"));
-    QCOMPARE(controller.selectedCompanyIndex(), 1);
-    QCOMPARE(linkedJobsModel->rowCount(), 1);
-    QCOMPARE(linkedContactsModel->rowCount(), 1);
-
-    controller.setSearchText(QStringLiteral("does-not-match"));
-    QCOMPARE(controller.companyCount(), 0);
-    QCOMPARE(controller.selectedCompanyIndex(), -1);
-    QVERIFY(controller.selectedCompanyId().isEmpty());
-    QCOMPARE(linkedJobsModel->rowCount(), 0);
-    QCOMPARE(linkedContactsModel->rowCount(), 0);
-
-    controller.clearFilters();
-    QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-gamma"));
-    QCOMPARE(controller.selectedCompanyIndex(), 0);
-    QCOMPARE(linkedJobsModel->rowCount(), 3);
-    QCOMPARE(linkedContactsModel->rowCount(), 0);
-
     controller.setSortMode(QStringLiteral("Name"));
     controller.selectCompany(1);
     QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-beta"));
@@ -280,7 +243,7 @@ void DirectoryControllerTest::companySelectionRemainsStableAcrossProxyChanges()
     QCOMPARE(linkedContactsModel->rowCount(), 1);
 }
 
-void DirectoryControllerTest::contactSelectionRemainsStableAcrossProxyChanges()
+void DirectoryControllerTest::contactSelectionPublishesInteractionContracts()
 {
     ContactListModel contactModel{makeContacts()};
     ContactDirectoryController controller{contactModel};
@@ -300,39 +263,12 @@ void DirectoryControllerTest::contactSelectionRemainsStableAcrossProxyChanges()
     QCOMPARE(selectedDataSpy.count(), 0);
     QCOMPARE(interactionResetSpy.count(), 0);
 
-    controller.setCompanyFilter(QStringLiteral("Acme"));
-    QCOMPARE(controller.selectedContactId(), QStringLiteral("contact-alice"));
-    QCOMPARE(controller.selectedContactIndex(), 0);
-    QCOMPARE(interactionResetSpy.count(), 0);
-
-    controller.clearFilters();
-    QCOMPARE(controller.selectedContactId(), QStringLiteral("contact-alice"));
-    QCOMPARE(controller.selectedContactIndex(), 0);
-    QCOMPARE(interactionResetSpy.count(), 0);
-
     controller.setChannelFilter(QStringLiteral("Telegram"));
     QCOMPARE(controller.selectedContactId(), QStringLiteral("contact-bob"));
     QCOMPARE(controller.selectedContactIndex(), 0);
     QCOMPARE(controller.interactionHistoryModel()->rowCount(), 2);
     QCOMPARE(interactionResetSpy.count(), 1);
 
-    controller.clearFilters();
-    QCOMPARE(controller.selectedContactId(), QStringLiteral("contact-bob"));
-    QCOMPARE(controller.selectedContactIndex(), 2);
-    QCOMPARE(interactionResetSpy.count(), 1);
-
-    controller.setSearchText(QStringLiteral("does-not-match"));
-    QCOMPARE(controller.contactCount(), 0);
-    QCOMPARE(controller.selectedContactIndex(), -1);
-    QVERIFY(controller.selectedContactId().isEmpty());
-    QCOMPARE(controller.interactionHistoryModel()->rowCount(), 0);
-    QCOMPARE(interactionResetSpy.count(), 2);
-
-    controller.clearFilters();
-    QCOMPARE(controller.selectedContactId(), QStringLiteral("contact-alice"));
-    QCOMPARE(controller.selectedContactIndex(), 0);
-    QCOMPARE(controller.interactionHistoryModel()->rowCount(), 1);
-    QCOMPARE(interactionResetSpy.count(), 3);
 }
 
 QTEST_APPLESS_MAIN(DirectoryControllerTest)

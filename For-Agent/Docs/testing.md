@@ -52,6 +52,20 @@ For storage or file-system behavior, use temporary test data and avoid depending
 
 Name tests by the behavior they cover, and keep them registered through the project CMake test setup.
 
+## Test Suite Responsibilities
+
+- `JobTrackerCommonTests` covers shared filtering, limited sorting, and canonical job validation.
+- `JobTrackerRelationProxyTests` covers relation filtering and every relevant source-model mutation.
+- `JobTrackerSelectionTrackerTests` covers stable-ID selection, fallback behavior, and precise change reporting.
+- Jobs, CV, dashboard, and directory controller suites retain QML-facing contracts and controller-specific side effects.
+- `JobTrackerMigrationTests` covers schema initialization, supported upgrades, rollback, foreign keys, reopen, and unsupported newer versions.
+- `JobTrackerRepositoryTests` covers repository persistence plus shared SQL error and transaction infrastructure.
+- `JobTrackerCvImportTests` covers managed file preparation, identity, cleanup, and recovery.
+- `JobTrackerAddJobTests` covers Add Job validation, transaction behavior, and durable orchestration.
+- `JobTrackerIntegrationTests` covers asynchronous controller-to-storage flows and restart hydration.
+
+Storage-oriented suites reuse the temporary database and filesystem fixtures under `tests/support` so setup and cleanup rules remain consistent.
+
 ## Manual Checks
 
 When automated validation is unavailable or not applicable, list the manual checks needed for the user to confirm the change.

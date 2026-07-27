@@ -42,6 +42,7 @@ Use project skills from `.agents/skills/` for repeatable workflows:
 
 - `.agents/skills/cmake-build-debug/SKILL.md`.
 - `.agents/skills/cpp-code-research/SKILL.md`.
+- `.agents/skills/learn-cpp-codebase/SKILL.md`.
 - `.agents/skills/cpp-code-review/SKILL.md`.
 - `.agents/skills/qt-qml-ui-task/SKILL.md`.
 - `.agents/skills/qml-code-research/SKILL.md`.
@@ -61,6 +62,8 @@ Project subagents are split by task and code area:
 - `qml_reviewer`: read-only QML/UI review.
 
 ## Research And Review Workflow
+
+Use `learn-cpp-codebase` for a progressive, read-only teaching tour of the complete C++ backend from project inventory through startup, domains, workflows, Qt contracts, storage, tests, and final synthesis.
 
 Use `cpp-code-research` or `qml-code-research` for investigation before implementation.
 

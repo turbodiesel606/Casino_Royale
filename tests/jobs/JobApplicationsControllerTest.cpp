@@ -33,7 +33,7 @@ private slots:
     void controllerExposesSelectedApplication();
     void controllerIgnoresInvalidSelection();
     void controllerFiltersBySearchTextAndStatus();
-    void selectionRemainsStableAcrossProxyChanges();
+    void selectionPublishesControllerContracts();
     void controllerValidatesSelectedApplication();
 };
 
@@ -159,7 +159,7 @@ void JobApplicationsControllerTest::controllerFiltersBySearchTextAndStatus()
     QCOMPARE(countSpy.count(), 4);
 }
 
-void JobApplicationsControllerTest::selectionRemainsStableAcrossProxyChanges()
+void JobApplicationsControllerTest::selectionPublishesControllerContracts()
 {
     JobApplicationsController controller{testsupport::makeJobApplications()};
     controller.selectApplication(1);
@@ -188,33 +188,14 @@ void JobApplicationsControllerTest::selectionRemainsStableAcrossProxyChanges()
     QCOMPARE(selectedDataSpy.count(), 0);
 
     selectedIndexSpy.clear();
-    controller.setSearchText(QStringLiteral("TechSoft"));
-    QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-techsoft-qt-qml"));
-    QCOMPARE(controller.selectedApplicationIndex(), 0);
-    QCOMPARE(selectedIndexSpy.count(), 1);
-    QCOMPARE(selectedIdSpy.count(), 0);
-    QCOMPARE(selectedDataSpy.count(), 0);
-
-    controller.clearFilters();
-    QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-techsoft-qt-qml"));
-    QCOMPARE(controller.selectedApplicationIndex(), 2);
-
+    selectedIdSpy.clear();
+    selectedDataSpy.clear();
     controller.setStatusFilter(QStringLiteral("Applied"));
     QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-kdab-cpp-qt"));
     QCOMPARE(controller.selectedApplicationIndex(), 0);
-
-    controller.clearFilters();
-    QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-kdab-cpp-qt"));
-    QCOMPARE(controller.selectedApplicationIndex(), 1);
-
-    controller.setSearchText(QStringLiteral("does-not-match"));
-    QCOMPARE(controller.applicationCount(), 0);
-    QCOMPARE(controller.selectedApplicationIndex(), -1);
-    QVERIFY(controller.selectedApplicationId().isEmpty());
-
-    controller.clearFilters();
-    QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-newest"));
-    QCOMPARE(controller.selectedApplicationIndex(), 0);
+    QCOMPARE(selectedIdSpy.count(), 1);
+    QCOMPARE(selectedIndexSpy.count(), 1);
+    QCOMPARE(selectedDataSpy.count(), 1);
 }
 
 void JobApplicationsControllerTest::controllerValidatesSelectedApplication()

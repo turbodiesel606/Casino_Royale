@@ -4,21 +4,21 @@
 #include <QSqlDatabase>
 #include <QString>
 
-class SQLiteDataBase final
+class SqliteDatabase final
 {
 public:
-    explicit SQLiteDataBase(const QString& databasePath);
-    ~SQLiteDataBase();
+    explicit SqliteDatabase(const QString& databasePath);
+    ~SqliteDatabase();
 
-    SQLiteDataBase(const SQLiteDataBase&) = delete;
-    SQLiteDataBase& operator=(const SQLiteDataBase&) = delete;
+    SqliteDatabase(const SqliteDatabase&) = delete;
+    SqliteDatabase& operator=(const SqliteDatabase&) = delete;
 
     QSqlDatabase& connection();
     const QSqlDatabase& connection() const;
 
 private:
     QString connectionName_;
-    QSqlDatabase DataBase_;
+    QSqlDatabase database_;
 };
 
 #endif // JOBTRACKER_SRC_STORAGE_SQLITEDATABASE_HPP

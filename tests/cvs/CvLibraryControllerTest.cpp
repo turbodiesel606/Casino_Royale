@@ -40,7 +40,7 @@ public:
 
     QTemporaryDir temporaryDirectory_;
     StoragePaths paths_;
-    SQLiteDataBase database_;
+    SqliteDatabase database_;
     CvRepository repository_;
     CvFileAccessService fileAccessService_;
 };
@@ -106,7 +106,7 @@ private slots:
     void fileAccessRejectsMissingFiles();
     void openCvPublishesFileAccessFailure();
     void controllerFiltersAndSortsCvs();
-    void selectionRemainsStableAcrossProxyChanges();
+    void selectionPublishesLinkedViewContracts();
 };
 
 void CvLibraryControllerTest::cvModelExposesNamedRoles()
@@ -380,7 +380,7 @@ void CvLibraryControllerTest::controllerFiltersAndSortsCvs()
     QCOMPARE(categorySummarySpy.count(), 1);
 }
 
-void CvLibraryControllerTest::selectionRemainsStableAcrossProxyChanges()
+void CvLibraryControllerTest::selectionPublishesLinkedViewContracts()
 {
     CvTestStorage storage;
     JobApplicationListModel applicationsModel{testsupport::makeJobApplications()};
@@ -404,37 +404,6 @@ void CvLibraryControllerTest::selectionRemainsStableAcrossProxyChanges()
     QCOMPARE(selectedDataSpy.count(), 0);
     QCOMPARE(linkedModel->rowCount(), 2);
 
-    controller.setCategoryFilter(QStringLiteral("Engineering"));
-    QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-qt-2026"));
-    QCOMPARE(controller.selectedCvIndex(), 2);
-    QCOMPARE(linkedModel->rowCount(), 2);
-
-    controller.clearFilters();
-    QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-qt-2026"));
-    QCOMPARE(controller.selectedCvIndex(), 3);
-    QCOMPARE(linkedModel->rowCount(), 2);
-
-    controller.setCategoryFilter(QStringLiteral("General"));
-    QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-general"));
-    QCOMPARE(controller.selectedCvIndex(), 0);
-    QCOMPARE(linkedModel->rowCount(), 3);
-
-    controller.clearFilters();
-    QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-general"));
-    QCOMPARE(controller.selectedCvIndex(), 2);
-    QCOMPARE(linkedModel->rowCount(), 3);
-
-    controller.setSearchText(QStringLiteral("does-not-match"));
-    QCOMPARE(controller.cvCount(), 0);
-    QCOMPARE(controller.selectedCvIndex(), -1);
-    QVERIFY(controller.selectedCvId().isEmpty());
-    QCOMPARE(linkedModel->rowCount(), 0);
-
-    controller.clearFilters();
-    QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-backend"));
-    QCOMPARE(controller.selectedCvIndex(), 0);
-    QCOMPARE(linkedModel->rowCount(), 0);
-
     selectedIndexSpy.clear();
     selectedIdSpy.clear();
     selectedDataSpy.clear();
@@ -454,12 +423,12 @@ void CvLibraryControllerTest::selectionRemainsStableAcrossProxyChanges()
         QStringLiteral("job-alphabetical-first"),
         true);
 
-    QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-backend"));
-    QCOMPARE(controller.selectedCvIndex(), 1);
+    QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-qt-2026"));
+    QCOMPARE(controller.selectedCvIndex(), 4);
     QCOMPARE(selectedIndexSpy.count(), 1);
     QCOMPARE(selectedIdSpy.count(), 0);
     QCOMPARE(selectedDataSpy.count(), 0);
-    QCOMPARE(linkedModel->rowCount(), 0);
+    QCOMPARE(linkedModel->rowCount(), 2);
     QCOMPARE(categorySummarySpy.count(), 1);
     QCOMPARE(countSpy.count(), 1);
     QCOMPARE(resultSummarySpy.count(), 1);

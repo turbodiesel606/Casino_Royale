@@ -14,10 +14,9 @@ public:
 	explicit CvRepository(QSqlDatabase& database);
 
 	QVector<CvDocument> findAll() const;
-	std::optional<CvDocument>
-		findByIdentity(
-			const QString& sha256,
-			const QString& originalFileName) const;
+	std::optional<CvDocument> findByIdentity(
+		const QString& sha256,
+		const QString& originalFileName) const;
 	void insert(const CvDocument& document) const;
 	std::optional<QDateTime> updateFavorite(const QString& cvId, bool isFavorite) const;
 
