@@ -2,6 +2,7 @@
 
 #include "CvFileAccessService.hpp"
 #include "CvRepository.hpp"
+#include "jobs/JobApplicationListModel.hpp"
 
 #include <QMap>
 
@@ -33,7 +34,10 @@ CvLibraryController::CvLibraryController(
 	, fileAccessService_(fileAccessService)
 	, cvModel_(std::move(documents), this)
 	, filteredCvModel_(this)
-	, linkedApplicationsModel_(applicationsModel, this)
+	, linkedApplicationsModel_(
+		applicationsModel,
+		JobApplicationListModel::CvIdRole,
+		this)
 	, selectionTracker_(filteredCvModel_, CvListModel::IdRole)
 {
 	filteredCvModel_.setSearchRoles({
@@ -447,5 +451,5 @@ void CvLibraryController::handleVisibleCountChanged()
 
 void CvLibraryController::updateLinkedApplications()
 {
-	linkedApplicationsModel_.setCvId(selectedCvId());
+	linkedApplicationsModel_.setSelectedId(selectedCvId());
 }

@@ -1,9 +1,8 @@
 #ifndef JOBTRACKER_SRC_DASHBOARD_DASHBOARDCONTROLLER_HPP
 #define JOBTRACKER_SRC_DASHBOARD_DASHBOARDCONTROLLER_HPP
 
+#include "common/LimitedSortedProxyModel.hpp"
 #include "DashboardMetricListModel.hpp"
-#include "DashboardRecentApplicationsModel.hpp"
-#include "DashboardRecentCvsModel.hpp"
 #include "cvs/CvListModel.hpp"
 #include "jobs/JobApplicationListModel.hpp"
 
@@ -33,8 +32,8 @@ private:
     const JobApplicationListModel& applicationsModel_;
     DashboardMetricListModel statsModel_;
     DashboardMetricListModel funnelModel_;
-    DashboardRecentApplicationsModel recentApplicationsModel_;
-    DashboardRecentCvsModel recentCvsModel_;
+    LimitedSortedProxyModel recentApplicationsModel_;
+    LimitedSortedProxyModel recentCvsModel_;
 };
 
 #endif // JOBTRACKER_SRC_DASHBOARD_DASHBOARDCONTROLLER_HPP

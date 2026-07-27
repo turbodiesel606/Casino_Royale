@@ -189,14 +189,12 @@ void CvLibraryControllerTest::selectedCvControlsLinkedApplications()
     QSignalSpy selectedIndexSpy(&controller, &CvLibraryController::selectedCvIndexChanged);
     QSignalSpy selectedIdSpy(&controller, &CvLibraryController::selectedCvIdChanged);
     QSignalSpy selectedDataSpy(&controller, &CvLibraryController::selectedCvChanged);
-    QSignalSpy linkedResetSpy(controller.linkedApplicationsModel(), &QAbstractItemModel::modelReset);
 
     controller.selectCv(2);
 
     QCOMPARE(selectedIndexSpy.count(), 1);
     QCOMPARE(selectedIdSpy.count(), 1);
     QCOMPARE(selectedDataSpy.count(), 1);
-    QCOMPARE(linkedResetSpy.count(), 1);
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-general"));
     QCOMPARE(controller.selectedCv().value(QStringLiteral("fileName")).toString(), QStringLiteral("CV_General.pdf"));
 
@@ -367,6 +365,19 @@ void CvLibraryControllerTest::controllerFiltersAndSortsCvs()
     QCOMPARE(controller.cvCount(), 4);
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-general"));
     QCOMPARE(controller.cvModel()->data(controller.cvModel()->index(0, 0), roleForName(*controller.cvModel(), "linkedApplicationCount")).toInt(), 4);
+
+    categorySummarySpy.clear();
+    const auto categoryIndex = controller.cvListModel().index(0, 0);
+    controller.cvListModel().dataChanged(
+        categoryIndex,
+        categoryIndex,
+        {CvListModel::CategoryRole});
+    QCOMPARE(categorySummarySpy.count(), 1);
+    controller.cvListModel().dataChanged(
+        categoryIndex,
+        categoryIndex,
+        {CvListModel::IsFavoriteRole});
+    QCOMPARE(categorySummarySpy.count(), 1);
 }
 
 void CvLibraryControllerTest::selectionRemainsStableAcrossProxyChanges()
@@ -381,52 +392,52 @@ void CvLibraryControllerTest::selectionRemainsStableAcrossProxyChanges()
     QSignalSpy selectedIndexSpy{&controller, &CvLibraryController::selectedCvIndexChanged};
     QSignalSpy selectedIdSpy{&controller, &CvLibraryController::selectedCvIdChanged};
     QSignalSpy selectedDataSpy{&controller, &CvLibraryController::selectedCvChanged};
-    QSignalSpy linkedResetSpy{controller.linkedApplicationsModel(), &QAbstractItemModel::modelReset};
+    const auto* linkedModel = controller.linkedApplicationsModel();
 
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-qt-2026"));
+    QCOMPARE(linkedModel->rowCount(), 2);
     controller.setSortMode(QStringLiteral("File Name"));
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-qt-2026"));
     QCOMPARE(controller.selectedCvIndex(), 3);
     QCOMPARE(selectedIndexSpy.count(), 1);
     QCOMPARE(selectedIdSpy.count(), 0);
     QCOMPARE(selectedDataSpy.count(), 0);
-    QCOMPARE(linkedResetSpy.count(), 0);
+    QCOMPARE(linkedModel->rowCount(), 2);
 
     controller.setCategoryFilter(QStringLiteral("Engineering"));
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-qt-2026"));
     QCOMPARE(controller.selectedCvIndex(), 2);
-    QCOMPARE(linkedResetSpy.count(), 0);
+    QCOMPARE(linkedModel->rowCount(), 2);
 
     controller.clearFilters();
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-qt-2026"));
     QCOMPARE(controller.selectedCvIndex(), 3);
-    QCOMPARE(linkedResetSpy.count(), 0);
+    QCOMPARE(linkedModel->rowCount(), 2);
 
     controller.setCategoryFilter(QStringLiteral("General"));
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-general"));
     QCOMPARE(controller.selectedCvIndex(), 0);
-    QCOMPARE(linkedResetSpy.count(), 1);
+    QCOMPARE(linkedModel->rowCount(), 3);
 
     controller.clearFilters();
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-general"));
     QCOMPARE(controller.selectedCvIndex(), 2);
-    QCOMPARE(linkedResetSpy.count(), 1);
+    QCOMPARE(linkedModel->rowCount(), 3);
 
     controller.setSearchText(QStringLiteral("does-not-match"));
     QCOMPARE(controller.cvCount(), 0);
     QCOMPARE(controller.selectedCvIndex(), -1);
     QVERIFY(controller.selectedCvId().isEmpty());
-    QCOMPARE(linkedResetSpy.count(), 2);
+    QCOMPARE(linkedModel->rowCount(), 0);
 
     controller.clearFilters();
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-backend"));
     QCOMPARE(controller.selectedCvIndex(), 0);
-    QCOMPARE(linkedResetSpy.count(), 3);
+    QCOMPARE(linkedModel->rowCount(), 0);
 
     selectedIndexSpy.clear();
     selectedIdSpy.clear();
     selectedDataSpy.clear();
-    linkedResetSpy.clear();
     QSignalSpy categorySummarySpy{&controller, &CvLibraryController::categorySummaryChanged};
     QSignalSpy countSpy{&controller, &CvLibraryController::cvCountChanged};
     QSignalSpy resultSummarySpy{&controller, &CvLibraryController::resultSummaryChanged};
@@ -448,7 +459,7 @@ void CvLibraryControllerTest::selectionRemainsStableAcrossProxyChanges()
     QCOMPARE(selectedIndexSpy.count(), 1);
     QCOMPARE(selectedIdSpy.count(), 0);
     QCOMPARE(selectedDataSpy.count(), 0);
-    QCOMPARE(linkedResetSpy.count(), 0);
+    QCOMPARE(linkedModel->rowCount(), 0);
     QCOMPARE(categorySummarySpy.count(), 1);
     QCOMPARE(countSpy.count(), 1);
     QCOMPARE(resultSummarySpy.count(), 1);

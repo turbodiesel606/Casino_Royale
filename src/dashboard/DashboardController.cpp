@@ -6,6 +6,8 @@
 
 namespace {
 
+constexpr int recentRowLimit = 5;
+
 struct ApplicationCounts
 {
     int total_ = 0;
@@ -109,9 +111,24 @@ DashboardController::DashboardController(const JobApplicationListModel& applicat
     , applicationsModel_(applicationsModel)
     , statsModel_(makeStats(applicationsModel), this)
     , funnelModel_(makeFunnel(applicationsModel), this)
-    , recentApplicationsModel_(applicationsModel, this)
-    , recentCvsModel_(cvModel, this)
+    , recentApplicationsModel_(
+        applicationsModel,
+        JobApplicationListModel::CreatedAtRole,
+        recentRowLimit,
+        JobApplicationListModel::IdRole,
+        Qt::DescendingOrder,
+        this)
+    , recentCvsModel_(
+        cvModel,
+        CvListModel::UpdatedAtRole,
+        recentRowLimit,
+        CvListModel::IdRole,
+        Qt::DescendingOrder,
+        this)
 {
+    recentApplicationsModel_.setRoleName(
+        JobApplicationListModel::DateLabelRole,
+        QByteArrayLiteral("appliedDateLabel"));
     connect(&applicationsModel_, &QAbstractItemModel::rowsInserted, this, &DashboardController::refreshMetrics);
     connect(&applicationsModel_, &QAbstractItemModel::modelReset, this, &DashboardController::refreshMetrics);
 }

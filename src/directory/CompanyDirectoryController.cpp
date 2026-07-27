@@ -1,5 +1,8 @@
 #include "CompanyDirectoryController.hpp"
 
+#include "ContactListModel.hpp"
+#include "jobs/JobApplicationListModel.hpp"
+
 #include <QHash>
 #include <utility>
 
@@ -17,8 +20,14 @@ CompanyDirectoryController::CompanyDirectoryController(
     , applicationsModel_(applicationsModel)
     , companyModel_(std::move(companies), this)
     , filteredCompanyModel_(this)
-    , linkedJobsModel_(applicationsModel, this)
-    , linkedContactsModel_(contactModel, this)
+    , linkedJobsModel_(
+        applicationsModel,
+        JobApplicationListModel::CompanyIdRole,
+        this)
+    , linkedContactsModel_(
+        contactModel,
+        ContactListModel::CompanyIdRole,
+        this)
     , selectionTracker_(filteredCompanyModel_, CompanyListModel::IdRole)
 {
     filteredCompanyModel_.setSearchRoles({
@@ -274,6 +283,6 @@ QVariantMap CompanyDirectoryController::companyToMap(int sourceRow) const
 
 void CompanyDirectoryController::updateLinkedModels()
 {
-    linkedJobsModel_.setCompanyId(selectedCompanyId());
-    linkedContactsModel_.setCompanyId(selectedCompanyId());
+    linkedJobsModel_.setSelectedId(selectedCompanyId());
+    linkedContactsModel_.setSelectedId(selectedCompanyId());
 }

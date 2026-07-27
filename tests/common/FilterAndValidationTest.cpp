@@ -1,3 +1,5 @@
+#include "common/LimitedSortedProxyModel.hpp"
+#include "common/RelationFilterProxyModel.hpp"
 #include "common/RoleFilterProxyModel.hpp"
 #include "common/StableIdSelectionTracker.hpp"
 #include "jobs/JobApplicationFactory.hpp"
@@ -130,6 +132,20 @@ public:
         emit dataChanged(changedIndex, changedIndex, {NameRole});
     }
 
+    void updateCategory(int row, const QString& category)
+    {
+        rows_[row].insert(CategoryRole, category);
+        const auto changedIndex = index(row, 0);
+        emit dataChanged(changedIndex, changedIndex, {CategoryRole});
+    }
+
+    void updateTimestamp(int row, const QDateTime& timestamp)
+    {
+        rows_[row].insert(TimestampRole, timestamp);
+        const auto changedIndex = index(row, 0);
+        emit dataChanged(changedIndex, changedIndex, {TimestampRole});
+    }
+
 private:
     QVector<QHash<int, QVariant>> rows_;
 };
@@ -144,6 +160,8 @@ private slots:
     void proxyFiltersSearchTextAcrossConfiguredRoles();
     void proxyCombinesExactAndRequiredRoleFilters();
     void proxySortsStringAndNumericRoles();
+    void relationProxyTracksEveryRelevantMutation();
+    void limitedSortedProxyKeepsNewestRowsAcrossMutations();
     void stableSelectionFallsBackAcrossFiltersAndEmptyResults();
     void stableSelectionReportsEveryMutationPrecisely();
     void jobDraftNormalizationAppliesCanonicalDefaults();
@@ -203,6 +221,87 @@ void FilterAndValidationTest::proxySortsStringAndNumericRoles()
 
     proxy.setSort(SimpleListModel::TimestampRole, Qt::DescendingOrder);
     QCOMPARE(proxy.data(proxy.index(0, 0), SimpleListModel::ScoreRole).toInt(), 3);
+}
+
+void FilterAndValidationTest::relationProxyTracksEveryRelevantMutation()
+{
+    SimpleListModel model;
+    model.addRow(QStringLiteral("a"), QStringLiteral("Alpha"), QStringLiteral("Engineering"), QStringLiteral("Email"), 1);
+    model.addRow(QStringLiteral("b"), QStringLiteral("Beta"), QStringLiteral("Design"), QStringLiteral("Email"), 2);
+    model.addRow(QStringLiteral("c"), QStringLiteral("Gamma"), QStringLiteral("Engineering"), QStringLiteral("Email"), 3);
+
+    RelationFilterProxyModel proxy{model, SimpleListModel::CategoryRole};
+    QCOMPARE(proxy.rowCount(), 0);
+
+    proxy.setSelectedId(QStringLiteral("Engineering"));
+    QCOMPARE(proxy.rowCount(), 2);
+    QCOMPARE(proxy.data(proxy.index(0, 0), SimpleListModel::IdRole).toString(), QStringLiteral("a"));
+    QCOMPARE(proxy.data(proxy.index(1, 0), SimpleListModel::IdRole).toString(), QStringLiteral("c"));
+    QCOMPARE(proxy.roleNames().value(SimpleListModel::NameRole), QByteArray{"name"});
+
+    model.insertRowData(0, QStringLiteral("x"), QStringLiteral("Inserted"), 4);
+    QCOMPARE(proxy.rowCount(), 3);
+    QCOMPARE(proxy.data(proxy.index(0, 0), SimpleListModel::IdRole).toString(), QStringLiteral("x"));
+
+    model.removeRowData(1);
+    QCOMPARE(proxy.rowCount(), 2);
+    QCOMPARE(proxy.data(proxy.index(1, 0), SimpleListModel::IdRole).toString(), QStringLiteral("c"));
+
+    model.moveRowData(2, 0);
+    QCOMPARE(proxy.data(proxy.index(0, 0), SimpleListModel::IdRole).toString(), QStringLiteral("c"));
+
+    model.updateCategory(2, QStringLiteral("Engineering"));
+    QCOMPARE(proxy.rowCount(), 3);
+    QCOMPARE(proxy.data(proxy.index(2, 0), SimpleListModel::IdRole).toString(), QStringLiteral("b"));
+
+    model.updateCategory(1, QStringLiteral("Design"));
+    QCOMPARE(proxy.rowCount(), 2);
+
+    model.resetRows({QStringLiteral("reset-a"), QStringLiteral("reset-b")});
+    QCOMPARE(proxy.rowCount(), 2);
+    QCOMPARE(proxy.data(proxy.index(0, 0), SimpleListModel::IdRole).toString(), QStringLiteral("reset-a"));
+
+    proxy.setSelectedId(QStringLiteral("Missing"));
+    QCOMPARE(proxy.rowCount(), 0);
+}
+
+void FilterAndValidationTest::limitedSortedProxyKeepsNewestRowsAcrossMutations()
+{
+    SimpleListModel model;
+    model.addRow(QStringLiteral("three"), QStringLiteral("Three"), QStringLiteral("Engineering"), QStringLiteral("Email"), 3);
+    model.addRow(QStringLiteral("one"), QStringLiteral("One"), QStringLiteral("Engineering"), QStringLiteral("Email"), 1);
+    model.addRow(QStringLiteral("seven"), QStringLiteral("Seven"), QStringLiteral("Engineering"), QStringLiteral("Email"), 7);
+    model.addRow(QStringLiteral("two"), QStringLiteral("Two"), QStringLiteral("Engineering"), QStringLiteral("Email"), 2);
+    model.addRow(QStringLiteral("six"), QStringLiteral("Six"), QStringLiteral("Engineering"), QStringLiteral("Email"), 6);
+    model.addRow(QStringLiteral("four"), QStringLiteral("Four"), QStringLiteral("Engineering"), QStringLiteral("Email"), 4);
+    model.addRow(QStringLiteral("five"), QStringLiteral("Five"), QStringLiteral("Engineering"), QStringLiteral("Email"), 5);
+
+    LimitedSortedProxyModel proxy{
+        model,
+        SimpleListModel::TimestampRole,
+        5,
+        SimpleListModel::IdRole};
+    proxy.setRoleName(SimpleListModel::TimestampRole, QByteArrayLiteral("recentTimestamp"));
+
+    QCOMPARE(proxy.rowCount(), 5);
+    QCOMPARE(proxy.data(proxy.index(0, 0), SimpleListModel::IdRole).toString(), QStringLiteral("seven"));
+    QCOMPARE(proxy.data(proxy.index(4, 0), SimpleListModel::IdRole).toString(), QStringLiteral("three"));
+    QCOMPARE(proxy.roleNames().value(SimpleListModel::TimestampRole), QByteArray{"recentTimestamp"});
+
+    model.insertRowData(0, QStringLiteral("eight"), QStringLiteral("Eight"), 7);
+    QCOMPARE(proxy.rowCount(), 5);
+    QCOMPARE(proxy.data(proxy.index(0, 0), SimpleListModel::IdRole).toString(), QStringLiteral("eight"));
+
+    model.updateTimestamp(
+        2,
+        QDateTime{QDate{2026, 1, 10}, QTime{0, 0}, Qt::UTC});
+    QCOMPARE(proxy.data(proxy.index(0, 0), SimpleListModel::IdRole).toString(), QStringLiteral("one"));
+
+    model.moveRowData(2, 7);
+    QCOMPARE(proxy.data(proxy.index(0, 0), SimpleListModel::IdRole).toString(), QStringLiteral("one"));
+
+    model.removeRowData(7);
+    QCOMPARE(proxy.data(proxy.index(0, 0), SimpleListModel::IdRole).toString(), QStringLiteral("eight"));
 }
 
 void FilterAndValidationTest::stableSelectionFallsBackAcrossFiltersAndEmptyResults()

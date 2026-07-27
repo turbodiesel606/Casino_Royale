@@ -2,9 +2,9 @@
 #define JOBTRACKER_SRC_CVS_CVLIBRARYCONTROLLER_HPP
 
 #include "common/RoleFilterProxyModel.hpp"
+#include "common/RelationFilterProxyModel.hpp"
 #include "common/StableIdSelectionTracker.hpp"
 #include "CvListModel.hpp"
-#include "LinkedApplicationListModel.hpp"
 
 #include <QObject>
 #include <QVariantList>
@@ -13,6 +13,7 @@
 class QAbstractItemModel;
 class CvFileAccessService;
 class CvRepository;
+class JobApplicationListModel;
 
 class CvLibraryController final : public QObject
 {
@@ -93,7 +94,7 @@ private:
     CvFileAccessService& fileAccessService_;
     CvListModel cvModel_;
     RoleFilterProxyModel filteredCvModel_;
-    LinkedApplicationListModel linkedApplicationsModel_;
+    RelationFilterProxyModel linkedApplicationsModel_;
     StableIdSelectionTracker selectionTracker_;
     QString searchText_;
     QString categoryFilter_;

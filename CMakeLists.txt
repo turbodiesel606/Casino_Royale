@@ -20,6 +20,10 @@ if(QT_KNOWN_POLICY_QTP0004)
 endif()
 
 set(JOBTRACKER_COMMON_SOURCES
+    src/common/LimitedSortedProxyModel.cpp
+    src/common/LimitedSortedProxyModel.hpp
+    src/common/RelationFilterProxyModel.cpp
+    src/common/RelationFilterProxyModel.hpp
     src/common/RoleFilterProxyModel.cpp
     src/common/RoleFilterProxyModel.hpp
     src/common/StableIdSelectionTracker.cpp
@@ -71,8 +75,6 @@ set(JOBTRACKER_CV_SOURCES
     src/cvs/CvLibraryController.hpp
     src/cvs/CvListModel.cpp
     src/cvs/CvListModel.hpp
-    src/cvs/LinkedApplicationListModel.cpp
-    src/cvs/LinkedApplicationListModel.hpp
 )
 
 set(JOBTRACKER_DASHBOARD_SOURCES
@@ -81,10 +83,6 @@ set(JOBTRACKER_DASHBOARD_SOURCES
     src/dashboard/DashboardMetric.hpp
     src/dashboard/DashboardMetricListModel.cpp
     src/dashboard/DashboardMetricListModel.hpp
-    src/dashboard/DashboardRecentApplicationsModel.cpp
-    src/dashboard/DashboardRecentApplicationsModel.hpp
-    src/dashboard/DashboardRecentCvsModel.cpp
-    src/dashboard/DashboardRecentCvsModel.hpp
 )
 
 set(JOBTRACKER_DIRECTORY_SOURCES
@@ -100,10 +98,6 @@ set(JOBTRACKER_DIRECTORY_SOURCES
     src/directory/ContactInteractionListModel.hpp
     src/directory/ContactListModel.cpp
     src/directory/ContactListModel.hpp
-    src/directory/LinkedCompanyContactsModel.cpp
-    src/directory/LinkedCompanyContactsModel.hpp
-    src/directory/LinkedCompanyJobsModel.cpp
-    src/directory/LinkedCompanyJobsModel.hpp
 )
 
 set(JOBTRACKER_UTILS_SOURCES

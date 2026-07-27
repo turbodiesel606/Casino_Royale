@@ -210,6 +210,21 @@ use semantic notify signals: selected ID, selected proxy index, selected data,
 individual filters, visible counts, result summaries, and the CV category
 summary notify only for their own contract changes.
 
+`RelationFilterProxyModel` is the shared linked-view contract for CV
+applications, company jobs, and company contacts. Each controller configures
+the proxy with the source relation role and selected domain ID. The proxy
+preserves source role names and reacts directly to source insertion, removal,
+movement, reset, and relation-role data changes without manual source-row
+caches. An empty selected ID produces an empty linked view.
+
+`LimitedSortedProxyModel` owns dashboard recency projections. Recent
+applications expose the five newest jobs by typed creation timestamp; recent
+CVs expose the five newest CVs by typed update timestamp. Both projections use
+the domain ID as a deterministic tie-break and rebuild after relevant source
+structure or data changes. The dashboard's existing QML role names remain
+available, including the `appliedDateLabel` alias. CV category summaries notify
+when rows are inserted, removed, or reset and when category-role data changes.
+
 Durable domain objects do not store repository-built display strings.
 Job, CV, and company list models derive initials, accent colors, status/date
 labels, and file-size labels from typed values while preserving the existing
@@ -286,7 +301,6 @@ Use the dependency direction `QML -> controllers/models -> services -> repositor
 
 Treat these as current constraints when planning implementation:
 
-- Dashboard recent models currently depend on source-model ordering; appended new rows can miss recent lists after enough rows exist.
 - CV import and Add Job persistence run synchronously from the QML invocation and can block the GUI thread for large files.
 - Completed CV files can be orphaned if the process crashes after the file copy but before SQLite commit.
 - Company editing and all contact persistence/mutation workflows are still

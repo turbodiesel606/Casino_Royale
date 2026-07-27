@@ -2,15 +2,16 @@
 #define JOBTRACKER_SRC_DIRECTORY_COMPANYDIRECTORYCONTROLLER_HPP
 
 #include "common/RoleFilterProxyModel.hpp"
+#include "common/RelationFilterProxyModel.hpp"
 #include "common/StableIdSelectionTracker.hpp"
 #include "CompanyListModel.hpp"
-#include "LinkedCompanyContactsModel.hpp"
-#include "LinkedCompanyJobsModel.hpp"
 
 #include <QObject>
 #include <QVariantMap>
 
 class QAbstractItemModel;
+class ContactListModel;
+class JobApplicationListModel;
 
 class CompanyDirectoryController final : public QObject
 {
@@ -72,8 +73,8 @@ private:
     const JobApplicationListModel& applicationsModel_;
     CompanyListModel companyModel_;
     RoleFilterProxyModel filteredCompanyModel_;
-    LinkedCompanyJobsModel linkedJobsModel_;
-    LinkedCompanyContactsModel linkedContactsModel_;
+    RelationFilterProxyModel linkedJobsModel_;
+    RelationFilterProxyModel linkedContactsModel_;
     StableIdSelectionTracker selectionTracker_;
     QString searchText_;
     QString sortMode_ = QStringLiteral("Name");
