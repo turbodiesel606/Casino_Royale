@@ -1,20 +1,22 @@
 #ifndef JOBTRACKER_SRC_DIRECTORY_COMPANY_HPP
 #define JOBTRACKER_SRC_DIRECTORY_COMPANY_HPP
 
+#include <QDateTime>
 #include <QString>
+#include <QUrl>
 
 struct Company
 {
     QString id_;
     QString name_;
-    QString website_;
-    QString logoText_;
-    QString logoAccent_;
+    QUrl website_;
     int openJobCount_ = 0;
     int contactCount_ = 0;
-    QString lastActivityLabel_;
+    QDateTime lastActivityAt_;
     QString description_;
     QString notes_;
+    QDateTime createdAt_;
+    QDateTime updatedAt_;
 };
 
 #endif // JOBTRACKER_SRC_DIRECTORY_COMPANY_HPP

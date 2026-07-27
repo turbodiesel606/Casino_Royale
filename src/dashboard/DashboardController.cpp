@@ -39,17 +39,21 @@ ApplicationCounts countApplications(const JobApplicationListModel& model)
     counts.total_ = model.rowCount();
 
     for (int row = 0; row < model.rowCount(); ++row) {
-        const auto status = model.data(model.index(row, 0), JobApplicationListModel::StatusLabelRole).toString();
+        const auto* application = model.applicationAt(row);
+        if (application == nullptr) {
+            continue;
+        }
+        const auto status = application->status_;
 
-        if (status == QStringLiteral("Applied")) {
+        if (status == JobStatus::Applied) {
             ++counts.applied_;
-        } else if (status == QStringLiteral("Interview")) {
+        } else if (status == JobStatus::Interview) {
             ++counts.interviews_;
-        } else if (status == QStringLiteral("Rejected")) {
+        } else if (status == JobStatus::Rejected) {
             ++counts.rejected_;
         }
 
-        if (status != QStringLiteral("Rejected") && status != QStringLiteral("Offer")) {
+        if (status != JobStatus::Rejected && status != JobStatus::Offer) {
             ++counts.active_;
         }
     }

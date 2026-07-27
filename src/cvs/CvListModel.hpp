@@ -24,7 +24,9 @@ public:
         DescriptionRole,
         LinkedApplicationCountRole,
         LinkedApplicationCountLabelRole,
-        IsFavoriteRole
+        IsFavoriteRole,
+        CreatedAtRole,
+        UpdatedAtRole
     };
 
     explicit CvListModel(QObject* parent = nullptr);
@@ -38,7 +40,7 @@ public:
     void setDocuments(QVector<CvDocument> documents);
     void appendDocument(CvDocument document);
     bool addLinkedApplication(const QString& cvId, const QString& applicationId);
-    bool setFavorite(const QString& cvId, bool isFavorite);
+    bool setFavorite(const QString& cvId, bool isFavorite, const QDateTime& updatedAt);
 
 private:
     QVector<CvDocument> cvs_;

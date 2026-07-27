@@ -6,15 +6,7 @@
 #include <QMap>
 
 #include <exception>
-
-namespace {
-
-	QString linkedApplicationCountLabel(int count)
-	{
-		return count == 1 ? QStringLiteral("1 job") : QStringLiteral("%1 jobs").arg(count);
-	}
-
-}
+#include <optional>
 
 CvLibraryController::CvLibraryController(
     const JobApplicationListModel& applicationsModel,
@@ -51,7 +43,7 @@ CvLibraryController::CvLibraryController(
 		CvListModel::LanguageRole,
 		CvListModel::DescriptionRole,
 		});
-	filteredCvModel_.setSort(CvListModel::LastModifiedLabelRole, Qt::DescendingOrder);
+	filteredCvModel_.setSort(CvListModel::UpdatedAtRole, Qt::DescendingOrder);
 	connect(
 		&selectionTracker_,
 		&StableIdSelectionTracker::selectionChanged,
@@ -180,8 +172,8 @@ QString CvLibraryController::selectedCvId() const
 
 QVariantMap CvLibraryController::selectedCv() const
 {
-	const auto* cv = selectedSourceCv();
-	return cv != nullptr ? cvToMap(*cv) : QVariantMap();
+	const auto sourceIndex = selectionTracker_.selectedSourceIndex();
+	return sourceIndex.isValid() ? cvToMap(sourceIndex.row()) : QVariantMap();
 }
 
 QString CvLibraryController::searchText() const
@@ -291,7 +283,7 @@ void CvLibraryController::setSortMode(const QString& sortMode)
 		filteredCvModel_.setSort(CvListModel::LinkedApplicationCountRole, Qt::DescendingOrder);
 	}
 	else {
-		filteredCvModel_.setSort(CvListModel::LastModifiedLabelRole, Qt::DescendingOrder);
+		filteredCvModel_.setSort(CvListModel::UpdatedAtRole, Qt::DescendingOrder);
 	}
 	selectionTracker_.endModelUpdate();
 	emit sortModeChanged();
@@ -341,8 +333,10 @@ void CvLibraryController::toggleFavorite(const QString& cvId)
 	}
 
 	const bool isFavorite = !cv->isFavorite_;
+	std::optional<QDateTime> updatedAt;
 	try {
-		if (!repository_.updateFavorite(cvId, isFavorite)) {
+		updatedAt = repository_.updateFavorite(cvId, isFavorite);
+		if (!updatedAt) {
 			emit operationFailed(QStringLiteral("CV was not found."));
 			return;
 		}
@@ -357,7 +351,7 @@ void CvLibraryController::toggleFavorite(const QString& cvId)
 		return;
 	}
 
-	if (!cvModel_.setFavorite(cvId, isFavorite)) {
+	if (!cvModel_.setFavorite(cvId, isFavorite, *updatedAt)) {
 		emit operationFailed(QStringLiteral("The favorite state was saved but the CV model could not be updated."));
 		return;
 	}
@@ -377,23 +371,26 @@ void CvLibraryController::openCv(const QString& cvId)
 	}
 }
 
-QVariantMap CvLibraryController::cvToMap(const CvDocument& cv) const
+QVariantMap CvLibraryController::cvToMap(int sourceRow) const
 {
-	const auto linkedCount = cv.linkedApplicationIds_.size();
+	const auto modelIndex = cvModel_.index(sourceRow, 0);
+	const auto roleData = [this, &modelIndex](int role) {
+		return cvModel_.data(modelIndex, role);
+	};
 	return {
-		{QStringLiteral("id"), cv.id_},
-		{QStringLiteral("fileName"), cv.fileName_},
-		{QStringLiteral("title"), cv.title_},
-		{QStringLiteral("category"), cv.category_},
-		{QStringLiteral("categoryAccent"), cv.categoryAccent_},
-		{QStringLiteral("language"), cv.language_},
-		{QStringLiteral("languageAccent"), cv.languageAccent_},
-		{QStringLiteral("lastModifiedLabel"), cv.lastModifiedLabel_},
-		{QStringLiteral("fileSizeLabel"), cv.fileSizeLabel_},
-		{QStringLiteral("description"), cv.description_},
-		{QStringLiteral("linkedApplicationCount"), linkedCount},
-		{QStringLiteral("linkedApplicationCountLabel"), linkedApplicationCountLabel(linkedCount)},
-		{QStringLiteral("isFavorite"), cv.isFavorite_},
+		{QStringLiteral("id"), roleData(CvListModel::IdRole)},
+		{QStringLiteral("fileName"), roleData(CvListModel::FileNameRole)},
+		{QStringLiteral("title"), roleData(CvListModel::TitleRole)},
+		{QStringLiteral("category"), roleData(CvListModel::CategoryRole)},
+		{QStringLiteral("categoryAccent"), roleData(CvListModel::CategoryAccentRole)},
+		{QStringLiteral("language"), roleData(CvListModel::LanguageRole)},
+		{QStringLiteral("languageAccent"), roleData(CvListModel::LanguageAccentRole)},
+		{QStringLiteral("lastModifiedLabel"), roleData(CvListModel::LastModifiedLabelRole)},
+		{QStringLiteral("fileSizeLabel"), roleData(CvListModel::FileSizeLabelRole)},
+		{QStringLiteral("description"), roleData(CvListModel::DescriptionRole)},
+		{QStringLiteral("linkedApplicationCount"), roleData(CvListModel::LinkedApplicationCountRole)},
+		{QStringLiteral("linkedApplicationCountLabel"), roleData(CvListModel::LinkedApplicationCountLabelRole)},
+		{QStringLiteral("isFavorite"), roleData(CvListModel::IsFavoriteRole)},
 	};
 }
 

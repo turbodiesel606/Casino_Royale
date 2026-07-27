@@ -33,7 +33,12 @@ public:
         DescriptionRole,
         RequirementsRole,
         TechStackRole,
-        NotesRole
+        NotesRole,
+        StatusValueRole,
+        WorkFormatValueRole,
+        AppliedDateValueRole,
+        CreatedAtRole,
+        UpdatedAtRole
     };
 
     explicit JobApplicationListModel(QObject* parent = nullptr);

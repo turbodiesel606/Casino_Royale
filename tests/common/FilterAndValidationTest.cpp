@@ -1,6 +1,7 @@
 #include "common/RoleFilterProxyModel.hpp"
 #include "common/StableIdSelectionTracker.hpp"
-#include "common/ValidationService.hpp"
+#include "jobs/JobApplicationFactory.hpp"
+#include "jobs/JobApplicationValidator.hpp"
 
 #include <QAbstractListModel>
 #include <QSignalSpy>
@@ -17,6 +18,7 @@ public:
         CategoryRole,
         ChannelRole,
         ScoreRole,
+        TimestampRole,
     };
 
     explicit SimpleListModel(QObject* parent = nullptr)
@@ -46,6 +48,7 @@ public:
             {CategoryRole, "category"},
             {ChannelRole, "channel"},
             {ScoreRole, "score"},
+            {TimestampRole, "timestamp"},
         };
     }
 
@@ -69,6 +72,7 @@ public:
             {CategoryRole, category},
             {ChannelRole, channel},
             {ScoreRole, score},
+            {TimestampRole, QDateTime{QDate{2026, 1, score}, QTime{0, 0}, Qt::UTC}},
         });
         endInsertRows();
     }
@@ -82,6 +86,7 @@ public:
             {CategoryRole, QStringLiteral("Engineering")},
             {ChannelRole, QStringLiteral("Email")},
             {ScoreRole, score},
+            {TimestampRole, QDateTime{QDate{2026, 1, score + 1}, QTime{0, 0}, Qt::UTC}},
         });
         endInsertRows();
     }
@@ -112,6 +117,7 @@ public:
                 {CategoryRole, QStringLiteral("Engineering")},
                 {ChannelRole, QStringLiteral("Email")},
                 {ScoreRole, row},
+                {TimestampRole, QDateTime{QDate{2026, 1, row + 1}, QTime{0, 0}, Qt::UTC}},
             });
         }
         endResetModel();
@@ -140,7 +146,8 @@ private slots:
     void proxySortsStringAndNumericRoles();
     void stableSelectionFallsBackAcrossFiltersAndEmptyResults();
     void stableSelectionReportsEveryMutationPrecisely();
-    void validationReportsRequiredAndUrlErrors();
+    void jobDraftNormalizationAppliesCanonicalDefaults();
+    void jobValidationReturnsStructuredCanonicalErrors();
 };
 
 void FilterAndValidationTest::proxyFiltersSearchTextAcrossConfiguredRoles()
@@ -192,6 +199,9 @@ void FilterAndValidationTest::proxySortsStringAndNumericRoles()
     QCOMPARE(proxy.data(proxy.index(0, 0), SimpleListModel::NameRole).toString(), QStringLiteral("Product Designer"));
 
     proxy.setSort(SimpleListModel::ScoreRole, Qt::DescendingOrder);
+    QCOMPARE(proxy.data(proxy.index(0, 0), SimpleListModel::ScoreRole).toInt(), 3);
+
+    proxy.setSort(SimpleListModel::TimestampRole, Qt::DescendingOrder);
     QCOMPARE(proxy.data(proxy.index(0, 0), SimpleListModel::ScoreRole).toInt(), 3);
 }
 
@@ -297,21 +307,86 @@ void FilterAndValidationTest::stableSelectionReportsEveryMutationPrecisely()
     QCOMPARE(selectionSpy.first().at(2).toBool(), false);
 }
 
-void FilterAndValidationTest::validationReportsRequiredAndUrlErrors()
+void FilterAndValidationTest::jobDraftNormalizationAppliesCanonicalDefaults()
 {
-    const auto required = ValidationService::validateRequiredFields(
-        {{QStringLiteral("title"), QStringLiteral("Qt Developer")}, {QStringLiteral("company"), QString()}},
-        {QStringLiteral("title"), QStringLiteral("company")});
-    QVERIFY(!required.isValid_);
-    QCOMPARE(required.messages_, QStringList({QStringLiteral("company is required.")}));
+    JobApplicationDraft draft;
+    draft.jobTitle_ = QStringLiteral("  Qt Developer  ");
+    draft.companyName_ = QStringLiteral("  Example Company  ");
+    draft.jobUrl_ = QStringLiteral("  https://example.com/jobs/qt  ");
+    draft.workFormat_ = QStringLiteral(" remote ");
+    draft.city_ = QStringLiteral("  Prague  ");
+    draft.techStack_ = {
+        QStringLiteral(" Qt "),
+        QStringLiteral("qt"),
+        QStringLiteral(" C++ "),
+        QStringLiteral(" ")};
 
-    const auto validUrl = ValidationService::validateHttpUrl(QStringLiteral("jobUrl"), QStringLiteral("https://example.com/job"), true);
-    QVERIFY(validUrl.isValid_);
-    QVERIFY(validUrl.messages_.isEmpty());
+    const auto normalized = JobApplicationFactory::normalize(draft);
 
-    const auto invalidUrl = ValidationService::validateHttpUrl(QStringLiteral("jobUrl"), QStringLiteral("ftp://example.com/job"), true);
-    QVERIFY(!invalidUrl.isValid_);
-    QCOMPARE(invalidUrl.messages_, QStringList({QStringLiteral("jobUrl must be a valid HTTP or HTTPS URL.")}));
+    QCOMPARE(normalized.jobTitle_, QStringLiteral("Qt Developer"));
+    QCOMPARE(normalized.companyName_, QStringLiteral("Example Company"));
+    QCOMPARE(normalized.jobUrl_, QUrl{QStringLiteral("https://example.com/jobs/qt")});
+    QCOMPARE(normalized.workFormat_, WorkFormat::Remote);
+    QCOMPARE(normalized.status_, JobStatus::Applied);
+    QCOMPARE(normalized.appliedDate_, QDate::currentDate());
+    QCOMPARE(normalized.city_, QStringLiteral("Prague"));
+    QCOMPARE(
+        normalized.techStack_,
+        QStringList({QStringLiteral("Qt"), QStringLiteral("C++")}));
+}
+
+void FilterAndValidationTest::jobValidationReturnsStructuredCanonicalErrors()
+{
+    JobApplicationDraft validDraft;
+    validDraft.jobTitle_ = QStringLiteral("Qt Developer");
+    validDraft.companyName_ = QStringLiteral("Example Company");
+    validDraft.status_ = QStringLiteral("Applied");
+    validDraft.workFormat_ = QStringLiteral("Hybrid");
+    validDraft.appliedDate_ = QStringLiteral("2026-07-09");
+    const auto selectedCv = QUrl::fromLocalFile(QStringLiteral("C:/resume.pdf"));
+
+    auto normalized = JobApplicationFactory::normalize(validDraft);
+    QVERIFY(JobApplicationValidator::validate(normalized, selectedCv).isValid());
+
+    auto invalidDraft = validDraft;
+    invalidDraft.jobTitle_ = QStringLiteral(" ");
+    invalidDraft.companyName_.clear();
+    invalidDraft.jobUrl_ = QStringLiteral("https:job-posting");
+    invalidDraft.workFormat_ = QStringLiteral("Office");
+    invalidDraft.status_ = QStringLiteral("Pending");
+    invalidDraft.appliedDate_ = QStringLiteral("2026-99-87");
+    normalized = JobApplicationFactory::normalize(invalidDraft);
+    const auto errors = JobApplicationValidator::validate(normalized, {});
+
+    QVERIFY(!errors.isValid());
+    const QStringList expectedFields{
+        QStringLiteral("jobTitle"),
+        QStringLiteral("companyName"),
+        QStringLiteral("jobUrl"),
+        QStringLiteral("workFormat"),
+        QStringLiteral("status"),
+        QStringLiteral("appliedDate"),
+        QStringLiteral("cv")};
+    for (const auto& field : expectedFields) {
+        QVERIFY2(errors.fieldErrors_.contains(field), qPrintable(field));
+    }
+
+    invalidDraft = validDraft;
+    invalidDraft.jobUrl_ = QStringLiteral("ftp://example.com/job");
+    const auto unsupportedScheme = JobApplicationValidator::validate(
+        JobApplicationFactory::normalize(invalidDraft),
+        selectedCv);
+    QVERIFY(unsupportedScheme.fieldErrors_.contains(QStringLiteral("jobUrl")));
+
+    JobApplication application;
+    application.jobTitle_ = normalized.jobTitle_;
+    application.companyName_ = normalized.companyName_;
+    application.jobUrl_ = normalized.jobUrl_;
+    application.workFormat_ = normalized.workFormat_;
+    application.status_ = normalized.status_;
+    application.appliedDate_ = normalized.appliedDate_;
+    const auto selectedErrors = JobApplicationValidator::validate(application);
+    QCOMPARE(selectedErrors.fieldErrors_.keys(), errors.fieldErrors_.keys());
 }
 
 QTEST_APPLESS_MAIN(FilterAndValidationTest)

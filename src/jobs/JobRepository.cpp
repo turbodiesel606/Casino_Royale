@@ -1,7 +1,6 @@
 #include "JobRepository.hpp"
 #include "utils/Utils.hpp"
 
-#include <QDate>
 #include <QDateTime>
 #include <QSqlDatabase>
 #include <QSqlError>
@@ -22,22 +21,31 @@ namespace {
 		application.id_ = query.value(QStringLiteral("id")).toString();
 		application.companyId_ = query.value(QStringLiteral("company_id")).toString();
 		application.companyName_ = query.value(QStringLiteral("company_name")).toString();
-		application.companyInitials_ = application.companyName_.left(2).toUpper();
-		application.companyAccent_ = QStringLiteral("#146ce0");
 		application.jobTitle_ = query.value(QStringLiteral("job_title")).toString();
-		application.jobUrl_ = query.value(QStringLiteral("job_url")).toString();
-		application.workFormat_ = query.value(QStringLiteral("work_format")).toString();
+		application.jobUrl_ = QUrl{
+			query.value(QStringLiteral("job_url")).toString(),
+			QUrl::StrictMode};
+		application.workFormat_ = workFormatFromString(
+			query.value(QStringLiteral("work_format")).toString());
 		application.city_ = query.value(QStringLiteral("city")).toString();
 		application.salary_ = query.value(QStringLiteral("salary")).toString();
-		application.status_ = query.value(QStringLiteral("status")).toString();
-		application.appliedDate_ = query.value(QStringLiteral("applied_date")).toString();
-		application.dateLabel_ = QDate::fromString(application.appliedDate_, Qt::ISODate).toString(QStringLiteral("MMM d, yyyy"));
+		application.status_ = jobStatusFromString(
+			query.value(QStringLiteral("status")).toString());
+		application.appliedDate_ = QDate::fromString(
+			query.value(QStringLiteral("applied_date")).toString(),
+			Qt::ISODate);
 		application.nextStep_ = query.value(QStringLiteral("next_step")).toString();
 		application.cvId_ = query.value(QStringLiteral("cv_id")).toString();
 		application.cvFileName_ = query.value(QStringLiteral("original_file_name")).toString();
 		application.description_ = query.value(QStringLiteral("description")).toString();
 		application.requirements_ = query.value(QStringLiteral("requirements")).toString();
 		application.notes_ = query.value(QStringLiteral("notes")).toString();
+		application.createdAt_ = QDateTime::fromString(
+			query.value(QStringLiteral("created_at")).toString(),
+			Qt::ISODate);
+		application.updatedAt_ = QDateTime::fromString(
+			query.value(QStringLiteral("updated_at")).toString(),
+			Qt::ISODate);
 
 		return application;
 	}
@@ -107,23 +115,22 @@ void JobRepository::insert(const JobApplication& application) const
 		"INSERT INTO jobs (id, company_id, job_title, job_url, work_format, city, salary,"
 		" status, applied_date, next_step, cv_id, description, requirements, notes, created_at, updated_at)"
 		" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
-	const auto now = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
 	query.addBindValue(application.id_);
 	query.addBindValue(application.companyId_);
 	query.addBindValue(application.jobTitle_);
-	query.addBindValue(sqlText(application.jobUrl_));
-	query.addBindValue(sqlText(application.workFormat_));
+	query.addBindValue(sqlText(application.jobUrl_.toString()));
+	query.addBindValue(sqlText(workFormatToString(application.workFormat_)));
 	query.addBindValue(sqlText(application.city_));
 	query.addBindValue(sqlText(application.salary_));
-	query.addBindValue(application.status_);
-	query.addBindValue(application.appliedDate_);
+	query.addBindValue(jobStatusToString(application.status_));
+	query.addBindValue(application.appliedDate_.toString(Qt::ISODate));
 	query.addBindValue(sqlText(application.nextStep_));
 	query.addBindValue(application.cvId_);
 	query.addBindValue(sqlText(application.description_));
 	query.addBindValue(sqlText(application.requirements_));
 	query.addBindValue(sqlText(application.notes_));
-	query.addBindValue(now);
-	query.addBindValue(now);
+	query.addBindValue(application.createdAt_.toUTC().toString(Qt::ISODate));
+	query.addBindValue(application.updatedAt_.toUTC().toString(Qt::ISODate));
 
 	if (!query.exec())
 		utils::throwQueryError(query);

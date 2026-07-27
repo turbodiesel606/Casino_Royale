@@ -103,6 +103,8 @@ void DirectoryControllerTest::companyModelExposesNamedRoles()
     QVERIFY(roleForName(*model, "openJobCountLabel") > 0);
     QVERIFY(roleForName(*model, "contactCountLabel") > 0);
     QVERIFY(roleForName(*model, "lastActivityLabel") > 0);
+    QVERIFY(roleForName(*model, "createdAt") > 0);
+    QVERIFY(roleForName(*model, "updatedAt") > 0);
 
     QCOMPARE(model->rowCount(), 0);
     QCOMPARE(controller.selectedCompanyIndex(), -1);

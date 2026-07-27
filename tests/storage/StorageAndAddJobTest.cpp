@@ -1,11 +1,13 @@
 #include "cvs/CvImportService.hpp"
 #include "cvs/CvRepository.hpp"
+#include "directory/CompanyListModel.hpp"
 #include "directory/CompanyDirectoryController.hpp"
 #include "directory/CompanyRepository.hpp"
 #include "directory/ContactListModel.hpp"
 #include "jobs/AddJobService.hpp"
 #include "jobs/JobApplicationDraft.hpp"
 #include "jobs/JobApplicationsController.hpp"
+#include "jobs/JobApplicationListModel.hpp"
 #include "jobs/JobRepository.hpp"
 #include "storage/SqliteDatabase.hpp"
 #include "storage/SchemaMigrator.hpp"
@@ -246,6 +248,7 @@ JobApplicationDraft validDraft()
     draft.jobTitle_ = QStringLiteral("Qt Developer");
     draft.companyName_ = QStringLiteral("Example Company");
     draft.jobUrl_ = QStringLiteral("https://example.com/jobs/qt");
+    draft.workFormat_ = QStringLiteral("Remote");
     draft.status_ = QStringLiteral("Applied");
     draft.appliedDate_ = QStringLiteral("2026-07-09");
     draft.techStack_ = {QStringLiteral("Qt"), QStringLiteral(" C++ "), QStringLiteral("qt")};
@@ -320,10 +323,53 @@ void StorageAndAddJobTest::createsJobAndCopiesCv()
     QVERIFY(result.cvWasInserted_);
     QVERIFY(!result.company_.id_.isEmpty());
     QCOMPARE(result.application_.companyId_, result.company_.id_);
-    QCOMPARE(jobs.findAll().size(), 1);
-    QCOMPARE(jobs.findAll().first().techStack_, QStringList({QStringLiteral("Qt"), QStringLiteral("C++")}));
-    QCOMPARE(cvs.findAll().size(), 1);
-    QCOMPARE(companies.findAll().size(), 1);
+    const auto storedApplications = jobs.findAll();
+    const auto storedCvs = cvs.findAll();
+    const auto storedCompanies = companies.findAll();
+    QCOMPARE(storedApplications.size(), 1);
+    QCOMPARE(storedApplications.first().techStack_, QStringList({QStringLiteral("Qt"), QStringLiteral("C++")}));
+    QCOMPARE(storedApplications.first().jobUrl_, QUrl{QStringLiteral("https://example.com/jobs/qt")});
+    QCOMPARE(storedApplications.first().workFormat_, WorkFormat::Remote);
+    QCOMPARE(storedApplications.first().status_, JobStatus::Applied);
+    QCOMPARE(storedApplications.first().appliedDate_, QDate(2026, 7, 9));
+    QVERIFY(storedApplications.first().createdAt_.isValid());
+    QVERIFY(storedApplications.first().updatedAt_.isValid());
+    QCOMPARE(storedCvs.size(), 1);
+    QVERIFY(storedCvs.first().createdAt_.isValid());
+    QVERIFY(storedCvs.first().updatedAt_.isValid());
+    QCOMPARE(storedCompanies.size(), 1);
+    QVERIFY(storedCompanies.first().createdAt_.isValid());
+    QVERIFY(storedCompanies.first().updatedAt_.isValid());
+
+    JobApplicationListModel applicationModel{storedApplications};
+    const auto applicationIndex = applicationModel.index(0, 0);
+    QCOMPARE(
+        applicationModel.data(applicationIndex, JobApplicationListModel::JobUrlRole).toString(),
+        QStringLiteral("https://example.com/jobs/qt"));
+    QCOMPARE(
+        applicationModel.data(applicationIndex, JobApplicationListModel::WorkFormatRole).toString(),
+        QStringLiteral("Remote"));
+    QCOMPARE(
+        applicationModel.data(applicationIndex, JobApplicationListModel::StatusLabelRole).toString(),
+        QStringLiteral("Applied"));
+    QCOMPARE(
+        applicationModel.data(applicationIndex, JobApplicationListModel::AppliedDateRole).toString(),
+        QStringLiteral("2026-07-09"));
+    QCOMPARE(
+        applicationModel.data(applicationIndex, JobApplicationListModel::DateLabelRole).toString(),
+        QStringLiteral("Jul 9, 2026"));
+    QCOMPARE(
+        applicationModel.data(applicationIndex, JobApplicationListModel::CreatedAtRole).toDateTime(),
+        storedApplications.first().createdAt_);
+
+    CompanyListModel companyModel{storedCompanies};
+    const auto companyIndex = companyModel.index(0, 0);
+    QCOMPARE(
+        companyModel.data(companyIndex, CompanyListModel::LogoTextRole).toString(),
+        QStringLiteral("EX"));
+    QCOMPARE(
+        companyModel.data(companyIndex, CompanyListModel::CreatedAtRole).toDateTime(),
+        storedCompanies.first().createdAt_);
     QVERIFY(QFileInfo::exists(QDir(paths.dataDirectory()).filePath(result.cvDocument_.relativePath_)));
 
     QSqlQuery invalidCompany(database.connection());
@@ -612,7 +658,7 @@ void StorageAndAddJobTest::persistsFavoriteAcrossDatabaseReopen()
     StoragePaths paths(QDir(temporaryDirectory.path()).filePath(QStringLiteral("Data")));
     const auto sourcePath = createCvFile(temporaryDirectory.path());
     QString cvId;
-    QString originalUpdatedAt;
+    QDateTime originalUpdatedAt;
 
     {
         SQLiteDataBase database(paths.databasePath());
@@ -626,7 +672,8 @@ void StorageAndAddJobTest::persistsFavoriteAcrossDatabaseReopen()
         cvId = result.cvDocument_.id_;
         originalUpdatedAt = result.cvDocument_.updatedAt_;
 
-        QVERIFY(cvs.updateFavorite(cvId, true));
+        const auto updatedAt = cvs.updateFavorite(cvId, true);
+        QVERIFY(updatedAt.has_value());
         const auto updated = cvs.findAll();
         QCOMPARE(updated.size(), 1);
         QVERIFY(updated.first().isFavorite_);

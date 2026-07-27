@@ -4,6 +4,7 @@
 #include "CvDocument.hpp"
 
 #include <optional>
+#include <QVector>
 
 class QSqlDatabase;
 
@@ -18,7 +19,7 @@ public:
 			const QString& sha256,
 			const QString& originalFileName) const;
 	void insert(const CvDocument& document) const;
-	bool updateFavorite(const QString& cvId, bool isFavorite) const;
+	std::optional<QDateTime> updateFavorite(const QString& cvId, bool isFavorite) const;
 
 private:
 	QSqlDatabase& database_;

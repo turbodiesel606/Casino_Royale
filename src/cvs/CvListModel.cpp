@@ -1,5 +1,7 @@
 #include "CvListModel.hpp"
 
+#include <QLocale>
+
 #include <utility>
 
 namespace {
@@ -9,27 +11,41 @@ QString linkedApplicationCountLabel(int count)
     return count == 1 ? QStringLiteral("1 job") : QStringLiteral("%1 jobs").arg(count);
 }
 
+QString lastModifiedLabel(const QDateTime& updatedAt)
+{
+    return updatedAt.isValid()
+        ? QLocale::c().toString(
+            updatedAt.toLocalTime().date(),
+            QStringLiteral("MMM d, yyyy"))
+        : QString{};
+}
+
+QString fileSizeLabel(qint64 sizeBytes)
+{
+    return QStringLiteral("%1 KB").arg((sizeBytes + 1023) / 1024);
+}
+
 QVariant roleValue(const CvDocument& cv, int role)
 {
     switch (role) {
     case CvListModel::IdRole:
         return cv.id_;
     case CvListModel::FileNameRole:
-        return cv.fileName_;
+        return cv.originalFileName_;
     case CvListModel::TitleRole:
         return cv.title_;
     case CvListModel::CategoryRole:
         return cv.category_;
     case CvListModel::CategoryAccentRole:
-        return cv.categoryAccent_;
+        return QStringLiteral("#1687ff");
     case CvListModel::LanguageRole:
         return cv.language_;
     case CvListModel::LanguageAccentRole:
-        return cv.languageAccent_;
+        return QStringLiteral("#65bf4c");
     case CvListModel::LastModifiedLabelRole:
-        return cv.lastModifiedLabel_;
+        return lastModifiedLabel(cv.updatedAt_);
     case CvListModel::FileSizeLabelRole:
-        return cv.fileSizeLabel_;
+        return fileSizeLabel(cv.sizeBytes_);
     case CvListModel::DescriptionRole:
         return cv.description_;
     case CvListModel::LinkedApplicationCountRole:
@@ -38,6 +54,10 @@ QVariant roleValue(const CvDocument& cv, int role)
         return linkedApplicationCountLabel(cv.linkedApplicationIds_.size());
     case CvListModel::IsFavoriteRole:
         return cv.isFavorite_;
+    case CvListModel::CreatedAtRole:
+        return cv.createdAt_;
+    case CvListModel::UpdatedAtRole:
+        return cv.updatedAt_;
     default:
         return {};
     }
@@ -85,6 +105,8 @@ QHash<int, QByteArray> CvListModel::roleNames() const
         {LinkedApplicationCountRole, "linkedApplicationCount"},
         {LinkedApplicationCountLabelRole, "linkedApplicationCountLabel"},
         {IsFavoriteRole, "isFavorite"},
+        {CreatedAtRole, "createdAt"},
+        {UpdatedAtRole, "updatedAt"},
     };
 }
 
@@ -122,13 +144,20 @@ bool CvListModel::addLinkedApplication(const QString& cvId, const QString& appli
     return false;
 }
 
-bool CvListModel::setFavorite(const QString& cvId, bool isFavorite)
+bool CvListModel::setFavorite(
+    const QString& cvId,
+    bool isFavorite,
+    const QDateTime& updatedAt)
 {
     for (int row = 0; row < cvs_.size(); ++row) {
         if (cvs_[row].id_ == cvId) {
             cvs_[row].isFavorite_ = isFavorite;
+            cvs_[row].updatedAt_ = updatedAt;
             const auto modelIndex = index(row, 0);
-            emit dataChanged(modelIndex, modelIndex, {IsFavoriteRole});
+            emit dataChanged(
+                modelIndex,
+                modelIndex,
+                {IsFavoriteRole, LastModifiedLabelRole, UpdatedAtRole});
             return true;
         }
     }

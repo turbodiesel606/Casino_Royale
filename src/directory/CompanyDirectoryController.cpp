@@ -95,8 +95,8 @@ QString CompanyDirectoryController::selectedCompanyId() const
 
 QVariantMap CompanyDirectoryController::selectedCompany() const
 {
-    const auto* company = selectedSourceCompany();
-    return company != nullptr ? companyToMap(*company) : QVariantMap();
+    const auto sourceIndex = selectionTracker_.selectedSourceIndex();
+    return sourceIndex.isValid() ? companyToMap(sourceIndex.row()) : QVariantMap();
 }
 
 QString CompanyDirectoryController::searchText() const
@@ -188,8 +188,6 @@ void CompanyDirectoryController::publishCompany(
     Company company;
     company.id_ = companyId;
     company.name_ = displayName;
-    company.logoText_ = displayName.left(2).toUpper();
-    company.logoAccent_ = QStringLiteral("#146ce0");
     companyModel_.upsertCompany(std::move(company));
     refreshCompanyJobCounts();
 }
@@ -254,19 +252,23 @@ void CompanyDirectoryController::refreshCompanyJobCounts()
     }
 }
 
-QVariantMap CompanyDirectoryController::companyToMap(const Company& company) const
+QVariantMap CompanyDirectoryController::companyToMap(int sourceRow) const
 {
+    const auto modelIndex = companyModel_.index(sourceRow, 0);
+    const auto roleData = [this, &modelIndex](int role) {
+        return companyModel_.data(modelIndex, role);
+    };
     return {
-        {QStringLiteral("id"), company.id_},
-        {QStringLiteral("name"), company.name_},
-        {QStringLiteral("website"), company.website_},
-        {QStringLiteral("logoText"), company.logoText_},
-        {QStringLiteral("logoAccent"), company.logoAccent_},
-        {QStringLiteral("openJobCount"), company.openJobCount_},
-        {QStringLiteral("contactCount"), company.contactCount_},
-        {QStringLiteral("lastActivityLabel"), company.lastActivityLabel_},
-        {QStringLiteral("description"), company.description_},
-        {QStringLiteral("notes"), company.notes_},
+        {QStringLiteral("id"), roleData(CompanyListModel::IdRole)},
+        {QStringLiteral("name"), roleData(CompanyListModel::NameRole)},
+        {QStringLiteral("website"), roleData(CompanyListModel::WebsiteRole)},
+        {QStringLiteral("logoText"), roleData(CompanyListModel::LogoTextRole)},
+        {QStringLiteral("logoAccent"), roleData(CompanyListModel::LogoAccentRole)},
+        {QStringLiteral("openJobCount"), roleData(CompanyListModel::OpenJobCountRole)},
+        {QStringLiteral("contactCount"), roleData(CompanyListModel::ContactCountRole)},
+        {QStringLiteral("lastActivityLabel"), roleData(CompanyListModel::LastActivityLabelRole)},
+        {QStringLiteral("description"), roleData(CompanyListModel::DescriptionRole)},
+        {QStringLiteral("notes"), roleData(CompanyListModel::NotesRole)},
     };
 }
 

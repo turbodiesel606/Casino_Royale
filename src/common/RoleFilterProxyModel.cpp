@@ -1,6 +1,7 @@
 #include "RoleFilterProxyModel.hpp"
 
 #include <QDate>
+#include <QDateTime>
 #include <QLocale>
 #include <QRegularExpression>
 #include <QStringList>
@@ -99,6 +100,15 @@ bool RoleFilterProxyModel::lessThan(const QModelIndex& left, const QModelIndex& 
 {
     const auto leftData = sourceModel()->data(left, sortRole());
     const auto rightData = sourceModel()->data(right, sortRole());
+
+    if (leftData.metaType().id() == QMetaType::QDateTime
+        && rightData.metaType().id() == QMetaType::QDateTime) {
+        return leftData.toDateTime() < rightData.toDateTime();
+    }
+    if (leftData.metaType().id() == QMetaType::QDate
+        && rightData.metaType().id() == QMetaType::QDate) {
+        return leftData.toDate() < rightData.toDate();
+    }
 
     bool leftIsInt = false;
     bool rightIsInt = false;

@@ -2,7 +2,7 @@
 
 #include "AddJobService.hpp"
 #include "JobApplicationDraft.hpp"
-#include "common/ValidationService.hpp"
+#include "JobApplicationValidator.hpp"
 
 #include <utility>
 
@@ -25,7 +25,7 @@ JobApplicationsController::JobApplicationsController(QVector<JobApplication> app
         JobApplicationListModel::WorkFormatRole,
         JobApplicationListModel::SalaryRole,
     });
-    filteredApplicationsModel_.setSort(JobApplicationListModel::DateLabelRole, Qt::DescendingOrder);
+    filteredApplicationsModel_.setSort(JobApplicationListModel::AppliedDateValueRole, Qt::DescendingOrder);
     connect(
         &selectionTracker_,
         &StableIdSelectionTracker::selectionChanged,
@@ -97,8 +97,8 @@ QString JobApplicationsController::selectedApplicationId() const
 
 QVariantMap JobApplicationsController::selectedApplication() const
 {
-    const auto* application = selectedSourceApplication();
-    return application != nullptr ? applicationToMap(*application) : QVariantMap();
+    const auto sourceIndex = selectionTracker_.selectedSourceIndex();
+    return sourceIndex.isValid() ? applicationToMap(sourceIndex.row()) : QVariantMap();
 }
 
 QString JobApplicationsController::searchText() const
@@ -161,7 +161,9 @@ void JobApplicationsController::setStatusFilter(const QString& status)
     if (statusFilter_.isEmpty() || statusFilter_ == QStringLiteral("All")) {
         filteredApplicationsModel_.clearExactFilter();
     } else {
-        filteredApplicationsModel_.setExactFilter(JobApplicationListModel::StatusLabelRole, statusFilter_);
+        filteredApplicationsModel_.setExactFilter(
+            JobApplicationListModel::StatusValueRole,
+            QString::number(static_cast<int>(jobStatusFromString(statusFilter_))));
     }
     visibleCountNotificationsSuppressed_ = false;
     selectionTracker_.endModelUpdate();
@@ -200,18 +202,7 @@ QStringList JobApplicationsController::validateSelectedApplication() const
         return {};
     }
 
-    const auto application = selectedApplication();
-    auto result = ValidationService::validateRequiredFields(
-        application,
-        {QStringLiteral("jobTitle"), QStringLiteral("companyName"), QStringLiteral("status"), QStringLiteral("cvId")});
-    const auto urlResult = ValidationService::validateHttpUrl(QStringLiteral("jobUrl"), application.value(QStringLiteral("jobUrl")).toString(), true);
-
-    if (!urlResult.isValid_) {
-        result.isValid_ = false;
-        result.messages_.append(urlResult.messages_);
-    }
-
-    return result.messages_;
+    return JobApplicationValidator::validate(*selectedSourceApplication()).messages();
 }
 
 void JobApplicationsController::createApplication(
@@ -300,31 +291,34 @@ void JobApplicationsController::handleVisibleCountChanged()
     emit resultSummaryChanged();
 }
 
-QVariantMap JobApplicationsController::applicationToMap(const JobApplication& application) const
+QVariantMap JobApplicationsController::applicationToMap(int sourceRow) const
 {
-    const auto sourceRow = selectionTracker_.selectedSourceIndex().row();
+    const auto modelIndex = applicationsModel_.index(sourceRow, 0);
+    const auto roleData = [this, &modelIndex](int role) {
+        return applicationsModel_.data(modelIndex, role);
+    };
     return {
-        {QStringLiteral("id"), application.id_},
-        {QStringLiteral("companyId"), application.companyId_},
-        {QStringLiteral("companyName"), application.companyName_},
-        {QStringLiteral("companyInitials"), application.companyInitials_},
-        {QStringLiteral("companyAccent"), application.companyAccent_},
-        {QStringLiteral("jobTitle"), application.jobTitle_},
-        {QStringLiteral("jobUrl"), application.jobUrl_},
-        {QStringLiteral("workFormat"), application.workFormat_},
-        {QStringLiteral("city"), application.city_},
-        {QStringLiteral("salary"), application.salary_},
-        {QStringLiteral("status"), application.status_},
-        {QStringLiteral("statusLabel"), application.status_},
-        {QStringLiteral("statusAccent"), sourceRow >= 0 ? applicationsModel_.data(applicationsModel_.index(sourceRow), JobApplicationListModel::StatusAccentRole) : QVariant()},
-        {QStringLiteral("appliedDate"), application.appliedDate_},
-        {QStringLiteral("dateLabel"), application.dateLabel_},
-        {QStringLiteral("nextStep"), application.nextStep_},
-        {QStringLiteral("cvId"), application.cvId_},
-        {QStringLiteral("cvFileName"), application.cvFileName_},
-        {QStringLiteral("description"), application.description_},
-        {QStringLiteral("requirements"), application.requirements_},
-        {QStringLiteral("techStack"), application.techStack_},
-        {QStringLiteral("notes"), application.notes_},
+        {QStringLiteral("id"), roleData(JobApplicationListModel::IdRole)},
+        {QStringLiteral("companyId"), roleData(JobApplicationListModel::CompanyIdRole)},
+        {QStringLiteral("companyName"), roleData(JobApplicationListModel::CompanyNameRole)},
+        {QStringLiteral("companyInitials"), roleData(JobApplicationListModel::CompanyInitialsRole)},
+        {QStringLiteral("companyAccent"), roleData(JobApplicationListModel::CompanyAccentRole)},
+        {QStringLiteral("jobTitle"), roleData(JobApplicationListModel::JobTitleRole)},
+        {QStringLiteral("jobUrl"), roleData(JobApplicationListModel::JobUrlRole)},
+        {QStringLiteral("workFormat"), roleData(JobApplicationListModel::WorkFormatRole)},
+        {QStringLiteral("city"), roleData(JobApplicationListModel::CityRole)},
+        {QStringLiteral("salary"), roleData(JobApplicationListModel::SalaryRole)},
+        {QStringLiteral("status"), roleData(JobApplicationListModel::StatusRole)},
+        {QStringLiteral("statusLabel"), roleData(JobApplicationListModel::StatusLabelRole)},
+        {QStringLiteral("statusAccent"), roleData(JobApplicationListModel::StatusAccentRole)},
+        {QStringLiteral("appliedDate"), roleData(JobApplicationListModel::AppliedDateRole)},
+        {QStringLiteral("dateLabel"), roleData(JobApplicationListModel::DateLabelRole)},
+        {QStringLiteral("nextStep"), roleData(JobApplicationListModel::NextStepRole)},
+        {QStringLiteral("cvId"), roleData(JobApplicationListModel::CvIdRole)},
+        {QStringLiteral("cvFileName"), roleData(JobApplicationListModel::CvFileNameRole)},
+        {QStringLiteral("description"), roleData(JobApplicationListModel::DescriptionRole)},
+        {QStringLiteral("requirements"), roleData(JobApplicationListModel::RequirementsRole)},
+        {QStringLiteral("techStack"), roleData(JobApplicationListModel::TechStackRole)},
+        {QStringLiteral("notes"), roleData(JobApplicationListModel::NotesRole)},
     };
 }

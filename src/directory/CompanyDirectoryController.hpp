@@ -66,7 +66,7 @@ private:
     void handleSelectionChanged(bool idChanged, bool rowChanged, bool dataChanged);
     void handleVisibleCountChanged();
     void refreshCompanyJobCounts();
-    QVariantMap companyToMap(const Company& company) const;
+    QVariantMap companyToMap(int sourceRow) const;
     void updateLinkedModels();
 
     const JobApplicationListModel& applicationsModel_;

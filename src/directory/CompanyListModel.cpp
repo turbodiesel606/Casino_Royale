@@ -1,5 +1,7 @@
 #include "CompanyListModel.hpp"
 
+#include <QLocale>
+
 #include <utility>
 
 namespace {
@@ -7,6 +9,15 @@ namespace {
 QString countLabel(int count, const QString& singular, const QString& plural)
 {
     return count == 1 ? QStringLiteral("1 %1").arg(singular) : QStringLiteral("%1 %2").arg(count).arg(plural);
+}
+
+QString dateLabel(const QDateTime& dateTime)
+{
+    return dateTime.isValid()
+        ? QLocale::c().toString(
+            dateTime.toLocalTime().date(),
+            QStringLiteral("MMM d, yyyy"))
+        : QString{};
 }
 
 QVariant roleValue(const Company& company, int role)
@@ -17,11 +28,11 @@ QVariant roleValue(const Company& company, int role)
     case CompanyListModel::NameRole:
         return company.name_;
     case CompanyListModel::WebsiteRole:
-        return company.website_;
+        return company.website_.toString();
     case CompanyListModel::LogoTextRole:
-        return company.logoText_;
+        return company.name_.left(2).toUpper();
     case CompanyListModel::LogoAccentRole:
-        return company.logoAccent_;
+        return QStringLiteral("#146ce0");
     case CompanyListModel::OpenJobCountRole:
         return company.openJobCount_;
     case CompanyListModel::OpenJobCountLabelRole:
@@ -31,11 +42,15 @@ QVariant roleValue(const Company& company, int role)
     case CompanyListModel::ContactCountLabelRole:
         return countLabel(company.contactCount_, QStringLiteral("contact"), QStringLiteral("contacts"));
     case CompanyListModel::LastActivityLabelRole:
-        return company.lastActivityLabel_;
+        return dateLabel(company.lastActivityAt_);
     case CompanyListModel::DescriptionRole:
         return company.description_;
     case CompanyListModel::NotesRole:
         return company.notes_;
+    case CompanyListModel::CreatedAtRole:
+        return company.createdAt_;
+    case CompanyListModel::UpdatedAtRole:
+        return company.updatedAt_;
     default:
         return {};
     }
@@ -82,6 +97,8 @@ QHash<int, QByteArray> CompanyListModel::roleNames() const
         {LastActivityLabelRole, "lastActivityLabel"},
         {DescriptionRole, "description"},
         {NotesRole, "notes"},
+        {CreatedAtRole, "createdAt"},
+        {UpdatedAtRole, "updatedAt"},
     };
 }
 

@@ -72,7 +72,7 @@ private:
     const JobApplication* selectedSourceApplication() const;
     void handleSelectionChanged(bool idChanged, bool rowChanged, bool dataChanged);
     void handleVisibleCountChanged();
-    QVariantMap applicationToMap(const JobApplication& application) const;
+    QVariantMap applicationToMap(int sourceRow) const;
 
     JobApplicationListModel applicationsModel_;
     RoleFilterProxyModel filteredApplicationsModel_;

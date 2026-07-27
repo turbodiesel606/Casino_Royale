@@ -23,7 +23,9 @@ public:
         ContactCountLabelRole,
         LastActivityLabelRole,
         DescriptionRole,
-        NotesRole
+        NotesRole,
+        CreatedAtRole,
+        UpdatedAtRole
     };
 
     explicit CompanyListModel(QObject* parent = nullptr);

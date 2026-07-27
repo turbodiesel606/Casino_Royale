@@ -64,7 +64,7 @@ void DashboardControllerTest::recentModelsExposeBackendRows()
     CvListModel cvModel;
     CvDocument cv;
     cv.id_ = QStringLiteral("cv-qt-2026");
-    cv.fileName_ = QStringLiteral("CV_Qt_2026.pdf");
+    cv.originalFileName_ = QStringLiteral("CV_Qt_2026.pdf");
     cv.linkedApplicationIds_ = {
         QStringLiteral("job-1"),
         QStringLiteral("job-2"),

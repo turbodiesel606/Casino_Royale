@@ -50,6 +50,11 @@ void JobApplicationsControllerTest::modelExposesNamedRoles()
     QVERIFY(roleForName(*model, "statusAccent") > 0);
     QVERIFY(roleForName(*model, "nextStep") > 0);
     QVERIFY(roleForName(*model, "notes") > 0);
+    QVERIFY(roleForName(*model, "statusValue") > 0);
+    QVERIFY(roleForName(*model, "workFormatValue") > 0);
+    QVERIFY(roleForName(*model, "appliedDateValue") > 0);
+    QVERIFY(roleForName(*model, "createdAt") > 0);
+    QVERIFY(roleForName(*model, "updatedAt") > 0);
 }
 
 void JobApplicationsControllerTest::modelStartsEmpty()
@@ -167,13 +172,11 @@ void JobApplicationsControllerTest::selectionRemainsStableAcrossProxyChanges()
         QStringLiteral("job-newest"),
         QStringLiteral("company-newest"),
         QStringLiteral("Newest Company"),
-        QStringLiteral("Ne"),
-        QStringLiteral("#146ce0"),
         QStringLiteral("Newest Role"),
         QStringLiteral("cv-newest"),
         QStringLiteral("CV_Newest.pdf"),
-        QStringLiteral("May 20, 2026"),
-        QStringLiteral("Offer"),
+        QDate{2026, 5, 20},
+        JobStatus::Offer,
         QStringLiteral("Decision"));
 
     controller.jobApplicationListModel().appendApplication(std::move(insertedApplication));
@@ -216,9 +219,15 @@ void JobApplicationsControllerTest::selectionRemainsStableAcrossProxyChanges()
 
 void JobApplicationsControllerTest::controllerValidatesSelectedApplication()
 {
-    JobApplicationsController controller(testsupport::makeJobApplications());
+    auto applications = testsupport::makeJobApplications();
+    applications.first().jobUrl_ = {};
+    JobApplicationsController controller(applications);
 
     QVERIFY(controller.validateSelectedApplication().isEmpty());
+
+    applications.first().jobUrl_ = QUrl{QStringLiteral("https:job-posting"), QUrl::StrictMode};
+    JobApplicationsController invalidController(std::move(applications));
+    QVERIFY(!invalidController.validateSelectedApplication().isEmpty());
 }
 
 QTEST_APPLESS_MAIN(JobApplicationsControllerTest)

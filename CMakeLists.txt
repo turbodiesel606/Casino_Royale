@@ -24,14 +24,20 @@ set(JOBTRACKER_COMMON_SOURCES
     src/common/RoleFilterProxyModel.hpp
     src/common/StableIdSelectionTracker.cpp
     src/common/StableIdSelectionTracker.hpp
-    src/common/ValidationResult.hpp
-    src/common/ValidationService.cpp
-    src/common/ValidationService.hpp
+)
+
+set(JOBTRACKER_JOB_DOMAIN_SOURCES
+    src/jobs/JobApplication.cpp
+    src/jobs/JobApplication.hpp
+    src/jobs/JobApplicationDraft.hpp
+    src/jobs/JobApplicationFactory.cpp
+    src/jobs/JobApplicationFactory.hpp
+    src/jobs/JobApplicationValidator.cpp
+    src/jobs/JobApplicationValidator.hpp
 )
 
 set(JOBTRACKER_JOB_SOURCES
-    src/jobs/JobApplication.hpp
-    src/jobs/JobApplicationDraft.hpp
+    ${JOBTRACKER_JOB_DOMAIN_SOURCES}
     src/jobs/JobApplicationListModel.cpp
     src/jobs/JobApplicationListModel.hpp
     src/jobs/JobApplicationsController.cpp
@@ -236,6 +242,7 @@ if(JOBTRACKER_BUILD_TESTS)
     add_executable(JobTrackerCommonTests
         tests/common/FilterAndValidationTest.cpp
         ${JOBTRACKER_COMMON_SOURCES}
+        ${JOBTRACKER_JOB_DOMAIN_SOURCES}
     )
 
     target_include_directories(JobTrackerCommonTests

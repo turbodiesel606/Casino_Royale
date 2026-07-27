@@ -105,6 +105,13 @@ query joins `companies.display_name` and `cvs.original_file_name` so the
 existing QML-facing company and CV display roles remain unchanged. It then
 loads each job's technologies from `job_technologies` in `position` order.
 
+Repositories translate the schema's existing ISO text representation into
+typed domain values. Job applied dates use `QDate`; job, CV, and company
+creation/update timestamps use `QDateTime`; job and company URLs use `QUrl`;
+and job status/work format use closed enum values. Writes serialize those
+values back to the existing schema version 3 text columns, so this type
+boundary does not require a schema migration.
+
 Treat `SchemaMigrator`, the repository queries, and storage tests as the source
 of truth for the current persisted schema and relationships.
 
@@ -121,13 +128,17 @@ Add Job is implemented as a QML-to-C++ workflow.
 
 `JobApplicationsController::createApplication()` converts the QML map into `JobApplicationDraft`, publishes `saving`, calls `AddJobService`, appends the created row on success, updates filtering/selection summaries, emits `applicationCreated`, and emits `saveFailed` with field errors on failure.
 
-`AddJobService` owns durable Add Job behavior:
+`JobApplicationFactory` owns draft trimming, status/date defaults,
+case-insensitive technology deduplication, typed conversion, and final job
+domain-object construction. `JobApplicationValidator` is the one canonical job
+validation path for both Add Job and selected-application validation. It
+returns field-addressable errors for required values, optional HTTP/HTTPS URLs
+with a required host, ISO dates, and allowed status/work-format choices.
 
-- required field validation;
+`AddJobService` owns durable Add Job orchestration:
+
+- delegation to the factory and validator;
 - durable company resolution by normalized name;
-- ISO-date validation;
-- HTTP/HTTPS URL validation;
-- technology trimming and case-insensitive deduplication;
 - CV import coordination;
 - job insertion;
 - SQLite transaction handling;
@@ -199,12 +210,21 @@ use semantic notify signals: selected ID, selected proxy index, selected data,
 individual filters, visible counts, result summaries, and the CV category
 summary notify only for their own contract changes.
 
+Durable domain objects do not store repository-built display strings.
+Job, CV, and company list models derive initials, accent colors, status/date
+labels, and file-size labels from typed values while preserving the existing
+QML role names and displayed values. The job, CV, and company models also
+publish typed `createdAt` and `updatedAt` roles for backend sorting; jobs add
+typed status, work-format, and applied-date roles. `RoleFilterProxyModel`
+compares `QDate` and `QDateTime` values directly. QML continues to receive the
+pre-existing string roles and selected-item map fields.
+
 Current backend areas are:
 
 - `src/app`: process startup, exception boundary, dependency construction, QML engine setup, context properties, and main QML loading.
 - `src/storage`: application data paths, SQLite connection lifetime, and schema migration.
-- `src/common`: reusable role-based filtering/sorting/search and validation helpers.
-- `src/jobs`: job value/draft types, job list model, QML controller, repository, and Add Job service.
+- `src/common`: reusable role-based filtering, sorting, search, and stable-ID selection helpers.
+- `src/jobs`: typed job value/draft types, canonical factory and validator, job list model, QML controller, repository, and Add Job service.
 - `src/cvs`: CV value type, CV list model, linked-job adapter model, QML controller, repository, and managed-file import service.
 - `src/dashboard`: metric and recent-item read models over jobs and CVs.
 - `src/directory`: company/contact value types, durable company repository,
@@ -271,5 +291,3 @@ Treat these as current constraints when planning implementation:
 - Completed CV files can be orphaned if the process crashes after the file copy but before SQLite commit.
 - Company editing and all contact persistence/mutation workflows are still
   unavailable.
-- Several QML option lists use display strings that C++ also interprets, which is fragile once localization or durable option contracts are introduced.
-- Add Job validation and existing selected-job validation are separate code paths and can drift.

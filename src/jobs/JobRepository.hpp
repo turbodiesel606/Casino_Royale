@@ -3,6 +3,8 @@
 
 #include "JobApplication.hpp"
 
+#include <QVector>
+
 class QSqlDatabase;
 
 class JobRepository final

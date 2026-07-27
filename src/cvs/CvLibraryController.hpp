@@ -82,7 +82,7 @@ signals:
     void operationFailed(QString message);
 
 private:
-    QVariantMap cvToMap(const CvDocument& cv) const;
+    QVariantMap cvToMap(int sourceRow) const;
     const CvDocument* findCv(const QString& cvId) const;
     const CvDocument* selectedSourceCv() const;
     void handleSelectionChanged(bool idChanged, bool rowChanged, bool dataChanged);

@@ -1,24 +1,38 @@
 #include "JobApplicationListModel.hpp"
 
+#include <QLocale>
+
 #include <utility>
 
 namespace {
 
-QString statusAccent(const QString& status)
+QString companyInitials(const QString& companyName)
 {
-    if (status == QStringLiteral("Interview")) {
+    return companyName.left(2).toUpper();
+}
+
+QString statusAccent(JobStatus status)
+{
+    if (status == JobStatus::Interview) {
         return QStringLiteral("#ffbd21");
     }
-    if (status == QStringLiteral("Offer")) {
+    if (status == JobStatus::Offer) {
         return QStringLiteral("#38c86b");
     }
-    if (status == QStringLiteral("Rejected")) {
+    if (status == JobStatus::Rejected) {
         return QStringLiteral("#ff4b49");
     }
-    if (status == QStringLiteral("Test Task")) {
+    if (status == JobStatus::TestTask) {
         return QStringLiteral("#16c5dd");
     }
     return QStringLiteral("#c2c7cb");
+}
+
+QString dateLabel(const QDate& date)
+{
+    return date.isValid()
+        ? QLocale::c().toString(date, QStringLiteral("MMM d, yyyy"))
+        : QString{};
 }
 
 QVariant roleValue(const JobApplication& application, int role)
@@ -31,28 +45,28 @@ QVariant roleValue(const JobApplication& application, int role)
     case JobApplicationListModel::CompanyNameRole:
         return application.companyName_;
     case JobApplicationListModel::CompanyInitialsRole:
-        return application.companyInitials_;
+        return companyInitials(application.companyName_);
     case JobApplicationListModel::CompanyAccentRole:
-        return application.companyAccent_;
+        return QStringLiteral("#146ce0");
     case JobApplicationListModel::JobTitleRole:
         return application.jobTitle_;
     case JobApplicationListModel::JobUrlRole:
-        return application.jobUrl_;
+        return application.jobUrl_.toString();
     case JobApplicationListModel::WorkFormatRole:
-        return application.workFormat_;
+        return workFormatToString(application.workFormat_);
     case JobApplicationListModel::CityRole:
         return application.city_;
     case JobApplicationListModel::SalaryRole:
         return application.salary_;
     case JobApplicationListModel::StatusRole:
     case JobApplicationListModel::StatusLabelRole:
-        return application.status_;
+        return jobStatusToString(application.status_);
     case JobApplicationListModel::StatusAccentRole:
         return statusAccent(application.status_);
     case JobApplicationListModel::AppliedDateRole:
-        return application.appliedDate_;
+        return application.appliedDate_.toString(Qt::ISODate);
     case JobApplicationListModel::DateLabelRole:
-        return application.dateLabel_;
+        return dateLabel(application.appliedDate_);
     case JobApplicationListModel::NextStepRole:
         return application.nextStep_;
     case JobApplicationListModel::CvIdRole:
@@ -67,6 +81,16 @@ QVariant roleValue(const JobApplication& application, int role)
         return application.techStack_;
     case JobApplicationListModel::NotesRole:
         return application.notes_;
+    case JobApplicationListModel::StatusValueRole:
+        return static_cast<int>(application.status_);
+    case JobApplicationListModel::WorkFormatValueRole:
+        return static_cast<int>(application.workFormat_);
+    case JobApplicationListModel::AppliedDateValueRole:
+        return application.appliedDate_;
+    case JobApplicationListModel::CreatedAtRole:
+        return application.createdAt_;
+    case JobApplicationListModel::UpdatedAtRole:
+        return application.updatedAt_;
     default:
         return {};
     }
@@ -127,6 +151,11 @@ QHash<int, QByteArray> JobApplicationListModel::roleNames() const
         {RequirementsRole, "requirements"},
         {TechStackRole, "techStack"},
         {NotesRole, "notes"},
+        {StatusValueRole, "statusValue"},
+        {WorkFormatValueRole, "workFormatValue"},
+        {AppliedDateValueRole, "appliedDateValue"},
+        {CreatedAtRole, "createdAt"},
+        {UpdatedAtRole, "updatedAt"},
     };
 }
 

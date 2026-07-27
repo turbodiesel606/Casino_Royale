@@ -11,7 +11,6 @@
 #include <QRegularExpression>
 #include <QUuid>
 #include <stdexcept>
-#include<iostream>
 
 // Keep references to storage paths and the CV repository used during imports.
 namespace {
@@ -21,7 +20,6 @@ namespace {
 		CvDocument document;
 
 		document.id_ = QUuid::createUuid().toString(QUuid::WithoutBraces);
-		document.fileName_ = sourceInfo.fileName();
 		document.originalFileName_ = sourceInfo.fileName();
 		document.storedFileName_ = storedName;
 		document.relativePath_ = QDir::fromNativeSeparators(QStringLiteral("Resumes/%1").arg(storedName));
@@ -29,12 +27,10 @@ namespace {
 		document.sizeBytes_ = sourceInfo.size();
 		document.title_ = sourceInfo.completeBaseName();
 		document.category_ = QStringLiteral("General");
-		document.categoryAccent_ = QStringLiteral("#1687ff");
-		document.languageAccent_ = QStringLiteral("#65bf4c");
-		document.fileSizeLabel_ = QStringLiteral("%1 KB").arg((document.sizeBytes_ + 1023) / 1024);
-		document.createdAt_ = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+		document.createdAt_ = QDateTime::fromString(
+			QDateTime::currentDateTimeUtc().toString(Qt::ISODate),
+			Qt::ISODate).toUTC();
 		document.updatedAt_ = document.createdAt_;
-		document.lastModifiedLabel_ = QDate::currentDate().toString(QStringLiteral("MMM d, yyyy"));
 
 		return document;
 	}

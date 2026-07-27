@@ -55,22 +55,23 @@ QVector<CvDocument> makeCvDocuments()
             QStringLiteral("cv-embedded"),
             QStringLiteral("cv-general"),
             QStringLiteral("cv-backend")}.at(index);
-        document.fileName_ = QStringList{
+        document.originalFileName_ = QStringList{
             QStringLiteral("CV_Qt_2026.pdf"),
             QStringLiteral("CV_Embedded.pdf"),
             QStringLiteral("CV_General.pdf"),
             QStringLiteral("CV_Backend.pdf")}.at(index);
-        document.originalFileName_ = document.fileName_;
         document.storedFileName_ = QStringLiteral("stored-%1.pdf").arg(index);
         document.relativePath_ = QStringLiteral("Resumes/%1").arg(document.storedFileName_);
         document.sha256_ = QStringLiteral("test-hash-%1").arg(index);
         document.sizeBytes_ = 1024 + index;
-        document.title_ = document.fileName_;
+        document.title_ = document.originalFileName_;
         document.category_ = index == 2 ? QStringLiteral("General") : QStringLiteral("Engineering");
         document.language_ = QStringLiteral("English");
-        document.lastModifiedLabel_ = QStringLiteral("May %1, 2026").arg(12 - index);
         document.isFavorite_ = index == 0;
-        document.createdAt_ = QStringLiteral("2026-05-%1T10:00:00Z").arg(12 - index, 2, 10, QLatin1Char('0'));
+        document.createdAt_ = QDateTime{
+            QDate{2026, 5, 12 - index},
+            QTime{10, 0},
+            Qt::UTC};
         document.updatedAt_ = document.createdAt_;
         documents.append(document);
     }
@@ -96,6 +97,7 @@ class CvLibraryControllerTest final : public QObject
 private slots:
     void cvModelExposesNamedRoles();
     void cvModelExposesSeedDocuments();
+    void repositoryRoundTripPreservesTypedAndDisplayValues();
     void selectedCvControlsLinkedApplications();
     void favoriteToggleUpdatesSelectedCv();
     void favoriteFailureLeavesModelUnchanged();
@@ -125,6 +127,8 @@ void CvLibraryControllerTest::cvModelExposesNamedRoles()
     QVERIFY(roleForName(*model, "linkedApplicationCount") > 0);
     QVERIFY(roleForName(*model, "linkedApplicationCountLabel") > 0);
     QVERIFY(roleForName(*model, "isFavorite") > 0);
+    QVERIFY(roleForName(*model, "createdAt") > 0);
+    QVERIFY(roleForName(*model, "updatedAt") > 0);
 }
 
 void CvLibraryControllerTest::cvModelExposesSeedDocuments()
@@ -144,6 +148,33 @@ void CvLibraryControllerTest::cvModelExposesSeedDocuments()
     QCOMPARE(model->data(firstRow, roleForName(*model, "fileName")).toString(), QStringLiteral("CV_Qt_2026.pdf"));
     QCOMPARE(model->data(firstRow, roleForName(*model, "linkedApplicationCount")).toInt(), 4);
     QCOMPARE(controller.resultSummary(), QStringLiteral("4 CVs"));
+}
+
+void CvLibraryControllerTest::repositoryRoundTripPreservesTypedAndDisplayValues()
+{
+    CvTestStorage storage;
+    const auto sourceDocument = makeCvDocuments().first();
+    storage.repository_.insert(sourceDocument);
+
+    const auto storedDocuments = storage.repository_.findAll();
+    QCOMPARE(storedDocuments.size(), 1);
+    QCOMPARE(storedDocuments.first().createdAt_, sourceDocument.createdAt_);
+    QCOMPARE(storedDocuments.first().updatedAt_, sourceDocument.updatedAt_);
+
+    CvListModel model{storedDocuments};
+    const auto row = model.index(0, 0);
+    QCOMPARE(
+        model.data(row, CvListModel::FileNameRole).toString(),
+        QStringLiteral("CV_Qt_2026.pdf"));
+    QCOMPARE(
+        model.data(row, CvListModel::LastModifiedLabelRole).toString(),
+        QStringLiteral("May 12, 2026"));
+    QCOMPARE(
+        model.data(row, CvListModel::FileSizeLabelRole).toString(),
+        QStringLiteral("1 KB"));
+    QCOMPARE(
+        model.data(row, CvListModel::UpdatedAtRole).toDateTime(),
+        storedDocuments.first().updatedAt_);
 }
 
 void CvLibraryControllerTest::selectedCvControlsLinkedApplications()
@@ -401,8 +432,7 @@ void CvLibraryControllerTest::selectionRemainsStableAcrossProxyChanges()
     QSignalSpy resultSummarySpy{&controller, &CvLibraryController::resultSummaryChanged};
     auto insertedDocument = makeCvDocuments().first();
     insertedDocument.id_ = QStringLiteral("cv-alphabetical-first");
-    insertedDocument.fileName_ = QStringLiteral("AAA_CV.pdf");
-    insertedDocument.originalFileName_ = insertedDocument.fileName_;
+    insertedDocument.originalFileName_ = QStringLiteral("AAA_CV.pdf");
     insertedDocument.storedFileName_ = QStringLiteral("stored-alphabetical-first.pdf");
     insertedDocument.relativePath_ = QStringLiteral("Resumes/stored-alphabetical-first.pdf");
     insertedDocument.sha256_ = QStringLiteral("test-hash-alphabetical-first");

@@ -2,20 +2,16 @@
 #include "utils/Utils.hpp"
 #include <QDateTime>
 #include <QSqlDatabase>
-#include <QSqlError>
 #include <QSqlQuery>
-#include <stdexcept>
-#include <iostream>
 
 namespace {
 
 	CvDocument convertToCvDocument(const QSqlQuery& query)
-	{   // Convert cvs table to CvDocument object
+	{
 		CvDocument document;
 		document.id_ = query.value(QStringLiteral("id")).toString();
 		document.originalFileName_ = query.value(QStringLiteral("original_file_name")).toString();
 		document.storedFileName_ = query.value(QStringLiteral("stored_file_name")).toString();
-		document.fileName_ = document.originalFileName_; // This means the app wants the display filename to mirror the original uploaded filename.
 		document.relativePath_ = query.value(QStringLiteral("relative_path")).toString();
 		document.sha256_ = query.value(QStringLiteral("sha256")).toString();
 		document.sizeBytes_ = query.value(QStringLiteral("size_bytes")).toLongLong();
@@ -24,15 +20,12 @@ namespace {
 		document.language_ = query.value(QStringLiteral("language")).toString();
 		document.description_ = query.value(QStringLiteral("description")).toString();
 		document.isFavorite_ = query.value(QStringLiteral("is_favorite")).toBool();
-		document.createdAt_ = query.value(QStringLiteral("created_at")).toString();
-		document.updatedAt_ = query.value(QStringLiteral("updated_at")).toString();
-
-		// convert ISO timestamp into a local date label like Jul 15, 2026.
-		document.lastModifiedLabel_ = QDateTime::fromString(document.updatedAt_, Qt::ISODate).toLocalTime().date().toString(QStringLiteral("MMM d, yyyy"));
-
-		document.fileSizeLabel_ = QStringLiteral("%1 KB").arg((document.sizeBytes_ + 1023) / 1024);
-		document.categoryAccent_ = QStringLiteral("#1687ff");
-		document.languageAccent_ = QStringLiteral("#65bf4c");
+		document.createdAt_ = QDateTime::fromString(
+			query.value(QStringLiteral("created_at")).toString(),
+			Qt::ISODate);
+		document.updatedAt_ = QDateTime::fromString(
+			query.value(QStringLiteral("updated_at")).toString(),
+			Qt::ISODate);
 		return document;
 	}
 
@@ -165,25 +158,28 @@ void CvRepository::insert(const CvDocument& document) const
 	query.addBindValue(sqlText(document.language_));
 	query.addBindValue(sqlText(document.description_));
 	query.addBindValue(document.isFavorite_);
-	query.addBindValue(document.createdAt_);
-	query.addBindValue(document.updatedAt_);
+	query.addBindValue(document.createdAt_.toUTC().toString(Qt::ISODate));
+	query.addBindValue(document.updatedAt_.toUTC().toString(Qt::ISODate));
 
 	if (!query.exec())
 		utils::throwQueryError(query);
 
 }
 
-bool CvRepository::updateFavorite(const QString& cvId, bool isFavorite) const
+std::optional<QDateTime> CvRepository::updateFavorite(const QString& cvId, bool isFavorite) const
 {
+	const auto updatedAt = QDateTime::currentDateTimeUtc();
 	QSqlQuery query{ database_ };
 	query.prepare(QStringLiteral(
 		"UPDATE cvs SET is_favorite = ?, updated_at = ? WHERE id = ?"));
 	query.addBindValue(isFavorite);
-	query.addBindValue(QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs));
+	query.addBindValue(updatedAt.toString(Qt::ISODateWithMs));
 	query.addBindValue(cvId);
 
 	if (!query.exec())
 		utils::throwQueryError(query);
 
-	return query.numRowsAffected() == 1;
+	return query.numRowsAffected() == 1
+		? std::optional<QDateTime>{updatedAt}
+		: std::nullopt;
 }
