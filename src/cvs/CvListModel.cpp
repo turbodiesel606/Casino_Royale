@@ -71,8 +71,8 @@ CvListModel::CvListModel(QObject* parent)
 }
 
 CvListModel::CvListModel(QVector<CvDocument> documents, QObject* parent)
-    : QAbstractListModel(parent)
-    , cvs_(std::move(documents))
+    : cvs_(std::move(documents))
+    , QAbstractListModel(parent)
 {
 }
 

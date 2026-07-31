@@ -183,6 +183,12 @@ target_compile_definitions(JobTrackerApp PRIVATE
     $<$<CONFIG:Debug>:QT_QML_DEBUG>
 )
 
+if(MSVC)
+    target_compile_options(JobTrackerApp PRIVATE
+        $<$<CONFIG:Debug>:/JMC>
+    )
+endif()
+
 # Windows deployment remains unchanged: windeployqt copies the runtime next to
 # the executable in the Windows build directory.
 if(WIN32)

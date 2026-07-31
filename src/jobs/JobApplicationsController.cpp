@@ -12,63 +12,63 @@
 #include <utility>
 
 JobApplicationsController::JobApplicationsController(QObject* parent)
-    : JobApplicationsController(QVector<JobApplication>{}, parent)
+	: JobApplicationsController(QVector<JobApplication>{}, parent)
 {
 }
 
 JobApplicationsController::JobApplicationsController(QVector<JobApplication> applications, QObject* parent)
-    : QObject(parent)
-    , applicationsModel_(std::move(applications))
-    , selectionTracker_(filteredApplicationsModel_, JobApplicationListModel::IdRole)
+	: QObject(parent)
+	, applicationsModel_(std::move(applications))
+	, selectionTracker_(filteredApplicationsModel_, JobApplicationListModel::IdRole)
 {
 	filePreparationPool_.setMaxThreadCount(1);
-    filteredApplicationsModel_.setSearchRoles({
-        JobApplicationListModel::CompanyNameRole,
-        JobApplicationListModel::JobTitleRole,
-        JobApplicationListModel::CvFileNameRole,
-        JobApplicationListModel::StatusLabelRole,
-        JobApplicationListModel::NextStepRole,
-        JobApplicationListModel::WorkFormatRole,
-        JobApplicationListModel::SalaryRole,
-    });
-    filteredApplicationsModel_.setSort(JobApplicationListModel::AppliedDateValueRole, Qt::DescendingOrder);
-    connect(
-        &selectionTracker_,
-        &StableIdSelectionTracker::selectionChanged,
-        this,
-        &JobApplicationsController::handleSelectionChanged);
-    filteredApplicationsModel_.setSourceModel(&applicationsModel_);
-    selectionTracker_.synchronize();
-    publishedApplicationCount_ = applicationCount();
-    connect(
-        &filteredApplicationsModel_,
-        &QAbstractItemModel::rowsInserted,
-        this,
-        [this]() { handleVisibleCountChanged(); });
-    connect(
-        &filteredApplicationsModel_,
-        &QAbstractItemModel::rowsMoved,
-        this,
-        [this]() { handleVisibleCountChanged(); });
-    connect(
-        &filteredApplicationsModel_,
-        &QAbstractItemModel::rowsRemoved,
-        this,
-        [this]() { handleVisibleCountChanged(); });
-    connect(
-        &filteredApplicationsModel_,
-        &QAbstractItemModel::modelReset,
-        this,
-        [this]() { handleVisibleCountChanged(); });
+	filteredApplicationsModel_.setSearchRoles({
+		JobApplicationListModel::CompanyNameRole,
+		JobApplicationListModel::JobTitleRole,
+		JobApplicationListModel::CvFileNameRole,
+		JobApplicationListModel::StatusLabelRole,
+		JobApplicationListModel::NextStepRole,
+		JobApplicationListModel::WorkFormatRole,
+		JobApplicationListModel::SalaryRole,
+		});
+	filteredApplicationsModel_.setSort(JobApplicationListModel::AppliedDateValueRole, Qt::DescendingOrder);
+	connect(
+		&selectionTracker_,
+		&StableIdSelectionTracker::selectionChanged,
+		this,
+		&JobApplicationsController::handleSelectionChanged);
+	filteredApplicationsModel_.setSourceModel(&applicationsModel_);
+	selectionTracker_.synchronize();
+	publishedApplicationCount_ = applicationCount();
+	connect(
+		&filteredApplicationsModel_,
+		&QAbstractItemModel::rowsInserted,
+		this,
+		[this]() { handleVisibleCountChanged(); });
+	connect(
+		&filteredApplicationsModel_,
+		&QAbstractItemModel::rowsMoved,
+		this,
+		[this]() { handleVisibleCountChanged(); });
+	connect(
+		&filteredApplicationsModel_,
+		&QAbstractItemModel::rowsRemoved,
+		this,
+		[this]() { handleVisibleCountChanged(); });
+	connect(
+		&filteredApplicationsModel_,
+		&QAbstractItemModel::modelReset,
+		this,
+		[this]() { handleVisibleCountChanged(); });
 }
 
 JobApplicationsController::JobApplicationsController(
-    QVector<JobApplication> applications,
-    AddJobService& addJobService,
-    QObject* parent)
-    : JobApplicationsController(std::move(applications), parent)
+	QVector<JobApplication> applications,
+	AddJobService& addJobService,
+	QObject* parent)
+	: JobApplicationsController(std::move(applications), parent)
 {
-    addJobService_ = &addJobService;
+	addJobService_ = &addJobService;
 }
 
 JobApplicationsController::~JobApplicationsController()
@@ -82,198 +82,213 @@ JobApplicationsController::~JobApplicationsController()
 
 QAbstractItemModel* JobApplicationsController::applicationsModel()
 {
-    return &filteredApplicationsModel_;
+	return &filteredApplicationsModel_;
 }
 
 JobApplicationListModel& JobApplicationsController::jobApplicationListModel()
 {
-    return applicationsModel_;
+	return applicationsModel_;
 }
 
 const JobApplicationListModel& JobApplicationsController::jobApplicationListModel() const
 {
-    return applicationsModel_;
+	return applicationsModel_;
 }
 
 int JobApplicationsController::applicationCount() const
 {
-    return filteredApplicationsModel_.rowCount();
+	return filteredApplicationsModel_.rowCount();
 }
 
 int JobApplicationsController::selectedApplicationIndex() const
 {
-    return selectionTracker_.selectedRow();
+	return selectionTracker_.selectedRow();
 }
 
 QString JobApplicationsController::selectedApplicationId() const
 {
-    return selectionTracker_.selectedId();
+	return selectionTracker_.selectedId();
 }
 
 QVariantMap JobApplicationsController::selectedApplication() const
 {
-    const auto sourceIndex = selectionTracker_.selectedSourceIndex();
-    return sourceIndex.isValid() ? applicationToMap(sourceIndex.row()) : QVariantMap();
+	const auto sourceIndex = selectionTracker_.selectedSourceIndex();
+	return sourceIndex.isValid() ? applicationToMap(sourceIndex.row()) : QVariantMap();
 }
 
 QString JobApplicationsController::searchText() const
 {
-    return searchText_;
+	return searchText_;
 }
 
 QString JobApplicationsController::statusFilter() const
 {
-    return statusFilter_;
+	return statusFilter_;
 }
 
 QString JobApplicationsController::resultSummary() const
 {
-    const auto count = applicationCount();
-    if (count == 0) {
-        return QStringLiteral("Showing 0 applications");
-    }
+	const auto count = applicationCount();
+	if (count == 0) {
+		return QStringLiteral("Showing 0 applications");
+	}
 
-    return QStringLiteral("Showing 1 to %1 of %1 applications").arg(count);
+	return QStringLiteral("Showing 1 to %1 of %1 applications").arg(count);
 }
 
 void JobApplicationsController::selectApplication(int index)
 {
-    selectionTracker_.selectRow(index);
+	selectionTracker_.selectRow(index);
 }
 
 bool JobApplicationsController::saving() const
 {
-    return saving_;
+	return saving_;
 }
 
 void JobApplicationsController::setSearchText(const QString& text)
 {
-    const auto normalized = text.trimmed();
-    if (searchText_ == normalized) {
-        return;
-    }
+	const auto normalized = text.trimmed();
+	if (searchText_ == normalized) {
+		return;
+	}
 
-    searchText_ = normalized;
-    selectionTracker_.beginModelUpdate();
-    visibleCountNotificationsSuppressed_ = true;
-    filteredApplicationsModel_.setSearchText(searchText_);
-    visibleCountNotificationsSuppressed_ = false;
-    selectionTracker_.endModelUpdate();
-    handleVisibleCountChanged();
-    emit searchTextChanged();
+	searchText_ = normalized;
+	selectionTracker_.beginModelUpdate();
+	visibleCountNotificationsSuppressed_ = true;
+	filteredApplicationsModel_.setSearchText(searchText_);
+	visibleCountNotificationsSuppressed_ = false;
+	selectionTracker_.endModelUpdate();
+	handleVisibleCountChanged();
+	emit searchTextChanged();
 }
 
 void JobApplicationsController::setStatusFilter(const QString& status)
 {
-    const auto normalized = status.trimmed();
-    if (statusFilter_ == normalized) {
-        return;
-    }
+	const auto normalized = status.trimmed();
+	if (statusFilter_ == normalized) {
+		return;
+	}
 
-    statusFilter_ = normalized;
-    selectionTracker_.beginModelUpdate();
-    visibleCountNotificationsSuppressed_ = true;
-    if (statusFilter_.isEmpty() || statusFilter_ == QStringLiteral("All")) {
-        filteredApplicationsModel_.clearExactFilter();
-    } else {
-        filteredApplicationsModel_.setExactFilter(
-            JobApplicationListModel::StatusValueRole,
-            QString::number(static_cast<int>(jobStatusFromString(statusFilter_))));
-    }
-    visibleCountNotificationsSuppressed_ = false;
-    selectionTracker_.endModelUpdate();
-    handleVisibleCountChanged();
-    emit statusFilterChanged();
+	statusFilter_ = normalized;
+	selectionTracker_.beginModelUpdate();
+	visibleCountNotificationsSuppressed_ = true;
+	if (statusFilter_.isEmpty() || statusFilter_ == QStringLiteral("All")) {
+		filteredApplicationsModel_.clearExactFilter();
+	}
+	else {
+		filteredApplicationsModel_.setExactFilter(
+			JobApplicationListModel::StatusValueRole,
+			QString::number(static_cast<int>(jobStatusFromString(statusFilter_))));
+	}
+	visibleCountNotificationsSuppressed_ = false;
+	selectionTracker_.endModelUpdate();
+	handleVisibleCountChanged();
+	emit statusFilterChanged();
 }
 
 void JobApplicationsController::clearFilters()
 {
-    if (searchText_.isEmpty() && statusFilter_.isEmpty()) {
-        return;
-    }
+	if (searchText_.isEmpty() && statusFilter_.isEmpty()) {
+		return;
+	}
 
-    const bool didSearchTextChange = !searchText_.isEmpty();
-    const bool didStatusFilterChange = !statusFilter_.isEmpty();
-    searchText_.clear();
-    statusFilter_.clear();
-    selectionTracker_.beginModelUpdate();
-    visibleCountNotificationsSuppressed_ = true;
-    filteredApplicationsModel_.setSearchText(QString());
-    filteredApplicationsModel_.clearExactFilter();
-    visibleCountNotificationsSuppressed_ = false;
-    selectionTracker_.endModelUpdate();
-    handleVisibleCountChanged();
-    if (didSearchTextChange) {
-        emit searchTextChanged();
-    }
-    if (didStatusFilterChange) {
-        emit statusFilterChanged();
-    }
+	const bool didSearchTextChange = !searchText_.isEmpty();
+	const bool didStatusFilterChange = !statusFilter_.isEmpty();
+	searchText_.clear();
+	statusFilter_.clear();
+	selectionTracker_.beginModelUpdate();
+	visibleCountNotificationsSuppressed_ = true;
+	filteredApplicationsModel_.setSearchText(QString());
+	filteredApplicationsModel_.clearExactFilter();
+	visibleCountNotificationsSuppressed_ = false;
+	selectionTracker_.endModelUpdate();
+	handleVisibleCountChanged();
+	if (didSearchTextChange) {
+		emit searchTextChanged();
+	}
+	if (didStatusFilterChange) {
+		emit statusFilterChanged();
+	}
 }
 
 QStringList JobApplicationsController::validateSelectedApplication() const
 {
-    if (selectedSourceApplication() == nullptr) {
-        return {};
-    }
+	if (selectedSourceApplication() == nullptr) {
+		return {};
+	}
 
-    return JobApplicationValidator::validate(*selectedSourceApplication()).messages();
+	return JobApplicationValidator::validate(*selectedSourceApplication()).messages();
 }
 
 void JobApplicationsController::createApplication(
-    const QVariantMap& formValues,
-    const QUrl& selectedCvUrl)
+	const QVariantMap& formValues,
+	const QUrl& selectedCvUrl)
 {
-    if (saving_) {
-        return;
-    }
-    if (addJobService_ == nullptr) {
-        emit saveFailed({}, QStringLiteral("Job storage is not available."));
-        return;
-    }
+	// Prevent overlapping requests because the controller tracks only one active save operation.
+	if (saving_) {
+		return;
+	}
 
-    JobApplicationDraft draft;
-    draft.jobTitle_ = formValues.value(QStringLiteral("jobTitle")).toString();
-    draft.jobUrl_ = formValues.value(QStringLiteral("jobUrl")).toString();
-    draft.companyName_ = formValues.value(QStringLiteral("companyName")).toString();
-    draft.workFormat_ = formValues.value(QStringLiteral("workFormat")).toString();
-    draft.city_ = formValues.value(QStringLiteral("city")).toString();
-    draft.salary_ = formValues.value(QStringLiteral("salary")).toString();
-    draft.status_ = formValues.value(QStringLiteral("status")).toString();
-    draft.appliedDate_ = formValues.value(QStringLiteral("appliedDate")).toString();
-    draft.nextStep_ = formValues.value(QStringLiteral("nextStep")).toString();
-    draft.description_ = formValues.value(QStringLiteral("description")).toString();
-    draft.requirements_ = formValues.value(QStringLiteral("requirements")).toString();
-    draft.notes_ = formValues.value(QStringLiteral("notes")).toString();
-    const auto technologies = formValues.value(QStringLiteral("techStack"));
-    draft.techStack_ = technologies.canConvert<QStringList>()
-        ? technologies.toStringList()
-        : technologies.toString().split(',', Qt::SkipEmptyParts);
+	// Report a configuration failure to QML when persistence was not wired during application startup.
+	if (addJobService_ == nullptr) {
+		emit saveFailed({}, QStringLiteral("Job storage is not available."));
+		return;
+	}
 
-    saving_ = true;
-    emit savingChanged();
+	// Translate the QML form map into the backend draft without applying business rules in the UI layer.
+	JobApplicationDraft draft;
+	draft.jobTitle_ = formValues.value(QStringLiteral("jobTitle")).toString();
+	draft.jobUrl_ = formValues.value(QStringLiteral("jobUrl")).toString();
+	draft.companyName_ = formValues.value(QStringLiteral("companyName")).toString();
+	draft.workFormat_ = formValues.value(QStringLiteral("workFormat")).toString();
+	draft.city_ = formValues.value(QStringLiteral("city")).toString();
+	draft.salary_ = formValues.value(QStringLiteral("salary")).toString();
+	draft.status_ = formValues.value(QStringLiteral("status")).toString();
+	draft.appliedDate_ = formValues.value(QStringLiteral("appliedDate")).toString();
+	draft.nextStep_ = formValues.value(QStringLiteral("nextStep")).toString();
+	draft.description_ = formValues.value(QStringLiteral("description")).toString();
+	draft.requirements_ = formValues.value(QStringLiteral("requirements")).toString();
+	draft.notes_ = formValues.value(QStringLiteral("notes")).toString();
+
+	// Accept the technology field as either a QML string list or a comma-separated string.
+	const auto technologies = formValues.value(QStringLiteral("techStack"));
+	draft.techStack_ = technologies.canConvert<QStringList>()
+		? technologies.toStringList()
+		: technologies.toString().split(',', Qt::SkipEmptyParts);
+
+	// Publish the active-save state and create cancellation data shared with the worker task.
+	saving_ = true;
+	emit savingChanged();
 	createCancellation_ = std::make_shared<std::atomic_bool>(false);
 	const auto cancellation = createCancellation_;
 	const auto operationId = ++createOperationId_;
+
+	// Run validation, file hashing, and staging on the dedicated worker so the GUI thread remains responsive.
 	filePreparationPool_.start([
 		this,
 		draft = std::move(draft),
 		selectedCvUrl,
 		cancellation,
 		operationId]() mutable {
-		AddJobPreparationResult preparation;
-		try {
-			preparation = addJobService_->prepare(draft, selectedCvUrl, cancellation);
-		} catch (const std::exception& error) {
-			preparation.message_ = QString::fromUtf8(error.what());
-		}
-		QMetaObject::invokeMethod(
-			this,
-			[this, operationId, cancellation, preparation = std::move(preparation)]() mutable {
-				finishCreateApplication(operationId, cancellation, std::move(preparation));
-			},
-			Qt::QueuedConnection);
-	});
+			AddJobPreparationResult preparation;
+
+			// Convert unexpected worker failures into the result consumed by the QML-facing completion path.
+			try {
+				preparation = addJobService_->prepare(draft, selectedCvUrl, cancellation);
+			}
+			catch (const std::exception& error) {
+				preparation.message_ = QString::fromUtf8(error.what());
+			}
+
+			// Queue model and persistence completion back to the controller's GUI thread.
+			QMetaObject::invokeMethod(
+				this,
+				[this, operationId, cancellation, preparation = std::move(preparation)]() mutable {
+					finishCreateApplication(operationId, cancellation, std::move(preparation));
+				},
+				Qt::QueuedConnection);
+		});
 }
 
 void JobApplicationsController::cancelCreateApplication()
@@ -302,84 +317,84 @@ void JobApplicationsController::finishCreateApplication(
 	saving_ = false;
 	emit savingChanged();
 
-    if (!result.success_) {
-        emit saveFailed(result.fieldErrors_, result.message_);
-        return;
-    }
+	if (!result.success_) {
+		emit saveFailed(result.fieldErrors_, result.message_);
+		return;
+	}
 
-    applicationsModel_.appendApplication(result.application_);
-    emit companyResolved(result.company_.id_, result.company_.name_);
-    filteredApplicationsModel_.sort(filteredApplicationsModel_.sortColumn(), filteredApplicationsModel_.sortOrder());
-    emit cvUsed(result.cvDocument_, result.application_.id_, result.cvWasInserted_);
-    emit applicationCreated(result.application_.id_);
+	applicationsModel_.appendApplication(result.application_);
+	emit companyResolved(result.company_.id_, result.company_.name_);
+	filteredApplicationsModel_.sort(filteredApplicationsModel_.sortColumn(), filteredApplicationsModel_.sortOrder());
+	emit cvUsed(result.cvDocument_, result.application_.id_, result.cvWasInserted_);
+	emit applicationCreated(result.application_.id_);
 }
 
 const JobApplication* JobApplicationsController::selectedSourceApplication() const
 {
-    const auto sourceIndex = selectionTracker_.selectedSourceIndex();
-    return sourceIndex.isValid() ? applicationsModel_.applicationAt(sourceIndex.row()) : nullptr;
+	const auto sourceIndex = selectionTracker_.selectedSourceIndex();
+	return sourceIndex.isValid() ? applicationsModel_.applicationAt(sourceIndex.row()) : nullptr;
 }
 
 void JobApplicationsController::handleSelectionChanged(
-    bool idChanged,
-    bool rowChanged,
-    bool dataChanged)
+	bool idChanged,
+	bool rowChanged,
+	bool dataChanged)
 {
-    if (idChanged) {
-        emit selectedApplicationIdChanged();
-    }
-    if (rowChanged) {
-        emit selectedApplicationIndexChanged();
-    }
-    if (idChanged || dataChanged) {
-        emit selectedApplicationChanged();
-    }
+	if (idChanged) {
+		emit selectedApplicationIdChanged();
+	}
+	if (rowChanged) {
+		emit selectedApplicationIndexChanged();
+	}
+	if (idChanged || dataChanged) {
+		emit selectedApplicationChanged();
+	}
 }
 
 void JobApplicationsController::handleVisibleCountChanged()
 {
-    if (visibleCountNotificationsSuppressed_) {
-        return;
-    }
+	if (visibleCountNotificationsSuppressed_) {
+		return;
+	}
 
-    const auto count = applicationCount();
-    if (publishedApplicationCount_ == count) {
-        return;
-    }
+	const auto count = applicationCount();
+	if (publishedApplicationCount_ == count) {
+		return;
+	}
 
-    publishedApplicationCount_ = count;
-    emit applicationCountChanged();
-    emit resultSummaryChanged();
+	publishedApplicationCount_ = count;
+	emit applicationCountChanged();
+	emit resultSummaryChanged();
 }
 
 QVariantMap JobApplicationsController::applicationToMap(int sourceRow) const
 {
-    const auto modelIndex = applicationsModel_.index(sourceRow, 0);
-    const auto roleData = [this, &modelIndex](int role) {
-        return applicationsModel_.data(modelIndex, role);
-    };
-    return {
-        {QStringLiteral("id"), roleData(JobApplicationListModel::IdRole)},
-        {QStringLiteral("companyId"), roleData(JobApplicationListModel::CompanyIdRole)},
-        {QStringLiteral("companyName"), roleData(JobApplicationListModel::CompanyNameRole)},
-        {QStringLiteral("companyInitials"), roleData(JobApplicationListModel::CompanyInitialsRole)},
-        {QStringLiteral("companyAccent"), roleData(JobApplicationListModel::CompanyAccentRole)},
-        {QStringLiteral("jobTitle"), roleData(JobApplicationListModel::JobTitleRole)},
-        {QStringLiteral("jobUrl"), roleData(JobApplicationListModel::JobUrlRole)},
-        {QStringLiteral("workFormat"), roleData(JobApplicationListModel::WorkFormatRole)},
-        {QStringLiteral("city"), roleData(JobApplicationListModel::CityRole)},
-        {QStringLiteral("salary"), roleData(JobApplicationListModel::SalaryRole)},
-        {QStringLiteral("status"), roleData(JobApplicationListModel::StatusRole)},
-        {QStringLiteral("statusLabel"), roleData(JobApplicationListModel::StatusLabelRole)},
-        {QStringLiteral("statusAccent"), roleData(JobApplicationListModel::StatusAccentRole)},
-        {QStringLiteral("appliedDate"), roleData(JobApplicationListModel::AppliedDateRole)},
-        {QStringLiteral("dateLabel"), roleData(JobApplicationListModel::DateLabelRole)},
-        {QStringLiteral("nextStep"), roleData(JobApplicationListModel::NextStepRole)},
-        {QStringLiteral("cvId"), roleData(JobApplicationListModel::CvIdRole)},
-        {QStringLiteral("cvFileName"), roleData(JobApplicationListModel::CvFileNameRole)},
-        {QStringLiteral("description"), roleData(JobApplicationListModel::DescriptionRole)},
-        {QStringLiteral("requirements"), roleData(JobApplicationListModel::RequirementsRole)},
-        {QStringLiteral("techStack"), roleData(JobApplicationListModel::TechStackRole)},
-        {QStringLiteral("notes"), roleData(JobApplicationListModel::NotesRole)},
-    };
+	const auto modelIndex = applicationsModel_.index(sourceRow, 0);
+	const auto roleData = [this, &modelIndex](int role) {
+		return applicationsModel_.data(modelIndex, role);
+		};
+	return {
+		{QStringLiteral("id"), roleData(JobApplicationListModel::IdRole)},
+		{QStringLiteral("companyId"), roleData(JobApplicationListModel::CompanyIdRole)},
+		{QStringLiteral("companyName"), roleData(JobApplicationListModel::CompanyNameRole)},
+		{QStringLiteral("companyInitials"), roleData(JobApplicationListModel::CompanyInitialsRole)},
+		{QStringLiteral("companyAccent"), roleData(JobApplicationListModel::CompanyAccentRole)},
+		{QStringLiteral("jobTitle"), roleData(JobApplicationListModel::JobTitleRole)},
+		{QStringLiteral("jobUrl"), roleData(JobApplicationListModel::JobUrlRole)},
+		{QStringLiteral("workFormat"), roleData(JobApplicationListModel::WorkFormatRole)},
+		{QStringLiteral("city"), roleData(JobApplicationListModel::CityRole)},
+		{QStringLiteral("salary"), roleData(JobApplicationListModel::SalaryRole)},
+		{QStringLiteral("status"), roleData(JobApplicationListModel::StatusRole)},
+		{QStringLiteral("statusLabel"), roleData(JobApplicationListModel::StatusLabelRole)},
+		{QStringLiteral("statusAccent"), roleData(JobApplicationListModel::StatusAccentRole)},
+		{QStringLiteral("appliedDate"), roleData(JobApplicationListModel::AppliedDateRole)},
+		{QStringLiteral("dateLabel"), roleData(JobApplicationListModel::DateLabelRole)},
+		{QStringLiteral("nextStep"), roleData(JobApplicationListModel::NextStepRole)},
+		{QStringLiteral("cvId"), roleData(JobApplicationListModel::CvIdRole)},
+		{QStringLiteral("cvFileName"), roleData(JobApplicationListModel::CvFileNameRole)},
+		{QStringLiteral("description"), roleData(JobApplicationListModel::DescriptionRole)},
+		{QStringLiteral("requirements"), roleData(JobApplicationListModel::RequirementsRole)},
+		{QStringLiteral("techStack"), roleData(JobApplicationListModel::TechStackRole)},
+		{QStringLiteral("notes"), roleData(JobApplicationListModel::NotesRole)},
+	};
 }

@@ -13,7 +13,8 @@
 
 class StoragePaths;
 
-// Owns managed CV filesystem preparation and crash-recovery behavior.
+// Holds a staged CV file and removes unfinished data on destruction.
+
 struct CvManagedFilePreparation final
 {
     CvManagedFilePreparation() = default;
@@ -30,6 +31,8 @@ struct CvManagedFilePreparation final
     qint64 sizeBytes_ = 0;
 };
 
+// Reports the outcome of preparing a managed CV file.
+
 struct CvManagedFilePreparationResult final
 {
     std::shared_ptr<CvManagedFilePreparation> preparation_;
@@ -44,6 +47,8 @@ struct CvManagedFileRecoveryReport final
     int removedStagedFileCount_ = 0;
     QStringList quarantinedFileNames_;
 };
+
+// Manages CV files on disk and directly performs filesystem operations.
 
 class CvManagedFileStore final
 {

@@ -8,6 +8,8 @@
 
 class QSqlDatabase;
 
+// Provides SQLite persistence for CV metadata and linked job applications.
+// Reads and writes DB
 class CvRepository final
 {
 public:

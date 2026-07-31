@@ -4,6 +4,8 @@
 #include <QSqlDatabase>
 #include <QString>
 
+//Owns and configures the application's SQLite database connection, including schema migration.
+
 class SqliteDatabase final
 {
 public:

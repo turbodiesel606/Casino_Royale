@@ -19,6 +19,8 @@ class QAbstractItemModel;
 class AddJobService;
 struct AddJobPreparationResult;
 
+// Exposes job applications, selection, filtering, and validation to the user interface through Qt models and properties.
+// Coordinates asynchronous job creation through AddJobService and updates the in-memory model after successful persistence.
 class JobApplicationsController final : public QObject
 {
     Q_OBJECT

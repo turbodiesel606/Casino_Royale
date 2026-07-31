@@ -40,6 +40,9 @@ struct AddJobPreparationResult final
     std::shared_ptr<CvManagedFilePreparation> cvPreparation_;
 };
 
+// Coordinates the durable Add Job workflow across validation, CV import, company resolution, and job persistence.
+// Performs file preparation without database access on a worker thread, then completes SQLite persistence on the owning thread.
+// Uses one transaction to prevent partial database changes and cleans up completed CV files after failures.
 class AddJobService final
 {
 public:

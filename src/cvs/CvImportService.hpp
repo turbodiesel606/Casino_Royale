@@ -18,7 +18,9 @@ struct CvImportResult final
     bool wasInserted_ = false;
 };
 
-// Coordinates worker-safe file preparation with database-thread CV resolution.
+// Coordinates worker-safe CV file preparation with database-thread CV persistence.
+// Reuses an existing CV by identity or finalizes a new managed file and inserts its metadata into SQLite.
+
 class CvImportService final
 {
 public:

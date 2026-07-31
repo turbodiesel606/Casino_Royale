@@ -39,21 +39,21 @@ private:
 
     QCoreApplication& app_;
     QQmlApplicationEngine engine_;
-    StoragePaths storagePaths_; // provides filesystem paths the app uses, especially the database location.
-    SqliteDatabase database_;
-    CvRepository cvRepository_; // data-access layer for CV records. It talks to the database connection.
-    CvManagedFileStore cvManagedFileStore_; // prepares managed files and reconciles interrupted imports.
-    CvFileAccessService cvFileAccessService_; // validates and opens CV files from managed storage.
-    CompanyRepository companyRepository_; // data-access layer for durable company identities.
-    JobRepository jobRepository_; // data-access layer for job application records.
-    CvImportService cvImportService_; // coordinates managed CV files with durable CV identities.
-    AddJobService addJobService_; // service that handles adding jobs and related persistence/workflow, using DB, job repository, and CV import service.
-    JobApplicationsController jobApplicationsController_; // controller exposed to QML for the job applications area. It starts from stored job data and uses AddJobService for operations.
-    CvLibraryController cvLibraryController_; // controller for the CV library area. It depends on the job applications model plus CV data.
-    DashboardController dashboardController_; // controller for dashboard summaries/aggregates, built from job and CV models.
-    ContactListModel contactModel_; // shared contact data model used by directory-related controllers
-    CompanyDirectoryController companyDirectoryController_; // controller for company-related UI, using job application data plus the shared contact model.
-    ContactDirectoryController contactDirectoryController_; // controller for contact-related UI, using the shared contact model.
+    StoragePaths storagePaths_;
+    SqliteDatabase database_; 
+    CvRepository cvRepository_; 
+    CvManagedFileStore cvManagedFileStore_; 
+    CvFileAccessService cvFileAccessService_; 
+    CompanyRepository companyRepository_;
+    JobRepository jobRepository_;
+    CvImportService cvImportService_; 
+    AddJobService addJobService_; 
+    JobApplicationsController jobApplicationsController_; 
+    CvLibraryController cvLibraryController_; 
+    DashboardController dashboardController_; 
+    ContactListModel contactModel_; 
+    CompanyDirectoryController companyDirectoryController_; 
+    ContactDirectoryController contactDirectoryController_; 
 };
 
 #endif // JOBTRACKER_SRC_APP_APPBOOTSTRAP_HPP

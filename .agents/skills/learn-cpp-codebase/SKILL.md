@@ -167,12 +167,14 @@ Treat the saved artifact as part of each phase's definition of done, not as an o
    - `cpp-Architecture-YYYY-MM-DD-HHMM-phase-06-qt-contracts.md`
    - `cpp-Architecture-YYYY-MM-DD-HHMM-phase-07-storage-schema.md`
    - `cpp-Architecture-YYYY-MM-DD-HHMM-phase-08-tests-synthesis.md`
-3. Use the local Asia/Baku completion time for `YYYY-MM-DD-HHMM`. Put `Created: YYYY-MM-DD HH:MM local time (Asia/Baku)` immediately after the title.
-4. Include the phase status, inspected scope, learner-oriented explanation, architecture or data-flow relationships, exact source anchors, recap, recommended reading, comprehension questions, and unverified areas.
-5. Save the artifact before reporting the phase as complete. Link the saved file in the phase response.
-6. During Phase 4, create the phase artifact after the first completed domain lesson, update the same file after every remaining domain lesson, and mark it complete only after all listed domains are covered.
-7. When resuming an unfinished phase, update its existing phase artifact instead of creating duplicates. Never overwrite an artifact from a separate completed learning run.
-8. Use `For-Human/Architecture/` for this skill's learning outputs. Do not duplicate them under `For-Agent/Research/` unless the user explicitly requests both locations.
+3. At the start of Phase 1, establish one learning-run timestamp from the local Asia/Baku time and use it as `YYYY-MM-DD-HHMM` in every phase filename for that run. Reuse the same timestamp through Phase 8. Put the artifact's actual creation time in `Created: YYYY-MM-DD HH:MM local time (Asia/Baku)` immediately after its title.
+4. Before starting a phase, read all completed earlier-phase artifacts from the same learning run. Use them to preserve terminology, diagrams, explanations, and established cross-phase relationships, but verify current facts against the live source. Phase 1 has no prior phase artifacts.
+5. When resuming an unfinished phase, read its existing artifact first, then read the completed earlier-phase artifacts from the same learning run. Update the existing current-phase artifact instead of creating a duplicate.
+6. Do not mix artifacts from separate learning runs unless the user explicitly requests it. Never overwrite an artifact from a separate completed learning run.
+7. Include the phase status, inspected scope, learner-oriented explanation, architecture or data-flow relationships, exact source anchors, recap, recommended reading, comprehension questions, and unverified areas.
+8. Save the artifact before reporting the phase as complete. Link the saved file in the phase response.
+9. During Phase 4, create the phase artifact after the first completed domain lesson, update the same file after every remaining domain lesson, and mark it complete only after all listed domains are covered.
+10. Use `For-Human/Architecture/` for this skill's learning outputs. Do not duplicate them under `For-Agent/Research/` unless the user explicitly requests both locations.
 
 ## Delivery Modes
 

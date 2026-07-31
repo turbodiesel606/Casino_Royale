@@ -6,9 +6,11 @@
 #include <QUuid>
 
 SqliteDatabase::SqliteDatabase(const QString& databasePath)
+    // Create a unique name for this Qt database connection.
     : connectionName_{QStringLiteral("jobtracker-%1").arg(
-          QUuid::createUuid().toString(QUuid::WithoutBraces))}
-    , database_{QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName_)}
+          QUuid::createUuid().toString(QUuid::WithoutBraces))} 
+    // Create and register the SQLite connection under that unique name.
+    , database_{QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName_)} 
 {
     database_.setDatabaseName(databasePath);
     if (!database_.open()) {
@@ -17,10 +19,13 @@ SqliteDatabase::SqliteDatabase(const QString& databasePath)
             QStringLiteral("open the JobTracker SQLite database"));
     }
 
+    // Enable foreign-key enforcement for this SQLite connection.
     storage::sql::execute(
         database_,
         QStringLiteral("PRAGMA foreign_keys = ON"),
         QStringLiteral("enable SQLite foreign-key enforcement"));
+
+    // Wait up to 3 seconds when the SQLite database is temporarily busy.
     storage::sql::execute(
         database_,
         QStringLiteral("PRAGMA busy_timeout = 3000"),

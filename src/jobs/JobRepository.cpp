@@ -56,7 +56,7 @@ JobRepository::JobRepository(QSqlDatabase& database)
 // Load all jobs with their linked CV filenames and ordered technology lists.
 
 QVector<JobApplication> JobRepository::findAll() const
-{
+{   // Impl reserve logic to conatiners in future
 	QSqlQuery jobsQuery(database_);
 	if (!jobsQuery.exec(QStringLiteral(
 		"SELECT jobs.*, companies.display_name AS company_name, cvs.original_file_name "

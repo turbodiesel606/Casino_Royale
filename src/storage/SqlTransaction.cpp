@@ -13,8 +13,7 @@ SqlTransaction::SqlTransaction(QSqlDatabase& database, QString operationContext)
     , operationContext_(std::move(operationContext))
 {
     if (!database_.transaction()) {
-        storage::sql::throwDatabaseError(
-            database_,
+        storage::sql::throwDatabaseError(database_,
             QStringLiteral("start %1").arg(operationContext_));
     }
     active_ = true;
@@ -31,9 +30,9 @@ SqlTransaction::~SqlTransaction()
 
 void SqlTransaction::commit()
 {
-    if (!active_) {
+    if (!active_) 
         return;
-    }
+    
     if (!database_.commit()) {
         storage::sql::throwDatabaseError(
             database_,

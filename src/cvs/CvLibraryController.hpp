@@ -90,6 +90,7 @@ private:
     void handleVisibleCountChanged();
     void updateLinkedApplications();
 
+private:
     CvRepository& repository_;
     CvFileAccessService& fileAccessService_;
     CvListModel cvModel_;

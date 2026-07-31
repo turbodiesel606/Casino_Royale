@@ -9,22 +9,23 @@
 #include <stdexcept>
 
 AppBootstrap::AppBootstrap(QCoreApplication& app)
-	: app_(app)
-	, database_(storagePaths_.databasePath())
-	, cvRepository_(database_.connection())
-	, cvManagedFileStore_(storagePaths_)
-	, cvFileAccessService_(storagePaths_)
-	, companyRepository_(database_.connection())
-	, jobRepository_(database_.connection())
-	, cvImportService_(cvManagedFileStore_, cvRepository_)
-	, addJobService_(database_.connection(), jobRepository_, companyRepository_, cvImportService_)
-	, jobApplicationsController_(jobRepository_.findAll(), addJobService_)
-	, cvLibraryController_(
+	: app_{ app }
+	, storagePaths_{}
+	, database_{ storagePaths_.databasePath() }
+	, cvRepository_{ database_.connection() }
+	, cvManagedFileStore_{ storagePaths_ }
+	, cvFileAccessService_{ storagePaths_ }
+	, companyRepository_{ database_.connection() }
+	, jobRepository_{ database_.connection() }
+	, cvImportService_{ cvManagedFileStore_, cvRepository_ }
+	, addJobService_{ database_.connection(), jobRepository_, companyRepository_, cvImportService_ }
+	, jobApplicationsController_{ jobRepository_.findAll(), addJobService_ }
+	, cvLibraryController_{
 		jobApplicationsController_.jobApplicationListModel(),
 		cvRepository_.findAll(),
 		cvRepository_,
-		cvFileAccessService_)
-	, dashboardController_(jobApplicationsController_.jobApplicationListModel(), cvLibraryController_.cvListModel())
+		cvFileAccessService_ }
+		, dashboardController_{ jobApplicationsController_.jobApplicationListModel(), cvLibraryController_.cvListModel() }
 	, companyDirectoryController_(
 		companyRepository_.findAll(),
 		jobApplicationsController_.jobApplicationListModel(),
@@ -41,12 +42,20 @@ AppBootstrap::AppBootstrap(QCoreApplication& app)
 			<< "orphaned files.";
 	}
 
-	// Forward CV usage events from the job applications controller to the CV library controller.
+	// When a new job opening is successfully created, 
+	// the JobApplicationsController emits a cvUsed signal, indicating which CV was used.
 	QObject::connect(
 		&jobApplicationsController_,
 		&JobApplicationsController::cvUsed,
 		&cvLibraryController_,
 		&CvLibraryController::recordCvUse);
+	/*
+	When adding a job, AddJobService can:
+	1. find an existing company 
+	2. or create a new company.
+	Upon successful completion, the controller emits companyResolved.
+	Then, CompanyDirectoryController::publishCompany() adds or updates the company in its model.
+	*/
 	QObject::connect(
 		&jobApplicationsController_,
 		&JobApplicationsController::companyResolved,

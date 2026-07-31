@@ -29,11 +29,11 @@ CvLibraryController::CvLibraryController(
     CvRepository& repository,
     CvFileAccessService& fileAccessService,
     QObject* parent)
-	: QObject(parent)
-	, repository_(repository)
-	, fileAccessService_(fileAccessService)
-	, cvModel_(std::move(documents), this)
-	, filteredCvModel_(this)
+	: QObject{ parent }
+	, repository_{ repository }
+	, fileAccessService_{ fileAccessService }
+	, cvModel_{std::move(documents), this}
+	, filteredCvModel_{this}
 	, linkedApplicationsModel_(
 		applicationsModel,
 		JobApplicationListModel::CvIdRole,
