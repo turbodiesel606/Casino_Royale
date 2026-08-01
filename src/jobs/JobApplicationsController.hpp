@@ -35,8 +35,6 @@ class JobApplicationsController final : public QObject
     Q_PROPERTY(bool saving READ saving NOTIFY savingChanged)
 
 public:
-    explicit JobApplicationsController(QObject* parent = nullptr);
-    explicit JobApplicationsController(QVector<JobApplication> applications, QObject* parent = nullptr);
     JobApplicationsController(
         QVector<JobApplication> applications,
         AddJobService& addJobService,
@@ -94,7 +92,7 @@ private:
     QString statusFilter_;
     int publishedApplicationCount_ = 0;
     bool visibleCountNotificationsSuppressed_ = false;
-    AddJobService* addJobService_ = nullptr;
+    AddJobService& addJobService_;
     bool saving_ = false;
     QThreadPool filePreparationPool_;
     std::shared_ptr<std::atomic_bool> createCancellation_;

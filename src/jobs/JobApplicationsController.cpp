@@ -11,15 +11,15 @@
 #include <memory>
 #include <utility>
 
-JobApplicationsController::JobApplicationsController(QObject* parent)
-	: JobApplicationsController(QVector<JobApplication>{}, parent)
-{
-}
 
-JobApplicationsController::JobApplicationsController(QVector<JobApplication> applications, QObject* parent)
+JobApplicationsController::JobApplicationsController(
+	QVector<JobApplication> applications,
+	AddJobService& addJobService,
+	QObject* parent)
 	: QObject(parent)
 	, applicationsModel_(std::move(applications))
-	, selectionTracker_(filteredApplicationsModel_, JobApplicationListModel::IdRole)
+	, selectionTracker_(filteredApplicationsModel_, JobApplicationListModel::IdRole),
+	addJobService_{ addJobService }
 {
 	filePreparationPool_.setMaxThreadCount(1);
 	filteredApplicationsModel_.setSearchRoles({
@@ -60,15 +60,6 @@ JobApplicationsController::JobApplicationsController(QVector<JobApplication> app
 		&QAbstractItemModel::modelReset,
 		this,
 		[this]() { handleVisibleCountChanged(); });
-}
-
-JobApplicationsController::JobApplicationsController(
-	QVector<JobApplication> applications,
-	AddJobService& addJobService,
-	QObject* parent)
-	: JobApplicationsController(std::move(applications), parent)
-{
-	addJobService_ = &addJobService;
 }
 
 JobApplicationsController::~JobApplicationsController()
@@ -220,23 +211,18 @@ QStringList JobApplicationsController::validateSelectedApplication() const
 
 	return JobApplicationValidator::validate(*selectedSourceApplication()).messages();
 }
+#include<iostream>
 
 void JobApplicationsController::createApplication(
 	const QVariantMap& formValues,
 	const QUrl& selectedCvUrl)
 {
 	// Prevent overlapping requests because the controller tracks only one active save operation.
-	if (saving_) {
+	if (saving_)
 		return;
-	}
-
-	// Report a configuration failure to QML when persistence was not wired during application startup.
-	if (addJobService_ == nullptr) {
-		emit saveFailed({}, QStringLiteral("Job storage is not available."));
-		return;
-	}
 
 	// Translate the QML form map into the backend draft without applying business rules in the UI layer.
+	// move in helper function
 	JobApplicationDraft draft;
 	draft.jobTitle_ = formValues.value(QStringLiteral("jobTitle")).toString();
 	draft.jobUrl_ = formValues.value(QStringLiteral("jobUrl")).toString();
@@ -260,6 +246,7 @@ void JobApplicationsController::createApplication(
 	// Publish the active-save state and create cancellation data shared with the worker task.
 	saving_ = true;
 	emit savingChanged();
+
 	createCancellation_ = std::make_shared<std::atomic_bool>(false);
 	const auto cancellation = createCancellation_;
 	const auto operationId = ++createOperationId_;
@@ -275,7 +262,7 @@ void JobApplicationsController::createApplication(
 
 			// Convert unexpected worker failures into the result consumed by the QML-facing completion path.
 			try {
-				preparation = addJobService_->prepare(draft, selectedCvUrl, cancellation);
+				preparation = addJobService_.prepare(draft, selectedCvUrl, cancellation);
 			}
 			catch (const std::exception& error) {
 				preparation.message_ = QString::fromUtf8(error.what());
@@ -293,9 +280,8 @@ void JobApplicationsController::createApplication(
 
 void JobApplicationsController::cancelCreateApplication()
 {
-	if (createCancellation_ != nullptr) {
+	if (createCancellation_ != nullptr) 
 		createCancellation_->store(true, std::memory_order_relaxed);
-	}
 }
 
 void JobApplicationsController::finishCreateApplication(
@@ -312,7 +298,7 @@ void JobApplicationsController::finishCreateApplication(
 		preparation.cancelled_ = true;
 		preparation.message_ = QStringLiteral("Job creation was canceled.");
 	}
-	const auto result = addJobService_->complete(std::move(preparation));
+	const auto result = addJobService_.complete(std::move(preparation));
 	createCancellation_.reset();
 	saving_ = false;
 	emit savingChanged();
