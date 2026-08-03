@@ -1,7 +1,7 @@
 #include "JobApplicationsController.hpp"
-
 #include "AddJobService.hpp"
 #include "JobApplicationDraft.hpp"
+#include "JobApplicationFactory.hpp"
 #include "JobApplicationValidator.hpp"
 
 #include <QMetaObject>
@@ -242,6 +242,31 @@ void JobApplicationsController::createApplication(
 	draft.techStack_ = technologies.canConvert<QStringList>()
 		? technologies.toStringList()
 		: technologies.toString().split(',', Qt::SkipEmptyParts);
+	
+	// validate all fields
+	const auto validation = JobApplicationValidator::validate(
+		JobApplicationFactory::normalize(draft),
+		selectedCvUrl);
+	// search for empty or invalid jobTitle, jobUrl, cv fields
+	QVariantMap preflightFieldErrors;
+	for (const auto& fieldName : {
+		QStringLiteral("jobTitle"),
+		QStringLiteral("jobUrl"),
+		QStringLiteral("cv")}) {
+
+		// iter to either existing elem or end (if it didnt find)
+		const auto error = validation.fieldErrors_.constFind(fieldName);
+		
+		if (error != validation.fieldErrors_.cend()) 
+			preflightFieldErrors.insert(fieldName, error.value());
+	}
+
+	if (!preflightFieldErrors.isEmpty()) {
+		emit saveFailed(
+			preflightFieldErrors,
+			QStringLiteral("Please correct the highlighted fields."));
+		return;
+	}
 
 	// Publish the active-save state and create cancellation data shared with the worker task.
 	saving_ = true;
@@ -252,7 +277,7 @@ void JobApplicationsController::createApplication(
 	const auto operationId = ++createOperationId_;
 
 	// Run validation, file hashing, and staging on the dedicated worker so the GUI thread remains responsive.
-	filePreparationPool_.start([
+	filePreparationPool_.start([	// Maybe data race
 		this,
 		draft = std::move(draft),
 		selectedCvUrl,
@@ -268,7 +293,7 @@ void JobApplicationsController::createApplication(
 				preparation.message_ = QString::fromUtf8(error.what());
 			}
 
-			// Queue model and persistence completion back to the controller's GUI thread.
+			// forward lambda to GUI thread and perform it in GUI thread
 			QMetaObject::invokeMethod(
 				this,
 				[this, operationId, cancellation, preparation = std::move(preparation)]() mutable {
@@ -289,10 +314,10 @@ void JobApplicationsController::finishCreateApplication(
 	const std::shared_ptr<std::atomic_bool>& cancellation,
 	AddJobPreparationResult preparation)
 {
-	if (shuttingDown_ || operationId != createOperationId_) {
+	if (shuttingDown_ || operationId != createOperationId_) 
 		return;
-	}
-
+	
+	// Maybe data race
 	if (cancellation->load(std::memory_order_relaxed)) {
 		preparation.success_ = false;
 		preparation.cancelled_ = true;

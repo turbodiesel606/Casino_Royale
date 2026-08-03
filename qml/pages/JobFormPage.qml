@@ -7,12 +7,12 @@ import "../components"
 Item {
     id: page
 
-    signal cancelRequested()
     signal saved()
 
     property url selectedCvUrl: ""
     property var fieldErrors: ({})
     property string saveError: ""
+    property bool discardedActiveSave: false
 
     readonly property color textColor: "#eef3f8"
     readonly property color mutedColor: "#a8b5c2"
@@ -24,6 +24,28 @@ Item {
 
     function errorFor(fieldName) {
         return fieldErrors && fieldErrors[fieldName] ? fieldErrors[fieldName] : ""
+    }
+
+    function resetForm() {
+        if (jobApplicationsController.saving)
+            discardedActiveSave = true
+
+        jobTitleField.text = ""
+        jobUrlField.text = ""
+        companyField.text = ""
+        workFormatField.text = ""
+        cityField.text = ""
+        salaryField.text = ""
+        statusField.text = "Applied"
+        appliedDateField.text = ""
+        nextStepField.text = ""
+        descriptionField.text = ""
+        requirementsField.text = ""
+        techStackField.text = ""
+        notesField.text = ""
+        selectedCvUrl = ""
+        fieldErrors = ({})
+        saveError = ""
     }
 
     function submit() {
@@ -108,14 +130,16 @@ Item {
         target: jobApplicationsController
 
         function onApplicationCreated(applicationId) {
-            page.fieldErrors = ({})
-            page.saveError = ""
+            page.resetForm()
+            page.discardedActiveSave = false
             page.saved()
         }
 
         function onSaveFailed(errors, message) {
-            page.fieldErrors = errors
+            if (!page.discardedActiveSave)
+                page.fieldErrors = errors
             page.saveError = message
+            page.discardedActiveSave = false
         }
     }
 
@@ -472,7 +496,7 @@ Item {
                 Layout.preferredWidth: 88
                 Layout.preferredHeight: 40
                 text: "Discard"
-                onClicked: page.cancelRequested()
+                onClicked: page.resetForm()
             }
         }
     }

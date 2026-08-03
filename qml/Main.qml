@@ -55,7 +55,6 @@ ApplicationWindow {
             CompaniesPage { }
             ContactsPage { }
             JobFormPage {
-                onCancelRequested: window.closeJobForm()
                 onSaved: window.closeJobForm()
             }
         }

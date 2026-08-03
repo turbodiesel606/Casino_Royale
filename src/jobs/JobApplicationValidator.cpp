@@ -43,7 +43,7 @@ JobApplicationValidationResult validateValues(
             QStringLiteral("Choose Remote, Hybrid, or On-site."));
     }
 
-    if (!jobUrl.isEmpty()) {
+    if (jobUrl.isEmpty()) {
         const auto scheme = jobUrl.scheme();
         if (!jobUrl.isValid()
             || jobUrl.host().isEmpty()

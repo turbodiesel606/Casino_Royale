@@ -13,16 +13,15 @@ Read these files before implementation:
 
 1. `AGENTS.md`
 2. `For-Agent/Docs/architecture.md`
-3. `For-Agent/Docs/artifacts.md`
-4. `For-Agent/Docs/coding-style.md`
-5. `For-Agent/Docs/testing.md`
-6. `For-Agent/Docs/build.md`
+3. `For-Agent/Docs/coding-style.md`
+4. `For-Agent/Docs/testing.md`
+5. `For-Agent/Docs/build.md`
 
 Also read `For-Agent/Docs/qml-style.md` and `For-Agent/Docs/qml-to-cpp-extraction.md` when the work changes a QML-facing contract or moves behavior out of QML.
-
+Use qt-qml-ui-task when implementation also changes QML files.
 ## Workflow
 
-1. Inspect `git status`, the affected diff, and relevant recent artifacts before editing. Use artifacts as context only and verify current facts against the source.
+1. Inspect `git status` and existing diffs for files in scope. Identify and preserve pre-existing changes.
 2. Start from the smallest affected model, controller, service, repository, storage class, utility, or startup surface. Use `cpp-code-research` first when ownership, data flow, or implementation direction is unclear.
 3. Define ownership, lifetime, public and QML-facing contracts, error behavior, thread boundaries, storage or transaction boundaries, and required tests before implementation.
 4. Make the smallest sufficient change. Follow the architecture and C++ style guidance, preserve unrelated work, and do not change comments for logic that did not change.

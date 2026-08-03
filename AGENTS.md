@@ -88,8 +88,9 @@ Before repeating broad research or review, check the relevant artifact folders i
 3. Do not break existing behavior unless the task explicitly requires it.
 4. Preserve cross-platform compatibility for Windows and Linux.
 5. Prefer simple, explicit, maintainable solutions over clever abstractions.
-6. Do not introduce temporary hacks, hidden fragile behavior, or unrelated refactoring.
-7. If something cannot be verified automatically, state that clearly in the final response.
+6. Before introducing a new class, function, method, service, model, component, helper, or domain entity, inspect the relevant existing code. Reuse or extend an existing implementation when it already satisfies the requirement. Create a new entity only when reuse would reduce clarity, violate responsibility or ownership boundaries, or conflict with the documented architecture.
+7. Do not introduce temporary hacks, hidden fragile behavior, or unrelated refactoring.
+8. If something cannot be verified automatically, state that clearly in the final response.
 
 ## Git Rules
 

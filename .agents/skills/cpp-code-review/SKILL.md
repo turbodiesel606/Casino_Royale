@@ -1,6 +1,6 @@
 ---
 name: cpp-code-review
-description: Review JobTracker C++ backend changes for correctness, regressions, architecture boundaries, Qt model/controller behavior, tests, and verification gaps. Use for C++ code review of src, tests, CMake source registration, startup wiring, and QML-facing backend contracts.
+description: Review JobTracker C++ backend changes or whole-codebase architecture for correctness, regressions, duplication, overlapping responsibilities, architecture boundaries, Qt model/controller behavior, tests, CMake registration, and verification gaps.
 ---
 
 # C++ Code Review
@@ -18,11 +18,10 @@ Read these files first:
 5. `For-Agent/Docs/testing.md`
 6. `For-Agent/Docs/build.md`
 
-Read `For-Agent/Docs/qml-to-cpp-extraction.md` when the review touches QML-facing APIs, controllers, models, validation, filtering, sorting, search, or migration of business logic out of QML.
-
-If relevant research or review artifacts exist under `For-Agent/Research/` or `For-Agent/Review/`, read the most recent relevant artifact by timestamp before reviewing. Use artifacts as context only, not as proof. Verify every finding against `AGENTS.md`, `For-Agent/Docs/`, `git diff`, and the actual code.
-
 ## Review Surfaces
+
+For a change review, inspect the changed C++ files and nearby code before broad scans. 
+For a whole-codebase architecture review, inventory every current C++ module, test translation unit, QML-facing contract, and CMake target before evaluating cross-module duplication.
 
 Inspect the changed C++ files and nearby code before broad scans:
 
@@ -40,6 +39,7 @@ Lead with findings ordered by severity:
 
 - Correctness bugs and behavior regressions.
 - Broken Qt ownership, lifetime, signal, or model/view contracts.
+- Harmful duplication or overlapping responsibility that can cause behavior drift, inconsistent fixes, excessive maintenance cost, or unnecessary coupling.
 - Missing `Q_PROPERTY` notify signals or unstable model roles consumed by QML.
 - Business logic left in QML when the change claims a backend migration.
 - Missing tests for validation, parsing, filtering, sorting, model roles, signals, or high-risk behavior.
@@ -47,6 +47,36 @@ Lead with findings ordered by severity:
 - Scope creep and unrelated refactors.
 
 Keep style-only comments out unless they hide a real maintainability or behavior risk.
+
+## Duplication Review
+
+Review duplication as an architecture concern, not merely a style concern.
+
+For every duplication finding:
+
+1. Cite every affected file, symbol, and relevant line.
+2. Classify it as:
+   - exact duplication;
+   - structural duplication;
+   - semantic duplication;
+   - overlapping responsibility;
+   - intentional similarity.
+3. Identify the canonical responsibility and the existing class, function, service, model, repository, component, or helper that should own it.
+4. Explain the concrete risk:
+   - behavior or validation drift;
+   - fixes needing changes in several locations;
+   - inconsistent error handling;
+   - duplicated state or signals;
+   - conflicting transaction or threading behavior;
+   - unnecessary test and CMake maintenance.
+5. Recommend one outcome:
+   - reuse the existing implementation;
+   - extend the existing implementation;
+   - extract a shared implementation;
+   - keep the implementations separate.
+6. When recommending consolidation, describe ownership, dependency direction, public-contract, and test consequences.
+7. Do not report similar-looking code as harmful duplication when the implementations have different domain meaning, ownership, lifetime, invariants, thread affinity, or reasons to change.
+8. Do not recommend a new abstraction when an existing implementation can be reused or extended without weakening clarity or responsibility boundaries.
 
 ## Review Output
 
@@ -57,6 +87,9 @@ Use file and line references for findings. Include:
 - Verification performed or still needed.
 - Residual risk.
 - Final recommendation: accept, revise, or block.
+- Duplication map grouped by canonical responsibility.
+- Justified duplication that should remain unchanged.
+- Consolidation recommendations ordered by maintenance risk and expected benefit.
 
 When saving a durable review artifact, write the final review under `For-Agent/Review/` with a clear name such as `cpp-review-YYYY-MM-DD-HHMM-topic.md`. Put a `Created: YYYY-MM-DD HH:MM local time` line at the beginning of the file immediately after the title.
 
@@ -77,3 +110,4 @@ If a read-only subagent is used, treat the subagent output as review input. The 
 Do not fix reviewed code unless the user explicitly asks for implementation.
 Do not run destructive git commands.
 Run build or tests only when requested or when the review task explicitly includes verification.
+Do not recommend deduplication when the resulting abstraction would combine unrelated responsibilities, hide ownership, weaken domain types, cross thread boundaries, or create broader coupling than the duplication it removes.
