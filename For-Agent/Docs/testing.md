@@ -61,8 +61,12 @@ Name tests by the behavior they cover, and keep them registered through the proj
 - `JobTrackerMigrationTests` covers schema initialization, supported upgrades, rollback, foreign keys, reopen, and unsupported newer versions.
 - `JobTrackerRepositoryTests` covers repository persistence plus shared SQL error and transaction infrastructure.
 - `JobTrackerCvImportTests` covers managed file preparation, identity, cleanup, and recovery.
-- `JobTrackerAddJobTests` covers Add Job validation, transaction behavior, and durable orchestration.
-- `JobTrackerIntegrationTests` covers asynchronous controller-to-storage flows and restart hydration.
+- `JobTrackerAddJobTests` covers synchronous Add Job preflight, defensive
+  pre-staging validation, transaction behavior, and durable orchestration.
+- `JobTrackerIntegrationTests` covers asynchronous controller-to-storage flows,
+  FIFO persistence order, pending-count and saving transitions, per-request
+  failure isolation, duplicate-CV cleanup, active and cancel-all behavior,
+  shutdown cleanup, and restart hydration.
 
 Storage-oriented suites reuse the temporary database and filesystem fixtures under `tests/support` so setup and cleanup rules remain consistent.
 

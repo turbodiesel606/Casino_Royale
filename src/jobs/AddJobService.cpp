@@ -27,15 +27,34 @@ AddJobService::AddJobService(
 {
 }
 
+bool AddJobPreflightResult::isValid() const
+{
+	return fieldErrors_.isEmpty();
+}
+
+AddJobPreflightResult AddJobService::preflight(
+	const JobApplicationDraft& draft,
+	const QUrl& selectedCvUrl) const
+{
+	AddJobPreflightResult result;
+	result.draft_ = JobApplicationFactory::normalize(draft);
+	const auto validation = JobApplicationValidator::validate(result.draft_, selectedCvUrl);
+	result.fieldErrors_ = validation.fieldErrors_;
+
+	if (!validation.isValid()) 
+		result.message_ = QStringLiteral("Please correct the highlighted fields.");
+	
+	return result;
+}
+
 AddJobPreparationResult AddJobService::prepare(
-    const JobApplicationDraft& draft,
+    const NormalizedJobApplicationDraft& draft,
     const QUrl& selectedCvUrl,
     const std::shared_ptr<std::atomic_bool>& cancellation) const
 {
-	const auto normalizedDraft = JobApplicationFactory::normalize(draft);
-	const auto validation = JobApplicationValidator::validate(normalizedDraft, selectedCvUrl);
+	const auto validation = JobApplicationValidator::validate(draft, selectedCvUrl);
 	AddJobPreparationResult result;
-	result.draft_ = normalizedDraft;
+	result.draft_ = draft;
 	result.fieldErrors_ = validation.fieldErrors_;
 	if (!validation.isValid()) {
 		result.message_ = QStringLiteral("Please correct the highlighted fields.");
@@ -79,6 +98,7 @@ AddJobResult AddJobService::complete(AddJobPreparationResult preparation) const
 		transaction.commit();
 
 		result.success_ = true;
+		result.message_ = QStringLiteral("Job application saved successfully.");
 		result.application_ = std::move(application);
 		result.company_ = company;
 		result.cvDocument_ = cvImport.document_;
@@ -98,6 +118,7 @@ AddJobResult AddJobService::create(
 	const JobApplicationDraft& draft,
 	const QUrl& selectedCvUrl) const
 {
+	const auto preflightResult = preflight(draft, selectedCvUrl);
 	auto cancellation = std::make_shared<std::atomic_bool>(false);
-	return complete(prepare(draft, selectedCvUrl, cancellation));
+	return complete(prepare(preflightResult.draft_, selectedCvUrl, cancellation));
 }

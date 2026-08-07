@@ -1,5 +1,6 @@
 #include "jobs/JobApplicationsController.hpp"
 
+#include "../support/AddJobTestFixture.hpp"
 #include "../support/JobApplicationTestData.hpp"
 
 #include <QSignalSpy>
@@ -27,6 +28,7 @@ class JobApplicationsControllerTest final : public QObject
     Q_OBJECT
 
 private slots:
+    void initTestCase();
     void modelExposesNamedRoles();
     void modelStartsEmpty();
     void modelExposesExplicitApplications();
@@ -35,11 +37,20 @@ private slots:
     void controllerFiltersBySearchTextAndStatus();
     void selectionPublishesControllerContracts();
     void controllerValidatesSelectedApplication();
+    void controllerRejectsInvalidAdmissionsBeforeQueueing();
+
+private:
+    testsupport::AddJobTestFixture fixture_;
 };
+
+void JobApplicationsControllerTest::initTestCase()
+{
+    QVERIFY(fixture_.isValid());
+}
 
 void JobApplicationsControllerTest::modelExposesNamedRoles()
 {
-    JobApplicationsController controller;
+    JobApplicationsController controller{{}, fixture_.service_};
     const auto* model = controller.applicationsModel();
 
     QVERIFY(roleForName(*model, "id") > 0);
@@ -59,7 +70,7 @@ void JobApplicationsControllerTest::modelExposesNamedRoles()
 
 void JobApplicationsControllerTest::modelStartsEmpty()
 {
-    JobApplicationsController controller;
+    JobApplicationsController controller{{}, fixture_.service_};
     const auto* model = controller.applicationsModel();
 
     QCOMPARE(model->rowCount(), 0);
@@ -72,7 +83,7 @@ void JobApplicationsControllerTest::modelStartsEmpty()
 
 void JobApplicationsControllerTest::modelExposesExplicitApplications()
 {
-    JobApplicationsController controller(testsupport::makeJobApplications());
+    JobApplicationsController controller{testsupport::makeJobApplications(), fixture_.service_};
     const auto* model = controller.applicationsModel();
     const auto firstRow = model->index(0, 0);
 
@@ -85,7 +96,7 @@ void JobApplicationsControllerTest::modelExposesExplicitApplications()
 
 void JobApplicationsControllerTest::controllerExposesSelectedApplication()
 {
-    JobApplicationsController controller(testsupport::makeJobApplications());
+    JobApplicationsController controller{testsupport::makeJobApplications(), fixture_.service_};
     QSignalSpy selectedIndexSpy(&controller, &JobApplicationsController::selectedApplicationIndexChanged);
     QSignalSpy selectedIdSpy(&controller, &JobApplicationsController::selectedApplicationIdChanged);
     QSignalSpy selectedDataSpy(&controller, &JobApplicationsController::selectedApplicationChanged);
@@ -103,7 +114,7 @@ void JobApplicationsControllerTest::controllerExposesSelectedApplication()
 
 void JobApplicationsControllerTest::controllerIgnoresInvalidSelection()
 {
-    JobApplicationsController controller;
+    JobApplicationsController controller{{}, fixture_.service_};
     QSignalSpy selectedIndexSpy(&controller, &JobApplicationsController::selectedApplicationIndexChanged);
     QSignalSpy selectedIdSpy(&controller, &JobApplicationsController::selectedApplicationIdChanged);
     QSignalSpy selectedDataSpy(&controller, &JobApplicationsController::selectedApplicationChanged);
@@ -120,7 +131,7 @@ void JobApplicationsControllerTest::controllerIgnoresInvalidSelection()
 
 void JobApplicationsControllerTest::controllerFiltersBySearchTextAndStatus()
 {
-    JobApplicationsController controller(testsupport::makeJobApplications());
+    JobApplicationsController controller{testsupport::makeJobApplications(), fixture_.service_};
     QSignalSpy searchTextSpy(&controller, &JobApplicationsController::searchTextChanged);
     QSignalSpy statusFilterSpy(&controller, &JobApplicationsController::statusFilterChanged);
     QSignalSpy countSpy(&controller, &JobApplicationsController::applicationCountChanged);
@@ -161,7 +172,7 @@ void JobApplicationsControllerTest::controllerFiltersBySearchTextAndStatus()
 
 void JobApplicationsControllerTest::selectionPublishesControllerContracts()
 {
-    JobApplicationsController controller{testsupport::makeJobApplications()};
+    JobApplicationsController controller{testsupport::makeJobApplications(), fixture_.service_};
     controller.selectApplication(1);
     QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-techsoft-qt-qml"));
 
@@ -202,15 +213,65 @@ void JobApplicationsControllerTest::controllerValidatesSelectedApplication()
 {
     auto applications = testsupport::makeJobApplications();
     applications.first().jobUrl_ = {};
-    JobApplicationsController controller(applications);
+    JobApplicationsController controller{applications, fixture_.service_};
 
     QVERIFY(controller.validateSelectedApplication().isEmpty());
 
     applications.first().jobUrl_ = QUrl{QStringLiteral("https:job-posting"), QUrl::StrictMode};
-    JobApplicationsController invalidController(std::move(applications));
+    JobApplicationsController invalidController{std::move(applications), fixture_.service_};
     QVERIFY(!invalidController.validateSelectedApplication().isEmpty());
 }
 
-QTEST_APPLESS_MAIN(JobApplicationsControllerTest)
+void JobApplicationsControllerTest::controllerRejectsInvalidAdmissionsBeforeQueueing()
+{
+    JobApplicationsController controller{{}, fixture_.service_};
+    QSignalSpy failedSpy{&controller, &JobApplicationsController::saveFailed};
+    QSignalSpy queuedSpy{&controller, &JobApplicationsController::applicationQueued};
+
+    controller.createApplication(
+        {
+            {QStringLiteral("jobTitle"), QStringLiteral(" ")},
+            {QStringLiteral("jobUrl"), QStringLiteral("ftp://example.com/job")},
+            {QStringLiteral("companyName"), QStringLiteral(" ")},
+            {QStringLiteral("workFormat"), QStringLiteral("Office")},
+            {QStringLiteral("status"), QStringLiteral("Pending")},
+            {QStringLiteral("appliedDate"), QStringLiteral("2026-99-87")},
+        },
+        {});
+
+    QCOMPARE(failedSpy.count(), 1);
+    const auto priorityErrors = failedSpy.first().at(0).toMap();
+    QCOMPARE(priorityErrors.size(), 3);
+    QVERIFY(priorityErrors.contains(QStringLiteral("jobTitle")));
+    QVERIFY(priorityErrors.contains(QStringLiteral("jobUrl")));
+    QVERIFY(priorityErrors.contains(QStringLiteral("cv")));
+    QCOMPARE(queuedSpy.count(), 0);
+    QCOMPARE(controller.pendingSaveCount(), 0);
+    QVERIFY(!controller.saving());
+
+    failedSpy.clear();
+    controller.createApplication(
+        {
+            {QStringLiteral("jobTitle"), QStringLiteral("Qt Developer")},
+            {QStringLiteral("jobUrl"), QStringLiteral("https://example.com/job")},
+            {QStringLiteral("companyName"), QStringLiteral(" ")},
+            {QStringLiteral("workFormat"), QStringLiteral("Office")},
+            {QStringLiteral("status"), QStringLiteral("Pending")},
+            {QStringLiteral("appliedDate"), QStringLiteral("2026-99-87")},
+        },
+        QUrl::fromLocalFile(QStringLiteral("C:/resume.pdf")));
+
+    QCOMPARE(failedSpy.count(), 1);
+    const auto fullErrors = failedSpy.first().at(0).toMap();
+    QCOMPARE(fullErrors.size(), 4);
+    QVERIFY(fullErrors.contains(QStringLiteral("companyName")));
+    QVERIFY(fullErrors.contains(QStringLiteral("workFormat")));
+    QVERIFY(fullErrors.contains(QStringLiteral("status")));
+    QVERIFY(fullErrors.contains(QStringLiteral("appliedDate")));
+    QCOMPARE(queuedSpy.count(), 0);
+    QCOMPARE(controller.pendingSaveCount(), 0);
+}
+
+QTEST_GUILESS_MAIN(JobApplicationsControllerTest)
 
 #include "JobApplicationsControllerTest.moc"

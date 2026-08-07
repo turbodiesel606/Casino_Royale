@@ -1,7 +1,6 @@
 #include "JobApplicationsController.hpp"
 #include "AddJobService.hpp"
 #include "JobApplicationDraft.hpp"
-#include "JobApplicationFactory.hpp"
 #include "JobApplicationValidator.hpp"
 
 #include <QMetaObject>
@@ -10,7 +9,32 @@
 #include <exception>
 #include <memory>
 #include <utility>
+#include <thread>
+#include <chrono>
+namespace {
+	JobApplicationDraft fill_draft(const QVariantMap& formValues) {
+		JobApplicationDraft draft;
+		draft.jobTitle_ = formValues.value(QStringLiteral("jobTitle")).toString();
+		draft.jobUrl_ = formValues.value(QStringLiteral("jobUrl")).toString();
+		draft.companyName_ = formValues.value(QStringLiteral("companyName")).toString();
+		draft.workFormat_ = formValues.value(QStringLiteral("workFormat")).toString();
+		draft.city_ = formValues.value(QStringLiteral("city")).toString();
+		draft.salary_ = formValues.value(QStringLiteral("salary")).toString();
+		draft.status_ = formValues.value(QStringLiteral("status")).toString();
+		draft.appliedDate_ = formValues.value(QStringLiteral("appliedDate")).toString();
+		draft.nextStep_ = formValues.value(QStringLiteral("nextStep")).toString();
+		draft.description_ = formValues.value(QStringLiteral("description")).toString();
+		draft.requirements_ = formValues.value(QStringLiteral("requirements")).toString();
+		draft.notes_ = formValues.value(QStringLiteral("notes")).toString();
 
+		const auto technologies = formValues.value(QStringLiteral("techStack"));
+		draft.techStack_ = technologies.canConvert<QStringList>()
+			? technologies.toStringList()
+			: technologies.toString().split(',', Qt::SkipEmptyParts);
+
+		return draft;
+	}
+}
 
 JobApplicationsController::JobApplicationsController(
 	QVector<JobApplication> applications,
@@ -65,8 +89,9 @@ JobApplicationsController::JobApplicationsController(
 JobApplicationsController::~JobApplicationsController()
 {
 	shuttingDown_ = true;
-	if (createCancellation_ != nullptr) {
-		createCancellation_->store(true, std::memory_order_relaxed);
+	createQueue_.clear();
+	if (activeCreateCancellation_ != nullptr) {
+		activeCreateCancellation_->store(true, std::memory_order_relaxed);
 	}
 	filePreparationPool_.waitForDone();
 }
@@ -134,7 +159,14 @@ void JobApplicationsController::selectApplication(int index)
 
 bool JobApplicationsController::saving() const
 {
-	return saving_;
+	return pendingSaveCount() > 0;
+}
+
+int JobApplicationsController::pendingSaveCount() const
+{
+	return static_cast<int>(createQueue_.size())
+		+ (activeCreateApplication_.has_value()
+			? 1 : 0);
 }
 
 void JobApplicationsController::setSearchText(const QString& text)
@@ -211,73 +243,46 @@ QStringList JobApplicationsController::validateSelectedApplication() const
 
 	return JobApplicationValidator::validate(*selectedSourceApplication()).messages();
 }
-#include<iostream>
 
 void JobApplicationsController::createApplication(
 	const QVariantMap& formValues,
 	const QUrl& selectedCvUrl)
 {
-	// Prevent overlapping requests because the controller tracks only one active save operation.
-	if (saving_)
-		return;
+	JobApplicationDraft draft = fill_draft(formValues);
 
-	// Translate the QML form map into the backend draft without applying business rules in the UI layer.
-	// move in helper function
-	JobApplicationDraft draft;
-	draft.jobTitle_ = formValues.value(QStringLiteral("jobTitle")).toString();
-	draft.jobUrl_ = formValues.value(QStringLiteral("jobUrl")).toString();
-	draft.companyName_ = formValues.value(QStringLiteral("companyName")).toString();
-	draft.workFormat_ = formValues.value(QStringLiteral("workFormat")).toString();
-	draft.city_ = formValues.value(QStringLiteral("city")).toString();
-	draft.salary_ = formValues.value(QStringLiteral("salary")).toString();
-	draft.status_ = formValues.value(QStringLiteral("status")).toString();
-	draft.appliedDate_ = formValues.value(QStringLiteral("appliedDate")).toString();
-	draft.nextStep_ = formValues.value(QStringLiteral("nextStep")).toString();
-	draft.description_ = formValues.value(QStringLiteral("description")).toString();
-	draft.requirements_ = formValues.value(QStringLiteral("requirements")).toString();
-	draft.notes_ = formValues.value(QStringLiteral("notes")).toString();
+	const auto preflight = addJobService_.preflight(draft, selectedCvUrl);
 
-	// Accept the technology field as either a QML string list or a comma-separated string.
-	const auto technologies = formValues.value(QStringLiteral("techStack"));
-	draft.techStack_ = technologies.canConvert<QStringList>()
-		? technologies.toStringList()
-		: technologies.toString().split(',', Qt::SkipEmptyParts);
-	
-	// validate all fields
-	const auto validation = JobApplicationValidator::validate(
-		JobApplicationFactory::normalize(draft),
-		selectedCvUrl);
-	// search for empty or invalid jobTitle, jobUrl, cv fields
-	QVariantMap preflightFieldErrors;
-	for (const auto& fieldName : {
-		QStringLiteral("jobTitle"),
-		QStringLiteral("jobUrl"),
-		QStringLiteral("cv")}) {
-
-		// iter to either existing elem or end (if it didnt find)
-		const auto error = validation.fieldErrors_.constFind(fieldName);
-		
-		if (error != validation.fieldErrors_.cend()) 
-			preflightFieldErrors.insert(fieldName, error.value());
-	}
-
-	if (!preflightFieldErrors.isEmpty()) {
-		emit saveFailed(
-			preflightFieldErrors,
-			QStringLiteral("Please correct the highlighted fields."));
+	if (!preflight.isValid()) {
+		emit saveFailed(preflight.fieldErrors_, preflight.message_);
 		return;
 	}
 
-	// Publish the active-save state and create cancellation data shared with the worker task.
-	saving_ = true;
-	emit savingChanged();
+	const auto previousCount = pendingSaveCount();
+	const auto operationId = ++nextCreateOperationId_;
+	createQueue_.emplace_back(operationId, preflight.draft_, selectedCvUrl);
+	publishPendingSaveStateChange(previousCount);
+	emit applicationQueued(operationId, preflight.draft_.jobTitle_);
+	startNextCreateApplication();
+	std::this_thread::sleep_for(std::chrono::seconds(5));// intended suppress
+}
 
-	createCancellation_ = std::make_shared<std::atomic_bool>(false);
-	const auto cancellation = createCancellation_;
-	const auto operationId = ++createOperationId_;
+void JobApplicationsController::startNextCreateApplication()
+{
+	if (shuttingDown_ || activeCreateApplication_.has_value() || createQueue_.empty()) {
+		return;
+	}
 
-	// Run validation, file hashing, and staging on the dedicated worker so the GUI thread remains responsive.
-	filePreparationPool_.start([	// Maybe data race
+	activeCreateApplication_ = std::move(createQueue_.front());
+	createQueue_.pop_front();
+	activeCreateCancellation_ = std::make_shared<std::atomic_bool>(false);
+	suppressActiveCompletionNotification_ = false;
+
+	const auto operationId = activeCreateApplication_->operationId_;
+	const auto cancellation = activeCreateCancellation_;
+	auto draft = activeCreateApplication_->draft_;
+	const auto selectedCvUrl = activeCreateApplication_->selectedCvUrl_;
+
+	filePreparationPool_.start([
 		this,
 		draft = std::move(draft),
 		selectedCvUrl,
@@ -285,7 +290,6 @@ void JobApplicationsController::createApplication(
 		operationId]() mutable {
 			AddJobPreparationResult preparation;
 
-			// Convert unexpected worker failures into the result consumed by the QML-facing completion path.
 			try {
 				preparation = addJobService_.prepare(draft, selectedCvUrl, cancellation);
 			}
@@ -293,10 +297,11 @@ void JobApplicationsController::createApplication(
 				preparation.message_ = QString::fromUtf8(error.what());
 			}
 
-			// forward lambda to GUI thread and perform it in GUI thread
+
 			QMetaObject::invokeMethod(
 				this,
 				[this, operationId, cancellation, preparation = std::move(preparation)]() mutable {
+				//std::this_thread::sleep_for(std::chrono::seconds(10));// intended suppress
 					finishCreateApplication(operationId, cancellation, std::move(preparation));
 				},
 				Qt::QueuedConnection);
@@ -305,8 +310,20 @@ void JobApplicationsController::createApplication(
 
 void JobApplicationsController::cancelCreateApplication()
 {
-	if (createCancellation_ != nullptr) 
-		createCancellation_->store(true, std::memory_order_relaxed);
+	if (activeCreateCancellation_ != nullptr) {
+		activeCreateCancellation_->store(true, std::memory_order_relaxed);
+	}
+}
+
+void JobApplicationsController::cancelAllCreateApplications()
+{
+	const auto previousCount = pendingSaveCount();
+	createQueue_.clear();
+	if (activeCreateCancellation_ != nullptr) {
+		suppressActiveCompletionNotification_ = true;
+		activeCreateCancellation_->store(true, std::memory_order_relaxed);
+	}
+	publishPendingSaveStateChange(previousCount);
 }
 
 void JobApplicationsController::finishCreateApplication(
@@ -314,30 +331,61 @@ void JobApplicationsController::finishCreateApplication(
 	const std::shared_ptr<std::atomic_bool>& cancellation,
 	AddJobPreparationResult preparation)
 {
-	if (shuttingDown_ || operationId != createOperationId_) 
-		return;
-	
-	// Maybe data race
+	if (shuttingDown_
+		|| !activeCreateApplication_.has_value()
+		|| activeCreateApplication_->operationId_ != operationId
+		|| activeCreateCancellation_ != cancellation)
+	{ return; }
+
 	if (cancellation->load(std::memory_order_relaxed)) {
 		preparation.success_ = false;
 		preparation.cancelled_ = true;
 		preparation.message_ = QStringLiteral("Job creation was canceled.");
 	}
-	const auto result = addJobService_.complete(std::move(preparation));
-	createCancellation_.reset();
-	saving_ = false;
-	emit savingChanged();
 
-	if (!result.success_) {
-		emit saveFailed(result.fieldErrors_, result.message_);
-		return;
+	const auto result = addJobService_.complete(std::move(preparation));
+	const auto jobTitle = activeCreateApplication_->draft_.jobTitle_;
+	const auto suppressCompletionNotification = suppressActiveCompletionNotification_;
+
+	if (result.success_) {
+		applicationsModel_.appendApplication(result.application_);
+		emit companyResolved(result.company_.id_, result.company_.name_);
+		filteredApplicationsModel_.sort(filteredApplicationsModel_.sortColumn(), filteredApplicationsModel_.sortOrder());
+		emit cvUsed(result.cvDocument_, result.application_.id_, result.cvWasInserted_);
+		emit applicationCreated(result.application_.id_);
 	}
 
-	applicationsModel_.appendApplication(result.application_);
-	emit companyResolved(result.company_.id_, result.company_.name_);
-	filteredApplicationsModel_.sort(filteredApplicationsModel_.sortColumn(), filteredApplicationsModel_.sortOrder());
-	emit cvUsed(result.cvDocument_, result.application_.id_, result.cvWasInserted_);
-	emit applicationCreated(result.application_.id_);
+	if (!suppressCompletionNotification) {
+		const auto message = result.message_.isEmpty()
+			? (result.success_
+				? QStringLiteral("Job application saved successfully.")
+				: QStringLiteral("Job application could not be saved."))
+			: result.message_;
+		emit applicationSaveCompleted(operationId, jobTitle, result.success_, message);
+	}
+
+	const auto previousCount = pendingSaveCount();
+	activeCreateApplication_.reset();
+	activeCreateCancellation_.reset();
+	suppressActiveCompletionNotification_ = false;
+	publishPendingSaveStateChange(previousCount);
+	startNextCreateApplication();
+}
+
+void JobApplicationsController::publishPendingSaveStateChange(int previousCount)
+{
+	const auto currentCount = pendingSaveCount();
+
+	if (previousCount == currentCount)
+		return;
+
+	emit pendingSaveCountChanged();
+	if ((previousCount == 0) != (currentCount == 0)) {
+		emit savingChanged();
+	}
+	if (previousCount > 0 && currentCount == 0 && !shuttingDown_) {
+		emit saveQueueDrained();
+	}
 }
 
 const JobApplication* JobApplicationsController::selectedSourceApplication() const

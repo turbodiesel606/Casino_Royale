@@ -7,12 +7,9 @@ import "../components"
 Item {
     id: page
 
-    signal saved()
-
     property url selectedCvUrl: ""
     property var fieldErrors: ({})
     property string saveError: ""
-    property bool discardedActiveSave: false
 
     readonly property color textColor: "#eef3f8"
     readonly property color mutedColor: "#a8b5c2"
@@ -27,9 +24,6 @@ Item {
     }
 
     function resetForm() {
-        if (jobApplicationsController.saving)
-            discardedActiveSave = true
-
         jobTitleField.text = ""
         jobUrlField.text = ""
         companyField.text = ""
@@ -129,17 +123,13 @@ Item {
     Connections {
         target: jobApplicationsController
 
-        function onApplicationCreated(applicationId) {
+        function onApplicationQueued(operationId, jobTitle) {
             page.resetForm()
-            page.discardedActiveSave = false
-            page.saved()
         }
 
         function onSaveFailed(errors, message) {
-            if (!page.discardedActiveSave)
-                page.fieldErrors = errors
+            page.fieldErrors = errors
             page.saveError = message
-            page.discardedActiveSave = false
         }
     }
 
@@ -172,8 +162,7 @@ Item {
                 Button {
                     Layout.preferredWidth: 104
                     Layout.preferredHeight: 42
-                    text: jobApplicationsController.saving ? "Saving..." : "Save"
-                    enabled: !jobApplicationsController.saving
+                    text: "Save"
                     onClicked: page.submit()
 
                     contentItem: Text {
@@ -261,7 +250,9 @@ Item {
                                 id: workFormatField
                                 Layout.fillWidth: true
                                 placeholderText: "Remote, Hybrid, On-site"
+                                errorText: page.errorFor("workFormat")
                             }
+                            FormError { message: workFormatField.errorText }
                         }
 
                         ColumnLayout {
@@ -291,7 +282,9 @@ Item {
                                 id: statusField
                                 Layout.fillWidth: true
                                 text: "Applied"
+                                errorText: page.errorFor("status")
                             }
+                            FormError { message: statusField.errorText }
                         }
 
                         ColumnLayout {

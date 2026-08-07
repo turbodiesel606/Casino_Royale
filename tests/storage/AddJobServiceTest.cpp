@@ -6,6 +6,9 @@
 #include <QUrl>
 #include <QtTest/QtTest>
 
+#include <atomic>
+#include <memory>
+
 class AddJobServiceTest final : public QObject
 {
     Q_OBJECT
@@ -15,6 +18,8 @@ private slots:
     void reusesNormalizedCompanyIdentity();
     void removesCopiedCvWhenJobInsertFails();
     void rejectsInvalidInputWithoutWriting();
+    void preflightNormalizesAndReturnsAllValidationErrors();
+    void prepareDefensivelyRejectsInvalidDraftWithoutStaging();
 };
 
 void AddJobServiceTest::createsJobAndCopiesCv()
@@ -122,6 +127,70 @@ void AddJobServiceTest::rejectsInvalidInputWithoutWriting()
     QVERIFY(fixture.jobRepository_.findAll().isEmpty());
     QVERIFY(fixture.companyRepository_.findAll().isEmpty());
     QVERIFY(fixture.cvRepository_.findAll().isEmpty());
+    QVERIFY(QDir{fixture.storage_.paths().resumesDirectory()}.entryList(QDir::Files).isEmpty());
+}
+
+void AddJobServiceTest::preflightNormalizesAndReturnsAllValidationErrors()
+{
+    testsupport::AddJobTestFixture fixture;
+    QVERIFY(fixture.isValid());
+    auto validDraft = testsupport::validJobDraft();
+    validDraft.jobTitle_ = QStringLiteral("  Qt Developer  ");
+    validDraft.jobUrl_.clear();
+    const auto selectedCv = QUrl::fromLocalFile(
+        QDir{fixture.storage_.rootPath()}.filePath(QStringLiteral("not-read-during-preflight.pdf")));
+
+    const auto validPreflight = fixture.service_.preflight(validDraft, selectedCv);
+
+    QVERIFY2(validPreflight.isValid(), qPrintable(validPreflight.message_));
+    QCOMPARE(validPreflight.draft_.jobTitle_, QStringLiteral("Qt Developer"));
+    QVERIFY(validPreflight.draft_.jobUrl_.isEmpty());
+    QVERIFY(QDir{fixture.storage_.paths().resumesDirectory()}.entryList(QDir::Files).isEmpty());
+
+    auto invalidDraft = testsupport::validJobDraft();
+    invalidDraft.jobTitle_ = QStringLiteral(" ");
+    invalidDraft.companyName_.clear();
+    invalidDraft.jobUrl_ = QStringLiteral("ftp://example.com/job");
+    invalidDraft.workFormat_ = QStringLiteral("Office");
+    invalidDraft.status_ = QStringLiteral("Pending");
+    invalidDraft.appliedDate_ = QStringLiteral("2026-99-87");
+
+    const auto invalidPreflight = fixture.service_.preflight(invalidDraft, {});
+
+    QVERIFY(!invalidPreflight.isValid());
+    const QStringList expectedFields{
+        QStringLiteral("jobTitle"),
+        QStringLiteral("companyName"),
+        QStringLiteral("jobUrl"),
+        QStringLiteral("workFormat"),
+        QStringLiteral("status"),
+        QStringLiteral("appliedDate"),
+        QStringLiteral("cv"),
+    };
+    for (const auto& field : expectedFields) {
+        QVERIFY2(invalidPreflight.fieldErrors_.contains(field), qPrintable(field));
+    }
+    QVERIFY(!invalidPreflight.message_.isEmpty());
+}
+
+void AddJobServiceTest::prepareDefensivelyRejectsInvalidDraftWithoutStaging()
+{
+    testsupport::AddJobTestFixture fixture;
+    QVERIFY(fixture.isValid());
+    auto draft = testsupport::validJobDraft();
+    draft.companyName_.clear();
+    const auto sourceUrl = QUrl::fromLocalFile(fixture.storage_.createFile());
+    const auto preflight = fixture.service_.preflight(draft, sourceUrl);
+    QVERIFY(!preflight.isValid());
+    const auto cancellation = std::make_shared<std::atomic_bool>(false);
+
+    const auto preparation = fixture.service_.prepare(
+        preflight.draft_,
+        sourceUrl,
+        cancellation);
+
+    QVERIFY(!preparation.success_);
+    QVERIFY(preparation.fieldErrors_.contains(QStringLiteral("companyName")));
     QVERIFY(QDir{fixture.storage_.paths().resumesDirectory()}.entryList(QDir::Files).isEmpty());
 }
 

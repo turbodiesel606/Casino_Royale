@@ -19,6 +19,8 @@ private slots:
     void limitedSortedProxyKeepsNewestRowsAcrossMutations();
     void jobDraftNormalizationAppliesCanonicalDefaults();
     void jobValidationReturnsStructuredCanonicalErrors();
+    void jobValidationAcceptsBlankOptionalUrl();
+    void jobValidationRejectsMalformedNonEmptyUrls();
 };
 
 void FilterAndValidationTest::proxyFiltersSearchTextAcrossConfiguredRoles()
@@ -225,6 +227,49 @@ void FilterAndValidationTest::jobValidationReturnsStructuredCanonicalErrors()
     application.appliedDate_ = normalized.appliedDate_;
     const auto selectedErrors = JobApplicationValidator::validate(application);
     QCOMPARE(selectedErrors.fieldErrors_.keys(), errors.fieldErrors_.keys());
+}
+
+void FilterAndValidationTest::jobValidationAcceptsBlankOptionalUrl()
+{
+    JobApplicationDraft draft;
+    draft.jobTitle_ = QStringLiteral("Qt Developer");
+    draft.companyName_ = QStringLiteral("Example Company");
+    draft.workFormat_ = QStringLiteral("Remote");
+    draft.status_ = QStringLiteral("Applied");
+    draft.appliedDate_ = QStringLiteral("2026-08-04");
+
+    const auto validation = JobApplicationValidator::validate(
+        JobApplicationFactory::normalize(draft),
+        QUrl::fromLocalFile(QStringLiteral("C:/resume.pdf")));
+
+    QVERIFY(validation.isValid());
+    QVERIFY(!validation.fieldErrors_.contains(QStringLiteral("jobUrl")));
+}
+
+void FilterAndValidationTest::jobValidationRejectsMalformedNonEmptyUrls()
+{
+    JobApplicationDraft draft;
+    draft.jobTitle_ = QStringLiteral("Qt Developer");
+    draft.companyName_ = QStringLiteral("Example Company");
+    draft.workFormat_ = QStringLiteral("Remote");
+    draft.status_ = QStringLiteral("Applied");
+    draft.appliedDate_ = QStringLiteral("2026-08-04");
+    const auto selectedCv = QUrl::fromLocalFile(QStringLiteral("C:/resume.pdf"));
+
+    const QStringList invalidUrls{
+        QStringLiteral("https:job-posting"),
+        QStringLiteral("ftp://example.com/job"),
+        QStringLiteral("file:///C:/job.txt"),
+    };
+    for (const auto& invalidUrl : invalidUrls) {
+        draft.jobUrl_ = invalidUrl;
+        const auto validation = JobApplicationValidator::validate(
+            JobApplicationFactory::normalize(draft),
+            selectedCv);
+        QVERIFY2(
+            validation.fieldErrors_.contains(QStringLiteral("jobUrl")),
+            qPrintable(invalidUrl));
+    }
 }
 
 QTEST_GUILESS_MAIN(FilterAndValidationTest)

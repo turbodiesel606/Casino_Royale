@@ -4,6 +4,7 @@
 #include "common/RoleFilterProxyModel.hpp"
 #include "common/StableIdSelectionTracker.hpp"
 #include "cvs/CvDocument.hpp"
+#include "JobApplicationDraft.hpp"
 #include "JobApplicationListModel.hpp"
 
 #include <QObject>
@@ -13,7 +14,9 @@
 #include <QVariantMap>
 
 #include <atomic>
+#include <deque>
 #include <memory>
+#include <optional>
 
 class QAbstractItemModel;
 class AddJobService;
@@ -33,6 +36,7 @@ class JobApplicationsController final : public QObject
     Q_PROPERTY(QString statusFilter READ statusFilter WRITE setStatusFilter NOTIFY statusFilterChanged)
     Q_PROPERTY(QString resultSummary READ resultSummary NOTIFY resultSummaryChanged)
     Q_PROPERTY(bool saving READ saving NOTIFY savingChanged)
+    Q_PROPERTY(int pendingSaveCount READ pendingSaveCount NOTIFY pendingSaveCountChanged)
 
 public:
     JobApplicationsController(
@@ -52,6 +56,7 @@ public:
     QString statusFilter() const;
     QString resultSummary() const;
     bool saving() const;
+    int pendingSaveCount() const;
 
     Q_INVOKABLE void selectApplication(int index);
     Q_INVOKABLE void setSearchText(const QString& text);
@@ -60,6 +65,7 @@ public:
     Q_INVOKABLE QStringList validateSelectedApplication() const;
     Q_INVOKABLE void createApplication(const QVariantMap& formValues, const QUrl& selectedCvUrl);
     Q_INVOKABLE void cancelCreateApplication();
+    Q_INVOKABLE void cancelAllCreateApplications();
 
 signals:
     void applicationCountChanged();
@@ -70,15 +76,32 @@ signals:
     void statusFilterChanged();
     void resultSummaryChanged();
     void savingChanged();
+    void pendingSaveCountChanged();
+    void applicationQueued(quint64 operationId, const QString& jobTitle);
+    void applicationSaveCompleted(
+        quint64 operationId,
+        const QString& jobTitle,
+        bool success,
+        const QString& message);
+    void saveQueueDrained();
     void applicationCreated(const QString& applicationId);
     void companyResolved(const QString& companyId, const QString& companyName);
     void saveFailed(const QVariantMap& fieldErrors, const QString& message);
     void cvUsed(const CvDocument& document, const QString& applicationId, bool wasInserted);
 
 private:
+    struct QueuedCreateApplication final
+    {
+        quint64 operationId_ = 0;
+        NormalizedJobApplicationDraft draft_;
+        QUrl selectedCvUrl_;
+    };
+
     const JobApplication* selectedSourceApplication() const;
     void handleSelectionChanged(bool idChanged, bool rowChanged, bool dataChanged);
     void handleVisibleCountChanged();
+    void startNextCreateApplication();
+    void publishPendingSaveStateChange(int previousCount);
     void finishCreateApplication(
         quint64 operationId,
         const std::shared_ptr<std::atomic_bool>& cancellation,
@@ -93,10 +116,12 @@ private:
     int publishedApplicationCount_ = 0;
     bool visibleCountNotificationsSuppressed_ = false;
     AddJobService& addJobService_;
-    bool saving_ = false;
     QThreadPool filePreparationPool_;
-    std::shared_ptr<std::atomic_bool> createCancellation_;
-    quint64 createOperationId_ = 0;
+    std::deque<QueuedCreateApplication> createQueue_;
+    std::optional<QueuedCreateApplication> activeCreateApplication_;
+    std::shared_ptr<std::atomic_bool> activeCreateCancellation_;
+    quint64 nextCreateOperationId_ = 0;
+    bool suppressActiveCompletionNotification_ = false;
     bool shuttingDown_ = false;
 };
 

@@ -144,19 +144,41 @@ Add Job is implemented as a QML-to-C++ workflow.
 `JobFormPage.qml` gathers form fields and calls `jobApplicationsController.createApplication(formValues, selectedCvUrl)`.
 
 `JobApplicationsController::createApplication()` converts the QML map into an
-in-memory `JobApplicationDraft`, normalizes it, and synchronously reuses the
-canonical validator for the Job Title, Job URL, and CV-selection preflight.
-Those field errors emit `saveFailed` immediately, before `saving` changes, a
-cancellation token or worker is created, a CV is staged, SQLite is accessed, or
-a model is updated. Accepted preflight publishes `saving` and starts the full
-worker-thread validation, streaming hash, and staged copy through
-`AddJobService`. The controller owns a dedicated single-thread pool and
-cancellation token. Shutdown cancels and waits for preparation, while queued
-completion is tied to controller lifetime so a late result cannot mutate a
-destroyed controller or model. The unchanged `saving` property prevents
-overlapping operations. On GUI-thread completion, the controller appends the
-created row, updates filtering/selection summaries, emits `applicationCreated`,
-or emits `saveFailed` with field errors and a message.
+in-memory `JobApplicationDraft` and calls the service-owned synchronous
+preflight. `AddJobService::preflight()` normalizes the draft once and returns
+the normalized value, all canonical field errors, and a user-facing message.
+The controller first reports Job Title, Job URL, and CV-selection errors, then
+reports all remaining canonical validation errors after those priority fields
+pass. Admission failures emit `saveFailed` before an operation ID is assigned,
+the pending count changes, a worker is started, a CV is staged, SQLite is
+accessed, or a model is updated.
+
+Every accepted normalized request receives a monotonically increasing
+operation ID and enters the controller's in-memory FIFO. The controller retains
+one optional active request plus its cooperative cancellation token and runs one
+preparation at a time on its dedicated single-thread pool. `pendingSaveCount`
+is the active-plus-waiting total; `saving` is true exactly while that total is
+non-zero. `applicationQueued` acknowledges admission immediately,
+`applicationSaveCompleted` reports the eventual per-request outcome, and
+`saveQueueDrained` marks cleanup of the final active or waiting request.
+`savingChanged` is limited to zero/non-zero transitions, while
+`pendingSaveCountChanged` is emitted for every total-count change.
+
+Worker preparation defensively revalidates the accepted normalized draft
+before streaming the CV hash and staged copy. Queued completion returns to the
+controller and database-owning thread, where `AddJobService::complete()` keeps
+one transaction per job. Success appends the source model and preserves the
+existing `applicationCreated`, `companyResolved`, and `cvUsed` publication
+signals. Preparation or persistence failure releases staged data, emits a
+failed `applicationSaveCompleted`, and starts the next FIFO request.
+`saveFailed` is reserved for synchronous admission errors.
+
+`cancelCreateApplication()` cooperatively cancels only the active request and
+then continues the queue. `cancelAllCreateApplications()` removes unstarted
+requests, cancels the active request, suppresses completion notifications for
+the interrupted work, and emits `saveQueueDrained` only after active staged data
+has been released. Controller shutdown applies the same cancellation and wait
+boundary without starting queued requests or allowing late model mutation.
 
 `JobApplicationFactory` owns draft trimming, status/date defaults,
 case-insensitive technology deduplication, typed conversion, and final job
@@ -189,13 +211,20 @@ so both directories update immediately. On restart, CV and company links are
 reconstructed from persisted jobs.
 
 `JobFormPage.qml` keeps unsaved form values and the selected CV while the user
-navigates between pages. Discard resets all fields and errors, clears the CV
-selection, restores the `Applied` status, and remains on Add Job. It does not
-cancel an active save or delete the selected source file. If an operation
-captured before Discard later fails, the form preserves its reset or newly
-entered values and shows only the operation's global failure message. A
-successful save resets the form and retains the existing close-to-previous-page
-behavior.
+navigates between pages. An accepted `applicationQueued` signal resets the
+form immediately and leaves Add Job open for another submission. Completion of
+an older request never changes the current form. Discard resets only the
+current fields and errors, clears the CV selection, restores the `Applied`
+status, and neither cancels queued work nor deletes a selected source file.
+
+`Main.qml` owns presentation-only save notifications and close confirmation.
+Completion notifications are non-modal, display one at a time for 15 seconds,
+and queue later outcomes. A close request while `pendingSaveCount` is non-zero
+is rejected and offers only Wait or Interrupt and Exit. Wait resumes hidden or
+queued notifications without affecting saves. Interrupt and Exit discards
+notifications, calls `cancelAllCreateApplications()`, and closes only after
+`saveQueueDrained`. If the queue drains naturally while the confirmation is
+open, the confirmation closes and the application remains open.
 
 ## Boundaries
 
