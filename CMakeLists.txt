@@ -49,6 +49,8 @@ set(JOBTRACKER_JOB_SOURCES
 )
 
 set(JOBTRACKER_CV_PERSISTENCE_SOURCES
+    src/common/CancellationState.cpp
+    src/common/CancellationState.hpp
     src/cvs/CvImportService.cpp
     src/cvs/CvImportService.hpp
     src/cvs/CvManagedFileStore.cpp
@@ -65,6 +67,8 @@ set(JOBTRACKER_DIRECTORY_PERSISTENCE_SOURCES
 set(JOBTRACKER_JOB_PERSISTENCE_SOURCES
     src/jobs/AddJobService.cpp
     src/jobs/AddJobService.hpp
+    src/jobs/AddJobWorker.cpp
+    src/jobs/AddJobWorker.hpp
     src/jobs/JobRepository.cpp
     src/jobs/JobRepository.hpp
 )

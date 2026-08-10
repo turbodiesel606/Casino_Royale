@@ -2,7 +2,6 @@
 #define JOBTRACKER_SRC_APP_APPBOOTSTRAP_HPP
 
 #include "cvs/CvFileAccessService.hpp"
-#include "cvs/CvImportService.hpp"
 #include "cvs/CvLibraryController.hpp"
 #include "cvs/CvManagedFileStore.hpp"
 #include "cvs/CvRepository.hpp"
@@ -11,7 +10,7 @@
 #include "directory/CompanyRepository.hpp"
 #include "directory/ContactDirectoryController.hpp"
 #include "directory/ContactListModel.hpp"
-#include "jobs/AddJobService.hpp"
+#include "jobs/AddJobWorker.hpp"
 #include "jobs/JobApplicationsController.hpp"
 #include "jobs/JobRepository.hpp"
 #include "storage/SqliteDatabase.hpp"
@@ -46,8 +45,7 @@ private:
     CvFileAccessService cvFileAccessService_; 
     CompanyRepository companyRepository_;
     JobRepository jobRepository_;
-    CvImportService cvImportService_; 
-    AddJobService addJobService_; 
+    AddJobWorker addJobWorker_;
     JobApplicationsController jobApplicationsController_; 
     CvLibraryController cvLibraryController_; 
     DashboardController dashboardController_; 

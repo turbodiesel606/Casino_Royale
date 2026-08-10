@@ -3,6 +3,7 @@
 
 #include "JobApplication.hpp"
 #include "JobApplicationDraft.hpp"
+#include "common/CancellationState.hpp"
 #include "cvs/CvManagedFileStore.hpp"
 #include "cvs/CvDocument.hpp"
 #include "directory/Company.hpp"
@@ -10,7 +11,6 @@
 #include <QVariantMap>
 #include <QUrl>
 
-#include <atomic>
 #include <memory>
 
 class CvImportService;
@@ -49,9 +49,12 @@ struct AddJobPreparationResult final
     std::shared_ptr<CvManagedFilePreparation> cvPreparation_;
 };
 
-// Coordinates the durable Add Job workflow across validation, CV import, company resolution, and job persistence.
-// Performs file preparation without database access on a worker thread, then completes SQLite persistence on the owning thread.
-// Uses one transaction to prevent partial database changes and cleans up completed CV files after failures.
+// Coordinates the durable Add Job workflow across validation, CV import,
+// company resolution, and job persistence. Canonical preflight is independent
+// of storage; the production persistence instance is created and used wholly
+// on the dedicated Add Job worker thread. One transaction prevents partial
+// database changes, and completed CV files are cleaned up after ordinary
+// failures.
 class AddJobService final
 {
 public:
@@ -61,14 +64,16 @@ public:
         CompanyRepository& companyRepository,
         CvImportService& cvImportService);
 
-    AddJobPreflightResult preflight(
+    static AddJobPreflightResult preflight(
         const JobApplicationDraft& draft,
-        const QUrl& selectedCvUrl) const;
+        const QUrl& selectedCvUrl);
     AddJobPreparationResult prepare(
         const NormalizedJobApplicationDraft& draft,
         const QUrl& selectedCvUrl,
-        const std::shared_ptr<std::atomic_bool>& cancellation) const;
-    AddJobResult complete(AddJobPreparationResult preparation) const;
+        const std::shared_ptr<CancellationState>& cancellation) const;
+    AddJobResult complete(
+        AddJobPreparationResult preparation,
+        const std::shared_ptr<CancellationState>& cancellation = {}) const;
     AddJobResult create(const JobApplicationDraft& draft, const QUrl& selectedCvUrl) const;
 
 private:

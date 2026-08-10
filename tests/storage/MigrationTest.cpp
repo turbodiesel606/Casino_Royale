@@ -225,6 +225,7 @@ class MigrationTest final : public QObject
 private slots:
     void initializesCurrentSchemaAndReopens();
     void rejectsNewerSchemaVersion();
+    void constructorFailureUnregistersNamedConnection();
     void migratesVersionOneAndPreservesLinks();
     void migratesVersionTwoCompanyIdentity();
     void rejectsBlankLegacyCompanyTransactionally();
@@ -283,6 +284,39 @@ void MigrationTest::rejectsNewerSchemaVersion()
     database.close();
     database = {};
     QSqlDatabase::removeDatabase(connectionName);
+}
+
+void MigrationTest::constructorFailureUnregistersNamedConnection()
+{
+    testsupport::TemporaryStorageFixture storage;
+    QVERIFY(storage.isValid());
+    const auto databasePath = storage.paths().databasePath();
+    const auto setupConnectionName = QStringLiteral("jobtracker-constructor-failure-%1")
+        .arg(QUuid::createUuid().toString(QUuid::WithoutBraces));
+    auto setupDatabase = QSqlDatabase::addDatabase(
+        QStringLiteral("QSQLITE"),
+        setupConnectionName);
+    setupDatabase.setDatabaseName(databasePath);
+    QVERIFY(setupDatabase.open());
+    {
+        QSqlQuery version{setupDatabase};
+        QVERIFY(version.exec(QStringLiteral("PRAGMA user_version = 4")));
+    }
+    setupDatabase.close();
+    setupDatabase = {};
+    QSqlDatabase::removeDatabase(setupConnectionName);
+
+    const auto initialConnectionCount = QSqlDatabase::connectionNames().size();
+    QString constructionError;
+    try {
+        SqliteDatabase database{databasePath};
+    }
+    catch (const std::exception& error) {
+        constructionError = QString::fromUtf8(error.what());
+    }
+
+    QVERIFY(constructionError.contains(QStringLiteral("newer")));
+    QCOMPARE(QSqlDatabase::connectionNames().size(), initialConnectionCount);
 }
 
 void MigrationTest::migratesVersionOneAndPreservesLinks()

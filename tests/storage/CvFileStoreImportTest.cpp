@@ -1,6 +1,7 @@
 #include "cvs/CvImportService.hpp"
 #include "cvs/CvManagedFileStore.hpp"
 #include "cvs/CvRepository.hpp"
+#include "common/CancellationState.hpp"
 
 #include "../support/StorageTestFixtures.hpp"
 
@@ -11,7 +12,6 @@
 #include <QUrl>
 #include <QtTest/QtTest>
 
-#include <atomic>
 #include <memory>
 
 class CvFileStoreImportTest final : public QObject
@@ -35,7 +35,7 @@ void CvFileStoreImportTest::streamsHashAndStagesCopy()
     CvManagedFileStore fileStore{storage.paths()};
     const QByteArray contents(3 * 1024 * 1024 + 137, 'x');
     const auto sourcePath = storage.createFile(QStringLiteral("streamed.pdf"), contents);
-    const auto cancellation = std::make_shared<std::atomic_bool>(false);
+    const auto cancellation = std::make_shared<CancellationState>();
 
     const auto result = fileStore.prepare(QUrl::fromLocalFile(sourcePath), cancellation);
 
@@ -58,7 +58,7 @@ void CvFileStoreImportTest::reportsStagedCopyFailure()
     QFile directoryBlocker{storage.paths().resumesDirectory()};
     QVERIFY(directoryBlocker.open(QIODevice::WriteOnly));
     directoryBlocker.close();
-    const auto cancellation = std::make_shared<std::atomic_bool>(false);
+    const auto cancellation = std::make_shared<CancellationState>();
 
     const auto result = fileStore.prepare(QUrl::fromLocalFile(sourcePath), cancellation);
 
@@ -75,7 +75,8 @@ void CvFileStoreImportTest::cancelsPreparationAndCleansStage()
     const auto sourcePath = storage.createFile(
         QStringLiteral("cancel.pdf"),
         QByteArray(2 * 1024 * 1024, 'c'));
-    const auto cancellation = std::make_shared<std::atomic_bool>(true);
+    const auto cancellation = std::make_shared<CancellationState>();
+    cancellation->requestCancellation();
 
     const auto result = fileStore.prepare(QUrl::fromLocalFile(sourcePath), cancellation);
 
@@ -123,7 +124,7 @@ void CvFileStoreImportTest::reusesCvWithSameIdentity()
     CvManagedFileStore fileStore{fixture.storage().paths()};
     CvImportService importer{fileStore, repository};
     const auto sourcePath = fixture.storage().createFile();
-    const auto cancellation = std::make_shared<std::atomic_bool>(false);
+    const auto cancellation = std::make_shared<CancellationState>();
 
     auto firstPreparation = importer.prepareDocument(QUrl::fromLocalFile(sourcePath), cancellation);
     QVERIFY2(firstPreparation.succeeded(), qPrintable(firstPreparation.message_));
@@ -150,7 +151,7 @@ void CvFileStoreImportTest::distinguishesSameContentWithDifferentNames()
     CvImportService importer{fileStore, repository};
     const auto firstPath = fixture.storage().createFile(QStringLiteral("first.pdf"));
     const auto secondPath = fixture.storage().createFile(QStringLiteral("second.pdf"));
-    const auto cancellation = std::make_shared<std::atomic_bool>(false);
+    const auto cancellation = std::make_shared<CancellationState>();
 
     const auto firstPreparation = importer.prepareDocument(QUrl::fromLocalFile(firstPath), cancellation);
     const auto secondPreparation = importer.prepareDocument(QUrl::fromLocalFile(secondPath), cancellation);
@@ -184,7 +185,7 @@ void CvFileStoreImportTest::distinguishesDifferentContentWithSameName()
         QStringLiteral("resume.pdf"),
         QByteArrayLiteral("%PDF-1.4 Second CV"),
         secondDirectory);
-    const auto cancellation = std::make_shared<std::atomic_bool>(false);
+    const auto cancellation = std::make_shared<CancellationState>();
 
     const auto firstPreparation = importer.prepareDocument(QUrl::fromLocalFile(firstPath), cancellation);
     const auto secondPreparation = importer.prepareDocument(QUrl::fromLocalFile(secondPath), cancellation);

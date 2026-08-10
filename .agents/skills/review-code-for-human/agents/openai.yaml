@@ -1,4 +1,4 @@
 interface:
-  display_name: "Review Code for Human"
-  short_description: "Trace and explain real code for human review"
-  default_prompt: "Use $review-code-for-human to analyze this code or function through its actual project call chain: [code or function]."
+  display_name: "Detailed Review for Human"
+  short_description: "Diagram-first, source-backed code walkthroughs"
+  default_prompt: "Use $review-code-for-human to diagram and explain this code through its complete project call chain: [code or symbol]."

@@ -2,13 +2,13 @@
 #define JOBTRACKER_SRC_CVS_CVMANAGEDFILESTORE_HPP
 
 #include "CvDocument.hpp"
+#include "common/CancellationState.hpp"
 
 #include <QString>
 #include <QStringList>
 #include <QUrl>
 #include <QVector>
 
-#include <atomic>
 #include <memory>
 
 class StoragePaths;
@@ -57,7 +57,7 @@ public:
 
     CvManagedFilePreparationResult prepare(
         const QUrl& sourceUrl,
-        const std::shared_ptr<std::atomic_bool>& cancellation) const;
+        const std::shared_ptr<CancellationState>& cancellation) const;
     QString finalize(CvManagedFilePreparation& preparation) const;
     bool removeCompletedFile(const QString& completedFilePath) const;
     CvManagedFileRecoveryReport reconcile(const QVector<CvDocument>& documents) const;

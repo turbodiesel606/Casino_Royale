@@ -19,6 +19,8 @@ public:
     const QSqlDatabase& connection() const;
 
 private:
+    void closeAndRemoveConnection();
+
     QString connectionName_;
     QSqlDatabase database_;
 };

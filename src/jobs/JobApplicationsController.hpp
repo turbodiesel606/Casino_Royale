@@ -3,27 +3,26 @@
 
 #include "common/RoleFilterProxyModel.hpp"
 #include "common/StableIdSelectionTracker.hpp"
-#include "cvs/CvDocument.hpp"
-#include "JobApplicationDraft.hpp"
 #include "JobApplicationListModel.hpp"
+#include "cvs/CvDocument.hpp"
 
 #include <QObject>
 #include <QStringList>
-#include <QThreadPool>
 #include <QUrl>
 #include <QVariantMap>
 
-#include <atomic>
 #include <deque>
 #include <memory>
 #include <optional>
 
 class QAbstractItemModel;
-class AddJobService;
-struct AddJobPreparationResult;
+class AddJobWorker;
+class CancellationState;
+struct AddJobAdmissionOutcome;
+struct AddJobSaveOutcome;
 
 // Exposes job applications, selection, filtering, and validation to the user interface through Qt models and properties.
-// Coordinates asynchronous job creation through AddJobService and updates the in-memory model after successful persistence.
+// Owns the raw Add Job FIFO and publishes worker results to GUI-thread models and QML-facing signals.
 class JobApplicationsController final : public QObject
 {
     Q_OBJECT
@@ -41,7 +40,7 @@ class JobApplicationsController final : public QObject
 public:
     JobApplicationsController(
         QVector<JobApplication> applications,
-        AddJobService& addJobService,
+        AddJobWorker& addJobWorker,
         QObject* parent = nullptr);
     ~JobApplicationsController() override;
 
@@ -77,7 +76,12 @@ signals:
     void resultSummaryChanged();
     void savingChanged();
     void pendingSaveCountChanged();
-    void applicationQueued(quint64 operationId, const QString& jobTitle);
+    void applicationQueued(quint64 operationId);
+    void applicationAccepted(quint64 operationId, const QString& jobTitle);
+    void applicationRejected(
+        quint64 operationId,
+        const QVariantMap& fieldErrors,
+        const QString& message);
     void applicationSaveCompleted(
         quint64 operationId,
         const QString& jobTitle,
@@ -86,14 +90,13 @@ signals:
     void saveQueueDrained();
     void applicationCreated(const QString& applicationId);
     void companyResolved(const QString& companyId, const QString& companyName);
-    void saveFailed(const QVariantMap& fieldErrors, const QString& message);
     void cvUsed(const CvDocument& document, const QString& applicationId, bool wasInserted);
 
 private:
     struct QueuedCreateApplication final
     {
         quint64 operationId_ = 0;
-        NormalizedJobApplicationDraft draft_;
+        QVariantMap rawFormValues_;
         QUrl selectedCvUrl_;
     };
 
@@ -102,10 +105,12 @@ private:
     void handleVisibleCountChanged();
     void startNextCreateApplication();
     void publishPendingSaveStateChange(int previousCount);
-    void finishCreateApplication(
+    void handleAddJobAdmission(const AddJobAdmissionOutcome& outcome);
+    void handleAddJobSave(const AddJobSaveOutcome& outcome);
+    bool isActiveCreateOutcome(
         quint64 operationId,
-        const std::shared_ptr<std::atomic_bool>& cancellation,
-        AddJobPreparationResult preparation);
+        const std::shared_ptr<CancellationState>& cancellation) const;
+    void releaseActiveCreateApplication();
     QVariantMap applicationToMap(int sourceRow) const;
 
     JobApplicationListModel applicationsModel_;
@@ -115,11 +120,10 @@ private:
     QString statusFilter_;
     int publishedApplicationCount_ = 0;
     bool visibleCountNotificationsSuppressed_ = false;
-    AddJobService& addJobService_;
-    QThreadPool filePreparationPool_;
+    AddJobWorker& addJobWorker_;
     std::deque<QueuedCreateApplication> createQueue_;
     std::optional<QueuedCreateApplication> activeCreateApplication_;
-    std::shared_ptr<std::atomic_bool> activeCreateCancellation_;
+    std::shared_ptr<CancellationState> activeCreateCancellation_;
     quint64 nextCreateOperationId_ = 0;
     bool suppressActiveCompletionNotification_ = false;
     bool shuttingDown_ = false;

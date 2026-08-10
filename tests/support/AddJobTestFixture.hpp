@@ -8,6 +8,7 @@
 #include "cvs/CvRepository.hpp"
 #include "directory/CompanyRepository.hpp"
 #include "jobs/AddJobService.hpp"
+#include "jobs/AddJobWorker.hpp"
 #include "jobs/JobApplicationDraft.hpp"
 #include "jobs/JobRepository.hpp"
 
@@ -28,6 +29,18 @@ inline JobApplicationDraft validJobDraft()
         QStringLiteral("qt"),
     };
     return draft;
+}
+
+inline QVariantMap validJobFormValues(const QString& jobTitle = QStringLiteral("Qt Developer"))
+{
+    return {
+        {QStringLiteral("jobTitle"), jobTitle},
+        {QStringLiteral("jobUrl"), QString()},
+        {QStringLiteral("companyName"), QStringLiteral("Example Company")},
+        {QStringLiteral("workFormat"), QStringLiteral("Remote")},
+        {QStringLiteral("status"), QStringLiteral("Applied")},
+        {QStringLiteral("appliedDate"), QStringLiteral("2026-08-04")},
+    };
 }
 
 class AddJobTestFixture final
@@ -61,6 +74,31 @@ public:
     CvManagedFileStore fileStore_;
     CvImportService importer_;
     AddJobService service_;
+};
+
+class AddJobWorkerTestFixture final
+{
+public:
+    AddJobWorkerTestFixture()
+        : database_{storage_.paths().databasePath()}
+        , cvRepository_{database_.connection()}
+        , companyRepository_{database_.connection()}
+        , jobRepository_{database_.connection()}
+        , worker_{storage_.paths().dataDirectory()}
+    {
+    }
+
+    bool isValid() const
+    {
+        return storage_.isValid();
+    }
+
+    TemporaryStorageFixture storage_;
+    SqliteDatabase database_;
+    CvRepository cvRepository_;
+    CompanyRepository companyRepository_;
+    JobRepository jobRepository_;
+    AddJobWorker worker_;
 };
 
 } // namespace testsupport

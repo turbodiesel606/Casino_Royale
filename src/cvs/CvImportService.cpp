@@ -41,7 +41,7 @@ CvImportService::CvImportService(
 
 CvManagedFilePreparationResult CvImportService::prepareDocument(
     const QUrl& sourceUrl,
-    const std::shared_ptr<std::atomic_bool>& cancellation) const
+    const std::shared_ptr<CancellationState>& cancellation) const
 {
     return managedFileStore_.prepare(sourceUrl, cancellation);
 }

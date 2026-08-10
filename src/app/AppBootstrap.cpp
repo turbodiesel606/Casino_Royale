@@ -17,9 +17,8 @@ AppBootstrap::AppBootstrap(QCoreApplication& app)
 	, cvFileAccessService_{ storagePaths_ }
 	, companyRepository_{ database_.connection() }
 	, jobRepository_{ database_.connection() }
-	, cvImportService_{ cvManagedFileStore_, cvRepository_ }
-	, addJobService_{ database_.connection(), jobRepository_, companyRepository_, cvImportService_ }
-	, jobApplicationsController_{ jobRepository_.findAll(), addJobService_ }
+	, addJobWorker_{ storagePaths_.dataDirectory() }
+	, jobApplicationsController_{ jobRepository_.findAll(), addJobWorker_ }
 	, cvLibraryController_{
 		jobApplicationsController_.jobApplicationListModel(),
 		cvRepository_.findAll(),

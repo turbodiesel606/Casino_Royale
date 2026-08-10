@@ -58,15 +58,21 @@ Name tests by the behavior they cover, and keep them registered through the proj
 - `JobTrackerRelationProxyTests` covers relation filtering and every relevant source-model mutation.
 - `JobTrackerSelectionTrackerTests` covers stable-ID selection, fallback behavior, and precise change reporting.
 - Jobs, CV, dashboard, and directory controller suites retain QML-facing contracts and controller-specific side effects.
-- `JobTrackerMigrationTests` covers schema initialization, supported upgrades, rollback, foreign keys, reopen, and unsupported newer versions.
+- `JobTrackerMigrationTests` covers schema initialization, supported upgrades,
+  rollback, foreign keys, reopen, unsupported newer versions, and named-connection
+  cleanup when `SqliteDatabase` construction fails.
 - `JobTrackerRepositoryTests` covers repository persistence plus shared SQL error and transaction infrastructure.
 - `JobTrackerCvImportTests` covers managed file preparation, identity, cleanup, and recovery.
-- `JobTrackerAddJobTests` covers synchronous Add Job preflight, defensive
-  pre-staging validation, transaction behavior, and durable orchestration.
-- `JobTrackerIntegrationTests` covers asynchronous controller-to-storage flows,
-  FIFO persistence order, pending-count and saving transitions, per-request
-  failure isolation, duplicate-CV cleanup, active and cancel-all behavior,
-  shutdown cleanup, and restart hydration.
+- `JobTrackerAddJobTests` covers service-level Add Job preflight, defensive
+  pre-staging validation, cancellation immediately before a transaction,
+  transaction behavior, and durable orchestration.
+- `JobTrackerIntegrationTests` covers raw controller admission, queued/accepted/
+  rejected/final ordering, worker-thread connection initialization and retry,
+  storage-independent validation, FIFO persistence order, pending-count and
+  saving transitions,
+  CV and database-lock failure isolation, duplicate-CV cleanup, mutex-backed
+  active and cancel-all behavior, GUI event-loop responsiveness, shutdown
+  cleanup, and restart hydration.
 
 Storage-oriented suites reuse the temporary database and filesystem fixtures under `tests/support` so setup and cleanup rules remain consistent.
 

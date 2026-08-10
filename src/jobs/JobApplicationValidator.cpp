@@ -43,9 +43,8 @@ namespace {
 				QStringLiteral("Choose Remote, Hybrid, or On-site."));
 		}
 
-		if (jobUrl.isEmpty()) {
+		if (!jobUrl.isEmpty()) {
 			const auto scheme = jobUrl.scheme();
-			qDebug() << "scheme: " << scheme;
 			if (!jobUrl.isValid()
 				|| jobUrl.host().isEmpty()
 				|| (scheme.compare(QStringLiteral("http"), Qt::CaseInsensitive) != 0

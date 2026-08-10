@@ -1,4 +1,5 @@
 #include "../support/AddJobTestFixture.hpp"
+#include "common/CancellationState.hpp"
 
 #include <QDir>
 #include <QFileInfo>
@@ -6,8 +7,8 @@
 #include <QUrl>
 #include <QtTest/QtTest>
 
-#include <atomic>
 #include <memory>
+#include <utility>
 
 class AddJobServiceTest final : public QObject
 {
@@ -20,6 +21,7 @@ private slots:
     void rejectsInvalidInputWithoutWriting();
     void preflightNormalizesAndReturnsAllValidationErrors();
     void prepareDefensivelyRejectsInvalidDraftWithoutStaging();
+    void cancelsPreparedJobBeforeTransaction();
 };
 
 void AddJobServiceTest::createsJobAndCopiesCv()
@@ -182,7 +184,7 @@ void AddJobServiceTest::prepareDefensivelyRejectsInvalidDraftWithoutStaging()
     const auto sourceUrl = QUrl::fromLocalFile(fixture.storage_.createFile());
     const auto preflight = fixture.service_.preflight(draft, sourceUrl);
     QVERIFY(!preflight.isValid());
-    const auto cancellation = std::make_shared<std::atomic_bool>(false);
+    const auto cancellation = std::make_shared<CancellationState>();
 
     const auto preparation = fixture.service_.prepare(
         preflight.draft_,
@@ -191,6 +193,36 @@ void AddJobServiceTest::prepareDefensivelyRejectsInvalidDraftWithoutStaging()
 
     QVERIFY(!preparation.success_);
     QVERIFY(preparation.fieldErrors_.contains(QStringLiteral("companyName")));
+    QVERIFY(QDir{fixture.storage_.paths().resumesDirectory()}.entryList(QDir::Files).isEmpty());
+}
+
+void AddJobServiceTest::cancelsPreparedJobBeforeTransaction()
+{
+    testsupport::AddJobTestFixture fixture;
+    QVERIFY(fixture.isValid());
+    const auto sourceUrl = QUrl::fromLocalFile(fixture.storage_.createFile());
+    const auto cancellation = std::make_shared<CancellationState>();
+    const auto preflight = fixture.service_.preflight(
+        testsupport::validJobDraft(),
+        sourceUrl);
+    QVERIFY(preflight.isValid());
+
+    auto preparation = fixture.service_.prepare(
+        preflight.draft_,
+        sourceUrl,
+        cancellation);
+    QVERIFY2(preparation.success_, qPrintable(preparation.message_));
+    cancellation->requestCancellation();
+
+    const auto result = fixture.service_.complete(
+        std::move(preparation),
+        cancellation);
+
+    QVERIFY(!result.success_);
+    QVERIFY(result.message_.contains(QStringLiteral("canceled"), Qt::CaseInsensitive));
+    QVERIFY(fixture.jobRepository_.findAll().isEmpty());
+    QVERIFY(fixture.companyRepository_.findAll().isEmpty());
+    QVERIFY(fixture.cvRepository_.findAll().isEmpty());
     QVERIFY(QDir{fixture.storage_.paths().resumesDirectory()}.entryList(QDir::Files).isEmpty());
 }
 

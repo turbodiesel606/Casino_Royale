@@ -18,10 +18,10 @@ namespace {
 
 	constexpr qint64 copyBufferSize = 1024 * 1024;
 
-	bool isCancelled(const std::shared_ptr<std::atomic_bool>& cancellation)
+	bool isCancelled(const std::shared_ptr<CancellationState>& cancellation)
 	{
 		return cancellation != nullptr
-			&& cancellation->load(std::memory_order_relaxed);
+			&& cancellation->isCancellationRequested();
 	}
 
 	QString managedStoredName(const QFileInfo& sourceInfo)
@@ -84,7 +84,7 @@ CvManagedFileStore::CvManagedFileStore(const StoragePaths& paths)
 
 CvManagedFilePreparationResult CvManagedFileStore::prepare(
 	const QUrl& sourceUrl,
-	const std::shared_ptr<std::atomic_bool>& cancellation) const
+	const std::shared_ptr<CancellationState>& cancellation) const
 {
 	CvManagedFilePreparationResult result;
 	if (isCancelled(cancellation)) {

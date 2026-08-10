@@ -7,25 +7,16 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QSignalSpy>
+#include <QSqlDatabase>
 #include <QSqlQuery>
+#include <QTimer>
 #include <QUrl>
 #include <QVariantMap>
 #include <QtTest/QtTest>
 
 namespace {
-
-QVariantMap validFormValues(const QString& jobTitle)
-{
-    return {
-        {QStringLiteral("jobTitle"), jobTitle},
-        {QStringLiteral("jobUrl"), QString()},
-        {QStringLiteral("companyName"), QStringLiteral("Example Company")},
-        {QStringLiteral("workFormat"), QStringLiteral("Remote")},
-        {QStringLiteral("status"), QStringLiteral("Applied")},
-        {QStringLiteral("appliedDate"), QStringLiteral("2026-08-04")},
-    };
-}
 
 QStringList persistedJobTitlesInInsertOrder(QSqlDatabase& database)
 {
@@ -41,7 +32,7 @@ QStringList persistedJobTitlesInInsertOrder(QSqlDatabase& database)
     return result;
 }
 
-QStringList stagedFileNames(const testsupport::AddJobTestFixture& fixture)
+QStringList stagedFileNames(const testsupport::AddJobWorkerTestFixture& fixture)
 {
     return QDir{fixture.storage_.paths().resumesDirectory()}.entryList(
         {QStringLiteral("*.part")},
@@ -58,8 +49,12 @@ private slots:
     void persistsAndHydratesJobAcrossDatabaseReopen();
     void controllerPublishesSuccessfulCreation();
     void rapidSubmissionsPersistInFifoOrderWithExactStateTransitions();
+    void invalidRequestRejectsWithoutMutationAndContinues();
     void failedRequestDoesNotBlockLaterQueuedRequest();
     void duplicateCvReuseLeavesNoStagedFiles();
+    void workerInitializationFailureCleansConnectionAndRetries();
+    void databaseLockFailureDoesNotBlockLaterRequest();
+    void largeCvProcessingKeepsGuiEventLoopResponsive();
     void activeCancellationContinuesWithNextQueuedRequest();
     void cancelAllRemovesQueuedWorkAndCleansActiveRequest();
     void controllerShutdownLeavesNoPartialState();
@@ -114,9 +109,9 @@ void EndToEndIntegrationTest::persistsAndHydratesJobAcrossDatabaseReopen()
 
 void EndToEndIntegrationTest::controllerPublishesSuccessfulCreation()
 {
-    testsupport::AddJobTestFixture fixture;
+    testsupport::AddJobWorkerTestFixture fixture;
     QVERIFY(fixture.isValid());
-    JobApplicationsController controller{{}, fixture.service_};
+    JobApplicationsController controller{{}, fixture.worker_};
     ContactListModel contacts;
     CompanyDirectoryController companyDirectory{
         fixture.companyRepository_.findAll(),
@@ -128,19 +123,21 @@ void EndToEndIntegrationTest::controllerPublishesSuccessfulCreation()
         &companyDirectory,
         &CompanyDirectoryController::publishCompany);
     QSignalSpy queuedSpy{&controller, &JobApplicationsController::applicationQueued};
+    QSignalSpy acceptedSpy{&controller, &JobApplicationsController::applicationAccepted};
     QSignalSpy completedSpy{&controller, &JobApplicationsController::applicationSaveCompleted};
     QSignalSpy createdSpy{&controller, &JobApplicationsController::applicationCreated};
     QSignalSpy companySpy{&controller, &JobApplicationsController::companyResolved};
-    QSignalSpy failedSpy{&controller, &JobApplicationsController::saveFailed};
+    QSignalSpy rejectedSpy{&controller, &JobApplicationsController::applicationRejected};
 
     controller.createApplication(
-        validFormValues(QStringLiteral("Qt Developer")),
+        testsupport::validJobFormValues(QStringLiteral("Qt Developer")),
         QUrl::fromLocalFile(fixture.storage_.createFile()));
 
     QTRY_COMPARE(completedSpy.count(), 1);
     QCOMPARE(queuedSpy.count(), 1);
+    QCOMPARE(acceptedSpy.count(), 1);
     QCOMPARE(createdSpy.count(), 1);
-    QCOMPARE(failedSpy.count(), 0);
+    QCOMPARE(rejectedSpy.count(), 0);
     QCOMPARE(companySpy.count(), 1);
     QVERIFY(completedSpy.first().at(2).toBool());
     QVERIFY(!completedSpy.first().at(3).toString().isEmpty());
@@ -157,16 +154,19 @@ void EndToEndIntegrationTest::controllerPublishesSuccessfulCreation()
 
 void EndToEndIntegrationTest::rapidSubmissionsPersistInFifoOrderWithExactStateTransitions()
 {
-    testsupport::AddJobTestFixture fixture;
+    testsupport::AddJobWorkerTestFixture fixture;
     QVERIFY(fixture.isValid());
-    JobApplicationsController controller{{}, fixture.service_};
+    JobApplicationsController controller{{}, fixture.worker_};
     QSignalSpy queuedSpy{&controller, &JobApplicationsController::applicationQueued};
+    QSignalSpy acceptedSpy{&controller, &JobApplicationsController::applicationAccepted};
     QSignalSpy completedSpy{&controller, &JobApplicationsController::applicationSaveCompleted};
     QSignalSpy createdSpy{&controller, &JobApplicationsController::applicationCreated};
     QSignalSpy drainedSpy{&controller, &JobApplicationsController::saveQueueDrained};
-    QSignalSpy failedSpy{&controller, &JobApplicationsController::saveFailed};
+    QSignalSpy rejectedSpy{&controller, &JobApplicationsController::applicationRejected};
     QList<int> pendingCounts;
     QList<bool> savingStates;
+    QStringList eventOrder;
+    const auto initialConnectionCount = QSqlDatabase::connectionNames().size();
     QObject::connect(
         &controller,
         &JobApplicationsController::pendingSaveCountChanged,
@@ -177,16 +177,37 @@ void EndToEndIntegrationTest::rapidSubmissionsPersistInFifoOrderWithExactStateTr
         &JobApplicationsController::savingChanged,
         &controller,
         [&controller, &savingStates]() { savingStates.append(controller.saving()); });
+    QObject::connect(
+        &controller,
+        &JobApplicationsController::applicationQueued,
+        &controller,
+        [&eventOrder](quint64 operationId) {
+            eventOrder.append(QStringLiteral("queued-%1").arg(operationId));
+        });
+    QObject::connect(
+        &controller,
+        &JobApplicationsController::applicationAccepted,
+        &controller,
+        [&eventOrder](quint64 operationId, const QString&) {
+            eventOrder.append(QStringLiteral("accepted-%1").arg(operationId));
+        });
+    QObject::connect(
+        &controller,
+        &JobApplicationsController::applicationSaveCompleted,
+        &controller,
+        [&eventOrder](quint64 operationId, const QString&, bool, const QString&) {
+            eventOrder.append(QStringLiteral("completed-%1").arg(operationId));
+        });
     const auto sourcePath = fixture.storage_.createFile();
 
     controller.createApplication(
-        validFormValues(QStringLiteral("First Role")),
+        testsupport::validJobFormValues(QStringLiteral("First Role")),
         QUrl::fromLocalFile(sourcePath));
     controller.createApplication(
-        validFormValues(QStringLiteral("Second Role")),
+        testsupport::validJobFormValues(QStringLiteral("Second Role")),
         QUrl::fromLocalFile(sourcePath));
     controller.createApplication(
-        validFormValues(QStringLiteral("Third Role")),
+        testsupport::validJobFormValues(QStringLiteral("Third Role")),
         QUrl::fromLocalFile(sourcePath));
 
     QCOMPARE(controller.pendingSaveCount(), 3);
@@ -198,8 +219,9 @@ void EndToEndIntegrationTest::rapidSubmissionsPersistInFifoOrderWithExactStateTr
     QTRY_COMPARE(drainedSpy.count(), 1);
 
     QCOMPARE(completedSpy.count(), 3);
+    QCOMPARE(acceptedSpy.count(), 3);
     QCOMPARE(createdSpy.count(), 3);
-    QCOMPARE(failedSpy.count(), 0);
+    QCOMPARE(rejectedSpy.count(), 0);
     QCOMPARE(pendingCounts, QList<int>({1, 2, 3, 2, 1, 0}));
     QCOMPARE(savingStates, QList<bool>({true, false}));
     QCOMPARE(completedSpy.at(0).at(0).toULongLong(), quint64(1));
@@ -212,6 +234,20 @@ void EndToEndIntegrationTest::rapidSubmissionsPersistInFifoOrderWithExactStateTr
     QVERIFY(completedSpy.at(1).at(2).toBool());
     QVERIFY(completedSpy.at(2).at(2).toBool());
     QCOMPARE(
+        eventOrder,
+        QStringList({
+            QStringLiteral("queued-1"),
+            QStringLiteral("queued-2"),
+            QStringLiteral("queued-3"),
+            QStringLiteral("accepted-1"),
+            QStringLiteral("completed-1"),
+            QStringLiteral("accepted-2"),
+            QStringLiteral("completed-2"),
+            QStringLiteral("accepted-3"),
+            QStringLiteral("completed-3"),
+        }));
+    QCOMPARE(QSqlDatabase::connectionNames().size(), initialConnectionCount + 1);
+    QCOMPARE(
         persistedJobTitlesInInsertOrder(fixture.database_.connection()),
         QStringList({
             QStringLiteral("First Role"),
@@ -222,31 +258,146 @@ void EndToEndIntegrationTest::rapidSubmissionsPersistInFifoOrderWithExactStateTr
     QVERIFY(!controller.saving());
 }
 
+void EndToEndIntegrationTest::invalidRequestRejectsWithoutMutationAndContinues()
+{
+    testsupport::AddJobWorkerTestFixture fixture;
+    QVERIFY(fixture.isValid());
+    JobApplicationsController controller{{}, fixture.worker_};
+    QSignalSpy queuedSpy{&controller, &JobApplicationsController::applicationQueued};
+    QSignalSpy acceptedSpy{&controller, &JobApplicationsController::applicationAccepted};
+    QSignalSpy rejectedSpy{&controller, &JobApplicationsController::applicationRejected};
+    QSignalSpy completedSpy{&controller, &JobApplicationsController::applicationSaveCompleted};
+    QSignalSpy drainedSpy{&controller, &JobApplicationsController::saveQueueDrained};
+    QStringList eventOrder;
+    bool rejectionHadNoDatabaseOrFileMutation = false;
+    const auto connectionCountBeforeRequests = QSqlDatabase::connectionNames().size();
+    bool rejectionCreatedNoWorkerConnection = false;
+
+    QObject::connect(
+        &controller,
+        &JobApplicationsController::applicationQueued,
+        &controller,
+        [&eventOrder](quint64 operationId) {
+            eventOrder.append(QStringLiteral("queued-%1").arg(operationId));
+        });
+    QObject::connect(
+        &controller,
+        &JobApplicationsController::applicationAccepted,
+        &controller,
+        [&eventOrder](quint64 operationId, const QString&) {
+            eventOrder.append(QStringLiteral("accepted-%1").arg(operationId));
+        });
+    QObject::connect(
+        &controller,
+        &JobApplicationsController::applicationRejected,
+        &controller,
+        [
+            &fixture,
+            &eventOrder,
+            &rejectionHadNoDatabaseOrFileMutation,
+            connectionCountBeforeRequests,
+            &rejectionCreatedNoWorkerConnection](
+            quint64 operationId,
+            const QVariantMap&,
+            const QString&) {
+            eventOrder.append(QStringLiteral("rejected-%1").arg(operationId));
+            rejectionHadNoDatabaseOrFileMutation = fixture.jobRepository_.findAll().isEmpty()
+                && fixture.companyRepository_.findAll().isEmpty()
+                && fixture.cvRepository_.findAll().isEmpty()
+                && QDir{fixture.storage_.paths().resumesDirectory()}
+                    .entryList(QDir::Files | QDir::NoDotAndDotDot)
+                    .isEmpty();
+            rejectionCreatedNoWorkerConnection =
+                QSqlDatabase::connectionNames().size() == connectionCountBeforeRequests;
+        });
+    QObject::connect(
+        &controller,
+        &JobApplicationsController::applicationSaveCompleted,
+        &controller,
+        [&eventOrder](quint64 operationId, const QString&, bool, const QString&) {
+            eventOrder.append(QStringLiteral("completed-%1").arg(operationId));
+        });
+
+    controller.createApplication(
+        {
+            {QStringLiteral("jobTitle"), QStringLiteral(" ")},
+            {QStringLiteral("jobUrl"), QStringLiteral("ftp://example.com/job")},
+            {QStringLiteral("companyName"), QStringLiteral(" ")},
+            {QStringLiteral("workFormat"), QStringLiteral("Office")},
+            {QStringLiteral("status"), QStringLiteral("Pending")},
+            {QStringLiteral("appliedDate"), QStringLiteral("2026-99-87")},
+        },
+        {});
+    controller.createApplication(
+        testsupport::validJobFormValues(QStringLiteral("Valid After Rejection")),
+        QUrl::fromLocalFile(fixture.storage_.createFile(QStringLiteral("after-rejection.pdf"))));
+
+    QCOMPARE(queuedSpy.count(), 2);
+    QCOMPARE(rejectedSpy.count(), 0);
+    QCOMPARE(controller.pendingSaveCount(), 2);
+    QTRY_COMPARE(drainedSpy.count(), 1);
+
+    QCOMPARE(rejectedSpy.count(), 1);
+    QCOMPARE(rejectedSpy.first().at(0).toULongLong(), quint64(1));
+    const auto errors = rejectedSpy.first().at(1).toMap();
+    const QStringList expectedFields{
+        QStringLiteral("jobTitle"),
+        QStringLiteral("jobUrl"),
+        QStringLiteral("companyName"),
+        QStringLiteral("workFormat"),
+        QStringLiteral("status"),
+        QStringLiteral("appliedDate"),
+        QStringLiteral("cv"),
+    };
+    for (const auto& field : expectedFields) {
+        QVERIFY2(errors.contains(field), qPrintable(field));
+    }
+    QVERIFY(rejectionHadNoDatabaseOrFileMutation);
+    QVERIFY(rejectionCreatedNoWorkerConnection);
+    QCOMPARE(acceptedSpy.count(), 1);
+    QCOMPARE(acceptedSpy.first().at(0).toULongLong(), quint64(2));
+    QCOMPARE(completedSpy.count(), 1);
+    QVERIFY(completedSpy.first().at(2).toBool());
+    QCOMPARE(
+        eventOrder,
+        QStringList({
+            QStringLiteral("queued-1"),
+            QStringLiteral("queued-2"),
+            QStringLiteral("rejected-1"),
+            QStringLiteral("accepted-2"),
+            QStringLiteral("completed-2"),
+        }));
+    QCOMPARE(
+        persistedJobTitlesInInsertOrder(fixture.database_.connection()),
+        QStringList({QStringLiteral("Valid After Rejection")}));
+    QVERIFY(stagedFileNames(fixture).isEmpty());
+}
+
 void EndToEndIntegrationTest::failedRequestDoesNotBlockLaterQueuedRequest()
 {
-    testsupport::AddJobTestFixture fixture;
+    testsupport::AddJobWorkerTestFixture fixture;
     QVERIFY(fixture.isValid());
-    JobApplicationsController controller{{}, fixture.service_};
+    JobApplicationsController controller{{}, fixture.worker_};
     QSignalSpy completedSpy{&controller, &JobApplicationsController::applicationSaveCompleted};
     QSignalSpy createdSpy{&controller, &JobApplicationsController::applicationCreated};
     QSignalSpy drainedSpy{&controller, &JobApplicationsController::saveQueueDrained};
-    QSignalSpy failedSpy{&controller, &JobApplicationsController::saveFailed};
+    QSignalSpy rejectedSpy{&controller, &JobApplicationsController::applicationRejected};
     const auto missingPath = QDir{fixture.storage_.rootPath()}.filePath(
         QStringLiteral("missing.pdf"));
     const auto validPath = fixture.storage_.createFile(QStringLiteral("later.pdf"));
 
     controller.createApplication(
-        validFormValues(QStringLiteral("Unavailable CV Role")),
+        testsupport::validJobFormValues(QStringLiteral("Unavailable CV Role")),
         QUrl::fromLocalFile(missingPath));
     controller.createApplication(
-        validFormValues(QStringLiteral("Later Valid Role")),
+        testsupport::validJobFormValues(QStringLiteral("Later Valid Role")),
         QUrl::fromLocalFile(validPath));
 
     QTRY_COMPARE(drainedSpy.count(), 1);
 
     QCOMPARE(completedSpy.count(), 2);
     QCOMPARE(createdSpy.count(), 1);
-    QCOMPARE(failedSpy.count(), 0);
+    QCOMPARE(rejectedSpy.count(), 0);
     QCOMPARE(completedSpy.at(0).at(1).toString(), QStringLiteral("Unavailable CV Role"));
     QVERIFY(!completedSpy.at(0).at(2).toBool());
     QVERIFY(!completedSpy.at(0).at(3).toString().isEmpty());
@@ -259,18 +410,18 @@ void EndToEndIntegrationTest::failedRequestDoesNotBlockLaterQueuedRequest()
 
 void EndToEndIntegrationTest::duplicateCvReuseLeavesNoStagedFiles()
 {
-    testsupport::AddJobTestFixture fixture;
+    testsupport::AddJobWorkerTestFixture fixture;
     QVERIFY(fixture.isValid());
-    JobApplicationsController controller{{}, fixture.service_};
+    JobApplicationsController controller{{}, fixture.worker_};
     QSignalSpy completedSpy{&controller, &JobApplicationsController::applicationSaveCompleted};
     QSignalSpy drainedSpy{&controller, &JobApplicationsController::saveQueueDrained};
     const auto sourcePath = fixture.storage_.createFile(QStringLiteral("shared.pdf"));
 
     controller.createApplication(
-        validFormValues(QStringLiteral("First Shared CV Role")),
+        testsupport::validJobFormValues(QStringLiteral("First Shared CV Role")),
         QUrl::fromLocalFile(sourcePath));
     controller.createApplication(
-        validFormValues(QStringLiteral("Second Shared CV Role")),
+        testsupport::validJobFormValues(QStringLiteral("Second Shared CV Role")),
         QUrl::fromLocalFile(sourcePath));
 
     QTRY_COMPARE(drainedSpy.count(), 1);
@@ -287,54 +438,238 @@ void EndToEndIntegrationTest::duplicateCvReuseLeavesNoStagedFiles()
     QVERIFY(stagedFileNames(fixture).isEmpty());
 }
 
-void EndToEndIntegrationTest::activeCancellationContinuesWithNextQueuedRequest()
+void EndToEndIntegrationTest::workerInitializationFailureCleansConnectionAndRetries()
 {
-    testsupport::AddJobTestFixture fixture;
-    QVERIFY(fixture.isValid());
-    JobApplicationsController controller{{}, fixture.service_};
+    testsupport::TemporaryStorageFixture storage;
+    QVERIFY(storage.isValid());
+    const auto databasePath = storage.paths().databasePath();
+    QVERIFY(QDir{}.mkpath(databasePath));
+    const auto initialConnectionCount = QSqlDatabase::connectionNames().size();
+
+    AddJobWorker worker{storage.paths().dataDirectory()};
+    JobApplicationsController controller{{}, worker};
+    QSignalSpy queuedSpy{&controller, &JobApplicationsController::applicationQueued};
+    QSignalSpy acceptedSpy{&controller, &JobApplicationsController::applicationAccepted};
+    QSignalSpy rejectedSpy{&controller, &JobApplicationsController::applicationRejected};
     QSignalSpy completedSpy{&controller, &JobApplicationsController::applicationSaveCompleted};
+    const auto sourcePath = storage.createFile(QStringLiteral("worker-retry.pdf"));
+
+    auto invalidValues = testsupport::validJobFormValues(
+        QStringLiteral("Invalid Before Initialization"));
+    invalidValues.insert(QStringLiteral("jobTitle"), QStringLiteral(" "));
+    controller.createApplication(invalidValues, QUrl::fromLocalFile(sourcePath));
+
+    QTRY_COMPARE(rejectedSpy.count(), 1);
+    QCOMPARE(rejectedSpy.first().at(0).toULongLong(), quint64(1));
+    QVERIFY(rejectedSpy.first().at(1).toMap().contains(QStringLiteral("jobTitle")));
+    QCOMPARE(QSqlDatabase::connectionNames().size(), initialConnectionCount);
+
+    controller.createApplication(
+        testsupport::validJobFormValues(QStringLiteral("Initialization Failure")),
+        QUrl::fromLocalFile(sourcePath));
+
+    QTRY_COMPARE(rejectedSpy.count(), 2);
+    QCOMPARE(queuedSpy.count(), 2);
+    QCOMPARE(acceptedSpy.count(), 0);
+    QCOMPARE(rejectedSpy.at(1).at(0).toULongLong(), quint64(2));
+    QVERIFY(rejectedSpy.at(1).at(1).toMap().isEmpty());
+    QVERIFY(!rejectedSpy.at(1).at(2).toString().isEmpty());
+    QCOMPARE(QSqlDatabase::connectionNames().size(), initialConnectionCount);
+    QCOMPARE(
+        QDir{storage.paths().resumesDirectory()}.entryList(QDir::Files).size(),
+        0);
+
+    QVERIFY(QDir{databasePath}.removeRecursively());
+    controller.createApplication(
+        testsupport::validJobFormValues(QStringLiteral("Initialization Retry")),
+        QUrl::fromLocalFile(sourcePath));
+
+    QTRY_COMPARE(completedSpy.count(), 1);
+    QCOMPARE(queuedSpy.count(), 3);
+    QCOMPARE(acceptedSpy.count(), 1);
+    QCOMPARE(acceptedSpy.first().at(0).toULongLong(), quint64(3));
+    QVERIFY(completedSpy.first().at(2).toBool());
+    QCOMPARE(QSqlDatabase::connectionNames().size(), initialConnectionCount + 1);
+
+    worker.shutdown();
+    QCOMPARE(QSqlDatabase::connectionNames().size(), initialConnectionCount);
+
+    SqliteDatabase database{databasePath};
+    JobRepository jobs{database.connection()};
+    QCOMPARE(jobs.findAll().size(), 1);
+    QCOMPARE(jobs.findAll().first().jobTitle_, QStringLiteral("Initialization Retry"));
+}
+
+void EndToEndIntegrationTest::databaseLockFailureDoesNotBlockLaterRequest()
+{
+    testsupport::AddJobWorkerTestFixture fixture;
+    QVERIFY(fixture.isValid());
+    JobApplicationsController controller{{}, fixture.worker_};
+    QSignalSpy completedSpy{&controller, &JobApplicationsController::applicationSaveCompleted};
+    QSignalSpy rejectedSpy{&controller, &JobApplicationsController::applicationRejected};
     QSignalSpy drainedSpy{&controller, &JobApplicationsController::saveQueueDrained};
-    QSignalSpy failedSpy{&controller, &JobApplicationsController::saveFailed};
-    const auto activePath = fixture.storage_.createFile(
-        QStringLiteral("active.pdf"),
-        QByteArray(8 * 1024 * 1024, 'a'));
-    const auto queuedPath = fixture.storage_.createFile(QStringLiteral("queued.pdf"));
 
     controller.createApplication(
-        validFormValues(QStringLiteral("Canceled Active Role")),
-        QUrl::fromLocalFile(activePath));
+        testsupport::validJobFormValues(QStringLiteral("Warm Worker")),
+        QUrl::fromLocalFile(fixture.storage_.createFile(QStringLiteral("warm.pdf"))));
+    QTRY_COMPARE(completedSpy.count(), 1);
+    QVERIFY(completedSpy.first().at(2).toBool());
+    completedSpy.clear();
+    drainedSpy.clear();
+
+    QSqlQuery exclusiveLock{fixture.database_.connection()};
+    QVERIFY(exclusiveLock.exec(QStringLiteral("BEGIN EXCLUSIVE")));
+    bool lockReleased = false;
+    QObject::connect(
+        &controller,
+        &JobApplicationsController::applicationSaveCompleted,
+        &controller,
+        [&fixture, &lockReleased](
+            quint64,
+            const QString& jobTitle,
+            bool,
+            const QString&) {
+            if (jobTitle != QStringLiteral("Locked Request")) {
+                return;
+            }
+            QSqlQuery rollback{fixture.database_.connection()};
+            lockReleased = rollback.exec(QStringLiteral("ROLLBACK"));
+        });
+
     controller.createApplication(
-        validFormValues(QStringLiteral("Queued Role")),
-        QUrl::fromLocalFile(queuedPath));
-    controller.cancelCreateApplication();
+        testsupport::validJobFormValues(QStringLiteral("Locked Request")),
+        QUrl::fromLocalFile(fixture.storage_.createFile(QStringLiteral("locked.pdf"))));
+    controller.createApplication(
+        testsupport::validJobFormValues(QStringLiteral("After Lock Failure")),
+        QUrl::fromLocalFile(fixture.storage_.createFile(QStringLiteral("after-lock.pdf"))));
 
-    QTRY_COMPARE(drainedSpy.count(), 1);
-
+    QTRY_COMPARE_WITH_TIMEOUT(drainedSpy.count(), 1, 10000);
+    QCOMPARE(rejectedSpy.count(), 0);
     QCOMPARE(completedSpy.count(), 2);
-    QCOMPARE(failedSpy.count(), 0);
-    QCOMPARE(completedSpy.at(0).at(1).toString(), QStringLiteral("Canceled Active Role"));
+    QCOMPARE(completedSpy.at(0).at(1).toString(), QStringLiteral("Locked Request"));
     QVERIFY(!completedSpy.at(0).at(2).toBool());
-    QVERIFY(completedSpy.at(0).at(3).toString().contains(
-        QStringLiteral("canceled"),
-        Qt::CaseInsensitive));
-    QCOMPARE(completedSpy.at(1).at(1).toString(), QStringLiteral("Queued Role"));
+    QVERIFY(lockReleased);
+    QCOMPARE(completedSpy.at(1).at(1).toString(), QStringLiteral("After Lock Failure"));
     QVERIFY(completedSpy.at(1).at(2).toBool());
     QCOMPARE(
         persistedJobTitlesInInsertOrder(fixture.database_.connection()),
-        QStringList({QStringLiteral("Queued Role")}));
+        QStringList({
+            QStringLiteral("Warm Worker"),
+            QStringLiteral("After Lock Failure"),
+        }));
+    QVERIFY(stagedFileNames(fixture).isEmpty());
+}
+
+void EndToEndIntegrationTest::largeCvProcessingKeepsGuiEventLoopResponsive()
+{
+    testsupport::AddJobWorkerTestFixture fixture;
+    QVERIFY(fixture.isValid());
+    JobApplicationsController controller{{}, fixture.worker_};
+    QSignalSpy completedSpy{&controller, &JobApplicationsController::applicationSaveCompleted};
+    QSignalSpy drainedSpy{&controller, &JobApplicationsController::saveQueueDrained};
+    const auto sourcePath = fixture.storage_.createFile(
+        QStringLiteral("large.pdf"),
+        QByteArray(64 * 1024 * 1024, 'g'));
+    QVERIFY(!sourcePath.isEmpty());
+
+    int guiTimerTicks = 0;
+    QTimer guiTimer;
+    guiTimer.setInterval(1);
+    QObject::connect(&guiTimer, &QTimer::timeout, &controller, [&controller, &guiTimerTicks]() {
+        if (controller.pendingSaveCount() > 0) {
+            ++guiTimerTicks;
+        }
+    });
+    guiTimer.start();
+
+    QElapsedTimer callTimer;
+    callTimer.start();
+    controller.createApplication(
+        testsupport::validJobFormValues(QStringLiteral("Large CV Role")),
+        QUrl::fromLocalFile(sourcePath));
+    QVERIFY2(callTimer.elapsed() < 1000, "Save blocked the GUI thread before returning.");
+
+    QTRY_COMPARE_WITH_TIMEOUT(drainedSpy.count(), 1, 10000);
+    guiTimer.stop();
+    QCOMPARE(completedSpy.count(), 1);
+    QVERIFY(completedSpy.first().at(2).toBool());
+    QVERIFY2(guiTimerTicks > 0, "The GUI event loop did not advance during CV processing.");
+}
+
+void EndToEndIntegrationTest::activeCancellationContinuesWithNextQueuedRequest()
+{
+    testsupport::AddJobWorkerTestFixture fixture;
+    QVERIFY(fixture.isValid());
+    JobApplicationsController controller{{}, fixture.worker_};
+    QSignalSpy acceptedSpy{&controller, &JobApplicationsController::applicationAccepted};
+    QSignalSpy completedSpy{&controller, &JobApplicationsController::applicationSaveCompleted};
+    QSignalSpy drainedSpy{&controller, &JobApplicationsController::saveQueueDrained};
+    QSignalSpy rejectedSpy{&controller, &JobApplicationsController::applicationRejected};
+    const auto activePath = fixture.storage_.createFile(
+        QStringLiteral("active.pdf"),
+        QByteArray(32 * 1024 * 1024, 'a'));
+    const auto queuedPath = fixture.storage_.createFile(QStringLiteral("queued.pdf"));
+
+    controller.createApplication(
+        testsupport::validJobFormValues(QStringLiteral("Canceled Active Role")),
+        QUrl::fromLocalFile(activePath));
+    controller.cancelCreateApplication();
+    controller.createApplication(
+        testsupport::validJobFormValues(QStringLiteral("Queued Role")),
+        QUrl::fromLocalFile(queuedPath));
+
+    QTRY_COMPARE(drainedSpy.count(), 1);
+
+    QVERIFY(acceptedSpy.count() == 1 || acceptedSpy.count() == 2);
+    QCOMPARE(acceptedSpy.last().at(0).toULongLong(), quint64(2));
+    QVERIFY(rejectedSpy.count() == 0 || rejectedSpy.count() == 1);
+    if (!rejectedSpy.isEmpty()) {
+        QCOMPARE(rejectedSpy.first().at(0).toULongLong(), quint64(1));
+        QVERIFY(rejectedSpy.first().at(2).toString().contains(
+            QStringLiteral("canceled"),
+            Qt::CaseInsensitive));
+    }
+
+    const auto firstRequestCompleted = completedSpy.count() == 2;
+    QCOMPARE(completedSpy.count() + rejectedSpy.count(), 2);
+    if (firstRequestCompleted) {
+        QCOMPARE(completedSpy.first().at(0).toULongLong(), quint64(1));
+        QCOMPARE(completedSpy.first().at(1).toString(), QStringLiteral("Canceled Active Role"));
+        if (!completedSpy.first().at(2).toBool()) {
+            QVERIFY(completedSpy.first().at(3).toString().contains(
+                QStringLiteral("canceled"),
+                Qt::CaseInsensitive));
+        }
+    }
+    const auto& queuedCompletion = completedSpy.last();
+    QCOMPARE(queuedCompletion.at(0).toULongLong(), quint64(2));
+    QCOMPARE(queuedCompletion.at(1).toString(), QStringLiteral("Queued Role"));
+    QVERIFY(queuedCompletion.at(2).toBool());
+
+    const auto firstRequestWasCommitted = firstRequestCompleted
+        && completedSpy.first().at(2).toBool();
+    QCOMPARE(
+        persistedJobTitlesInInsertOrder(fixture.database_.connection()),
+        firstRequestWasCommitted
+            ? QStringList({
+                  QStringLiteral("Canceled Active Role"),
+                  QStringLiteral("Queued Role"),
+              })
+            : QStringList({QStringLiteral("Queued Role")}));
     QVERIFY(stagedFileNames(fixture).isEmpty());
 }
 
 void EndToEndIntegrationTest::cancelAllRemovesQueuedWorkAndCleansActiveRequest()
 {
-    testsupport::AddJobTestFixture fixture;
+    testsupport::AddJobWorkerTestFixture fixture;
     QVERIFY(fixture.isValid());
-    JobApplicationsController controller{{}, fixture.service_};
+    JobApplicationsController controller{{}, fixture.worker_};
     QSignalSpy queuedSpy{&controller, &JobApplicationsController::applicationQueued};
     QSignalSpy completedSpy{&controller, &JobApplicationsController::applicationSaveCompleted};
     QSignalSpy createdSpy{&controller, &JobApplicationsController::applicationCreated};
     QSignalSpy drainedSpy{&controller, &JobApplicationsController::saveQueueDrained};
-    QSignalSpy failedSpy{&controller, &JobApplicationsController::saveFailed};
+    QSignalSpy rejectedSpy{&controller, &JobApplicationsController::applicationRejected};
+    QSignalSpy acceptedSpy{&controller, &JobApplicationsController::applicationAccepted};
     QList<int> pendingCounts;
     QList<bool> savingStates;
     QObject::connect(
@@ -349,17 +684,17 @@ void EndToEndIntegrationTest::cancelAllRemovesQueuedWorkAndCleansActiveRequest()
         [&controller, &savingStates]() { savingStates.append(controller.saving()); });
     const auto activePath = fixture.storage_.createFile(
         QStringLiteral("cancel-all-active.pdf"),
-        QByteArray(8 * 1024 * 1024, 'c'));
+        QByteArray(32 * 1024 * 1024, 'c'));
     const auto queuedPath = fixture.storage_.createFile(QStringLiteral("cancel-all-queued.pdf"));
 
     controller.createApplication(
-        validFormValues(QStringLiteral("Active Role")),
+        testsupport::validJobFormValues(QStringLiteral("Active Role")),
         QUrl::fromLocalFile(activePath));
     controller.createApplication(
-        validFormValues(QStringLiteral("Queued Role 1")),
+        testsupport::validJobFormValues(QStringLiteral("Queued Role 1")),
         QUrl::fromLocalFile(queuedPath));
     controller.createApplication(
-        validFormValues(QStringLiteral("Queued Role 2")),
+        testsupport::validJobFormValues(QStringLiteral("Queued Role 2")),
         QUrl::fromLocalFile(queuedPath));
     controller.cancelAllCreateApplications();
 
@@ -371,24 +706,30 @@ void EndToEndIntegrationTest::cancelAllRemovesQueuedWorkAndCleansActiveRequest()
     QTRY_COMPARE(drainedSpy.count(), 1);
 
     QCOMPARE(completedSpy.count(), 0);
-    QCOMPARE(createdSpy.count(), 0);
-    QCOMPARE(failedSpy.count(), 0);
+    QCOMPARE(rejectedSpy.count(), 0);
+    QCOMPARE(acceptedSpy.count(), 0);
     QCOMPARE(pendingCounts, QList<int>({1, 2, 3, 1, 0}));
     QCOMPARE(savingStates, QList<bool>({true, false}));
     QCOMPARE(controller.pendingSaveCount(), 0);
     QVERIFY(!controller.saving());
-    QVERIFY(fixture.jobRepository_.findAll().isEmpty());
-    QVERIFY(fixture.companyRepository_.findAll().isEmpty());
-    QVERIFY(fixture.cvRepository_.findAll().isEmpty());
+    QVERIFY(createdSpy.count() == 0 || createdSpy.count() == 1);
+    const auto applications = fixture.jobRepository_.findAll();
+    QCOMPARE(applications.size(), createdSpy.count());
+    QCOMPARE(fixture.companyRepository_.findAll().size(), createdSpy.count());
+    QCOMPARE(fixture.cvRepository_.findAll().size(), createdSpy.count());
     QCOMPARE(
         QDir{fixture.storage_.paths().resumesDirectory()}.entryList(
             QDir::Files | QDir::NoDotAndDotDot).size(),
-        0);
+        createdSpy.count());
+    if (!applications.isEmpty()) {
+        QCOMPARE(applications.first().jobTitle_, QStringLiteral("Active Role"));
+    }
+    QVERIFY(stagedFileNames(fixture).isEmpty());
 }
 
 void EndToEndIntegrationTest::controllerShutdownLeavesNoPartialState()
 {
-    testsupport::AddJobTestFixture fixture;
+    testsupport::AddJobWorkerTestFixture fixture;
     QVERIFY(fixture.isValid());
     const auto activePath = fixture.storage_.createFile(
         QStringLiteral("shutdown-active.pdf"),
@@ -396,15 +737,16 @@ void EndToEndIntegrationTest::controllerShutdownLeavesNoPartialState()
     const auto queuedPath = fixture.storage_.createFile(QStringLiteral("shutdown-queued.pdf"));
 
     {
-        JobApplicationsController controller{{}, fixture.service_};
+        JobApplicationsController controller{{}, fixture.worker_};
         controller.createApplication(
-            validFormValues(QStringLiteral("Shutdown Active Role")),
+            testsupport::validJobFormValues(QStringLiteral("Shutdown Active Role")),
             QUrl::fromLocalFile(activePath));
         controller.createApplication(
-            validFormValues(QStringLiteral("Shutdown Queued Role")),
+            testsupport::validJobFormValues(QStringLiteral("Shutdown Queued Role")),
             QUrl::fromLocalFile(queuedPath));
     }
 
+    fixture.worker_.shutdown();
     QCoreApplication::processEvents();
     QVERIFY(fixture.jobRepository_.findAll().isEmpty());
     QVERIFY(fixture.companyRepository_.findAll().isEmpty());

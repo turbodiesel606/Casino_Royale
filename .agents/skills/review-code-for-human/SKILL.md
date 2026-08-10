@@ -1,141 +1,136 @@
 ---
 name: review-code-for-human
-description: Analyze and explain a requested JobTracker code fragment, function, method, class, or module for a human who already understands C++, Qt, QML, and standard-library syntax. Use for source-backed execution-flow walkthroughs, recursive nested-call tracing, architectural responsibility, design rationale, ownership/lifetime/thread/error analysis, and evidence-based improvement review; remain read-only unless implementation is explicitly requested.
+description: Produce an exhaustive, source-backed human review of a JobTracker code fragment, function, class, module, or end-to-end workflow. Use when Codex must begin with a verified logic flow, explain every relevant entity in context, trace the complete caller-to-dependency path, show every participating project-defined function body completely in consecutive snippets without reproducing header declarations, explain each snippet in detail, infer rationale with clear uncertainty, and assess architectural improvements. Keep the review read-only unless the user explicitly requests changes.
 ---
 
 # Review Code for Human
 
-Produce a source-backed explanation of how requested code works, why its verified design choices matter, and where its real risks lie. Optimize for human understanding of behavior and interactions, not language instruction.
+Explain the complete relevant execution model for a reader who already understands C++, Qt, QML, and standard-library syntax. Optimize for understanding entities, responsibilities, interactions, state changes, ownership, threads, errors, and design trade-offs.
 
-## Workflow
+Treat "complete relevant code" as:
 
-1. Identify the exact target and scenario. If the target is ambiguous, locate likely definitions and ask only when choosing incorrectly would materially change the analysis.
-2. Read `AGENTS.md` and only the directly relevant `For-Agent/Docs/` guidance. Check recent research/review/task artifacts only when they overlap the requested scope; treat them as context, then verify current facts in live source.
-3. Inspect the requested implementation, its actual callers, dependencies, connected QML or C++ contracts, and relevant tests. Use targeted symbol searches rather than a broad project survey.
-4. Trace every project-defined call recursively. For each call, locate its real definition and follow the chain until reaching a simple infrastructure operation, an obvious Qt or standard-library operation, a trivial accessor, or code unrelated to the scenario.
-5. Record evidence with file names, class and function names, and exact line numbers or tight line ranges whenever possible.
-6. Separate confirmed facts from inference. Never infer a caller, thread, ownership rule, error path, or authorial intent without evidence.
-7. Return the analysis using the required structure below.
+- the full body of every project-defined function, method, QML handler, or JavaScript function that participates in the traced scenario;
+- consecutive implementation snippets that preserve every source line and its original order when a function is too long for one readable block;
+- all meaningful success, failure, cancellation, retry, and publication branches in those bodies;
+- prose summaries with clickable links for relevant header contracts, types, signals, properties, and member state instead of reproduced declaration code.
 
-## Analysis Boundaries
+Do not dump unrelated files or unrelated methods merely to increase coverage. Completeness applies to the requested scenario and its real call chain, not the entire repository.
 
-- Remain read-only. Do not modify code, create a patch, or run builds/tests unless the user explicitly requests it.
-- Explain only architecture directly connected to the requested code.
-- Assume the reader understands C++, Qt, QML, and standard-library syntax.
-- Do not explain ordinary syntax, declarations, `if`, `return`, or routine calls. Explain syntax only when it materially affects ownership, lifetime, overload resolution, template deduction, threading, or behavior.
-- Group code by purpose; do not narrate it line by line.
-- Base claims on current project files. Treat comments, tests, and docs as supporting evidence, not substitutes for implementation.
-- When a reason cannot be proven, write: “The exact reason is not visible from the code. The most likely explanation is ...”
+## Review Workflow
 
-## Output Contract
+1. Identify the exact target and scenario. Resolve ambiguity from the repository when possible; ask only when different interpretations would produce materially different reviews.
+2. Read `AGENTS.md` and the directly relevant `For-Agent/Docs/` guidance. Check recent research, review, or task artifacts only when they overlap the scope, and verify every current fact against live source.
+3. Inspect the target, its real callers, every relevant project-defined nested call, connected QML or C++ contracts, state publication, and focused tests.
+4. Build an internal entity inventory before writing. Include every QML component or handler, C++ class, struct, enum, request/result type, controller, worker, service, repository, storage helper, model, and signal that materially participates in the scenario.
+5. For every inventoried entity, record its definition location, responsibility, owned state, owner and lifetime, thread affinity, inputs, outputs, callers, callees, and observable side effects. Mark genuinely inapplicable fields rather than silently skipping them.
+6. Trace the scenario from its true entry point to its observable outcome. Follow every relevant project-defined call until reaching Qt, the standard library, SQLite or operating-system primitives, a trivial accessor, or logic unrelated to the scenario.
+7. Collect implementation bodies in execution order. Do not reproduce header or standalone declaration code. Show each complete function body as one snippet or as consecutive labeled parts without omitting or reordering lines, and explain every snippet in detail immediately after it before continuing.
+8. Build the diagram from verified symbols and transitions.
+9. Audit coverage before answering: every diagram entity must have a prose definition and explanation, while every non-trivial project-defined call must have its complete implementation shown through source-faithful snippets and detailed explanations. Resolve missing coverage before producing the response.
+10. Explain the stages in diagram order, then give evidence-aware rationale and architectural improvement notes.
 
-Use the following headings and order in the response.
+## Completeness Rules
 
-## Main Goal
+- Make completeness more important than brevity for this skill.
+- Never replace relevant source lines with `...`, `// omitted`, summaries, pseudocode, or prose.
+- Never show only the happy-path lines from a relevant function. Include its material guards, early returns, error branches, cancellation checks, cleanup, retries, and result publication.
+- Never mention a meaningful project-defined nested call only by name. Show its complete called body and explain how its result returns to the caller.
+- Do not reproduce header code or standalone declarations. Summarize the central and collaborating entities' contracts, ownership, member state, signals, properties, and relevant types in prose with clickable header links.
+- If a participating function is defined inline in a header, show its complete function body because it is implementation; omit the surrounding declaration-only code.
+- For a collaborating entity outside the central target, describe the contract and state needed for the scenario in prose and show the full body of every called function.
+- After every implementation snippet, explain that snippet in detail before showing the next snippet.
+- When omitting unrelated code from a file or class, state exactly what category was omitted and why. Do not hide omissions inside code blocks.
+- Explain every entity that appears in the diagram or code. Do not collapse several non-trivial entities into a vague label such as "backend," "database layer," or "helper."
+- Explain Qt, standard-library, SQLite, and operating-system calls at their behavioral boundary; do not attempt to reproduce external library implementations.
+- Group only genuinely trivial accessors or value conversions, while still naming their locations and roles.
+- For broad workflows, allow a long answer. If a hard output limit prevents completion, label the response as partial, list every uncovered entity or function, and never claim that the review is complete.
 
-State concisely:
+A review is incomplete if any of these are true:
 
-- the problem the code solves;
-- its start-to-finish execution flow;
-- the important internal calls;
-- the evidence-backed design rationale;
-- the main confirmed problems and improvement opportunities.
+- a diagram entity is not defined and explained;
+- a relevant project-defined call has no source body shown;
+- a relevant function body contains hidden gaps or ellipses;
+- a request, result, state object, model, signal, repository, or service is used without explaining what it represents;
+- ownership, lifetime, or thread affinity is material but omitted;
+- an important failure or downstream publication path is described without its code;
+- a standalone header or declaration block is reproduced without containing a participating inline function implementation;
+- an implementation snippet is not followed by its detailed explanation;
+- the final coverage audit contains an unexplained omission.
 
-## 1. Context and Architecture
+## Required Output Order
 
-Explain the relevant subsystem, the target's responsibility, collaborating entities, owned responsibility and boundaries, and its place in the scenario. Avoid a full-project architecture tour.
+### 1. Logic Flow
 
-## 2. Overall Execution Flow
+Make this the first substantive section of the response. Do not place a summary, conclusion, or architectural preamble before it.
 
-Describe the actual call origin, inputs, main stages, components invoked, and returned result or changed state. Include one verified chain such as:
+- Use a Mermaid `sequenceDiagram` for time-ordered collaboration, queued work, signals, callbacks, or thread transitions.
+- Use a Mermaid `flowchart` for branching, validation, state transitions, or error paths.
+- Use both when the scenario has significant collaboration and branching.
+- Use exact class, function, signal, model, service, repository, and storage names from the source.
+- Show the real caller, target, all important nested calls, relevant branches, and final state publication.
+- Mark GUI-thread, worker-thread, queued, transactional, asynchronous, and ownership boundaries when they affect behavior.
+- Do not add an unverified node merely to make the diagram look complete.
 
-`call source → target function → nested function → service → repository → result`
+### 2. Complete Related Code, Step by Step
 
-Replace the example nodes with actual symbols. Do not include assumed stages.
+Walk through the diagram from entry to outcome. Number the stages and keep each stage tied to a diagram node or transition.
 
-## 3. Deep Function Analysis
+For every stage:
 
-Divide the target into logical blocks. For each block explain:
+1. Give clickable declaration and definition locations, but do not reproduce declaration code.
+2. Before first use, summarize the entity's contract, ownership, member state, signals, properties, and relevant types in prose.
+3. Show the complete original body of every project-defined function, method, QML handler, or JavaScript function used by the stage as a source-faithful snippet.
+4. If a body is long, split it into consecutive labeled parts such as `Part 1`, `Part 2`, and so on, preserving every source line and its original order.
+5. Immediately after each snippet, identify every entity, type, parameter, local, member, dependency, and result introduced there and explain its role.
+6. Explain that snippet in detailed execution order, including inputs, preconditions, invariants, branches, state reads and writes, copies and moves, side effects, errors, cleanup, outputs, and the next recipient of each result.
+7. Only after explaining the current snippet may you show the next part or continue to another function. Follow every relevant nested project-defined call with its complete body through the same snippet-and-explanation pattern before returning to the caller.
+8. Explain how the next stage consumes the result.
 
-- purpose and necessity;
-- data read and modified;
-- side effects;
-- maintained conditions or invariants;
-- errors and early returns;
-- state already changed before failure, when applicable.
+Use code blocks only for implementation bodies. Do not show `.hpp` include guards, includes, class or struct declarations, enum declarations, function prototypes, signals, properties, or member lists. Summarize those elements in prose with clickable source links. A participating function implemented inline in a header is the only exception: show its complete body while omitting unrelated declaration-only context.
 
-## 4. Analysis of All Nested Calls
+Preserve the source exactly inside implementation snippets. Do not add explanatory comments that are absent from the source. Put a detailed explanation immediately below each block.
 
-For every relevant project-defined call, recursively provide:
+Include upstream invocation and downstream observable effects. For an end-to-end workflow, this normally includes the QML caller, C++ boundary, request and result types, controller state, worker dispatch, service orchestration, repositories or storage, model mutation, connected signals, and final UI handling when each is present in live source.
 
-- actual definition location and purpose;
-- inputs and return value;
-- side effects, errors, and edge cases;
-- how the caller consumes the result.
+### 3. Why This Implementation Works This Way
 
-Stop only at the recursion boundaries defined in the workflow. Summarize trivial boundary calls without teaching syntax.
+Keep this section evidence-aware, but do not omit a major design choice already demonstrated by the code.
 
-## 5. Why It Is Implemented This Way
+- State documented or directly provable rationale as fact.
+- When rationale is not documented, write: `The exact rationale is not documented. The most likely reason is ...`
+- Compare only realistic alternatives that illuminate the current choice.
+- Explain the main trade-off involving responsibility placement, ordering, copying or moving, synchronous versus asynchronous work, transaction boundaries, signals, queues, repositories, or model publication when relevant.
+- Do not present inferred authorial intent as confirmed history.
 
-For each important verified decision, explain the problem solved, layer placement, operation order, parameter-passing choice, copy/move behavior, synchronous or asynchronous execution, thread choice, signal/callback/queue/service/repository use, realistic alternatives, and trade-offs. Clearly label inferred rationale with the required uncertainty phrase.
+### 4. Architectural Improvements
 
-## 6. Ownership, Lifetime, and Threads
+Include this section only to the extent that the source supports useful advice.
 
-When applicable, map:
+For each relevant item, state:
 
-- object ownership and lifetime;
-- captures, copies, and moves;
-- nullable or invalidatable pointers;
-- thread execution and return to the GUI thread;
-- shared cross-thread data and synchronization;
-- race, deadlock, use-after-free, and thread-affinity risks;
-- cancellation and post-worker completion behavior.
+- the current issue or limitation and its source evidence;
+- the concrete architectural change;
+- the expected benefit;
+- the main cost or disadvantage;
+- priority: `critical`, `recommended`, or `optional`.
 
-Write “Not applicable” for this scenario rather than inventing concurrency or ownership concerns.
+Separate confirmed defects from optional design improvements. Consider responsibility boundaries, coupling, cohesion, ownership, threading, state and error handling, atomicity, testability, and duplication. Do not recommend a new abstraction or design pattern merely because it is possible. If no material architectural improvement is justified, say so directly.
 
-## 7. Error and State Handling
+### 5. Coverage and Verification
 
-Explain state transitions, failure creation and handling, UI notification, prior side effects, transaction or partial-save behavior, the supported exception-safety level (`basic`, `strong`, `no-throw`, none, or not established), and the handling of repeated or conflicting calls.
+End with a coverage audit rather than an unsupported claim of completeness.
 
-## 8. Possible Improvements
+- List every material entity and project-defined function covered by the review.
+- List any intentionally omitted file sections, methods, or entities and give the exact reason each is unrelated or a permitted boundary.
+- State whether the analysis is static source review, build-verified, test-verified, or manually runtime-verified.
+- State all missing evidence and unverified behavior explicitly.
 
-Separate recommendations into:
+## Evidence and Safety Rules
 
-### Confirmed Problems
-
-Include only code-supported defects or risks such as lifetime, responsibility, duplication, error handling, threading, atomicity, testability, dependency, or invariant problems.
-
-### Possible Improvements
-
-Include non-mandatory readability, maintainability, testability, extensibility, safety, or performance improvements.
-
-### Changes That Are Not Recommended
-
-Identify tempting but unnecessary, excessive, or harmful changes. Do not introduce patterns for their own sake.
-
-For every item specify:
-
-- current problem or perceived problem;
-- concrete change;
-- expected benefit;
-- possible disadvantage;
-- severity: `critical`, `recommended`, or `optional`.
-
-Do not present speculation as a confirmed problem.
-
-## 9. Final Execution Model
-
-End with a compact summary:
-
-- **Input:** what enters the target.
-- **Execution:** the main processing stages.
-- **Output:** what is returned, saved, published, emitted, or forwarded.
-- **Responsibility:** what the target owns and explicitly does not own.
-- **Main Risks:** the three to five most important verified risks or limitations.
-
-## Evidence Quality
-
-- Prefer direct links or `path:line` references to current project files.
-- State missing evidence and unverified behavior explicitly.
-- Distinguish static source conclusions from build, test, or runtime verification.
-- If no problem is supported, say so; do not manufacture findings to fill a section.
+- Base the review on current source. Treat documentation, comments, artifacts, and tests as supporting evidence rather than replacements for implementation.
+- Distinguish confirmed behavior from assumptions and inference.
+- Cite exact symbols and tight line references wherever possible.
+- Distinguish static source conclusions from build, test, and runtime verification.
+- State missing evidence or unverified behavior explicitly.
+- Remain read-only: do not edit code, create patches, build, or run tests unless the user explicitly requests those actions.
+- Do not manufacture defects to fill the improvement section.

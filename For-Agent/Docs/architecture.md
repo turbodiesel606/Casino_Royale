@@ -26,13 +26,20 @@ The current bootstrap dependency order is:
 5. `CvFileAccessService`
 6. `CompanyRepository`
 7. `JobRepository`
-8. `CvImportService`
-9. `AddJobService`
-10. `JobApplicationsController`
-11. `CvLibraryController`
-12. `DashboardController`
-13. `CompanyDirectoryController`
-14. `ContactDirectoryController`
+8. `AddJobWorker`
+9. `JobApplicationsController`
+10. `CvLibraryController`
+11. `DashboardController`
+12. `CompanyDirectoryController`
+13. `ContactDirectoryController`
+
+`AddJobWorker` is a GUI-thread facade. On its first submitted request it starts
+one reusable dedicated thread. Mapping and canonical validation are
+storage-independent; after the first canonically valid request, the worker
+lazily constructs a private `StoragePaths`, `SqliteDatabase`, repository,
+managed-file, import-service, and Add Job service graph inside that thread.
+Production no longer owns GUI-thread `CvImportService` or `AddJobService`
+instances.
 
 Current QML context properties are:
 
@@ -143,42 +150,55 @@ Add Job is implemented as a QML-to-C++ workflow.
 
 `JobFormPage.qml` gathers form fields and calls `jobApplicationsController.createApplication(formValues, selectedCvUrl)`.
 
-`JobApplicationsController::createApplication()` converts the QML map into an
-in-memory `JobApplicationDraft` and calls the service-owned synchronous
-preflight. `AddJobService::preflight()` normalizes the draft once and returns
-the normalized value, all canonical field errors, and a user-facing message.
-The controller first reports Job Title, Job URL, and CV-selection errors, then
-reports all remaining canonical validation errors after those priority fields
-pass. Admission failures emit `saveFailed` before an operation ID is assigned,
-the pending count changes, a worker is started, a CV is staged, SQLite is
-accessed, or a model is updated.
+`JobApplicationsController::createApplication()` does no mapping, validation,
+file work, or SQL. It copies the raw `QVariantMap` and CV URL, allocates a
+monotonically increasing operation ID, inserts the request into its GUI-owned
+FIFO, publishes pending state, emits `applicationQueued(operationId)`, and
+schedules the front request. The queue keeps one active request plus raw
+waiters, so it needs no mutex. `pendingSaveCount` is the active-plus-waiting
+total, and `saving` is true exactly while that total is non-zero.
 
-Every accepted normalized request receives a monotonically increasing
-operation ID and enters the controller's in-memory FIFO. The controller retains
-one optional active request plus its cooperative cancellation token and runs one
-preparation at a time on its dedicated single-thread pool. `pendingSaveCount`
-is the active-plus-waiting total; `saving` is true exactly while that total is
-non-zero. `applicationQueued` acknowledges admission immediately,
-`applicationSaveCompleted` reports the eventual per-request outcome, and
-`saveQueueDrained` marks cleanup of the final active or waiting request.
-`savingChanged` is limited to zero/non-zero transitions, while
-`pendingSaveCountChanged` is emitted for every total-count change.
+When a request becomes active, the controller creates a shared
+`CancellationState` and submits one `AddJobRequest` to `AddJobWorker`. The
+worker thread is started lazily and reused until shutdown. Its private SQLite
+connection opens the same database file under an independent unique Qt
+connection name only after a request passes canonical validation; the existing
+GUI connection remains responsible for startup hydration and non-Add-Job
+operations.
 
-Worker preparation defensively revalidates the accepted normalized draft
-before streaming the CV hash and staged copy. Queued completion returns to the
-controller and database-owning thread, where `AddJobService::complete()` keeps
-one transaction per job. Success appends the source model and preserves the
-existing `applicationCreated`, `companyResolved`, and `cvUsed` publication
-signals. Preparation or persistence failure releases staged data, emits a
-failed `applicationSaveCompleted`, and starts the next FIFO request.
-`saveFailed` is reserved for synchronous admission errors.
+The worker executes the complete durable pipeline in order:
 
-`cancelCreateApplication()` cooperatively cancels only the active request and
-then continues the queue. `cancelAllCreateApplications()` removes unstarted
-requests, cancels the active request, suppresses completion notifications for
-the interrupted work, and emits `saveQueueDrained` only after active staged data
-has been released. Controller shutdown applies the same cancellation and wait
-boundary without starting queued requests or allowing late model mutation.
+1. Check cooperative cancellation.
+2. Convert the raw form map into `JobApplicationDraft`.
+3. Normalize and run canonical validation through `AddJobService::preflight()`.
+4. Queue an admission outcome to the GUI facade.
+5. After acceptance, defensively revalidate and stream the CV hash/staged copy.
+6. Check cancellation immediately before the transaction.
+7. Resolve the company and CV, insert the job, and commit through
+   `AddJobService::complete()` on the worker thread.
+8. Queue a value-only final result to the GUI facade.
+
+Validation, cancellation, or worker-initialization rejection emits
+`applicationRejected(operationId, fieldErrors, message)`, releases the active
+slot, and dispatches the next raw request. Successful validation emits
+`applicationAccepted(operationId, normalizedTitle)` before CV or SQL completion
+and retains the active slot. Final filesystem or SQL success/failure is reported
+through `applicationSaveCompleted`; it releases the slot and advances the FIFO.
+The controller ignores stale outcomes unless both operation ID and cancellation
+identity match the active request.
+
+Only the GUI controller mutates Qt models or publishes cross-screen signals.
+On a successful final result it appends the job, refreshes sorting, and emits
+`applicationCreated`, `companyResolved`, and `cvUsed`. The worker transports no
+model, repository, SQL handle/query, or staged-file object across threads.
+
+`CancellationState` protects only its boolean with a mutex. Cancellation checks
+never hold that mutex during file I/O, SQL, signal emission, or queued delivery.
+`cancelCreateApplication()` cancels only the active request and then continues
+the FIFO. `cancelAllCreateApplications()` removes raw waiters, cancels the
+active request, suppresses exit-time notifications, and emits
+`saveQueueDrained` only after active cleanup. Once a transaction begins it is
+allowed to commit or roll back; it is never forcibly terminated.
 
 `JobApplicationFactory` owns draft trimming, status/date defaults,
 case-insensitive technology deduplication, typed conversion, and final job
@@ -187,7 +207,7 @@ validation path for both Add Job and selected-application validation. It
 returns field-addressable errors for required values, optional HTTP/HTTPS URLs
 with a required host, ISO dates, and allowed status/work-format choices.
 
-`AddJobService` owns durable Add Job orchestration:
+The worker-owned `AddJobService` owns durable Add Job orchestration:
 
 - delegation to the factory and validator;
 - worker-safe managed-file preparation without database access;
@@ -198,9 +218,9 @@ with a required host, ISO dates, and allowed status/work-format choices.
 - SQLite transaction handling;
 - completed-file cleanup on ordinary failures.
 
-`CvImportService` connects the filesystem-only store to `CvRepository`. It
-prepares no SQL on the worker thread, then resolves the existing composite CV
-identity or finalizes and inserts a new CV on the database-owning thread. The
+`CvImportService` connects the worker's managed-file store to its private
+`CvRepository`. It prepares the file, then resolves the existing composite CV
+identity or finalizes and inserts a new CV on the same worker thread. The
 transaction orders new-file work as finalization, CV insertion, job insertion,
 and commit. A process crash after finalization but before commit leaves a
 completed orphan that startup recovery quarantines.
@@ -211,11 +231,13 @@ so both directories update immediately. On restart, CV and company links are
 reconstructed from persisted jobs.
 
 `JobFormPage.qml` keeps unsaved form values and the selected CV while the user
-navigates between pages. An accepted `applicationQueued` signal resets the
-form immediately and leaves Add Job open for another submission. Completion of
-an older request never changes the current form. Discard resets only the
-current fields and errors, clears the CV selection, restores the `Applied`
-status, and neither cancels queued work nor deletes a selected source file.
+navigates between pages. `applicationQueued` locks editing, CV selection, Save,
+and Discard while the raw request waits for worker admission.
+`applicationAccepted` resets and unlocks the form; `applicationRejected`
+preserves values, applies inline errors/message, and unlocks it. Final
+completion never changes the current form. Discard resets only unlocked current
+fields and errors, clears the CV selection, restores the `Applied` status, and
+neither cancels queued work nor deletes a selected source file.
 
 `Main.qml` owns presentation-only save notifications and close confirmation.
 Completion notifications are non-modal, display one at a time for 15 seconds,
@@ -357,9 +379,12 @@ Use the dependency direction `QML -> controllers/models -> services -> repositor
 - Return worker results through queued delivery and apply model or property changes on the owning thread.
 - Define worker ownership, cancellation, shutdown, and late-result handling before moving work off the GUI thread.
 - Create, use, and close each Qt SQL connection in one thread. Do not share `QSqlDatabase` connections or active `QSqlQuery` objects across threads.
-- Managed CV validation, streaming hash, and staged copy may run on the
-  controller-owned worker. Duplicate lookup, transactions, repositories, and
-  model mutation remain on the service/controller owning thread.
+- Add Job draft mapping, validation, managed CV work, duplicate lookup,
+  repositories, and transactions run on the dedicated Add Job worker and its
+  private SQLite connection. Only value outcomes return to the GUI thread.
+- Keep Add Job model mutation and QML/cross-screen signal publication in the
+  GUI controller. Destroy the worker persistence graph on its own thread before
+  quitting and waiting for that thread; never terminate it.
 
 ### Storage And Transactions
 

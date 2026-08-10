@@ -10,7 +10,6 @@
 #include <QThread>
 #include <QUrl>
 
-#include <atomic>
 #include <memory>
 #include <stdexcept>
 
@@ -34,7 +33,7 @@ bool AddJobPreflightResult::isValid() const
 
 AddJobPreflightResult AddJobService::preflight(
 	const JobApplicationDraft& draft,
-	const QUrl& selectedCvUrl) const
+	const QUrl& selectedCvUrl)
 {
 	AddJobPreflightResult result;
 	result.draft_ = JobApplicationFactory::normalize(draft);
@@ -50,7 +49,7 @@ AddJobPreflightResult AddJobService::preflight(
 AddJobPreparationResult AddJobService::prepare(
     const NormalizedJobApplicationDraft& draft,
     const QUrl& selectedCvUrl,
-    const std::shared_ptr<std::atomic_bool>& cancellation) const
+    const std::shared_ptr<CancellationState>& cancellation) const
 {
 	const auto validation = JobApplicationValidator::validate(draft, selectedCvUrl);
 	AddJobPreparationResult result;
@@ -69,7 +68,9 @@ AddJobPreparationResult AddJobService::prepare(
 	return result;
 }
 
-AddJobResult AddJobService::complete(AddJobPreparationResult preparation) const
+AddJobResult AddJobService::complete(
+	AddJobPreparationResult preparation,
+	const std::shared_ptr<CancellationState>& cancellation) const
 {
 	AddJobResult result;
 	result.fieldErrors_ = preparation.fieldErrors_;
@@ -84,6 +85,11 @@ AddJobResult AddJobService::complete(AddJobPreparationResult preparation) const
 
 	QString completedFilePath;
 	try {
+		if (cancellation != nullptr && cancellation->isCancellationRequested()) {
+			result.message_ = QStringLiteral("Job creation was canceled.");
+			return result;
+		}
+
 		SqlTransaction transaction{database_, QStringLiteral("Add Job persistence")};
 		const auto company = companyRepository_.findOrCreateByName(preparation.draft_.companyName_);
 		const auto cvImport = cvImportService_.importPreparedDocument(preparation.cvPreparation_);
@@ -119,6 +125,8 @@ AddJobResult AddJobService::create(
 	const QUrl& selectedCvUrl) const
 {
 	const auto preflightResult = preflight(draft, selectedCvUrl);
-	auto cancellation = std::make_shared<std::atomic_bool>(false);
-	return complete(prepare(preflightResult.draft_, selectedCvUrl, cancellation));
+	auto cancellation = std::make_shared<CancellationState>();
+	return complete(
+		prepare(preflightResult.draft_, selectedCvUrl, cancellation),
+		cancellation);
 }
