@@ -10,8 +10,6 @@ Item {
     property url selectedCvUrl: ""
     property var fieldErrors: ({})
     property string saveError: ""
-    property bool admissionLocked: false
-    property var admissionOperationId: null
 
     readonly property color textColor: "#eef3f8"
     readonly property color mutedColor: "#a8b5c2"
@@ -71,7 +69,6 @@ Item {
     component FormField: TextField {
         property string errorText: ""
 
-        enabled: !page.admissionLocked
         color: page.textColor
         font.pixelSize: 15
         leftPadding: 14
@@ -86,7 +83,6 @@ Item {
     }
 
     component FormArea: TextArea {
-        enabled: !page.admissionLocked
         color: page.textColor
         font.pixelSize: 15
         leftPadding: 14
@@ -128,29 +124,12 @@ Item {
         target: jobApplicationsController
 
         function onApplicationQueued(operationId) {
-            page.fieldErrors = ({})
-            page.saveError = ""
-            page.admissionOperationId = operationId
-            page.admissionLocked = true
-        }
-
-        function onApplicationAccepted(operationId, jobTitle) {
-            if (!page.admissionLocked || page.admissionOperationId !== operationId)
-                return
-
             page.resetForm()
-            page.admissionOperationId = null
-            page.admissionLocked = false
         }
 
-        function onApplicationRejected(operationId, errors, message) {
-            if (!page.admissionLocked || page.admissionOperationId !== operationId)
-                return
-
+        function onSaveFailed(errors, message) {
             page.fieldErrors = errors
             page.saveError = message
-            page.admissionOperationId = null
-            page.admissionLocked = false
         }
     }
 
@@ -183,7 +162,6 @@ Item {
                 Button {
                     Layout.preferredWidth: 104
                     Layout.preferredHeight: 42
-                    enabled: !page.admissionLocked
                     text: "Save"
                     onClicked: page.submit()
 
@@ -360,7 +338,6 @@ Item {
                                 }
 
                                 Button {
-                                    enabled: !page.admissionLocked
                                     text: page.selectedCvUrl.toString().length > 0 ? "Change CV" : "Select CV"
                                     onClicked: cvFileDialog.open()
                                 }
@@ -511,7 +488,6 @@ Item {
             Button {
                 Layout.preferredWidth: 88
                 Layout.preferredHeight: 40
-                enabled: !page.admissionLocked
                 text: "Discard"
                 onClicked: page.resetForm()
             }

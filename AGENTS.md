@@ -71,6 +71,8 @@ Use `cpp-backend-task` as the entry point for C++ backend implementation. Comple
 
 Use `cpp-code-review` or `qml-code-review` for review after changes or when the user asks for a review.
 
+Use `.agents/skills/review-code-for-human/SKILL.md` only when the user explicitly requests `review-code-for-human` by name. Do not invoke it implicitly for a code review, explanation, walkthrough, or teaching request.
+
 Use `.codex/agents/` subagents only when the user requests subagents, parallel research, or independent review. Subagents are read-only and return findings; the lead Codex compiles, verifies, and saves final artifacts when needed.
 
 Save durable research artifacts under `For-Agent/Research/`.

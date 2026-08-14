@@ -57,7 +57,11 @@ Name tests by the behavior they cover, and keep them registered through the proj
 - `JobTrackerCommonTests` covers shared filtering, limited sorting, and canonical job validation.
 - `JobTrackerRelationProxyTests` covers relation filtering and every relevant source-model mutation.
 - `JobTrackerSelectionTrackerTests` covers stable-ID selection, fallback behavior, and precise change reporting.
-- Jobs, CV, dashboard, and directory controller suites retain QML-facing contracts and controller-specific side effects.
+- Jobs, CV, dashboard, and directory controller suites retain QML-facing
+  contracts and controller-specific side effects. The jobs controller suite
+  verifies synchronous canonical preflight, immediate complete field errors,
+  no queue or worker state for invalid input, first-valid operation-ID
+  allocation, and normalized value capture before form reset.
 - `JobTrackerMigrationTests` covers schema initialization, supported upgrades,
   rollback, foreign keys, reopen, unsupported newer versions, and named-connection
   cleanup when `SqliteDatabase` construction fails.
@@ -66,13 +70,13 @@ Name tests by the behavior they cover, and keep them registered through the proj
 - `JobTrackerAddJobTests` covers service-level Add Job preflight, defensive
   pre-staging validation, cancellation immediately before a transaction,
   transaction behavior, and durable orchestration.
-- `JobTrackerIntegrationTests` covers raw controller admission, queued/accepted/
-  rejected/final ordering, worker-thread connection initialization and retry,
-  storage-independent validation, FIFO persistence order, pending-count and
-  saving transitions,
-  CV and database-lock failure isolation, duplicate-CV cleanup, mutex-backed
-  active and cancel-all behavior, GUI event-loop responsiveness, shutdown
-  cleanup, and restart hydration.
+- `JobTrackerIntegrationTests` covers synchronous invalid-input rejection
+  without queue, filesystem, or SQLite mutation; normalized controller FIFO
+  admission; exact queued/final event ordering; worker-thread connection
+  initialization and retry through final failure outcomes; FIFO persistence
+  order; pending-count and saving transitions; CV and database-lock failure
+  isolation; duplicate-CV cleanup; mutex-backed active and cancel-all behavior;
+  GUI event-loop responsiveness; shutdown cleanup; and restart hydration.
 
 Storage-oriented suites reuse the temporary database and filesystem fixtures under `tests/support` so setup and cleanup rules remain consistent.
 

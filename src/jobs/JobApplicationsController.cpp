@@ -1,10 +1,38 @@
 #include "JobApplicationsController.hpp"
+#include "AddJobService.hpp"
 #include "AddJobWorker.hpp"
 #include "JobApplicationValidator.hpp"
 #include "common/CancellationState.hpp"
 
 #include <memory>
 #include <utility>
+
+namespace {
+
+	JobApplicationDraft fillDraft(const QVariantMap& formValues)
+	{
+		JobApplicationDraft draft;
+		draft.jobTitle_ = formValues.value(QStringLiteral("jobTitle")).toString();
+		draft.jobUrl_ = formValues.value(QStringLiteral("jobUrl")).toString();
+		draft.companyName_ = formValues.value(QStringLiteral("companyName")).toString();
+		draft.workFormat_ = formValues.value(QStringLiteral("workFormat")).toString();
+		draft.city_ = formValues.value(QStringLiteral("city")).toString();
+		draft.salary_ = formValues.value(QStringLiteral("salary")).toString();
+		draft.status_ = formValues.value(QStringLiteral("status")).toString();
+		draft.appliedDate_ = formValues.value(QStringLiteral("appliedDate")).toString();
+		draft.nextStep_ = formValues.value(QStringLiteral("nextStep")).toString();
+		draft.description_ = formValues.value(QStringLiteral("description")).toString();
+		draft.requirements_ = formValues.value(QStringLiteral("requirements")).toString();
+		draft.notes_ = formValues.value(QStringLiteral("notes")).toString();
+
+		const auto technologies = formValues.value(QStringLiteral("techStack"));
+		draft.techStack_ = technologies.canConvert<QStringList>()
+			? technologies.toStringList()
+			: technologies.toString().split(',', Qt::SkipEmptyParts);
+		return draft;
+	}
+
+}
 
 JobApplicationsController::JobApplicationsController(
 	QVector<JobApplication> applications,
@@ -53,11 +81,6 @@ JobApplicationsController::JobApplicationsController(
 		&QAbstractItemModel::modelReset,
 		this,
 		[this]() { handleVisibleCountChanged(); });
-	connect(
-		&addJobWorker_,
-		&AddJobWorker::admissionCompleted,
-		this,
-		&JobApplicationsController::handleAddJobAdmission);
 	connect(
 		&addJobWorker_,
 		&AddJobWorker::saveCompleted,
@@ -226,12 +249,18 @@ void JobApplicationsController::createApplication(
 	const QVariantMap& formValues,
 	const QUrl& selectedCvUrl)
 {
-	if (shuttingDown_) 
+	if (shuttingDown_)
 		return;
+
+	const auto preflight = AddJobService::preflight(fillDraft(formValues), selectedCvUrl);
+	if (!preflight.isValid()) {
+		emit saveFailed(preflight.fieldErrors_, preflight.message_);
+		return;
+	}
 
 	const auto operationId = ++nextCreateOperationId_;
 	const auto previousCount = pendingSaveCount();
-	createQueue_.emplace_back(operationId, formValues, selectedCvUrl);
+	createQueue_.emplace_back(operationId, preflight.draft_, selectedCvUrl);
 	publishPendingSaveStateChange(previousCount);
 	emit applicationQueued(operationId);
 	startNextCreateApplication();
@@ -249,7 +278,7 @@ void JobApplicationsController::startNextCreateApplication()
 
 	addJobWorker_.submit({
 		activeCreateApplication_->operationId_,
-		activeCreateApplication_->rawFormValues_,
+		activeCreateApplication_->draft_,
 		activeCreateApplication_->selectedCvUrl_,
 		activeCreateCancellation_});
 }
@@ -270,28 +299,6 @@ void JobApplicationsController::cancelAllCreateApplications()
 		activeCreateCancellation_->requestCancellation();
 	}
 	publishPendingSaveStateChange(previousCount);
-}
-
-void JobApplicationsController::handleAddJobAdmission(const AddJobAdmissionOutcome& outcome)
-{
-	if (!isActiveCreateOutcome(outcome.operationId_, outcome.cancellation_)) {
-		return;
-	}
-
-	if (outcome.isAccepted()) {
-		if (!suppressActiveCompletionNotification_) {
-			emit applicationAccepted(outcome.operationId_, outcome.jobTitle_);
-		}
-		return;
-	}
-
-	if (!suppressActiveCompletionNotification_) {
-		emit applicationRejected(
-			outcome.operationId_,
-			outcome.fieldErrors_,
-			outcome.message_);
-	}
-	releaseActiveCreateApplication();
 }
 
 void JobApplicationsController::handleAddJobSave(const AddJobSaveOutcome& outcome)

@@ -1,6 +1,6 @@
 #include "AddJobWorker.hpp"
 
-#include "JobApplicationDraft.hpp"
+#include "JobApplicationValidator.hpp"
 #include "JobRepository.hpp"
 #include "cvs/CvImportService.hpp"
 #include "cvs/CvManagedFileStore.hpp"
@@ -17,37 +17,6 @@
 #include <utility>
 
 namespace {
-
-	JobApplicationDraft fillDraft(const QVariantMap& formValues)
-	{
-		JobApplicationDraft draft;
-		draft.jobTitle_ = formValues.value(QStringLiteral("jobTitle")).toString();
-		draft.jobUrl_ = formValues.value(QStringLiteral("jobUrl")).toString();
-		draft.companyName_ = formValues.value(QStringLiteral("companyName")).toString();
-		draft.workFormat_ = formValues.value(QStringLiteral("workFormat")).toString();
-		draft.city_ = formValues.value(QStringLiteral("city")).toString();
-		draft.salary_ = formValues.value(QStringLiteral("salary")).toString();
-		draft.status_ = formValues.value(QStringLiteral("status")).toString();
-		draft.appliedDate_ = formValues.value(QStringLiteral("appliedDate")).toString();
-		draft.nextStep_ = formValues.value(QStringLiteral("nextStep")).toString();
-		draft.description_ = formValues.value(QStringLiteral("description")).toString();
-		draft.requirements_ = formValues.value(QStringLiteral("requirements")).toString();
-		draft.notes_ = formValues.value(QStringLiteral("notes")).toString();
-
-		const auto technologies = formValues.value(QStringLiteral("techStack"));
-		draft.techStack_ = technologies.canConvert<QStringList>()
-			? technologies.toStringList()
-			: technologies.toString().split(',', Qt::SkipEmptyParts);
-		return draft;
-	}
-
-	QString rawJobTitle(const AddJobRequest& request)
-	{
-		return request.rawFormValues_
-			.value(QStringLiteral("jobTitle"))
-			.toString()
-			.trimmed();
-	}
 
 	QString exceptionMessage(const std::exception_ptr& exception)
 	{
@@ -78,74 +47,63 @@ public:
 	}
 
 	void process(AddJobRequest request, AddJobWorker* facade)
-	{
+	{  // this function process 2 or more validations for field and file. 
+	   // Maybe it is redundant...?
+
+		// check whether this foo called from correct thread
 		Q_ASSERT(QThread::currentThread() == thread());
 
 		if (request.cancellation_ == nullptr) {
-			postAdmission(
+			postSave(
 				facade,
-				admissionOutcome(
+				saveOutcome(
 					request,
-					AddJobAdmissionState::InfrastructureFailure,
-					rawJobTitle(request),
-					{},
-					QStringLiteral("The Add Job cancellation state is unavailable.")));
+					failureResult(QStringLiteral(
+						"The Add Job cancellation state is unavailable."))));
 			return;
 		}
 
 		if (request.cancellation_->isCancellationRequested()) {
-			postAdmission(
+			postSave(
 				facade,
-				admissionOutcome(
+				saveOutcome(
 					request,
-					AddJobAdmissionState::Cancelled,
-					rawJobTitle(request),
-					{},
-					QStringLiteral("Job creation was canceled.")));
+					failureResult(QStringLiteral("Job creation was canceled."))));
 			return;
 		}
 
-		AddJobPreflightResult preflight;
+		JobApplicationValidationResult validation;
 		try {
-			preflight = AddJobService::preflight(
-				fillDraft(request.rawFormValues_),
+			validation = JobApplicationValidator::validate(
+				request.draft_,
 				request.selectedCvUrl_);
 		}
 		catch (...) {
-			postAdmission(
+			postSave(
 				facade,
-				admissionOutcome(
+				saveOutcome(
 					request,
-					AddJobAdmissionState::InfrastructureFailure,
-					rawJobTitle(request),
-					{},
-					exceptionMessage(std::current_exception())));
+					failureResult(exceptionMessage(std::current_exception()))));
 			return;
 		}
 
-		if (!preflight.isValid()) {
-			postAdmission(
+		if (!validation.isValid()) {
+			postSave(
 				facade,
-				admissionOutcome(
+				saveOutcome(
 					request,
-					AddJobAdmissionState::Rejected,
-					preflight.draft_.jobTitle_,
-					preflight.fieldErrors_,
-					preflight.message_));
+					failureResult(
+						QStringLiteral("Please correct the highlighted fields."),
+						validation.fieldErrors_)));
 			return;
 		}
 
-		const auto normalizedJobTitle = preflight.draft_.jobTitle_;
-
-		if (request.cancellation_->isCancellationRequested()) {
-			postAdmission(
+		if (request.cancellation_->isCancellationRequested()) {// After defensive validation.
+			postSave(
 				facade,
-				admissionOutcome(
+				saveOutcome(
 					request,
-					AddJobAdmissionState::Cancelled,
-					normalizedJobTitle,
-					{},
-					QStringLiteral("Job creation was canceled.")));
+					failureResult(QStringLiteral("Job creation was canceled."))));
 			return;
 		}
 
@@ -154,42 +112,27 @@ public:
 			context = &ensureContext();
 		}
 		catch (...) {
-			postAdmission(
+			postSave(
 				facade,
-				admissionOutcome(
+				saveOutcome(
 					request,
-					AddJobAdmissionState::InfrastructureFailure,
-					normalizedJobTitle,
-					{},
-					exceptionMessage(std::current_exception())));
+					failureResult(exceptionMessage(std::current_exception()))));
 			return;
 		}
 
-		if (request.cancellation_->isCancellationRequested()) {
-			postAdmission(
+		if (request.cancellation_->isCancellationRequested()) { // After context initialization.
+			postSave(
 				facade,
-				admissionOutcome(
+				saveOutcome(
 					request,
-					AddJobAdmissionState::Cancelled,
-					normalizedJobTitle,
-					{},
-					QStringLiteral("Job creation was canceled.")));
+					failureResult(QStringLiteral("Job creation was canceled."))));
 			return;
 		}
-
-		postAdmission(
-			facade,
-			admissionOutcome(
-				request,
-				AddJobAdmissionState::Accepted,
-				normalizedJobTitle,
-				{},
-				{}));
 
 		AddJobResult result;
 		try {
 			auto preparation = context->addJobService_.prepare(
-				preflight.draft_,
+				request.draft_,
 				request.selectedCvUrl_,
 				request.cancellation_);
 			result = context->addJobService_.complete(
@@ -202,12 +145,9 @@ public:
 
 		postSave(
 			facade,
-			AddJobSaveOutcome{
-				request.operationId_,
-				request.cancellation_,
-				normalizedJobTitle,
-				std::move(result) });
-	}
+			saveOutcome(request, std::move(result)));
+
+}
 
 	void destroyContext()
 	{
@@ -246,36 +186,31 @@ private:
 
 	PipelineContext& ensureContext()
 	{
-		if (context_ == nullptr) {
+		if (context_ == nullptr)
 			context_ = std::make_unique<PipelineContext>(dataDirectory_);
-		}
+
 		return *context_;
 	}
 
-	static AddJobAdmissionOutcome admissionOutcome(
+	static AddJobResult failureResult(
+		QString message,
+		QVariantMap fieldErrors = {})
+	{
+		AddJobResult result;
+		result.fieldErrors_ = std::move(fieldErrors);
+		result.message_ = std::move(message);
+		return result;
+	}
+
+	static AddJobSaveOutcome saveOutcome(
 		const AddJobRequest& request,
-		AddJobAdmissionState state,
-		QString jobTitle,
-		QVariantMap fieldErrors,
-		QString message)
+		AddJobResult result)
 	{
 		return {
 			request.operationId_,
 			request.cancellation_,
-			state,
-			std::move(jobTitle),
-			std::move(fieldErrors),
-			std::move(message) };
-	}
-
-	static void postAdmission(AddJobWorker* facade, AddJobAdmissionOutcome outcome)
-	{
-		QMetaObject::invokeMethod(
-			facade,
-			[facade, outcome = std::move(outcome)]() mutable {
-				facade->deliverAdmissionOutcome(std::move(outcome));
-			},
-			Qt::QueuedConnection);
+			request.draft_.jobTitle_,
+			std::move(result) };
 	}
 
 	static void postSave(AddJobWorker* facade, AddJobSaveOutcome outcome)
@@ -292,17 +227,11 @@ private:
 	std::unique_ptr<PipelineContext> context_;
 };
 
-bool AddJobAdmissionOutcome::isAccepted() const
-{
-	return state_ == AddJobAdmissionState::Accepted;
-}
-
 AddJobWorker::AddJobWorker(QString dataDirectory, QObject* parent)
 	: QObject{ parent }
 	, dataDirectory_{ std::move(dataDirectory) }
 {
 	workerThread_.setObjectName(QStringLiteral("AddJobWorkerThread"));
-	qRegisterMetaType<AddJobAdmissionOutcome>();
 	qRegisterMetaType<AddJobSaveOutcome>();
 }
 
@@ -315,7 +244,6 @@ void AddJobWorker::submit(AddJobRequest request)
 {
 	// ?
 	//Q_ASSERT(QThread::currentThread() == thread());
-
 	if (shuttingDown_) {
 		queueUnavailableOutcome(
 			request,
@@ -398,21 +326,6 @@ bool AddJobWorker::isRunning() const
 	return workerThread_.isRunning();
 }
 
-void AddJobWorker::deliverAdmissionOutcome(AddJobAdmissionOutcome outcome)
-{
-	Q_ASSERT(QThread::currentThread() == thread());
-
-	if (shuttingDown_
-		|| !isActiveOutcome(outcome.operationId_, outcome.cancellation_)) {
-		return;
-	}
-
-	if (!outcome.isAccepted()) {
-		clearActiveRequest();
-	}
-	emit admissionCompleted(outcome);
-}
-
 void AddJobWorker::deliverSaveOutcome(AddJobSaveOutcome outcome)
 {
 	Q_ASSERT(QThread::currentThread() == thread());
@@ -430,17 +343,17 @@ void AddJobWorker::queueUnavailableOutcome(
 	const AddJobRequest& request,
 	const QString& message)
 {
-	AddJobAdmissionOutcome outcome{
+	AddJobResult result;
+	result.message_ = message;
+	AddJobSaveOutcome outcome{
 		request.operationId_,
 		request.cancellation_,
-		AddJobAdmissionState::InfrastructureFailure,
-		rawJobTitle(request),
-		{},
-		message };
+		request.draft_.jobTitle_,
+		std::move(result) };
 	QMetaObject::invokeMethod(
 		this,
 		[this, outcome = std::move(outcome)]() mutable {
-			emit admissionCompleted(outcome);
+			emit saveCompleted(outcome);
 		},
 		Qt::QueuedConnection);
 }

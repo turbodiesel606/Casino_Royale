@@ -9,38 +9,16 @@
 #include <QString>
 #include <QThread>
 #include <QUrl>
-#include <QVariantMap>
 
 #include <memory>
 
-enum class AddJobAdmissionState
-{
-    Accepted,
-    Rejected,
-    Cancelled,
-    InfrastructureFailure
-};
-
-// Carries one controller-approved raw Add Job request into the worker thread.
+// Carries one controller-validated Add Job request into the worker thread.
 struct AddJobRequest final
 {
     quint64 operationId_ = 0;
-    QVariantMap rawFormValues_;
+    NormalizedJobApplicationDraft draft_;
     QUrl selectedCvUrl_;
     std::shared_ptr<CancellationState> cancellation_;
-};
-
-// Reports whether a raw request passed canonical worker-side admission.
-struct AddJobAdmissionOutcome final
-{
-    quint64 operationId_ = 0;
-    std::shared_ptr<CancellationState> cancellation_;
-    AddJobAdmissionState state_ = AddJobAdmissionState::InfrastructureFailure;
-    QString jobTitle_;
-    QVariantMap fieldErrors_;
-    QString message_;
-
-    bool isAccepted() const;
 };
 
 // Returns the value-only durable result after worker-side CV and SQL work.
@@ -52,7 +30,6 @@ struct AddJobSaveOutcome final
     AddJobResult result_;
 };
 
-Q_DECLARE_METATYPE(AddJobAdmissionOutcome)
 Q_DECLARE_METATYPE(AddJobSaveOutcome)
 
 // GUI-thread facade for one reusable Add Job worker thread and its private
@@ -70,13 +47,11 @@ public:
     bool isRunning() const;
 
 signals:
-    void admissionCompleted(const AddJobAdmissionOutcome& outcome);
     void saveCompleted(const AddJobSaveOutcome& outcome);
 
 private:
     class Executor;
 
-    void deliverAdmissionOutcome(AddJobAdmissionOutcome outcome);
     void deliverSaveOutcome(AddJobSaveOutcome outcome);
     void queueUnavailableOutcome(const AddJobRequest& request, const QString& message);
     bool isActiveOutcome(

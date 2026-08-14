@@ -4,7 +4,6 @@
 #include "../support/JobApplicationTestData.hpp"
 
 #include <QSignalSpy>
-#include <QElapsedTimer>
 #include <QtTest/QtTest>
 
 #include <utility>
@@ -38,7 +37,7 @@ private slots:
     void controllerFiltersBySearchTextAndStatus();
     void selectionPublishesControllerContracts();
     void controllerValidatesSelectedApplication();
-    void controllerQueuesRawAdmissionsBeforeWorkerValidation();
+    void controllerValidatesBeforeQueueAdmission();
 
 private:
     testsupport::AddJobWorkerTestFixture fixture_;
@@ -223,16 +222,15 @@ void JobApplicationsControllerTest::controllerValidatesSelectedApplication()
     QVERIFY(!invalidController.validateSelectedApplication().isEmpty());
 }
 
-void JobApplicationsControllerTest::controllerQueuesRawAdmissionsBeforeWorkerValidation()
+void JobApplicationsControllerTest::controllerValidatesBeforeQueueAdmission()
 {
     JobApplicationsController controller{{}, fixture_.worker_};
     QSignalSpy queuedSpy{&controller, &JobApplicationsController::applicationQueued};
-    QSignalSpy acceptedSpy{&controller, &JobApplicationsController::applicationAccepted};
-    QSignalSpy rejectedSpy{&controller, &JobApplicationsController::applicationRejected};
+    QSignalSpy failedSpy{&controller, &JobApplicationsController::saveFailed};
     QSignalSpy completedSpy{&controller, &JobApplicationsController::applicationSaveCompleted};
+    QSignalSpy pendingCountSpy{&controller, &JobApplicationsController::pendingSaveCountChanged};
+    QSignalSpy savingSpy{&controller, &JobApplicationsController::savingChanged};
 
-    QElapsedTimer callTimer;
-    callTimer.start();
     controller.createApplication(
         {
             {QStringLiteral("jobTitle"), QStringLiteral(" ")},
@@ -244,16 +242,8 @@ void JobApplicationsControllerTest::controllerQueuesRawAdmissionsBeforeWorkerVal
         },
         {});
 
-    QVERIFY2(callTimer.elapsed() < 1000, "Raw FIFO admission blocked the controller thread.");
-    QCOMPARE(queuedSpy.count(), 1);
-    QCOMPARE(queuedSpy.first().at(0).toULongLong(), quint64(1));
-    QCOMPARE(rejectedSpy.count(), 0);
-    QCOMPARE(controller.pendingSaveCount(), 1);
-    QVERIFY(controller.saving());
-
-    QTRY_COMPARE(rejectedSpy.count(), 1);
-    QCOMPARE(rejectedSpy.first().at(0).toULongLong(), quint64(1));
-    const auto fullErrors = rejectedSpy.first().at(1).toMap();
+    QCOMPARE(failedSpy.count(), 1);
+    const auto fullErrors = failedSpy.first().at(0).toMap();
     const QStringList expectedFields{
         QStringLiteral("jobTitle"),
         QStringLiteral("jobUrl"),
@@ -266,25 +256,63 @@ void JobApplicationsControllerTest::controllerQueuesRawAdmissionsBeforeWorkerVal
     for (const auto& field : expectedFields) {
         QVERIFY2(fullErrors.contains(field), qPrintable(field));
     }
-    QVERIFY(!rejectedSpy.first().at(2).toString().isEmpty());
-    QCOMPARE(acceptedSpy.count(), 0);
+    QVERIFY(!failedSpy.first().at(1).toString().isEmpty());
+    QCOMPARE(queuedSpy.count(), 0);
     QCOMPARE(completedSpy.count(), 0);
+    QCOMPARE(pendingCountSpy.count(), 0);
+    QCOMPARE(savingSpy.count(), 0);
     QCOMPARE(controller.pendingSaveCount(), 0);
     QVERIFY(!controller.saving());
+    QVERIFY(!fixture_.worker_.isRunning());
 
     const auto sourcePath = fixture_.storage_.createFile(QStringLiteral("accepted.pdf"));
+    auto validValues = testsupport::validJobFormValues(QStringLiteral("  Accepted Role  "));
+    validValues.insert(QStringLiteral("jobUrl"), QStringLiteral("  https://example.com/jobs/accepted  "));
+    validValues.insert(QStringLiteral("companyName"), QStringLiteral("  Example Company  "));
+    validValues.insert(QStringLiteral("workFormat"), QStringLiteral("  hybrid  "));
+    validValues.insert(QStringLiteral("city"), QStringLiteral("  Baku  "));
+    validValues.insert(QStringLiteral("salary"), QStringLiteral("  5000  "));
+    validValues.insert(QStringLiteral("status"), QStringLiteral("  interview  "));
+    validValues.insert(QStringLiteral("appliedDate"), QStringLiteral("  2026-08-05  "));
+    validValues.insert(QStringLiteral("nextStep"), QStringLiteral("  Technical interview  "));
+    validValues.insert(QStringLiteral("description"), QStringLiteral("  Build Qt applications  "));
+    validValues.insert(QStringLiteral("requirements"), QStringLiteral("  Modern C++  "));
+    validValues.insert(QStringLiteral("techStack"), QStringLiteral(" Qt, C++ , qt, QML "));
+    validValues.insert(QStringLiteral("notes"), QStringLiteral("  Follow up Friday  "));
     controller.createApplication(
-        testsupport::validJobFormValues(QStringLiteral("  Accepted Role  ")),
+        validValues,
         QUrl::fromLocalFile(sourcePath));
+    validValues.clear();
 
-    QCOMPARE(queuedSpy.count(), 2);
-    QCOMPARE(queuedSpy.at(1).at(0).toULongLong(), quint64(2));
+    QCOMPARE(queuedSpy.count(), 1);
+    QCOMPARE(queuedSpy.first().at(0).toULongLong(), quint64(1));
     QTRY_COMPARE(completedSpy.count(), 1);
-    QCOMPARE(acceptedSpy.count(), 1);
-    QCOMPARE(acceptedSpy.first().at(0).toULongLong(), quint64(2));
-    QCOMPARE(acceptedSpy.first().at(1).toString(), QStringLiteral("Accepted Role"));
+    QCOMPARE(completedSpy.first().at(0).toULongLong(), quint64(1));
+    QCOMPARE(completedSpy.first().at(1).toString(), QStringLiteral("Accepted Role"));
     QVERIFY(completedSpy.first().at(2).toBool());
+    QCOMPARE(failedSpy.count(), 1);
+    QCOMPARE(pendingCountSpy.count(), 2);
+    QCOMPARE(savingSpy.count(), 2);
     QCOMPARE(controller.pendingSaveCount(), 0);
+
+    const auto storedApplications = fixture_.jobRepository_.findAll();
+    QCOMPARE(storedApplications.size(), 1);
+    const auto& application = storedApplications.first();
+    QCOMPARE(application.jobTitle_, QStringLiteral("Accepted Role"));
+    QCOMPARE(application.jobUrl_, QUrl{QStringLiteral("https://example.com/jobs/accepted")});
+    QCOMPARE(application.companyName_, QStringLiteral("Example Company"));
+    QCOMPARE(application.workFormat_, WorkFormat::Hybrid);
+    QCOMPARE(application.city_, QStringLiteral("Baku"));
+    QCOMPARE(application.salary_, QStringLiteral("5000"));
+    QCOMPARE(application.status_, JobStatus::Interview);
+    QCOMPARE(application.appliedDate_, QDate(2026, 8, 5));
+    QCOMPARE(application.nextStep_, QStringLiteral("Technical interview"));
+    QCOMPARE(application.description_, QStringLiteral("Build Qt applications"));
+    QCOMPARE(application.requirements_, QStringLiteral("Modern C++"));
+    QCOMPARE(
+        application.techStack_,
+        QStringList({QStringLiteral("Qt, C++ , qt, QML")}));
+    QCOMPARE(application.notes_, QStringLiteral("Follow up Friday"));
 }
 
 QTEST_GUILESS_MAIN(JobApplicationsControllerTest)

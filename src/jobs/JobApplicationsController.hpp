@@ -3,6 +3,7 @@
 
 #include "common/RoleFilterProxyModel.hpp"
 #include "common/StableIdSelectionTracker.hpp"
+#include "JobApplicationDraft.hpp"
 #include "JobApplicationListModel.hpp"
 #include "cvs/CvDocument.hpp"
 
@@ -18,11 +19,10 @@
 class QAbstractItemModel;
 class AddJobWorker;
 class CancellationState;
-struct AddJobAdmissionOutcome;
 struct AddJobSaveOutcome;
 
 // Exposes job applications, selection, filtering, and validation to the user interface through Qt models and properties.
-// Owns the raw Add Job FIFO and publishes worker results to GUI-thread models and QML-facing signals.
+// Owns the validated Add Job FIFO and publishes worker results to GUI-thread models and QML-facing signals.
 class JobApplicationsController final : public QObject
 {
     Q_OBJECT
@@ -77,11 +77,6 @@ signals:
     void savingChanged();
     void pendingSaveCountChanged();
     void applicationQueued(quint64 operationId);
-    void applicationAccepted(quint64 operationId, const QString& jobTitle);
-    void applicationRejected(
-        quint64 operationId,
-        const QVariantMap& fieldErrors,
-        const QString& message);
     void applicationSaveCompleted(
         quint64 operationId,
         const QString& jobTitle,
@@ -90,13 +85,14 @@ signals:
     void saveQueueDrained();
     void applicationCreated(const QString& applicationId);
     void companyResolved(const QString& companyId, const QString& companyName);
+    void saveFailed(const QVariantMap& fieldErrors, const QString& message);
     void cvUsed(const CvDocument& document, const QString& applicationId, bool wasInserted);
 
 private:
     struct QueuedCreateApplication final
     {
         quint64 operationId_ = 0;
-        QVariantMap rawFormValues_;
+        NormalizedJobApplicationDraft draft_;
         QUrl selectedCvUrl_;
     };
 
@@ -105,7 +101,6 @@ private:
     void handleVisibleCountChanged();
     void startNextCreateApplication();
     void publishPendingSaveStateChange(int previousCount);
-    void handleAddJobAdmission(const AddJobAdmissionOutcome& outcome);
     void handleAddJobSave(const AddJobSaveOutcome& outcome);
     bool isActiveCreateOutcome(
         quint64 operationId,
