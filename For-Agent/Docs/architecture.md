@@ -27,11 +27,12 @@ The current bootstrap dependency order is:
 6. `CompanyRepository`
 7. `JobRepository`
 8. `AddJobWorker`
-9. `JobApplicationsController`
-10. `CvLibraryController`
-11. `DashboardController`
-12. `CompanyDirectoryController`
-13. `ContactDirectoryController`
+9. `CvImportWorker`
+10. `JobApplicationsController`
+11. `CvLibraryController`
+12. `DashboardController`
+13. `CompanyDirectoryController`
+14. `ContactDirectoryController`
 
 `AddJobWorker` is a GUI-thread facade. On its first submitted request it starts
 one reusable dedicated thread. The GUI controller maps form values and runs
@@ -40,6 +41,12 @@ the worker defensively revalidates the normalized draft and then lazily
 constructs a private `StoragePaths`, `SqliteDatabase`, repository, managed-file,
 import-service, and Add Job service graph inside that thread. Production no
 longer owns GUI-thread `CvImportService` or `AddJobService` instances.
+
+`CvImportWorker` is a separate GUI-thread facade with one reusable dedicated
+thread for standalone CV Library imports. It lazily constructs a private
+`StoragePaths`, `SqliteDatabase`, `CvRepository`, `CvManagedFileStore`, and
+`CvImportService` graph on that thread. `CvLibraryController` owns the import
+FIFO and receives only value outcomes for GUI-thread model publication.
 
 Current QML context properties are:
 
@@ -60,7 +67,7 @@ The currently reachable main pages are:
 - `ContactsPage`
 - `JobFormPage`, opened as a form surface through Add Job actions
 
-`SettingsPage`, `ProfilePage`, and `MemoryPage` are registered in `CMakeLists.txt`, but they are not currently reachable from the main shell. `Sidebar.qml` displays a Settings item, but only emits navigation for indices below the five main pages. The sidebar also has an Add CV quick action with no current navigation or backend workflow.
+`SettingsPage`, `ProfilePage`, and `MemoryPage` are registered in `CMakeLists.txt`, but they are not currently reachable from the main shell. `Sidebar.qml` displays a Settings item, but only emits navigation for indices below the five main pages. Its Add CV quick action opens a multi-file picker without changing the current page.
 
 QML pages live under `qml/pages`.
 
@@ -245,14 +252,50 @@ current form. Discard resets current fields and errors, clears the CV selection,
 restores the `Applied` status, and neither cancels queued work nor deletes a
 selected source file.
 
-`Main.qml` owns presentation-only save notifications and close confirmation.
-Completion notifications are non-modal, display one at a time for 15 seconds,
-and queue later outcomes. A close request while `pendingSaveCount` is non-zero
-is rejected and offers only Wait or Interrupt and Exit. Wait resumes hidden or
-queued notifications without affecting saves. Interrupt and Exit discards
-notifications, calls `cancelAllCreateApplications()`, and closes only after
-`saveQueueDrained`. If the queue drains naturally while the confirmation is
-open, the confirmation closes and the application remains open.
+`Main.qml` owns presentation-only completion notifications and close
+confirmation shared by Add Job and Add CV. Notifications are non-modal,
+display one at a time for 15 seconds, and queue later outcomes. A close request
+while either controller has pending work is rejected and offers only Wait or
+Interrupt and Exit. Wait resumes hidden notifications without affecting work.
+Interrupt and Exit discards notifications, cancels both controller queues, and
+closes only after both pending counts reach zero. If the work drains naturally
+while the confirmation is open, the confirmation closes and the app remains
+open.
+
+## Add CV Flow
+
+The sidebar Add CV action opens one `FileDialog` in multi-file mode. QML sends
+the ordered local URL list to `CvLibraryController::addCvs()` and stays on the
+current page. The dialog filters for PDF, DOC, and DOCX, while the managed-file
+store remains the defensive validation boundary for local, readable, supported
+files.
+
+`CvLibraryController` assigns monotonically increasing operation IDs and owns
+one active request plus a FIFO of waiting URLs. `pendingImportCount` is the
+active-plus-waiting total, `importing` is true exactly while it is non-zero,
+and later picker batches append behind existing work. Duplicate or failed
+requests release only their own active slot and never block later imports.
+
+For each active request, the controller creates a shared `CancellationState`
+and submits it to `CvImportWorker`. The worker performs validation, streaming
+SHA-256, `.part` staging, exact case-sensitive duplicate lookup by
+`(sha256, original_file_name)`, file finalization, and SQLite insertion on its
+private thread and connection. Same filename with different content and same
+content with a different filename remain distinct CVs. Exact identity returns
+a successful no-insert outcome and lets RAII remove the staged copy.
+
+The controller publishes successful outcomes idempotently by stable CV ID and
+mutates `CvListModel` only on the GUI thread. This keeps CV Library and Dashboard
+projections live and tolerates overlapping Add Job `cvUsed` publication without
+duplicate rows or missing links. Per-file QML outcomes distinguish inserted,
+duplicate, and failed states for green, yellow, and red notifications.
+
+`cancelAllCvImports()` drops waiting URLs, cooperatively cancels the active
+streaming operation, suppresses its exit-time notification, and emits
+`importQueueDrained` after cleanup. Cancellation is checked before durable
+import begins; finalization or insertion already in progress may legally
+complete, and worker shutdown destroys its SQL graph on the worker thread
+before quitting and waiting.
 
 ## Boundaries
 

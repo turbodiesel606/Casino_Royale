@@ -53,6 +53,8 @@ set(JOBTRACKER_CV_PERSISTENCE_SOURCES
     src/common/CancellationState.hpp
     src/cvs/CvImportService.cpp
     src/cvs/CvImportService.hpp
+    src/cvs/CvImportWorker.cpp
+    src/cvs/CvImportWorker.hpp
     src/cvs/CvManagedFileStore.cpp
     src/cvs/CvManagedFileStore.hpp
     src/cvs/CvRepository.cpp

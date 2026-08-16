@@ -25,6 +25,7 @@ private slots:
     void reconcilesStaleStagesAndQuarantinesOrphans();
     void reusesCvWithSameIdentity();
     void distinguishesSameContentWithDifferentNames();
+    void distinguishesCaseOnlyFileNames();
     void distinguishesDifferentContentWithSameName();
 };
 
@@ -163,6 +164,47 @@ void CvFileStoreImportTest::distinguishesSameContentWithDifferentNames()
     QVERIFY(first.wasInserted_);
     QVERIFY(second.wasInserted_);
     QVERIFY(first.document_.id_ != second.document_.id_);
+    QCOMPARE(repository.findAll().size(), 2);
+}
+
+void CvFileStoreImportTest::distinguishesCaseOnlyFileNames()
+{
+    testsupport::TemporaryDatabaseFixture fixture;
+    QVERIFY(fixture.isValid());
+    CvRepository repository{fixture.database().connection()};
+    CvManagedFileStore fileStore{fixture.storage().paths()};
+    CvImportService importer{fileStore, repository};
+    const auto upperDirectory = QDir{fixture.storage().rootPath()}
+        .filePath(QStringLiteral("upper"));
+    const auto lowerDirectory = QDir{fixture.storage().rootPath()}
+        .filePath(QStringLiteral("lower"));
+    QVERIFY(QDir{}.mkpath(upperDirectory));
+    QVERIFY(QDir{}.mkpath(lowerDirectory));
+    const auto contents = QByteArrayLiteral("%PDF-1.4 Same CV");
+    const auto upperPath = fixture.storage().createFile(
+        QStringLiteral("Resume.pdf"),
+        contents,
+        upperDirectory);
+    const auto lowerPath = fixture.storage().createFile(
+        QStringLiteral("resume.pdf"),
+        contents,
+        lowerDirectory);
+    const auto cancellation = std::make_shared<CancellationState>();
+
+    const auto upperPreparation = importer.prepareDocument(
+        QUrl::fromLocalFile(upperPath),
+        cancellation);
+    const auto lowerPreparation = importer.prepareDocument(
+        QUrl::fromLocalFile(lowerPath),
+        cancellation);
+    QVERIFY(upperPreparation.succeeded());
+    QVERIFY(lowerPreparation.succeeded());
+    const auto upper = importer.importPreparedDocument(upperPreparation.preparation_);
+    const auto lower = importer.importPreparedDocument(lowerPreparation.preparation_);
+
+    QVERIFY(upper.wasInserted_);
+    QVERIFY(lower.wasInserted_);
+    QVERIFY(upper.document_.id_ != lower.document_.id_);
     QCOMPARE(repository.findAll().size(), 2);
 }
 

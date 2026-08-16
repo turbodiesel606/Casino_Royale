@@ -1,4 +1,5 @@
 #include "cvs/CvFileAccessService.hpp"
+#include "cvs/CvImportWorker.hpp"
 #include "cvs/CvLibraryController.hpp"
 #include "cvs/CvRepository.hpp"
 #include "jobs/JobApplicationListModel.hpp"
@@ -35,7 +36,31 @@ public:
         , database_(paths_.databasePath())
         , repository_(database_.connection())
         , fileAccessService_(paths_)
+        , importWorker_(paths_.dataDirectory())
     {
+    }
+
+    QString createSourceFile(
+        const QString& fileName,
+        const QByteArray& contents = QByteArrayLiteral("%PDF-1.4 JobTracker CV"),
+        const QString& subdirectory = {}) const
+    {
+        auto sourceDirectory = QDir{temporaryDirectory_.path()}
+            .filePath(QStringLiteral("Sources"));
+        if (!subdirectory.isEmpty()) {
+            sourceDirectory = QDir{sourceDirectory}.filePath(subdirectory);
+        }
+        if (!QDir{}.mkpath(sourceDirectory)) {
+            return {};
+        }
+
+        const auto sourcePath = QDir{sourceDirectory}.filePath(fileName);
+        QFile source{sourcePath};
+        if (!source.open(QIODevice::WriteOnly | QIODevice::Truncate)
+            || source.write(contents) != contents.size()) {
+            return {};
+        }
+        return sourcePath;
     }
 
     QTemporaryDir temporaryDirectory_;
@@ -43,6 +68,7 @@ public:
     SqliteDatabase database_;
     CvRepository repository_;
     CvFileAccessService fileAccessService_;
+    CvImportWorker importWorker_;
 };
 
 QVector<CvDocument> makeCvDocuments()
@@ -107,6 +133,11 @@ private slots:
     void openCvPublishesFileAccessFailure();
     void controllerFiltersAndSortsCvs();
     void selectionPublishesLinkedViewContracts();
+    void importsMultipleBatchesInStrictFifo();
+    void databaseLockFailureDoesNotBlockLaterImport();
+    void cancelAllDropsQueuedImports();
+    void cvPublicationIsIdempotent();
+    void workerConnectionClosesOnShutdown();
 };
 
 void CvLibraryControllerTest::cvModelExposesNamedRoles()
@@ -117,7 +148,8 @@ void CvLibraryControllerTest::cvModelExposesNamedRoles()
         applicationsModel,
         makeCvDocuments(),
         storage.repository_,
-        storage.fileAccessService_);
+        storage.fileAccessService_,
+        storage.importWorker_);
     const auto* model = controller.cvModel();
 
     QVERIFY(roleForName(*model, "id") > 0);
@@ -139,7 +171,8 @@ void CvLibraryControllerTest::cvModelExposesSeedDocuments()
         applicationsModel,
         makeCvDocuments(),
         storage.repository_,
-        storage.fileAccessService_);
+        storage.fileAccessService_,
+        storage.importWorker_);
     const auto* model = controller.cvModel();
     const auto firstRow = model->index(0, 0);
 
@@ -185,7 +218,8 @@ void CvLibraryControllerTest::selectedCvControlsLinkedApplications()
         applicationsModel,
         makeCvDocuments(),
         storage.repository_,
-        storage.fileAccessService_);
+        storage.fileAccessService_,
+        storage.importWorker_);
     QSignalSpy selectedIndexSpy(&controller, &CvLibraryController::selectedCvIndexChanged);
     QSignalSpy selectedIdSpy(&controller, &CvLibraryController::selectedCvIdChanged);
     QSignalSpy selectedDataSpy(&controller, &CvLibraryController::selectedCvChanged);
@@ -215,7 +249,8 @@ void CvLibraryControllerTest::favoriteToggleUpdatesSelectedCv()
         applicationsModel,
         documents,
         storage.repository_,
-        storage.fileAccessService_);
+        storage.fileAccessService_,
+        storage.importWorker_);
     QSignalSpy selectedIndexSpy(&controller, &CvLibraryController::selectedCvIndexChanged);
     QSignalSpy selectedIdSpy(&controller, &CvLibraryController::selectedCvIdChanged);
     QSignalSpy selectedDataSpy(&controller, &CvLibraryController::selectedCvChanged);
@@ -249,7 +284,8 @@ void CvLibraryControllerTest::favoriteFailureLeavesModelUnchanged()
         applicationsModel,
         documents,
         storage.repository_,
-        storage.fileAccessService_);
+        storage.fileAccessService_,
+        storage.importWorker_);
     QSignalSpy failedSpy(&controller, &CvLibraryController::operationFailed);
     QSignalSpy dataChangedSpy(
         &controller.cvListModel(),
@@ -316,7 +352,8 @@ void CvLibraryControllerTest::openCvPublishesFileAccessFailure()
         applicationsModel,
         makeCvDocuments(),
         storage.repository_,
-        storage.fileAccessService_);
+        storage.fileAccessService_,
+        storage.importWorker_);
     QSignalSpy failedSpy(&controller, &CvLibraryController::operationFailed);
 
     controller.openCv(QStringLiteral("cv-qt-2026"));
@@ -333,7 +370,8 @@ void CvLibraryControllerTest::controllerFiltersAndSortsCvs()
         applicationsModel,
         makeCvDocuments(),
         storage.repository_,
-        storage.fileAccessService_);
+        storage.fileAccessService_,
+        storage.importWorker_);
     QSignalSpy categorySummarySpy(&controller, &CvLibraryController::categorySummaryChanged);
     QSignalSpy categoryFilterSpy(&controller, &CvLibraryController::categoryFilterChanged);
     QSignalSpy countSpy(&controller, &CvLibraryController::cvCountChanged);
@@ -388,7 +426,8 @@ void CvLibraryControllerTest::selectionPublishesLinkedViewContracts()
         applicationsModel,
         makeCvDocuments(),
         storage.repository_,
-        storage.fileAccessService_};
+        storage.fileAccessService_,
+        storage.importWorker_};
     QSignalSpy selectedIndexSpy{&controller, &CvLibraryController::selectedCvIndexChanged};
     QSignalSpy selectedIdSpy{&controller, &CvLibraryController::selectedCvIdChanged};
     QSignalSpy selectedDataSpy{&controller, &CvLibraryController::selectedCvChanged};
@@ -432,6 +471,241 @@ void CvLibraryControllerTest::selectionPublishesLinkedViewContracts()
     QCOMPARE(categorySummarySpy.count(), 1);
     QCOMPARE(countSpy.count(), 1);
     QCOMPARE(resultSummarySpy.count(), 1);
+}
+
+void CvLibraryControllerTest::importsMultipleBatchesInStrictFifo()
+{
+    CvTestStorage storage;
+    JobApplicationListModel applicationsModel;
+    CvLibraryController controller{
+        applicationsModel,
+        {},
+        storage.repository_,
+        storage.fileAccessService_,
+        storage.importWorker_};
+    QSignalSpy completedSpy{&controller, &CvLibraryController::cvImportCompleted};
+    QSignalSpy pendingSpy{&controller, &CvLibraryController::pendingImportCountChanged};
+    QSignalSpy importingSpy{&controller, &CvLibraryController::importingChanged};
+    QSignalSpy drainedSpy{&controller, &CvLibraryController::importQueueDrained};
+
+    const auto firstPath = storage.createSourceFile(
+        QStringLiteral("first.pdf"),
+        QByteArrayLiteral("%PDF-1.4 First"));
+    const auto invalidPath = storage.createSourceFile(
+        QStringLiteral("invalid.txt"),
+        QByteArrayLiteral("not a CV"));
+    const auto lastPath = storage.createSourceFile(
+        QStringLiteral("last.docx"),
+        QByteArrayLiteral("DOCX Last"));
+    QVERIFY(!firstPath.isEmpty());
+    QVERIFY(!invalidPath.isEmpty());
+    QVERIFY(!lastPath.isEmpty());
+
+    controller.addCvs({
+        QUrl::fromLocalFile(firstPath),
+        QUrl::fromLocalFile(firstPath),
+    });
+    controller.addCvs({
+        QUrl::fromLocalFile(invalidPath),
+        QUrl::fromLocalFile(lastPath),
+    });
+
+    QCOMPARE(controller.pendingImportCount(), 4);
+    QVERIFY(controller.importing());
+    QCOMPARE(pendingSpy.count(), 2);
+    QCOMPARE(importingSpy.count(), 1);
+
+    QTRY_COMPARE_WITH_TIMEOUT(drainedSpy.count(), 1, 15000);
+    QCOMPARE(completedSpy.count(), 4);
+    QCOMPARE(controller.pendingImportCount(), 0);
+    QVERIFY(!controller.importing());
+    QCOMPARE(pendingSpy.count(), 6);
+    QCOMPARE(importingSpy.count(), 2);
+
+    const QStringList expectedFileNames{
+        QStringLiteral("first.pdf"),
+        QStringLiteral("first.pdf"),
+        QStringLiteral("invalid.txt"),
+        QStringLiteral("last.docx"),
+    };
+    for (int index = 0; index < completedSpy.count(); ++index) {
+        QCOMPARE(completedSpy.at(index).at(0).toULongLong(), static_cast<quint64>(index + 1));
+        QCOMPARE(completedSpy.at(index).at(1).toString(), expectedFileNames.at(index));
+        QVERIFY(!completedSpy.at(index).at(4).toString().isEmpty());
+    }
+    QVERIFY(completedSpy.at(0).at(2).toBool());
+    QVERIFY(completedSpy.at(0).at(3).toBool());
+    QVERIFY(completedSpy.at(1).at(2).toBool());
+    QVERIFY(!completedSpy.at(1).at(3).toBool());
+    QVERIFY(!completedSpy.at(2).at(2).toBool());
+    QVERIFY(!completedSpy.at(2).at(3).toBool());
+    QVERIFY(completedSpy.at(3).at(2).toBool());
+    QVERIFY(completedSpy.at(3).at(3).toBool());
+
+    QCOMPARE(storage.repository_.findAll().size(), 2);
+    QCOMPARE(controller.cvListModel().rowCount(), 2);
+    const QDir resumesDirectory{storage.paths_.resumesDirectory()};
+    QCOMPARE(resumesDirectory.entryList(QDir::Files | QDir::NoDotAndDotDot).size(), 2);
+    QVERIFY(resumesDirectory.entryList(
+        {QStringLiteral("*.part")},
+        QDir::Files | QDir::NoDotAndDotDot).isEmpty());
+}
+
+void CvLibraryControllerTest::databaseLockFailureDoesNotBlockLaterImport()
+{
+    CvTestStorage storage;
+    JobApplicationListModel applicationsModel;
+    CvLibraryController controller{
+        applicationsModel,
+        {},
+        storage.repository_,
+        storage.fileAccessService_,
+        storage.importWorker_};
+    QSignalSpy completedSpy{&controller, &CvLibraryController::cvImportCompleted};
+    QSignalSpy drainedSpy{&controller, &CvLibraryController::importQueueDrained};
+
+    const auto warmPath = storage.createSourceFile(QStringLiteral("warm.pdf"));
+    QVERIFY(!warmPath.isEmpty());
+    controller.addCvs({QUrl::fromLocalFile(warmPath)});
+    QTRY_COMPARE_WITH_TIMEOUT(drainedSpy.count(), 1, 10000);
+    QCOMPARE(completedSpy.count(), 1);
+    QVERIFY(completedSpy.first().at(2).toBool());
+    completedSpy.clear();
+    drainedSpy.clear();
+
+    QSqlQuery exclusiveLock{storage.database_.connection()};
+    QVERIFY(exclusiveLock.exec(QStringLiteral("BEGIN EXCLUSIVE")));
+    bool lockReleased = false;
+    QObject::connect(
+        &controller,
+        &CvLibraryController::cvImportCompleted,
+        &controller,
+        [&storage, &lockReleased](
+            quint64,
+            const QString& fileName,
+            bool,
+            bool,
+            const QString&) {
+            if (fileName != QStringLiteral("locked.pdf")) {
+                return;
+            }
+            QSqlQuery rollback{storage.database_.connection()};
+            lockReleased = rollback.exec(QStringLiteral("ROLLBACK"));
+        });
+
+    const auto lockedPath = storage.createSourceFile(QStringLiteral("locked.pdf"));
+    const auto afterLockPath = storage.createSourceFile(QStringLiteral("after-lock.pdf"));
+    QVERIFY(!lockedPath.isEmpty());
+    QVERIFY(!afterLockPath.isEmpty());
+    controller.addCvs({
+        QUrl::fromLocalFile(lockedPath),
+        QUrl::fromLocalFile(afterLockPath),
+    });
+
+    QTRY_COMPARE_WITH_TIMEOUT(drainedSpy.count(), 1, 10000);
+    QCOMPARE(completedSpy.count(), 2);
+    QCOMPARE(completedSpy.at(0).at(1).toString(), QStringLiteral("locked.pdf"));
+    QVERIFY(!completedSpy.at(0).at(2).toBool());
+    QVERIFY(lockReleased);
+    QCOMPARE(completedSpy.at(1).at(1).toString(), QStringLiteral("after-lock.pdf"));
+    QVERIFY(completedSpy.at(1).at(2).toBool());
+    QVERIFY(completedSpy.at(1).at(3).toBool());
+    QCOMPARE(storage.repository_.findAll().size(), 2);
+    QCOMPARE(controller.cvListModel().rowCount(), 2);
+    const QDir resumesDirectory{storage.paths_.resumesDirectory()};
+    QCOMPARE(resumesDirectory.entryList(QDir::Files | QDir::NoDotAndDotDot).size(), 2);
+    QVERIFY(resumesDirectory.entryList(
+        {QStringLiteral("*.part")},
+        QDir::Files | QDir::NoDotAndDotDot).isEmpty());
+}
+
+void CvLibraryControllerTest::cancelAllDropsQueuedImports()
+{
+    CvTestStorage storage;
+    JobApplicationListModel applicationsModel;
+    CvLibraryController controller{
+        applicationsModel,
+        {},
+        storage.repository_,
+        storage.fileAccessService_,
+        storage.importWorker_};
+    QSignalSpy completedSpy{&controller, &CvLibraryController::cvImportCompleted};
+    QSignalSpy drainedSpy{&controller, &CvLibraryController::importQueueDrained};
+
+    const auto missingPath = QDir{storage.temporaryDirectory_.path()}
+        .filePath(QStringLiteral("missing.pdf"));
+    const auto queuedFirst = storage.createSourceFile(QStringLiteral("queued-first.pdf"));
+    const auto queuedSecond = storage.createSourceFile(QStringLiteral("queued-second.pdf"));
+    QVERIFY(!queuedFirst.isEmpty());
+    QVERIFY(!queuedSecond.isEmpty());
+
+    controller.addCvs({
+        QUrl::fromLocalFile(missingPath),
+        QUrl::fromLocalFile(queuedFirst),
+        QUrl::fromLocalFile(queuedSecond),
+    });
+    controller.cancelAllCvImports();
+
+    QCOMPARE(controller.pendingImportCount(), 1);
+    QTRY_COMPARE_WITH_TIMEOUT(drainedSpy.count(), 1, 10000);
+    QCOMPARE(controller.pendingImportCount(), 0);
+    QVERIFY(!controller.importing());
+    QCOMPARE(completedSpy.count(), 0);
+    QCOMPARE(storage.repository_.findAll().size(), 0);
+    QCOMPARE(controller.cvListModel().rowCount(), 0);
+    const QDir resumesDirectory{storage.paths_.resumesDirectory()};
+    QVERIFY(resumesDirectory.entryList(QDir::Files | QDir::NoDotAndDotDot).isEmpty());
+}
+
+void CvLibraryControllerTest::cvPublicationIsIdempotent()
+{
+    CvTestStorage storage;
+    JobApplicationListModel applicationsModel;
+    CvLibraryController controller{
+        applicationsModel,
+        {},
+        storage.repository_,
+        storage.fileAccessService_,
+        storage.importWorker_};
+    QSignalSpy insertedSpy{&controller.cvListModel(), &QAbstractItemModel::rowsInserted};
+    auto document = makeCvDocuments().first();
+    document.linkedApplicationIds_.clear();
+
+    controller.recordCvUse(document, QStringLiteral("job-1"), true);
+    controller.recordCvUse(document, QStringLiteral("job-1"), false);
+    controller.recordCvUse(document, QStringLiteral("job-2"), false);
+
+    QCOMPARE(insertedSpy.count(), 1);
+    QCOMPARE(controller.cvListModel().rowCount(), 1);
+    const auto* published = controller.cvListModel().cvAt(0);
+    QVERIFY(published != nullptr);
+    QCOMPARE(
+        published->linkedApplicationIds_,
+        QStringList({QStringLiteral("job-1"), QStringLiteral("job-2")}));
+}
+
+void CvLibraryControllerTest::workerConnectionClosesOnShutdown()
+{
+    const auto initialConnectionCount = QSqlDatabase::connectionNames().size();
+    {
+        CvTestStorage storage;
+        JobApplicationListModel applicationsModel;
+        CvLibraryController controller{
+            applicationsModel,
+            {},
+            storage.repository_,
+            storage.fileAccessService_,
+            storage.importWorker_};
+        QSignalSpy drainedSpy{&controller, &CvLibraryController::importQueueDrained};
+        const auto sourcePath = storage.createSourceFile(QStringLiteral("shutdown.pdf"));
+        QVERIFY(!sourcePath.isEmpty());
+
+        controller.addCvs({QUrl::fromLocalFile(sourcePath)});
+        QTRY_COMPARE_WITH_TIMEOUT(drainedSpy.count(), 1, 10000);
+        QVERIFY(storage.importWorker_.isRunning());
+    }
+
+    QCOMPARE(QSqlDatabase::connectionNames().size(), initialConnectionCount);
 }
 
 QTEST_GUILESS_MAIN(CvLibraryControllerTest)

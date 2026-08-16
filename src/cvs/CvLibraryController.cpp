@@ -1,7 +1,9 @@
 #include "CvLibraryController.hpp"
 
 #include "CvFileAccessService.hpp"
+#include "CvImportWorker.hpp"
 #include "CvRepository.hpp"
+#include "common/CancellationState.hpp"
 #include "jobs/JobApplicationListModel.hpp"
 
 #include <QMap>
@@ -13,12 +15,14 @@ CvLibraryController::CvLibraryController(
     const JobApplicationListModel& applicationsModel,
     CvRepository& repository,
     CvFileAccessService& fileAccessService,
+    CvImportWorker& importWorker,
     QObject* parent)
     : CvLibraryController(
         applicationsModel,
         QVector<CvDocument>{},
         repository,
         fileAccessService,
+        importWorker,
         parent)
 {
 }
@@ -28,10 +32,12 @@ CvLibraryController::CvLibraryController(
     QVector<CvDocument> documents,
     CvRepository& repository,
     CvFileAccessService& fileAccessService,
+    CvImportWorker& importWorker,
     QObject* parent)
 	: QObject{ parent }
 	, repository_{ repository }
 	, fileAccessService_{ fileAccessService }
+	, importWorker_{ importWorker }
 	, cvModel_{std::move(documents), this}
 	, filteredCvModel_{this}
 	, linkedApplicationsModel_(
@@ -95,20 +101,28 @@ CvLibraryController::CvLibraryController(
 				emit categorySummaryChanged();
 			}
 		});
+	connect(
+		&importWorker_,
+		&CvImportWorker::importCompleted,
+		this,
+		&CvLibraryController::handleCvImport);
+}
+
+CvLibraryController::~CvLibraryController()
+{
+	shuttingDown_ = true;
+	importQueue_.clear();
+	if (activeImportCancellation_ != nullptr) {
+		activeImportCancellation_->requestCancellation();
+	}
 }
 
 void CvLibraryController::recordCvUse(
     const CvDocument& document,
     const QString& applicationId,
-    bool wasInserted)
+    bool)
 {
-    if (wasInserted) {
-        auto newDocument = document;
-        newDocument.linkedApplicationIds_.append(applicationId);
-        cvModel_.appendDocument(std::move(newDocument));
-    } else {
-        cvModel_.addLinkedApplication(document.id_, applicationId);
-    }
+	publishCvDocument(document, applicationId);
 }
 
 QAbstractItemModel* CvLibraryController::cvModel()
@@ -204,6 +218,16 @@ QString CvLibraryController::resultSummary() const
 {
 	const auto count = cvCount();
 	return count == 1 ? QStringLiteral("1 CV") : QStringLiteral("%1 CVs").arg(count);
+}
+
+bool CvLibraryController::importing() const
+{
+	return pendingImportCount() > 0;
+}
+
+int CvLibraryController::pendingImportCount() const
+{
+	return static_cast<int>(importQueue_.size()) + (activeImport_.has_value() ? 1 : 0);
 }
 
 void CvLibraryController::selectCv(int index)
@@ -375,6 +399,34 @@ void CvLibraryController::openCv(const QString& cvId)
 	}
 }
 
+void CvLibraryController::addCvs(const QList<QUrl>& sourceUrls)
+{
+	if (shuttingDown_ || sourceUrls.isEmpty()) {
+		return;
+	}
+
+	const auto previousCount = pendingImportCount();
+	for (const auto& sourceUrl : sourceUrls) {
+		if (!sourceUrl.isEmpty()) {
+			importQueue_.push_back({++nextImportOperationId_, sourceUrl});
+		}
+	}
+
+	publishPendingImportStateChange(previousCount);
+	startNextCvImport();
+}
+
+void CvLibraryController::cancelAllCvImports()
+{
+	const auto previousCount = pendingImportCount();
+	importQueue_.clear();
+	if (activeImportCancellation_ != nullptr) {
+		suppressActiveImportNotification_ = true;
+		activeImportCancellation_->requestCancellation();
+	}
+	publishPendingImportStateChange(previousCount);
+}
+
 QVariantMap CvLibraryController::cvToMap(int sourceRow) const
 {
 	const auto modelIndex = cvModel_.index(sourceRow, 0);
@@ -416,6 +468,29 @@ const CvDocument* CvLibraryController::selectedSourceCv() const
 	return sourceIndex.isValid() ? cvModel_.cvAt(sourceIndex.row()) : nullptr;
 }
 
+void CvLibraryController::publishCvDocument(
+	const CvDocument& document,
+	const QString& applicationId)
+{
+	if (document.id_.isEmpty()) {
+		return;
+	}
+
+	if (findCv(document.id_) == nullptr) {
+		auto newDocument = document;
+		if (!applicationId.isEmpty()
+			&& !newDocument.linkedApplicationIds_.contains(applicationId)) {
+			newDocument.linkedApplicationIds_.append(applicationId);
+		}
+		cvModel_.appendDocument(std::move(newDocument));
+		return;
+	}
+
+	if (!applicationId.isEmpty()) {
+		cvModel_.addLinkedApplication(document.id_, applicationId);
+	}
+}
+
 void CvLibraryController::handleSelectionChanged(
 	bool idChanged,
 	bool rowChanged,
@@ -452,4 +527,87 @@ void CvLibraryController::handleVisibleCountChanged()
 void CvLibraryController::updateLinkedApplications()
 {
 	linkedApplicationsModel_.setSelectedId(selectedCvId());
+}
+
+void CvLibraryController::startNextCvImport()
+{
+	if (shuttingDown_ || activeImport_.has_value() || importQueue_.empty()) {
+		return;
+	}
+
+	activeImport_ = std::move(importQueue_.front());
+	importQueue_.pop_front();
+	activeImportCancellation_ = std::make_shared<CancellationState>();
+	suppressActiveImportNotification_ = false;
+
+	importWorker_.submit({
+		activeImport_->operationId_,
+		activeImport_->sourceUrl_,
+		activeImportCancellation_});
+}
+
+void CvLibraryController::publishPendingImportStateChange(int previousCount)
+{
+	const auto currentCount = pendingImportCount();
+	if (previousCount == currentCount) {
+		return;
+	}
+
+	emit pendingImportCountChanged();
+	if ((previousCount == 0) != (currentCount == 0)) {
+		emit importingChanged();
+	}
+	if (previousCount > 0 && currentCount == 0 && !shuttingDown_) {
+		emit importQueueDrained();
+	}
+}
+
+void CvLibraryController::handleCvImport(const CvImportSaveOutcome& outcome)
+{
+	if (!isActiveImportOutcome(outcome.operationId_, outcome.cancellation_)) {
+		return;
+	}
+
+	if (outcome.success_) {
+		publishCvDocument(outcome.document_);
+	}
+
+	if (!suppressActiveImportNotification_) {
+		const auto message = outcome.message_.isEmpty()
+			? (outcome.success_
+				? (outcome.wasInserted_
+					? QStringLiteral("CV added successfully.")
+					: QStringLiteral(
+						"A CV with the same filename and SHA-256 already exists."))
+				: QStringLiteral("The CV could not be added."))
+			: outcome.message_;
+		emit cvImportCompleted(
+			outcome.operationId_,
+			outcome.fileName_,
+			outcome.success_,
+			outcome.wasInserted_,
+			message);
+	}
+
+	releaseActiveCvImport();
+}
+
+bool CvLibraryController::isActiveImportOutcome(
+	quint64 operationId,
+	const std::shared_ptr<CancellationState>& cancellation) const
+{
+	return !shuttingDown_
+		&& activeImport_.has_value()
+		&& activeImport_->operationId_ == operationId
+		&& activeImportCancellation_ == cancellation;
+}
+
+void CvLibraryController::releaseActiveCvImport()
+{
+	const auto previousCount = pendingImportCount();
+	activeImport_.reset();
+	activeImportCancellation_.reset();
+	suppressActiveImportNotification_ = false;
+	publishPendingImportStateChange(previousCount);
+	startNextCvImport();
 }

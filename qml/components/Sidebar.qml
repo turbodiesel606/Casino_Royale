@@ -11,6 +11,7 @@ Rectangle {
     property int currentIndex: 0
     signal navigate(int index)
     signal addJob()
+    signal addCv()
 
     readonly property var labels: ["Dashboard", "Job Applications", "CV Library", "Companies", "Contacts", "Settings"]
     readonly property var icons: ["▦", "▣", "▤", "♜", "♙", "⚙"]
@@ -109,6 +110,7 @@ Rectangle {
             Layout.fillWidth: true
  Layout.preferredHeight: 43
  text: "+   Add CV"
+            onClicked: sidebar.addCv()
             contentItem: Text { text: parent.text
  color: "#30cde1"
  font.pixelSize: 15

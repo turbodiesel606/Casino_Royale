@@ -18,12 +18,14 @@ AppBootstrap::AppBootstrap(QCoreApplication& app)
 	, companyRepository_{ database_.connection() }
 	, jobRepository_{ database_.connection() }
 	, addJobWorker_{ storagePaths_.dataDirectory() }
+	, cvImportWorker_{ storagePaths_.dataDirectory() }
 	, jobApplicationsController_{ jobRepository_.findAll(), addJobWorker_ }
 	, cvLibraryController_{
 		jobApplicationsController_.jobApplicationListModel(),
 		cvRepository_.findAll(),
 		cvRepository_,
-		cvFileAccessService_ }
+		cvFileAccessService_,
+		cvImportWorker_ }
 		, dashboardController_{ jobApplicationsController_.jobApplicationListModel(), cvLibraryController_.cvListModel() }
 	, companyDirectoryController_(
 		companyRepository_.findAll(),
