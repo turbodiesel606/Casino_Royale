@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 import "components"
 import "pages"
@@ -17,10 +18,10 @@ ApplicationWindow {
     property int currentPage: 0
     property int previousPage: 0
     property bool jobFormVisible: false
-    property var saveNotifications: []
-    property var currentSaveNotification: null
-    property bool saveNotificationsPaused: false
-    property bool exitAfterSaveQueueDrained: false
+    property var notifications: []
+    property var currentNotification: null
+    property bool notificationsPaused: false
+    property bool exitAfterPendingWorkDrained: false
 
     function openJobForm() {
         window.previousPage = window.currentPage >= 0 ? window.currentPage : 0
@@ -33,69 +34,91 @@ ApplicationWindow {
         window.currentPage = window.previousPage
     }
 
-    function enqueueSaveNotification(jobTitle, success, message) {
-        saveNotifications = saveNotifications.concat([{
-            jobTitle: jobTitle,
-            success: success,
+    function pendingWorkCount() {
+        return jobApplicationsController.pendingSaveCount
+            + cvLibraryController.pendingImportCount
+    }
+
+    function enqueueNotification(title, severity, message) {
+        if (exitAfterPendingWorkDrained)
+            return
+
+        notifications = notifications.concat([{
+            title: title,
+            severity: severity,
             message: message
         }])
-        showNextSaveNotification()
+        showNextNotification()
     }
 
-    function showNextSaveNotification() {
-        if (saveNotificationsPaused
-                || exitAfterSaveQueueDrained
-                || saveNotificationPopup.visible
-                || saveNotifications.length === 0) {
+    function showNextNotification() {
+        if (notificationsPaused
+                || exitAfterPendingWorkDrained
+                || notificationPopup.visible
+                || notifications.length === 0) {
             return
         }
 
-        currentSaveNotification = saveNotifications[0]
-        saveNotifications = saveNotifications.slice(1)
-        saveNotificationPopup.open()
+        currentNotification = notifications[0]
+        notifications = notifications.slice(1)
+        notificationPopup.open()
     }
 
-    function pauseSaveNotifications() {
-        if (saveNotificationsPaused)
+    function pauseNotifications() {
+        if (notificationsPaused)
             return
 
-        saveNotificationsPaused = true
+        notificationsPaused = true
         notificationTimer.stop()
-        if (saveNotificationPopup.visible && currentSaveNotification) {
-            saveNotifications = [currentSaveNotification].concat(saveNotifications)
-            saveNotificationPopup.close()
+        if (notificationPopup.visible && currentNotification) {
+            notifications = [currentNotification].concat(notifications)
+            notificationPopup.close()
         }
     }
 
-    function resumeSaveNotifications() {
-        saveNotificationsPaused = false
-        Qt.callLater(function() { window.showNextSaveNotification() })
+    function resumeNotifications() {
+        notificationsPaused = false
+        Qt.callLater(function() { window.showNextNotification() })
     }
 
-    function discardSaveNotifications() {
-        saveNotificationsPaused = true
-        saveNotifications = []
+    function discardNotifications() {
+        notificationsPaused = true
+        notifications = []
         notificationTimer.stop()
-        saveNotificationPopup.close()
+        notificationPopup.close()
     }
 
-    function waitForPendingSaves() {
+    function waitForPendingWork() {
         closeConfirmation.close()
-        resumeSaveNotifications()
+        resumeNotifications()
     }
 
-    function interruptPendingSavesAndExit() {
-        exitAfterSaveQueueDrained = true
-        discardSaveNotifications()
+    function finishCloseIfWorkDrained() {
+        if (pendingWorkCount() !== 0)
+            return
+
+        if (exitAfterPendingWorkDrained) {
+            Qt.callLater(function() { window.close() })
+        } else if (closeConfirmation.visible) {
+            closeConfirmation.close()
+            resumeNotifications()
+        }
+    }
+
+    function interruptPendingWorkAndExit() {
+        exitAfterPendingWorkDrained = true
+        discardNotifications()
         closeConfirmation.close()
         jobApplicationsController.cancelAllCreateApplications()
+        cvLibraryController.cancelAllCvImports()
+        finishCloseIfWorkDrained()
     }
 
     onClosing: function(close) {
-        if (jobApplicationsController.pendingSaveCount > 0) {
+        if (window.pendingWorkCount() > 0) {
             close.accepted = false
-            if (!exitAfterSaveQueueDrained && !closeConfirmation.visible) {
-                pauseSaveNotifications()
+            if (!exitAfterPendingWorkDrained && !closeConfirmation.visible) {
+                pauseNotifications()
                 closeConfirmation.open()
             }
         }
@@ -105,34 +128,52 @@ ApplicationWindow {
         target: jobApplicationsController
 
         function onApplicationSaveCompleted(operationId, jobTitle, success, message) {
-            window.enqueueSaveNotification(jobTitle, success, message)
+            window.enqueueNotification(
+                success ? "Saved: " + jobTitle : "Save failed: " + jobTitle,
+                success ? "success" : "error",
+                message)
         }
 
         function onPendingSaveCountChanged() {
-            if (jobApplicationsController.pendingSaveCount === 0
-                    && closeConfirmation.visible
-                    && !window.exitAfterSaveQueueDrained) {
-                closeConfirmation.close()
-                window.resumeSaveNotifications()
-            }
+            window.finishCloseIfWorkDrained()
+        }
+    }
+
+    Connections {
+        target: cvLibraryController
+
+        function onCvImportCompleted(operationId, fileName, success, wasInserted, message) {
+            const severity = !success ? "error" : (wasInserted ? "success" : "warning")
+            const title = !success
+                ? "CV upload failed: " + fileName
+                : (wasInserted
+                    ? "CV added: " + fileName
+                    : "CV already exists: " + fileName)
+            window.enqueueNotification(title, severity, message)
         }
 
-        function onSaveQueueDrained() {
-            if (window.exitAfterSaveQueueDrained) {
-                Qt.callLater(function() { window.close() })
-            }
+        function onPendingImportCountChanged() {
+            window.finishCloseIfWorkDrained()
         }
+    }
+
+    FileDialog {
+        id: cvFileDialog
+        title: "Add CVs"
+        fileMode: FileDialog.OpenFiles
+        nameFilters: ["CV documents (*.pdf *.doc *.docx)"]
+        onAccepted: cvLibraryController.addCvs(selectedFiles)
     }
 
     Timer {
         id: notificationTimer
         interval: 15000
         repeat: false
-        onTriggered: saveNotificationPopup.close()
+        onTriggered: notificationPopup.close()
     }
 
     Popup {
-        id: saveNotificationPopup
+        id: notificationPopup
         x: window.width - width - 24
         y: 24
         width: Math.min(430, window.width - 48)
@@ -145,16 +186,22 @@ ApplicationWindow {
         onOpened: notificationTimer.restart()
         onClosed: {
             notificationTimer.stop()
-            window.currentSaveNotification = null
-            if (!window.saveNotificationsPaused && !window.exitAfterSaveQueueDrained)
-                Qt.callLater(function() { window.showNextSaveNotification() })
+            window.currentNotification = null
+            if (!window.notificationsPaused && !window.exitAfterPendingWorkDrained)
+                Qt.callLater(function() { window.showNextNotification() })
         }
 
         background: Rectangle {
             color: "#102330"
-            border.color: window.currentSaveNotification && window.currentSaveNotification.success
-                ? "#42d392"
-                : "#ff6b69"
+            border.color: {
+                if (!window.currentNotification)
+                    return "#2e4657"
+                if (window.currentNotification.severity === "success")
+                    return "#42d392"
+                if (window.currentNotification.severity === "warning")
+                    return "#ffbd21"
+                return "#ff6b69"
+            }
             border.width: 1
             radius: 8
         }
@@ -164,13 +211,7 @@ ApplicationWindow {
 
             Text {
                 Layout.fillWidth: true
-                text: {
-                    if (!window.currentSaveNotification)
-                        return ""
-                    return window.currentSaveNotification.success
-                        ? "Saved: " + window.currentSaveNotification.jobTitle
-                        : "Save failed: " + window.currentSaveNotification.jobTitle
-                }
+                text: window.currentNotification ? window.currentNotification.title : ""
                 color: "#eef3f8"
                 font.pixelSize: 16
                 font.bold: true
@@ -179,8 +220,8 @@ ApplicationWindow {
 
             Text {
                 Layout.fillWidth: true
-                text: window.currentSaveNotification
-                    ? window.currentSaveNotification.message
+                text: window.currentNotification
+                    ? window.currentNotification.message
                     : ""
                 color: "#c1ccd6"
                 font.pixelSize: 14
@@ -197,11 +238,19 @@ ApplicationWindow {
         modal: true
         focus: true
         closePolicy: Popup.NoAutoClose
-        title: "Save in progress"
+        title: "Work in progress"
         z: 1000
 
         contentItem: Text {
-            text: "\u201cA job application is currently being saved. Are you sure you want to interrupt the save operation?\u201d"
+            text: {
+                const pendingJobs = jobApplicationsController.pendingSaveCount > 0
+                const pendingCvs = cvLibraryController.pendingImportCount > 0
+                if (pendingJobs && pendingCvs)
+                    return "Job applications and CVs are still being saved. Do you want to wait or interrupt the pending work and exit?"
+                if (pendingCvs)
+                    return "One or more CVs are still being added. Do you want to wait or interrupt the imports and exit?"
+                return "A job application is still being saved. Do you want to wait or interrupt the save and exit?"
+            }
             color: "#eef3f8"
             font.pixelSize: 16
             wrapMode: Text.Wrap
@@ -211,13 +260,13 @@ ApplicationWindow {
             Button {
                 text: "Wait"
                 DialogButtonBox.buttonRole: DialogButtonBox.ActionRole
-                onClicked: window.waitForPendingSaves()
+                onClicked: window.waitForPendingWork()
             }
 
             Button {
                 text: "Interrupt and Exit"
                 DialogButtonBox.buttonRole: DialogButtonBox.DestructiveRole
-                onClicked: window.interruptPendingSavesAndExit()
+                onClicked: window.interruptPendingWorkAndExit()
             }
         }
 
@@ -242,6 +291,7 @@ ApplicationWindow {
                 window.jobFormVisible = false
             }
             onAddJob: window.openJobForm()
+            onAddCv: cvFileDialog.open()
         }
 
         StackLayout {

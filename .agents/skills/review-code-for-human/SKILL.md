@@ -25,9 +25,9 @@ Do not dump unrelated files or unrelated methods merely to increase coverage. Co
 5. For every inventoried entity, record its definition location, responsibility, owned state, owner and lifetime, thread affinity, inputs, outputs, callers, callees, and observable side effects. Mark genuinely inapplicable fields rather than silently skipping them.
 6. Trace the scenario from its true entry point to its observable outcome. Follow every relevant project-defined call until reaching Qt, the standard library, SQLite or operating-system primitives, a trivial accessor, or logic unrelated to the scenario.
 7. Collect implementation bodies in execution order. Do not reproduce header or standalone declaration code. Show each complete function body as one snippet or as consecutive labeled parts without omitting or reordering lines, and explain every snippet in detail immediately after it before continuing.
-8. Build the diagram from verified symbols and transitions.
-9. Audit coverage before answering: every diagram entity must have a prose definition and explanation, while every non-trivial project-defined call must have its complete implementation shown through source-faithful snippets and detailed explanations. Resolve missing coverage before producing the response.
-10. Explain the stages in diagram order, then give evidence-aware rationale and architectural improvement notes.
+8. Build one Mermaid flowchart from verified symbols and transitions.
+9. Audit coverage before answering: every flowchart entity must have a prose definition and explanation, while every non-trivial project-defined call must have its complete implementation shown through source-faithful snippets and detailed explanations. Resolve missing coverage before producing the response.
+10. Explain the stages in flowchart order, then give evidence-aware rationale and architectural improvement notes.
 
 ## Completeness Rules
 
@@ -40,14 +40,14 @@ Do not dump unrelated files or unrelated methods merely to increase coverage. Co
 - For a collaborating entity outside the central target, describe the contract and state needed for the scenario in prose and show the full body of every called function.
 - After every implementation snippet, explain that snippet in detail before showing the next snippet.
 - When omitting unrelated code from a file or class, state exactly what category was omitted and why. Do not hide omissions inside code blocks.
-- Explain every entity that appears in the diagram or code. Do not collapse several non-trivial entities into a vague label such as "backend," "database layer," or "helper."
+- Explain every entity that appears in the flowchart or code. Do not collapse several non-trivial entities into a vague label such as "backend," "database layer," or "helper."
 - Explain Qt, standard-library, SQLite, and operating-system calls at their behavioral boundary; do not attempt to reproduce external library implementations.
 - Group only genuinely trivial accessors or value conversions, while still naming their locations and roles.
 - For broad workflows, allow a long answer. If a hard output limit prevents completion, label the response as partial, list every uncovered entity or function, and never claim that the review is complete.
 
 A review is incomplete if any of these are true:
 
-- a diagram entity is not defined and explained;
+- a flowchart entity is not defined and explained;
 - a relevant project-defined call has no source body shown;
 - a relevant function body contains hidden gaps or ellipses;
 - a request, result, state object, model, signal, repository, or service is used without explaining what it represents;
@@ -63,17 +63,17 @@ A review is incomplete if any of these are true:
 
 Make this the first substantive section of the response. Do not place a summary, conclusion, or architectural preamble before it.
 
-- Use a Mermaid `sequenceDiagram` for time-ordered collaboration, queued work, signals, callbacks, or thread transitions.
-- Use a Mermaid `flowchart` for branching, validation, state transitions, or error paths.
-- Use both when the scenario has significant collaboration and branching.
+- Use exactly one Mermaid `flowchart` in this section.
+- Do not use a Mermaid `sequenceDiagram`, and do not place another chart before or after the flowchart.
+- Represent the complete relevant execution path in the flowchart, including time-ordered collaboration, queued work, signals, callbacks, thread transitions, branching, validation, state transitions, and error paths when present.
 - Use exact class, function, signal, model, service, repository, and storage names from the source.
 - Show the real caller, target, all important nested calls, relevant branches, and final state publication.
-- Mark GUI-thread, worker-thread, queued, transactional, asynchronous, and ownership boundaries when they affect behavior.
-- Do not add an unverified node merely to make the diagram look complete.
+- Use labeled nodes, edges, or subgraphs to mark GUI-thread, worker-thread, queued, transactional, asynchronous, and ownership boundaries when they affect behavior.
+- Do not add an unverified node merely to make the flowchart look complete.
 
 ### 2. Complete Related Code, Step by Step
 
-Walk through the diagram from entry to outcome. Number the stages and keep each stage tied to a diagram node or transition.
+Walk through the flowchart from entry to outcome. Number the stages and keep each stage tied to a flowchart node or transition.
 
 For every stage:
 

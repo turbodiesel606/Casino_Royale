@@ -61,12 +61,16 @@ Name tests by the behavior they cover, and keep them registered through the proj
   contracts and controller-specific side effects. The jobs controller suite
   verifies synchronous canonical preflight, immediate complete field errors,
   no queue or worker state for invalid input, first-valid operation-ID
-  allocation, and normalized value capture before form reset.
+  allocation, and normalized value capture before form reset. The CV controller
+  suite verifies multi-batch FIFO ordering, pending-state transitions,
+  duplicate and failure isolation, database-lock recovery, cancel-all behavior,
+  idempotent Add Job/CV publication, and worker SQL connection cleanup.
 - `JobTrackerMigrationTests` covers schema initialization, supported upgrades,
   rollback, foreign keys, reopen, unsupported newer versions, and named-connection
   cleanup when `SqliteDatabase` construction fails.
 - `JobTrackerRepositoryTests` covers repository persistence plus shared SQL error and transaction infrastructure.
-- `JobTrackerCvImportTests` covers managed file preparation, identity, cleanup, and recovery.
+- `JobTrackerCvImportTests` covers managed file preparation, exact
+  case-sensitive composite identity, cleanup, and recovery.
 - `JobTrackerAddJobTests` covers service-level Add Job preflight, defensive
   pre-staging validation, cancellation immediately before a transaction,
   transaction behavior, and durable orchestration.
