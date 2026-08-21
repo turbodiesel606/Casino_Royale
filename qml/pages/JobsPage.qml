@@ -38,15 +38,6 @@ Item {
         { "title": "Next Step", "x": 831, "width": 130 }
     ]
 
-    readonly property var previewDetails: [
-        ["CV", "CV used", page.selectedApplication.cvFileName],
-        ["WF", "Format", page.selectedApplication.workFormat],
-        ["$", "Salary", page.selectedApplication.salary],
-        ["ST", "Status", page.selectedApplication.statusLabel],
-        ["AD", "Applied", page.selectedApplication.appliedDate],
-        ["NS", "Next Step", page.selectedApplication.nextStep]
-    ]
-
     function savePendingJobChanges() {
         descriptionPane.submitUpdate()
     }
@@ -64,56 +55,103 @@ Item {
         page.descriptionMode = false
     }
 
-    JobsApplicationsPane {
+    ColumnLayout {
         anchors.fill: parent
-        selectedRow: jobApplicationsController.selectedApplicationIndex
-        textColor: page.textColor
-        mutedColor: page.mutedColor
-        panelColor: page.panelColor
-        panelLineColor: page.panelLineColor
-        blueColor: page.blueColor
-        tableHeaderHeight: page.tableHeaderHeight
-        tableRowHeight: page.tableRowHeight
-        tableFooterHeight: page.tableFooterHeight
-        applicationsModel: jobApplicationsController.applicationsModel
-        applicationCount: jobApplicationsController.applicationCount
-        columns: page.columns
-        previewDetails: page.previewDetails
-        resultSummary: jobApplicationsController.resultSummary
-        searchText: jobApplicationsController.searchText
-        statusFilter: jobApplicationsController.statusFilter
-        previewTitle: page.selectedApplication.jobTitle
-        previewCompany: page.selectedApplication.companyName
-        previewCompanyInitials: page.selectedApplication.companyInitials
-        previewCompanyAccent: page.selectedApplication.companyAccent
-        previewNotes: page.selectedApplication.notes
-        previewStatusAccent: page.selectedApplication.statusAccent
-        checkedApplicationIds: jobApplicationsController.checkedApplicationIds
-        allVisibleApplicationsChecked: jobApplicationsController.allVisibleApplicationsChecked
-        someVisibleApplicationsChecked: jobApplicationsController.someVisibleApplicationsChecked
-        deleteEnabled: jobApplicationsController.canDeleteApplications
-        deletionBusy: jobApplicationsController.deletingApplications
-        onRowSelected: row => jobApplicationsController.selectApplication(row)
-        onSearchRequested: text => jobApplicationsController.setSearchText(text)
-        onStatusFilterRequested: status => jobApplicationsController.setStatusFilter(status)
-        onApplicationsRequested: page.descriptionMode = false
-        onDescriptionRequested: page.descriptionMode = true
-        onRowCheckToggled: row => jobApplicationsController.toggleApplicationChecked(row)
-        onAllVisibleCheckedRequested: checked => jobApplicationsController.setAllVisibleApplicationsChecked(checked)
-        onDeleteRequested: deleteConfirmation.open()
-    }
+        anchors.margins: 20
+        spacing: 8
 
-    JobDescriptionPane {
-        id: descriptionPane
-        anchors.fill: parent
-        visible: page.descriptionMode
-        textColor: page.textColor
-        mutedColor: page.mutedColor
-        panelLineColor: page.panelLineColor
-        blueColor: page.blueColor
-        selectedApplication: page.selectedApplication
-        onApplicationsRequested: page.protectedActionRequested(
-            "showJobApplications", ({}))
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 36
+            spacing: 8
+
+            PrimaryButton {
+                Layout.preferredWidth: 165
+                Layout.preferredHeight: 36
+                text: "Job Applications"
+                subtle: true
+                selected: !page.descriptionMode
+                cornerRadius: 5
+                labelPixelSize: 14
+                labelFontWeight: selected ? Font.DemiBold : Font.Normal
+                onClicked: {
+                    if (page.descriptionMode) {
+                        page.protectedActionRequested(
+                            "showJobApplications", ({}))
+                    }
+                }
+            }
+
+            PrimaryButton {
+                Layout.preferredWidth: 165
+                Layout.preferredHeight: 36
+                text: "Job Description"
+                subtle: true
+                selected: page.descriptionMode
+                cornerRadius: 5
+                labelPixelSize: 14
+                labelFontWeight: selected ? Font.DemiBold : Font.Normal
+                onClicked: {
+                    if (!page.descriptionMode)
+                        page.descriptionMode = true
+                }
+            }
+
+            Item { Layout.fillWidth: true }
+
+            DangerButton {
+                Layout.preferredWidth: 180
+                Layout.preferredHeight: 36
+                visible: !page.descriptionMode
+                text: jobApplicationsController.deletingApplications
+                    ? "Deleting..."
+                    : "Delete Selected ("
+                        + jobApplicationsController.checkedApplicationCount + ")"
+                enabled: jobApplicationsController.canDeleteApplications
+                onClicked: deleteConfirmation.open()
+            }
+        }
+
+        StackLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            currentIndex: page.descriptionMode ? 1 : 0
+
+            JobsApplicationsPane {
+                selectedRow: jobApplicationsController.selectedApplicationIndex
+                textColor: page.textColor
+                mutedColor: page.mutedColor
+                panelColor: page.panelColor
+                panelLineColor: page.panelLineColor
+                blueColor: page.blueColor
+                tableHeaderHeight: page.tableHeaderHeight
+                tableRowHeight: page.tableRowHeight
+                tableFooterHeight: page.tableFooterHeight
+                applicationsModel: jobApplicationsController.applicationsModel
+                applicationCount: jobApplicationsController.applicationCount
+                columns: page.columns
+                resultSummary: jobApplicationsController.resultSummary
+                searchText: jobApplicationsController.searchText
+                statusFilter: jobApplicationsController.statusFilter
+                checkedApplicationIds: jobApplicationsController.checkedApplicationIds
+                allVisibleApplicationsChecked: jobApplicationsController.allVisibleApplicationsChecked
+                someVisibleApplicationsChecked: jobApplicationsController.someVisibleApplicationsChecked
+                onRowSelected: row => jobApplicationsController.selectApplication(row)
+                onSearchRequested: text => jobApplicationsController.setSearchText(text)
+                onStatusFilterRequested: status => jobApplicationsController.setStatusFilter(status)
+                onRowCheckToggled: row => jobApplicationsController.toggleApplicationChecked(row)
+                onAllVisibleCheckedRequested: checked => jobApplicationsController.setAllVisibleApplicationsChecked(checked)
+            }
+
+            JobDescriptionPane {
+                id: descriptionPane
+                textColor: page.textColor
+                mutedColor: page.mutedColor
+                panelLineColor: page.panelLineColor
+                blueColor: page.blueColor
+                selectedApplication: page.selectedApplication
+            }
+        }
     }
 
     DestructiveConfirmationDialog {
@@ -125,4 +163,5 @@ Item {
             + " selected job application(s)? Their CVs will remain in the CV Library."
         onConfirmed: jobApplicationsController.deleteCheckedApplications()
     }
+
 }

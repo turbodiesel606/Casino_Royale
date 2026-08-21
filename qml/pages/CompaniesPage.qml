@@ -78,21 +78,13 @@ Item {
 
                     Item { Layout.fillWidth: true }
 
-                    Button {
+                    PrimaryButton {
                         text: "+  Add Company"
                         Layout.preferredHeight: 43
                         Layout.preferredWidth: 153
-                        contentItem: Text {
-                            text: parent.text
-                            color: "white"
-                            font.pixelSize: 15
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                        background: Rectangle {
-                            color: "#1479ee"
-                            radius: 6
-                        }
+                        cornerRadius: 6
+                        labelPixelSize: 15
+                        labelFontWeight: Font.Normal
                     }
                 }
 

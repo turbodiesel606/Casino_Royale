@@ -6,7 +6,6 @@ import "../components"
 
 Item {
     id: page
-    z: 20
 
     property color textColor: "#eef3f8"
     property color mutedColor: "#a8b5c2"
@@ -34,51 +33,17 @@ Item {
         && hasUnsavedChanges
         && editingApplicationId.length > 0
         && !saveInProgress
-    readonly property string previewTitle: editMode
-        ? jobTitleField.text
-        : valueOrEmpty(selectedApplication.jobTitle)
-    readonly property string previewCompany: editMode
-        ? companyField.text
-        : valueOrEmpty(selectedApplication.companyName)
-    readonly property string previewWorkFormat: editMode
-        ? workFormatField.text
-        : valueOrEmpty(selectedApplication.workFormat)
-    readonly property string previewSalary: editMode
-        ? salaryField.text
-        : valueOrEmpty(selectedApplication.salary)
-    readonly property string previewStatus: editMode
-        ? statusField.text
-        : valueOrEmpty(selectedApplication.statusLabel || selectedApplication.status)
-    readonly property string previewDate: editMode
-        ? appliedDateField.text
-        : valueOrEmpty(selectedApplication.appliedDate)
-    readonly property string previewNextStep: editMode
-        ? nextStepField.text
-        : valueOrEmpty(selectedApplication.nextStep)
-    readonly property string previewCvName: replacementCvName.length > 0
+    readonly property string displayCvName: replacementCvName.length > 0
         ? replacementCvName
         : valueOrEmpty(selectedApplication.cvFileName)
-    readonly property var previewTechStack: editMode
-        ? technologiesFromText(techStackField.text)
-        : (selectedApplication.techStack || [])
+    readonly property int scrollbarWidth: 11
+    readonly property int scrollbarGap: 12
 
-    signal applicationsRequested()
     signal updateSucceeded()
     signal updateFailed()
 
     function valueOrEmpty(value) {
         return value === undefined || value === null ? "" : String(value)
-    }
-
-    function technologiesFromText(text) {
-        const values = String(text).split(",")
-        const result = []
-        for (let index = 0; index < values.length; ++index) {
-            const value = values[index].trim()
-            if (value.length > 0)
-                result.push(value)
-        }
-        return result
     }
 
     function fileNameFromUrl(url) {
@@ -212,19 +177,6 @@ Item {
     function requestExplicitSave() {
         if (canSave)
             applyChangesConfirmation.open()
-    }
-
-    function statusAccent(status) {
-        const normalized = String(status).toLowerCase()
-        if (normalized === "interview")
-            return "#ffbd21"
-        if (normalized === "offer")
-            return "#38c86b"
-        if (normalized === "rejected")
-            return "#ff4b49"
-        if (normalized === "test task")
-            return "#16c5dd"
-        return "#c2c7cb"
     }
 
     onSelectedApplicationChanged: {
@@ -370,12 +322,13 @@ Item {
         }
 
         footer: DialogButtonBox {
-            Button {
+            PrimaryButton {
                 text: "Cancel"
+                subtle: true
                 DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
                 onClicked: applyChangesConfirmation.reject()
             }
-            Button {
+            PrimaryButton {
                 text: "Apply Changes"
                 DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
                 onClicked: {
@@ -408,67 +361,32 @@ Item {
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 20
                 spacing: 8
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 36
-                    spacing: 8
-
-                    Button {
-                        Layout.preferredWidth: 165
-                        Layout.preferredHeight: 36
-                        text: "Job Applications"
-                        onClicked: page.applicationsRequested()
-                        contentItem: Text {
-                            text: parent.text
-                            color: page.textColor
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                            font.pixelSize: 14
-                        }
-                        background: Rectangle {
-                            color: "#0b1b27"
-                            border.color: page.panelLineColor
-                            radius: 5
-                        }
-                    }
-
-                    Button {
-                        Layout.preferredWidth: 165
-                        Layout.preferredHeight: 36
-                        text: "Job Description"
-                        contentItem: Text {
-                            text: parent.text
-                            color: page.textColor
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                            font.pixelSize: 14
-                            font.weight: Font.DemiBold
-                        }
-                        background: Rectangle {
-                            color: "#0b1b27"
-                            border.color: page.blueColor
-                            radius: 5
-                        }
-                    }
-
-                    Item { Layout.fillWidth: true }
-                }
-
                 Panel {
+                    id: editorPanel
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     clip: true
 
-                    ScrollView {
-                        anchors.fill: parent
-                        anchors.margins: 14
-                        contentWidth: availableWidth
+                    Flickable {
+                        id: editorFlickable
+                        anchors.left: parent.left
+                        anchors.leftMargin: 14
+                        anchors.top: parent.top
+                        anchors.topMargin: 14
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 14
+                        anchors.right: editorScrollbarSeparator.left
+                        anchors.rightMargin: page.scrollbarGap
+                        clip: true
+                        contentWidth: width
+                        contentHeight: editorContent.implicitHeight
+                        boundsBehavior: Flickable.StopAtBounds
 
                         ColumnLayout {
-                            width: parent.width
+                            id: editorContent
+                            width: editorFlickable.width
                             spacing: 10
 
                             RowLayout {
@@ -486,25 +404,16 @@ Item {
 
                                 Item { Layout.fillWidth: true }
 
-                                Button {
+                                PrimaryButton {
                                     Layout.preferredWidth: 112
                                     Layout.preferredHeight: 34
                                     visible: !page.editMode
                                     enabled: page.selectedApplicationId.length > 0
                                     text: "Edit"
+                                    cornerRadius: 5
+                                    labelPixelSize: 14
+                                    labelFontWeight: Font.DemiBold
                                     onClicked: page.beginEdit()
-                                    contentItem: Text {
-                                        text: parent.text
-                                        color: "white"
-                                        horizontalAlignment: Text.AlignHCenter
-                                        verticalAlignment: Text.AlignVCenter
-                                        font.pixelSize: 14
-                                        font.weight: Font.DemiBold
-                                    }
-                                    background: Rectangle {
-                                        color: parent.enabled ? "#1479ee" : "#31506d"
-                                        radius: 5
-                                    }
                                 }
                             }
 
@@ -661,13 +570,13 @@ Item {
                                         anchors.right: changeCvButton.left
                                         anchors.rightMargin: 14
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: page.previewCvName
+                                        text: page.displayCvName
                                         color: page.textColor
                                         font.pixelSize: 15
                                         elide: Text.ElideMiddle
                                     }
 
-                                    Button {
+                                    PrimaryButton {
                                         id: changeCvButton
                                         anchors.right: parent.right
                                         anchors.rightMargin: 10
@@ -677,19 +586,11 @@ Item {
                                         visible: page.editMode
                                         enabled: !page.saveInProgress
                                         text: "Change CV"
+                                        subtle: true
+                                        cornerRadius: 5
+                                        labelPixelSize: 13
+                                        labelFontWeight: Font.Normal
                                         onClicked: replacementCvDialog.open()
-                                        contentItem: Text {
-                                            text: parent.text
-                                            color: page.textColor
-                                            horizontalAlignment: Text.AlignHCenter
-                                            verticalAlignment: Text.AlignVCenter
-                                            font.pixelSize: 13
-                                        }
-                                        background: Rectangle {
-                                            color: "transparent"
-                                            border.color: "#40576a"
-                                            radius: 5
-                                        }
                                     }
                                 }
                             }
@@ -746,7 +647,7 @@ Item {
                                     spacing: 8
 
                                     Repeater {
-                                        model: page.previewTechStack
+                                        model: page.selectedApplication.techStack || []
                                         delegate: TagChip {
                                             required property string modelData
                                             label: modelData
@@ -781,44 +682,125 @@ Item {
                                 Layout.preferredHeight: 42
                                 visible: page.editMode
 
-                                Button {
+                                DangerButton {
                                     Layout.preferredWidth: 86
                                     Layout.preferredHeight: 38
                                     enabled: !page.saveInProgress
                                     text: "Discard"
+                                    cornerRadius: 5
+                                    labelPixelSize: 13
+                                    labelFontWeight: Font.Normal
                                     onClicked: page.discardEdits()
-                                    contentItem: Text {
-                                        text: parent.text
-                                        color: page.textColor
-                                        horizontalAlignment: Text.AlignHCenter
-                                        verticalAlignment: Text.AlignVCenter
-                                        font.pixelSize: 13
-                                    }
-                                    background: Rectangle {
-                                        color: "#0b1b27"
-                                        border.color: page.panelLineColor
-                                        radius: 5
-                                    }
                                 }
 
                                 Item { Layout.fillWidth: true }
 
-                                Button {
+                                PrimaryButton {
                                     Layout.preferredWidth: 132
                                     Layout.preferredHeight: 38
                                     enabled: page.canSave
                                     text: page.saveInProgress ? "Saving..." : "Save Changes"
+                                    cornerRadius: 5
+                                    labelPixelSize: 13
+                                    labelFontWeight: Font.Normal
                                     onClicked: page.requestExplicitSave()
-                                    contentItem: Text {
-                                        text: parent.text
-                                        color: "white"
-                                        horizontalAlignment: Text.AlignHCenter
-                                        verticalAlignment: Text.AlignVCenter
-                                        font.pixelSize: 13
-                                    }
-                                    background: Rectangle {
-                                        color: parent.enabled ? "#1479ee" : "#31506d"
-                                        radius: 5
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        id: editorScrollbarSeparator
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        anchors.right: editorVerticalScrollBar.left
+                        anchors.rightMargin: page.scrollbarGap
+                        width: 1
+                        color: "#263845"
+                        visible: editorFlickable.contentHeight > editorFlickable.height
+                    }
+
+                    Rectangle {
+                        id: editorVerticalScrollBar
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        anchors.right: parent.right
+                        width: page.scrollbarWidth
+                        radius: page.scrollbarWidth / 2
+                        color: "#0a1823"
+                        border.color: "#223542"
+                        visible: editorFlickable.contentHeight > editorFlickable.height
+
+                        readonly property real scrollableHeight: Math.max(
+                            1, editorFlickable.contentHeight - editorFlickable.height)
+                        readonly property real thumbHeight: Math.min(
+                            height,
+                            Math.max(42,
+                                height * editorFlickable.visibleArea.heightRatio))
+                        readonly property real thumbTravel: Math.max(
+                            0, height - thumbHeight)
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+
+                            onPressed: function(mouse) {
+                                var targetRatio = (mouse.y
+                                    - editorVerticalScrollBar.thumbHeight / 2)
+                                    / Math.max(
+                                        1, editorVerticalScrollBar.thumbTravel)
+                                editorFlickable.contentY = Math.max(
+                                    0,
+                                    Math.min(
+                                        editorVerticalScrollBar.scrollableHeight,
+                                        targetRatio
+                                            * editorVerticalScrollBar.scrollableHeight))
+                            }
+                        }
+
+                        Rectangle {
+                            id: editorScrollThumb
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: page.scrollbarWidth - 3
+                            height: editorVerticalScrollBar.thumbHeight
+                            y: editorVerticalScrollBar.thumbTravel
+                                * editorFlickable.contentY
+                                / editorVerticalScrollBar.scrollableHeight
+                            radius: width / 2
+                            color: "#a8b0b6"
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+
+                                property real pressY: 0
+                                property real pressContentY: 0
+
+                                onPressed: function(mouse) {
+                                    var point = mapToItem(
+                                        editorVerticalScrollBar,
+                                        mouse.x,
+                                        mouse.y)
+                                    pressY = point.y
+                                    pressContentY = editorFlickable.contentY
+                                }
+
+                                onPositionChanged: function(mouse) {
+                                    if (pressed) {
+                                        var point = mapToItem(
+                                            editorVerticalScrollBar,
+                                            mouse.x,
+                                            mouse.y)
+                                        var delta = point.y - pressY
+                                        var ratio = editorVerticalScrollBar.scrollableHeight
+                                            / Math.max(
+                                                1,
+                                                editorVerticalScrollBar.thumbTravel)
+                                        editorFlickable.contentY = Math.max(
+                                            0,
+                                            Math.min(
+                                                editorVerticalScrollBar.scrollableHeight,
+                                                pressContentY + delta * ratio))
                                     }
                                 }
                             }
@@ -828,143 +810,5 @@ Item {
             }
         }
 
-        Panel {
-            Layout.preferredWidth: 400
-            Layout.fillHeight: true
-            visible: page.width >= 1120
-            radius: 0
-
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 18
-                spacing: 14
-
-                Text {
-                    Layout.fillWidth: true
-                    text: "Live Preview"
-                    color: page.textColor
-                    font.bold: true
-                    font.pixelSize: 18
-                }
-
-                Panel {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 410
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 18
-                        spacing: 14
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 14
-
-                            Rectangle {
-                                Layout.preferredWidth: 64
-                                Layout.preferredHeight: 64
-                                radius: 7
-                                color: page.selectedApplication.companyAccent || "#146ce0"
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: page.previewCompany.substring(0, 2).toUpperCase()
-                                    color: "white"
-                                    font.pixelSize: 16
-                                    font.bold: true
-                                }
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 5
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: page.previewTitle
-                                    color: page.textColor
-                                    font.pixelSize: 20
-                                    font.bold: true
-                                    elide: Text.ElideRight
-                                }
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: page.previewCompany
-                                    color: page.mutedColor
-                                    font.pixelSize: 15
-                                    elide: Text.ElideRight
-                                }
-                            }
-                        }
-
-                        Repeater {
-                            model: [
-                                ["CV used", page.previewCvName, "link"],
-                                ["Status", page.previewStatus, "status"],
-                                ["Applied", page.previewDate, "text"],
-                                ["Salary", page.previewSalary, "text"],
-                                ["Format", page.previewWorkFormat, "text"],
-                                ["Next step", page.previewNextStep, "text"]
-                            ]
-
-                            delegate: RowLayout {
-                                required property var modelData
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 30
-                                Text {
-                                    Layout.preferredWidth: 104
-                                    text: modelData[0]
-                                    color: page.mutedColor
-                                    font.pixelSize: 14
-                                }
-                                StatusChip {
-                                    visible: modelData[2] === "status"
-                                    label: modelData[1]
-                                    accent: page.statusAccent(modelData[1])
-                                }
-                                Text {
-                                    Layout.fillWidth: true
-                                    visible: modelData[2] !== "status"
-                                    text: modelData[1]
-                                    color: modelData[2] === "link"
-                                        ? page.blueColor
-                                        : page.textColor
-                                    font.pixelSize: 14
-                                    elide: Text.ElideRight
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Panel {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 118
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 14
-                        spacing: 10
-                        Text {
-                            text: "Tech Stack"
-                            color: page.mutedColor
-                            font.pixelSize: 14
-                        }
-                        Flow {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            spacing: 8
-                            Repeater {
-                                model: page.previewTechStack
-                                delegate: TagChip {
-                                    required property string modelData
-                                    label: modelData
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Item { Layout.fillHeight: true }
-            }
-        }
     }
 }

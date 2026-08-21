@@ -159,26 +159,16 @@ Item {
 
                 Item { Layout.fillWidth: true }
 
-                Button {
+                PrimaryButton {
                     Layout.preferredWidth: 104
                     Layout.preferredHeight: 42
                     text: "Save"
+                    cornerRadius: 6
+                    labelPixelSize: 15
+                    labelFontWeight: Font.Normal
                     enabled: jobApplicationsController.pendingDeletionCount === 0
                         && cvLibraryController.pendingDeletionCount === 0
                     onClicked: page.submit()
-
-                    contentItem: Text {
-                        text: parent.text
-                        color: "white"
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        font.pixelSize: 15
-                    }
-
-                    background: Rectangle {
-                        color: parent.enabled ? page.accentBlue : "#31506d"
-                        radius: 6
-                    }
                 }
             }
 
@@ -339,8 +329,9 @@ Item {
                                     font.pixelSize: 15
                                 }
 
-                                Button {
+                                PrimaryButton {
                                     text: page.selectedCvUrl.toString().length > 0 ? "Change CV" : "Select CV"
+                                    subtle: true
                                     onClicked: cvFileDialog.open()
                                 }
                             }
@@ -487,7 +478,7 @@ Item {
                 }
             }
 
-            Button {
+            DangerButton {
                 Layout.preferredWidth: 88
                 Layout.preferredHeight: 40
                 text: "Discard"

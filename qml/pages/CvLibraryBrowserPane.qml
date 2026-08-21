@@ -7,7 +7,6 @@ Item {
     id: root
 
     property var cvModel
-    property var categorySummary: []
     property string resultSummary: ""
     property int selectedRow: 0
     property color panelColor: "#0b1b27"
@@ -18,8 +17,6 @@ Item {
     property color greenColor: "#59d34d"
     property color yellowColor: "#ffbd21"
     property color purpleColor: "#b36bff"
-    property string categoryFilter: ""
-    property string languageFilter: ""
     property string sortMode: "Last Modified"
     property bool archivedView: false
     property var checkedCvIds: []
@@ -31,322 +28,40 @@ Item {
     property bool mutationBusy: false
 
     signal rowSelected(int row)
-    signal categoryFilterRequested(string category)
-    signal languageFilterRequested(string language)
     signal sortModeRequested(string mode)
-    signal clearFiltersRequested()
     signal rowCheckToggled(int row)
     signal allVisibleCheckedRequested(bool checked)
     signal removeRequested()
     signal restoreRequested()
     signal permanentDeleteRequested()
 
-    function categoryOptions() {
-        var options = ["All"]
-        for (var i = 0; i < root.categorySummary.length; ++i) {
-            var title = root.categorySummary[i].title
-            if (title !== "All CVs")
-                options.push(title)
-        }
-        return options
-    }
-
     ColumnLayout {
         anchors.fill: parent
-        spacing: 12
+        spacing: 10
 
-        FilterBar {
+        ListHeader {
             Layout.fillWidth: true
-            Layout.preferredHeight: 101
+            Layout.preferredHeight: 60
         }
 
-        RowLayout {
-            Layout.fillWidth: true
+        Repeater {
+            model: root.cvModel
+
+            delegate: CvCard {
+                required property int index
+                required property var model
+
+                Layout.fillWidth: true
+                Layout.preferredHeight: 132
+                selected: index === root.selectedRow
+                checked: root.checkedCvIds.indexOf(model.id) >= 0
+                onClicked: root.rowSelected(index)
+                onCheckToggled: root.rowCheckToggled(index)
+            }
+        }
+
+        Item {
             Layout.fillHeight: true
-            spacing: 12
-
-            CategoriesPanel {
-                Layout.preferredWidth: 222
-                Layout.fillHeight: true
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                spacing: 10
-
-                ListHeader {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 60
-                }
-
-                Repeater {
-                    model: root.cvModel
-
-                    delegate: CvCard {
-                        required property int index
-                        required property var model
-
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 132
-                        selected: index === root.selectedRow
-                        checked: root.checkedCvIds.indexOf(model.id) >= 0
-                        onClicked: root.rowSelected(index)
-                        onCheckToggled: root.rowCheckToggled(index)
-                    }
-                }
-
-                Item {
-                    Layout.fillHeight: true
-                }
-            }
-        }
-    }
-
-    component FilterBar: Panel {
-        color: root.panelColor
-        border.color: root.lineColor
-        radius: 8
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.margins: 18
-            spacing: 22
-
-            FilterCombo {
-                label: "Category"
-                value: root.categoryFilter.length > 0 ? root.categoryFilter : "All"
-                options: root.categoryOptions()
-                onValueRequested: value => root.categoryFilterRequested(value === "All" ? "" : value)
-                Layout.preferredWidth: 185
-            }
-            FilterCombo {
-                label: "Language"
-                value: root.languageFilter.length > 0 ? root.languageFilter : "All"
-                options: ["All", "English", "German", "Russian"]
-                onValueRequested: value => root.languageFilterRequested(value === "All" ? "" : value)
-                Layout.preferredWidth: 162
-            }
-            FilterCombo {
-                label: "Sort"
-                value: root.sortMode
-                options: ["Last Modified", "File Name", "Linked Jobs"]
-                onValueRequested: value => root.sortModeRequested(value)
-                Layout.preferredWidth: 205
-            }
-            FilterCombo {
-                label: "Used in Jobs"
-                value: "Any"
-                options: ["Any"]
-                Layout.preferredWidth: 155
-            }
-
-            IconButton {
-                Layout.preferredWidth: 48
-                Layout.preferredHeight: 52
-                label: "Reset"
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: root.clearFiltersRequested()
-                }
-            }
-
-            Text {
-                text: "Reset"
-                color: root.blueColor
-                font.pixelSize: 15
-                Layout.leftMargin: 0
-                Layout.alignment: Qt.AlignVCenter
-
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: root.clearFiltersRequested()
-                }
-            }
-
-            Item {
-                Layout.fillWidth: true
-            }
-        }
-    }
-
-    component FilterCombo: Rectangle {
-        property string label: ""
-        property string value: ""
-        property var options: []
-        signal valueRequested(string value)
-
-        Layout.preferredHeight: 65
-        radius: 7
-        color: "#0f1f2a"
-        border.color: "#2b3d4c"
-
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 14
-            anchors.rightMargin: 12
-            anchors.topMargin: 10
-            anchors.bottomMargin: 9
-            spacing: 3
-
-            Text {
-                text: label
-                color: root.mutedColor
-                font.pixelSize: 14
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-
-                ComboBox {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 30
-                    model: options
-                    currentIndex: Math.max(0, options.indexOf(value))
-                    onActivated: valueRequested(currentText)
-
-                    contentItem: Text {
-                        text: parent.displayText
-                        color: root.textColor
-                        font.pixelSize: 16
-                        verticalAlignment: Text.AlignVCenter
-                        elide: Text.ElideRight
-                    }
-
-                    background: Rectangle {
-                        color: "transparent"
-                    }
-                }
-            }
-        }
-    }
-
-    component IconButton: Rectangle {
-        property string label: ""
-        property bool active: false
-
-        radius: 6
-        color: active ? "#0f4c8f" : "#101f2a"
-        border.color: active ? root.blueColor : "#2b3d4c"
-
-        Text {
-            anchors.centerIn: parent
-            text: label
-            color: active ? "white" : "#d7e5f2"
-            font.pixelSize: label.length > 2 ? 11 : 23
-            font.bold: active
-        }
-    }
-
-    component CategoriesPanel: Panel {
-        color: root.panelColor
-        border.color: root.lineColor
-        radius: 8
-
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 12
-            spacing: 8
-
-            Text {
-                text: "Categories"
-                color: root.textColor
-                font.pixelSize: 18
-                font.bold: true
-                Layout.leftMargin: 10
-                Layout.topMargin: 12
-                Layout.bottomMargin: 6
-            }
-
-            Repeater {
-                model: root.categorySummary
-
-                delegate: CategoryRow {
-                    required property var modelData
-
-                    Layout.fillWidth: true
-                    title: modelData.title
-                    count: String(modelData.count)
-                    selected: modelData.selected
-                }
-            }
-
-            Item {
-                Layout.fillHeight: true
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 51
-                radius: 6
-                color: "#0f1f2b"
-                border.color: "#2c4050"
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 16
-                    anchors.rightMargin: 14
-                    spacing: 10
-
-                    Text {
-                        text: "+"
-                        color: root.blueColor
-                        font.pixelSize: 22
-                    }
-
-                    Text {
-                        text: "Manage Categories"
-                        color: "#45a3ff"
-                        font.pixelSize: 15
-                        Layout.fillWidth: true
-                    }
-                }
-            }
-        }
-    }
-
-    component CategoryRow: Rectangle {
-        property string title: ""
-        property string count: ""
-        property bool selected: false
-
-        Layout.preferredHeight: 48
-        radius: 6
-        color: selected ? "#143a67" : "transparent"
-        border.width: selected ? 1 : 0
-        border.color: selected ? "#146ec5" : "transparent"
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 13
-            anchors.rightMargin: 12
-            spacing: 6
-
-            Text {
-                text: title
-                color: selected ? "#59adff" : root.textColor
-                font.pixelSize: 15
-                Layout.fillWidth: true
-                elide: Text.ElideRight
-            }
-
-            Rectangle {
-                implicitWidth: Math.max(25, countText.implicitWidth + 12)
-                implicitHeight: 25
-                radius: 6
-                color: "#122532"
-                border.color: "#2b3d4c"
-
-                Text {
-                    id: countText
-                    anchors.centerIn: parent
-                    text: count
-                    color: selected ? "#58adff" : root.mutedColor
-                    font.pixelSize: 14
-                }
-            }
         }
     }
 
@@ -382,28 +97,13 @@ Item {
                 Layout.fillWidth: true
             }
 
-            Button {
+            PrimaryButton {
                 visible: root.archivedView
                 Layout.preferredWidth: 126
                 Layout.preferredHeight: 40
                 text: root.mutationBusy ? "Working..." : "Restore (" + root.checkedCvIds.length + ")"
                 enabled: root.mutationEnabled
                 onClicked: root.restoreRequested()
-
-                contentItem: Text {
-                    text: parent.text
-                    color: parent.enabled ? "white" : "#81909d"
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    font.pixelSize: 14
-                    font.bold: true
-                }
-
-                background: Rectangle {
-                    radius: 6
-                    color: parent.enabled ? "#1479ee" : "#26343e"
-                    border.color: parent.enabled ? "#59adff" : "#3b4a55"
-                }
             }
 
             DangerButton {
@@ -586,17 +286,28 @@ Item {
             }
 
             Rectangle {
+                id: openDetailsButton
                 Layout.preferredWidth: 104
                 Layout.preferredHeight: 35
                 radius: 5
-                color: "transparent"
-                border.color: root.blueColor
+                color: openDetailsArea.pressed
+                    ? "#132F61"
+                    : (openDetailsArea.containsMouse ? "#102A58" : "#0B1B27")
+                border.color: "#223542"
 
                 Text {
                     anchors.centerIn: parent
                     text: "Open Details"
-                    color: "#3ba0ff"
+                    color: "#EEF3F8"
                     font.pixelSize: 14
+                }
+
+                MouseArea {
+                    id: openDetailsArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: card.clicked()
                 }
             }
         }

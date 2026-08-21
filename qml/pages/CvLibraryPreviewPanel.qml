@@ -118,12 +118,24 @@ Item {
                             }
 
                             Text {
+                                id: favoriteIcon
                                 text: root.selectedCv.isFavorite ? "*" : ""
-                                color: root.yellowColor
+                                enabled: String(root.selectedCv.id || "").length > 0
+                                color: !enabled
+                                    ? "#81909D"
+                                    : favoriteMouseArea.pressed
+                                    ? "#D99A00"
+                                    : (favoriteMouseArea.containsMouse
+                                        ? "#FFD45C"
+                                        : "#FFBD21")
                                 font.pixelSize: 25
 
                                 MouseArea {
+                                    id: favoriteMouseArea
                                     anchors.fill: parent
+                                    enabled: favoriteIcon.enabled
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
                                     onClicked: root.favoriteToggled()
                                 }
                             }
@@ -218,22 +230,30 @@ Item {
                 }
 
                 Rectangle {
+                    id: viewAllApplicationsButton
                     Layout.fillWidth: true
                     Layout.preferredHeight: 42
                     Layout.topMargin: 2
                     radius: 7
-                    color: "#0d1b25"
-                    border.color: root.lineColor
+                    color: viewAllApplicationsArea.pressed
+                        ? "#132F61"
+                        : (viewAllApplicationsArea.containsMouse
+                            ? "#102A58"
+                            : "#0B1B27")
+                    border.color: "#223542"
 
                     Text {
                         anchors.centerIn: parent
                         text: "View all " + (root.selectedCv.linkedApplicationCount || 0) + " applications"
-                        color: "#45a3ff"
+                        color: "#EEF3F8"
                         font.pixelSize: 15
                     }
 
                     MouseArea {
+                        id: viewAllApplicationsArea
                         anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
                         onClicked: root.openCvRequested()
                     }
                 }

@@ -55,21 +55,13 @@ Item {
                         }
                     }
 
-                    Button {
+                    PrimaryButton {
                         text: "+  Add Contact"
                         Layout.preferredWidth: 170
                         Layout.preferredHeight: 43
-                        contentItem: Text {
-                            text: parent.text
-                            color: "white"
-                            font.pixelSize: 15
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                        background: Rectangle {
-                            color: "#1479ee"
-                            radius: 6
-                        }
+                        cornerRadius: 6
+                        labelPixelSize: 15
+                        labelFontWeight: Font.Normal
                     }
                 }
 

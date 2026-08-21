@@ -381,19 +381,20 @@ ApplicationWindow {
         }
 
         footer: DialogButtonBox {
-            Button {
+            PrimaryButton {
                 text: "Cancel"
+                subtle: true
                 DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
                 onClicked: window.cancelProtectedAction()
             }
 
-            Button {
+            DangerButton {
                 text: "Don't Save"
                 DialogButtonBox.buttonRole: DialogButtonBox.DestructiveRole
                 onClicked: window.discardUnsavedChangesAndContinue()
             }
 
-            Button {
+            PrimaryButton {
                 text: "Save"
                 DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
                 onClicked: window.saveUnsavedChangesAndContinue()
@@ -439,13 +440,14 @@ ApplicationWindow {
         }
 
         footer: DialogButtonBox {
-            Button {
+            PrimaryButton {
                 text: "Wait"
+                subtle: true
                 DialogButtonBox.buttonRole: DialogButtonBox.ActionRole
                 onClicked: window.waitForPendingWork()
             }
 
-            Button {
+            DangerButton {
                 text: "Interrupt and Exit"
                 DialogButtonBox.buttonRole: DialogButtonBox.DestructiveRole
                 onClicked: window.interruptPendingWorkAndExit()

@@ -1,22 +1,27 @@
 import QtQuick
-import QtQuick.Controls
+import QtQuick.Templates as T
 
-Button {
+T.Button {
     id: control
 
     property bool active: false
-    property color accentColor: "#23E8FF"
-    property color secondaryAccentColor: "#8B5CFF"
-    property color textColor: "#F4F8FF"
-    property color mutedTextColor: "#9FB2D4"
+    property color accentColor: "#1687FF"
+    property color textColor: "#EEF3F8"
+    property color mutedTextColor: "#EEF3F8"
 
+    implicitWidth: Math.max(implicitBackgroundWidth + leftInset + rightInset,
+                            implicitContentWidth + leftPadding + rightPadding)
     implicitHeight: 52
     padding: 0
     hoverEnabled: true
 
     contentItem: Text {
         text: control.text
-        color: control.active || control.hovered ? control.textColor : control.mutedTextColor
+        color: control.enabled
+            ? (control.active || control.hovered
+                ? control.textColor
+                : control.mutedTextColor)
+            : "#81909D"
         font.pixelSize: 15
         font.bold: control.active
         verticalAlignment: Text.AlignVCenter
@@ -27,13 +32,17 @@ Button {
 
     background: Rectangle {
         radius: 14
-        color: control.active
-               ? "#123C76"
-               : control.pressed
-                 ? "#0E2B5E"
-                 : control.hovered ? "#0A234C" : "transparent"
-        border.width: control.active || control.hovered ? 1 : 0
-        border.color: control.active ? control.accentColor : "#214A88"
+        color: !control.enabled
+            ? "#26343E"
+            : control.down
+                ? (control.active ? "#0E2B5E" : "#132F61")
+                : control.hovered
+                    ? (control.active ? "#18498B" : "#102A58")
+                    : (control.active ? "#123C76" : "#0B1B27")
+        border.width: control.visualFocus ? 2 : 1
+        border.color: !control.enabled
+            ? "#3B4A55"
+            : (control.active ? control.accentColor : "#223542")
 
         Rectangle {
             visible: control.active
@@ -46,13 +55,5 @@ Button {
             color: control.accentColor
         }
 
-        Rectangle {
-            visible: control.active
-            anchors.fill: parent
-            anchors.margins: 1
-            radius: parent.radius - 1
-            color: control.secondaryAccentColor
-            opacity: 0.12
-        }
     }
 }

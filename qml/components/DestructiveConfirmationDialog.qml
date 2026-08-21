@@ -22,8 +22,9 @@ Dialog {
     }
 
     footer: DialogButtonBox {
-        Button {
+        PrimaryButton {
             text: "Cancel"
+            subtle: true
             DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
             onClicked: dialog.reject()
         }

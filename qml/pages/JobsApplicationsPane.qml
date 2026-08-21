@@ -18,31 +18,36 @@ Item {
     property var applicationsModel
     property int applicationCount: 0
     property var columns: []
-    property var previewDetails: []
     property string resultSummary: ""
     property string searchText: ""
     property string statusFilter: ""
     property var statusOptions: ["All Status", "Applied", "Interview", "Offer", "Test Task", "Rejected"]
-    property string previewTitle: ""
-    property string previewCompany: ""
-    property string previewCompanyInitials: ""
-    property string previewCompanyAccent: "#146ce0"
-    property string previewNotes: ""
-    property string previewStatusAccent: "#c2c7cb"
     property var checkedApplicationIds: []
     property bool allVisibleApplicationsChecked: false
     property bool someVisibleApplicationsChecked: false
-    property bool deleteEnabled: false
-    property bool deletionBusy: false
 
     signal rowSelected(int row)
     signal searchRequested(string text)
     signal statusFilterRequested(string status)
-    signal applicationsRequested()
-    signal descriptionRequested()
     signal rowCheckToggled(int row)
     signal allVisibleCheckedRequested(bool checked)
-    signal deleteRequested()
+
+    readonly property real tableColumnLeft: 52
+    readonly property real tableColumnRight: 18
+    readonly property real tableColumnBaseEnd: 961
+    readonly property real tableColumnScale: Math.max(
+        0.0,
+        (applicationsPanel.width - tableColumnLeft - tableColumnRight)
+            / (tableColumnBaseEnd - tableColumnLeft))
+
+    function scaledColumnX(column) {
+        return tableColumnLeft
+            + (column.x - tableColumnLeft) * tableColumnScale
+    }
+
+    function scaledColumnWidth(column) {
+        return column.width * tableColumnScale
+    }
 
     RowLayout {
         anchors.fill: parent
@@ -54,71 +59,7 @@ Item {
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 22
                 spacing: 10
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 10
-
-                    Button {
-                        Layout.preferredWidth: 173
-                        Layout.preferredHeight: 27
-                        text: "Job Applications"
-                        onClicked: page.applicationsRequested()
-
-                        contentItem: Text {
-                            text: parent.text
-                            color: page.textColor
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                            font.pixelSize: 17
-                            font.bold: true
-                        }
-
-                        background: Rectangle {
-                            color: "#0b1b27"
-                            border.color: page.blueColor
-                            border.width: 1
-                            radius: 4
-                        }
-                    }
-
-                    Button {
-                        Layout.preferredWidth: 173
-                        Layout.preferredHeight: 27
-                        text: "Job Description"
-                        onClicked: page.descriptionRequested()
-
-                        contentItem: Text {
-                            text: parent.text
-                            color: page.textColor
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                            font.pixelSize: 17
-                            font.bold: true
-                        }
-
-                        background: Rectangle {
-                            color: "#0b1b27"
-                            border.color: page.blueColor
-                            border.width: 1
-                            radius: 4
-                        }
-                    }
-
-                    Item { Layout.fillWidth: true }
-
-                    DangerButton {
-                        Layout.preferredWidth: 180
-                        Layout.preferredHeight: 42
-                        text: page.deletionBusy
-                            ? "Deleting..."
-                            : "Delete Selected (" + page.checkedApplicationIds.length + ")"
-                        enabled: page.deleteEnabled
-                        onClicked: page.deleteRequested()
-                    }
-                }
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -203,8 +144,8 @@ Item {
                             delegate: Text {
                                 required property var modelData
 
-                                x: modelData.x
-                                width: modelData.width
+                                x: page.scaledColumnX(modelData)
+                                width: page.scaledColumnWidth(modelData)
                                 height: parent.height
                                 text: modelData.title
                                 color: page.mutedColor
@@ -257,7 +198,7 @@ Item {
                             }
 
                             Rectangle {
-                                x: page.columns[0].x
+                                x: page.scaledColumnX(page.columns[0])
                                 width: 35
                                 height: 35
                                 anchors.verticalCenter: parent.verticalCenter
@@ -283,8 +224,8 @@ Item {
                             }
 
                             Text {
-                                x: page.columns[0].x + 47
-                                width: page.columns[0].width - 47
+                                x: page.scaledColumnX(page.columns[0]) + 47
+                                width: Math.max(0, page.scaledColumnWidth(page.columns[0]) - 47)
                                 height: parent.height
                                 text: companyName
                                 color: page.textColor
@@ -294,8 +235,8 @@ Item {
                             }
 
                             Text {
-                                x: page.columns[1].x
-                                width: page.columns[1].width
+                                x: page.scaledColumnX(page.columns[1])
+                                width: page.scaledColumnWidth(page.columns[1])
                                 height: parent.height
                                 text: cvFileName
                                 color: page.textColor
@@ -305,8 +246,8 @@ Item {
                             }
 
                             Text {
-                                x: page.columns[2].x
-                                width: page.columns[2].width
+                                x: page.scaledColumnX(page.columns[2])
+                                width: page.scaledColumnWidth(page.columns[2])
                                 height: parent.height
                                 text: dateLabel
                                 color: page.textColor
@@ -316,8 +257,8 @@ Item {
                             }
 
                             Text {
-                                x: page.columns[3].x
-                                width: page.columns[3].width
+                                x: page.scaledColumnX(page.columns[3])
+                                width: page.scaledColumnWidth(page.columns[3])
                                 height: parent.height
                                 text: jobTitle
                                 color: page.textColor
@@ -327,8 +268,8 @@ Item {
                             }
 
                             StatusChip {
-                                x: page.columns[4].x
-                                width: page.columns[4].width - 18
+                                x: page.scaledColumnX(page.columns[4])
+                                width: Math.max(0, page.scaledColumnWidth(page.columns[4]) - 18)
                                 height: 32
                                 anchors.verticalCenter: parent.verticalCenter
                                 label: statusLabel
@@ -336,8 +277,8 @@ Item {
                             }
 
                             Text {
-                                x: page.columns[5].x
-                                width: page.columns[5].width
+                                x: page.scaledColumnX(page.columns[5])
+                                width: page.scaledColumnWidth(page.columns[5])
                                 height: parent.height
                                 text: appliedDate
                                 color: page.textColor
@@ -347,8 +288,8 @@ Item {
                             }
 
                             Text {
-                                x: page.columns[6].x
-                                width: page.columns[6].width
+                                x: page.scaledColumnX(page.columns[6])
+                                width: page.scaledColumnWidth(page.columns[6])
                                 height: parent.height
                                 text: nextStep
                                 color: page.textColor
@@ -432,305 +373,6 @@ Item {
             }
         }
 
-        Panel {
-            id: previewPanel
-            Layout.preferredWidth: 382
-            Layout.fillHeight: true
-            radius: 0
-
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 16
-                spacing: 12
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 35
-
-                    Text {
-                        text: "Preview"
-                        color: page.textColor
-                        font.bold: true
-                        font.pixelSize: 17
-                        verticalAlignment: Text.AlignVCenter
-                    }
-
-                    Item { Layout.fillWidth: true }
-
-                    Rectangle {
-                        Layout.preferredWidth: 112
-                        Layout.preferredHeight: 35
-                        radius: 6
-                        color: "#0b1b27"
-                        border.color: page.panelLineColor
-
-                        Rectangle {
-                            x: 0
-                            y: 0
-                            width: parent.width / 2
-                            height: parent.height
-                            radius: 5
-                            color: "#1479ee"
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: "▦"
-                                color: "white"
-                                font.pixelSize: 17
-                            }
-                        }
-
-                        Text {
-                            anchors.right: parent.right
-                            anchors.rightMargin: 18
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: "▣"
-                            color: page.textColor
-                            font.pixelSize: 16
-                        }
-                    }
-                }
-
-                Panel {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 490
-
-                    Item {
-                        anchors.fill: parent
-                        anchors.margins: 14
-
-                        Rectangle {
-                            id: previewLogo
-                            width: 62
-                            height: 62
-                            radius: 6
-                            color: page.previewCompanyAccent
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: page.previewCompanyInitials
-                                color: "white"
-                                font.pixelSize: 15
-                            }
-                        }
-
-                        Text {
-                            x: 78
-                            y: 8
-                            width: parent.width - 84
-                            text: page.previewTitle
-                            color: page.textColor
-                            font.pixelSize: 20
-                            font.bold: true
-                            elide: Text.ElideRight
-                        }
-
-                        Text {
-                            x: 78
-                            y: 36
-                            width: parent.width - 84
-                            text: page.previewCompany
-                            color: page.mutedColor
-                            font.pixelSize: 15
-                            elide: Text.ElideRight
-                        }
-
-                        Column {
-                            x: 0
-                            y: 86
-                            width: parent.width
-                            spacing: 16
-
-                            Repeater {
-                                model: page.previewDetails
-
-                                delegate: Item {
-                                    required property var modelData
-
-                                    width: parent.width
-                                    height: 24
-
-                                    Text {
-                                        x: 0
-                                        width: 26
-                                        height: parent.height
-                                        text: modelData[0]
-                                        color: page.mutedColor
-                                        font.pixelSize: 18
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-
-                                    Text {
-                                        x: 32
-                                        width: 104
-                                        height: parent.height
-                                        text: modelData[1]
-                                        color: page.mutedColor
-                                        font.pixelSize: 15
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-
-                                    StatusChip {
-                                        x: 140
-                                        width: 84
-                                        height: 28
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        visible: modelData[1] === "Status"
-                                        label: modelData[2]
-                                        accent: page.previewStatusAccent
-                                    }
-
-                                    Text {
-                                        x: 140
-                                        width: parent.width - 140
-                                        height: parent.height
-                                        visible: modelData[1] !== "Status"
-                                        text: modelData[2]
-                                        color: modelData[1] === "CV used" ? "#2588ff" : page.textColor
-                                        font.pixelSize: 15
-                                        verticalAlignment: Text.AlignVCenter
-                                        elide: Text.ElideRight
-                                    }
-                                }
-                            }
-                        }
-
-                        Text {
-                            x: 0
-                            y: 330
-                            text: "Notes"
-                            color: page.mutedColor
-                            font.pixelSize: 16
-                        }
-
-                        Rectangle {
-                            x: 0
-                            y: 358
-                            width: parent.width
-                            height: 101
-                            radius: 7
-                            color: "#0b1b27"
-                            border.color: "#283944"
-
-                            Text {
-                                anchors.fill: parent
-                                anchors.margins: 13
-                                text: page.previewNotes
-                                color: page.textColor
-                                font.pixelSize: 14
-                                wrapMode: Text.WordWrap
-                            }
-                        }
-                    }
-                }
-
-                Panel {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 156
-                    clip: true
-
-                    Repeater {
-                        model: [
-                            ["▣", "Requirements"],
-                            ["‹›", "Tech Stack"],
-                            ["♙", "Contacts"]
-                        ]
-
-                        delegate: Rectangle {
-                            required property var modelData
-                            required property int index
-
-                            x: 0
-                            y: index * 52
-                            width: parent.width
-                            height: 52
-                            color: "transparent"
-
-                            Rectangle {
-                                anchors.left: parent.left
-                                anchors.right: parent.right
-                                anchors.bottom: parent.bottom
-                                height: 1
-                                color: page.panelLineColor
-                                visible: index < 2
-                            }
-
-                            Text {
-                                x: 16
-                                width: 28
-                                height: parent.height
-                                text: modelData[0]
-                                color: page.mutedColor
-                                font.pixelSize: 18
-                                verticalAlignment: Text.AlignVCenter
-                            }
-
-                            Text {
-                                x: 52
-                                width: parent.width - 88
-                                height: parent.height
-                                text: modelData[1]
-                                color: page.mutedColor
-                                font.pixelSize: 15
-                                verticalAlignment: Text.AlignVCenter
-                            }
-
-                            Text {
-                                anchors.right: parent.right
-                                anchors.rightMargin: 16
-                                height: parent.height
-                                text: "›"
-                                color: page.textColor
-                                font.pixelSize: 22
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                        }
-                    }
-                }
-
-                Item { Layout.fillHeight: true }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 48
-                    spacing: 10
-
-                    Button {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 48
-                        text: "▣   Mark Next Step / Add Reminder"
-
-                        contentItem: Text {
-                            text: parent.text
-                            color: "white"
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                            font.pixelSize: 14
-                        }
-
-                        background: Rectangle {
-                            color: "#1479ee"
-                            radius: 6
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.preferredWidth: 48
-                        Layout.preferredHeight: 48
-                        radius: 6
-                        color: "#0b1b27"
-                        border.color: page.panelLineColor
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: "..."
-                            color: page.textColor
-                            font.pixelSize: 18
-                        }
-                    }
-                }
-            }
-        }
     }
 
     component SelectionCheckBox: CheckBox {

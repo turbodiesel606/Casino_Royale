@@ -298,8 +298,8 @@ open.
 copies the selected application's editable values into local controls only when
 Edit is requested, compares an exact snapshot of those values plus the optional
 replacement-CV URL to determine dirtiness, and shows Save Changes and Discard
-only during the edit session. Read-only tech values are chips; editing uses a
-comma-separated field and the preview reads the live draft.
+only during the edit session. Read-only tech values are chips, and editing uses a
+comma-separated field.
 
 Explicit Save Changes opens the apply confirmation in the pane. Submission
 calls `JobApplicationsController::updateApplication(applicationId, formValues,

@@ -60,50 +60,28 @@ Item {
                 RowLayout {
                     spacing: 0
 
-                    Button {
+                    PrimaryButton {
                         Layout.preferredWidth: 104
                         Layout.preferredHeight: 40
                         text: "Active"
-                        checked: cvLibraryController.libraryView === 0
+                        subtle: true
+                        selected: cvLibraryController.libraryView === 0
+                        cornerRadius: 6
+                        labelPixelSize: 14
+                        labelFontWeight: selected ? Font.DemiBold : Font.Normal
                         onClicked: cvLibraryController.setLibraryView(0)
-
-                        contentItem: Text {
-                            text: parent.text
-                            color: parent.checked ? "white" : page.mutedColor
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                            font.pixelSize: 14
-                            font.bold: parent.checked
-                        }
-
-                        background: Rectangle {
-                            radius: 6
-                            color: parent.checked ? page.blueColor : page.panelSoftColor
-                            border.color: parent.checked ? "#59adff" : page.lineColor
-                        }
                     }
 
-                    Button {
+                    PrimaryButton {
                         Layout.preferredWidth: 104
                         Layout.preferredHeight: 40
                         text: "Archived"
-                        checked: cvLibraryController.libraryView === 1
+                        subtle: true
+                        selected: cvLibraryController.libraryView === 1
+                        cornerRadius: 6
+                        labelPixelSize: 14
+                        labelFontWeight: selected ? Font.DemiBold : Font.Normal
                         onClicked: cvLibraryController.setLibraryView(1)
-
-                        contentItem: Text {
-                            text: parent.text
-                            color: parent.checked ? "white" : page.mutedColor
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                            font.pixelSize: 14
-                            font.bold: parent.checked
-                        }
-
-                        background: Rectangle {
-                            radius: 6
-                            color: parent.checked ? page.blueColor : page.panelSoftColor
-                            border.color: parent.checked ? "#59adff" : page.lineColor
-                        }
                     }
                 }
 
@@ -130,10 +108,7 @@ Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     cvModel: cvLibraryController.cvModel
-                    categorySummary: cvLibraryController.categorySummary
                     resultSummary: cvLibraryController.resultSummary
-                    categoryFilter: cvLibraryController.categoryFilter
-                    languageFilter: cvLibraryController.languageFilter
                     sortMode: cvLibraryController.sortMode
                     archivedView: cvLibraryController.libraryView === 1
                     checkedCvIds: cvLibraryController.checkedCvIds
@@ -153,10 +128,7 @@ Item {
                     yellowColor: page.yellowColor
                     purpleColor: page.purpleColor
                     onRowSelected: row => cvLibraryController.selectCv(row)
-                    onCategoryFilterRequested: category => cvLibraryController.setCategoryFilter(category)
-                    onLanguageFilterRequested: language => cvLibraryController.setLanguageFilter(language)
                     onSortModeRequested: mode => cvLibraryController.setSortMode(mode)
-                    onClearFiltersRequested: cvLibraryController.clearFilters()
                     onRowCheckToggled: row => cvLibraryController.toggleCvChecked(row)
                     onAllVisibleCheckedRequested: checked => cvLibraryController.setAllVisibleCvsChecked(checked)
                     onRemoveRequested: removeConfirmation.open()

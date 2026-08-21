@@ -52,24 +52,36 @@ Rectangle {
         Repeater {
             model: sidebar.labels
             delegate: ItemDelegate {
+                id: navigationButton
                 required property int index
                 required property string modelData
                 Layout.fillWidth: true
                 height: 51
                 padding: 0
+                hoverEnabled: true
                 contentItem: RowLayout {
                     spacing: 15
                     Text { text: sidebar.icons[index]
- color: index === sidebar.currentIndex ? "#80baff" : "#d1d9e1"
+ color: navigationButton.enabled ? (index === sidebar.currentIndex ? "#80baff" : "#eef3f8") : "#81909d"
  font.pixelSize: 25
  Layout.leftMargin: 16 }
                     Text { text: modelData
- color: "#e3e8ee"
+ color: navigationButton.enabled ? "#eef3f8" : "#81909d"
  font.pixelSize: 16 }
                 }
                 background: Rectangle {
                     radius: 7
-                    color: index === sidebar.currentIndex ? "#103c6c" : (parent.hovered ? "#102331" : "transparent")
+                    color: !navigationButton.enabled
+                        ? "#26343e"
+                        : navigationButton.down
+                            ? (index === sidebar.currentIndex ? "#0e2b5e" : "#132f61")
+                            : navigationButton.hovered
+                                ? (index === sidebar.currentIndex ? "#18498b" : "#102a58")
+                                : (index === sidebar.currentIndex ? "#123c76" : "#0b1b27")
+                    border.width: 1
+                    border.color: !navigationButton.enabled
+                        ? "#3b4a55"
+                        : (index === sidebar.currentIndex ? "#1687ff" : "#223542")
                     Rectangle { visible: index === sidebar.currentIndex
  width: 3
  height: parent.height
@@ -93,35 +105,25 @@ Rectangle {
  font.pixelSize: 12
  Layout.topMargin: 16
  Layout.leftMargin: 7 }
-        Button {
+        PrimaryButton {
             Layout.fillWidth: true
  Layout.preferredHeight: 48
             text: "+   Add Job"
+            cornerRadius: 6
+            labelPixelSize: 16
+            labelFontWeight: Font.Normal
             enabled: sidebar.actionsEnabled
             onClicked: sidebar.addJob()
-            contentItem: Text { text: parent.text
- color: parent.enabled ? "#69a9ff" : "#687784"
- font.pixelSize: 16
- horizontalAlignment: Text.AlignHCenter
- verticalAlignment: Text.AlignVCenter }
-            background: Rectangle { radius: 6
- color: "#0c2436"
- border.color: "#1575e6" }
         }
-        Button {
+        PrimaryButton {
             Layout.fillWidth: true
  Layout.preferredHeight: 43
  text: "+   Add CV"
+            cornerRadius: 6
+            labelPixelSize: 15
+            labelFontWeight: Font.Normal
             enabled: sidebar.actionsEnabled
             onClicked: sidebar.addCv()
-            contentItem: Text { text: parent.text
- color: parent.enabled ? "#30cde1" : "#687784"
- font.pixelSize: 15
- horizontalAlignment: Text.AlignHCenter
- verticalAlignment: Text.AlignVCenter }
-            background: Rectangle { radius: 6
- color: "#0c2436"
- border.color: "#008fa8" }
         }
 
         Rectangle {
