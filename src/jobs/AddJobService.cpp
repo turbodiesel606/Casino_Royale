@@ -92,7 +92,9 @@ AddJobResult AddJobService::complete(
 
 		SqlTransaction transaction{database_, QStringLiteral("Add Job persistence")};
 		const auto company = companyRepository_.findOrCreateByName(preparation.draft_.companyName_);
-		const auto cvImport = cvImportService_.importPreparedDocument(preparation.cvPreparation_);
+		const auto cvImport = cvImportService_.importPreparedDocument(
+			preparation.cvPreparation_,
+			CvArchivedDuplicatePolicy::PreserveArchived);
 		completedFilePath = cvImport.completedFilePath_;
 
 		auto application = JobApplicationFactory::create(
@@ -108,7 +110,7 @@ AddJobResult AddJobService::complete(
 		result.application_ = std::move(application);
 		result.company_ = company;
 		result.cvDocument_ = cvImport.document_;
-		result.cvWasInserted_ = cvImport.wasInserted_;
+		result.cvImportDisposition_ = cvImport.disposition_;
 	}
 	catch (const std::exception& error) {
 		result.message_ = QString::fromUtf8(error.what());

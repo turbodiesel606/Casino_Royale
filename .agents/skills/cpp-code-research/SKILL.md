@@ -1,11 +1,20 @@
 ---
 name: cpp-code-research
-description: Research the JobTracker C++ backend without making code changes. Use when Codex needs to map C++ classes, controllers, models, services, startup wiring, tests, CMake source registration, data flow, architecture risks, code duplication, overlapping responsibilities, or implementation options before a C++ task.
+description: Perform read-only, source-backed research of the JobTracker C++ backend before implementation. Use for bounded symbol or workflow tracing, Qt ownership and threading, QML contracts, storage, CMake and test mapping, implementation planning, or architecture and duplication analysis. Do not use for code changes, diff review, build debugging, or progressive teaching.
 ---
 
 # C++ Code Research
 
-Use this skill for read-only C++ backend investigation.
+Research the smallest relevant JobTracker C++ surface and return evidence-backed findings without changing production code.
+
+## Routing
+
+- Use `cpp-backend-task` when the user asks to implement or modify C++.
+- Use `cpp-code-review` when the user asks to review a diff, changed code, or release readiness.
+- Use `cmake-build-debug` when the primary task is configuration, compilation, CTest, or build-failure diagnosis.
+- Use `learn-cpp-codebase` for a progressive teaching tour of the complete backend.
+- Use `qml-code-research` for QML structure or visual ownership; inspect QML here only to verify a C++ contract boundary.
+- When changing this skill's routing or description, read [references/trigger-tests.md](references/trigger-tests.md) and exercise its cases. Do not load that file for ordinary backend research.
 
 ## Required Context
 
@@ -17,65 +26,119 @@ Read these files first:
 4. `For-Agent/Docs/coding-style.md`
 5. `For-Agent/Docs/testing.md`
 
-Also read `For-Agent/Docs/qml-to-cpp-extraction.md` when the research involves QML-facing controllers, models, or business logic being moved out of QML.
+Also read:
 
-Before repeating broad research, check `For-Agent/Research/` and relevant `For-Agent/Task-Report/` artifacts. Use the most recent relevant artifact by timestamp as context only, then verify current facts against the source.
+- `For-Agent/Docs/qml-to-cpp-extraction.md` when the research involves QML-facing controllers, models, or durable behavior being moved out of QML.
+- `For-Agent/Docs/build.md` when the user requests current build or test verification.
+
+Before overlapping prior research, check the relevant files in `For-Agent/Research/`, `For-Agent/Review/`, and `For-Agent/Task-Report/`. Follow `For-Agent/Docs/artifacts.md` for recency and reuse. Treat artifacts as context only and reverify every current claim against the live instructions, source, worktree, and focused diff.
+
+## Scope Gate
+
+Before broad searching:
+
+1. Classify the request as one or more of:
+   - bounded symbol or direct-call research;
+   - end-to-end backend workflow research;
+   - architecture, maintainability, or duplication research;
+   - implementation planning without edits.
+2. State the included boundary and intentional omissions. Honor a direct-call-only request without recursively tracing nested callees.
+3. Run `git status --short --untracked-files=all`. Inspect focused diffs for in-scope files and account for pre-existing modified, deleted, or untracked work.
+4. Start from the smallest relevant entry point. Do not inventory the whole repository unless the requested scope requires it.
 
 ## Entry Points
 
-Start from the smallest relevant C++ surface:
-
-- Startup and wiring: `src/main.cpp`, `src/app/`.
+- Startup and dependency wiring: `src/main.cpp`, `src/app/`.
 - Shared backend utilities: `src/common/`.
-- Jobs domain: `src/jobs/`.
-- CV domain: `src/cvs/`.
-- Dashboard domain: `src/dashboard/`.
-- Company/contact domain: `src/directory/`.
-- Tests: `tests/`.
-- Build inventory: `CMakeLists.txt`.
+- Storage, SQL helpers, transactions, and schema migrations: `src/storage/`.
+- Jobs and Add Job: `src/jobs/`.
+- CVs, managed files, and Add CV: `src/cvs/`.
+- Dashboard read models: `src/dashboard/`.
+- Company and contact domains: `src/directory/`.
+- Matching tests and reusable fixtures: `tests/`, especially the relevant domain folder and `tests/support/`.
+- Production and test registration: `CMakeLists.txt`.
+- C++ exposure and consumption boundary, only when relevant: `qml/`.
 
-Use `rg` for symbols, class names, QML context properties, `Q_PROPERTY`, `Q_INVOKABLE`, model role names, tests, and CMake source registration.
+Use targeted `rg` searches for definitions, callers, constructors, connections, context properties, `Q_PROPERTY`, `Q_INVOKABLE`, model roles, QML handlers, tests, and CMake registration before broader scans.
 
-## Duplication Analysis
+## Evidence Workflow
 
-When the research concerns architecture or maintainability:
+1. Inspect each relevant project-defined implementation before inferring ownership or behavior.
+2. Trace the requested direction explicitly: caller to callee, signal sender to connected receiver, QML command to backend, or storage operation back to model publication.
+3. Verify that participating production and test files are registered in `CMakeLists.txt`; file existence alone is not registration evidence.
+4. Cite the file and line for every non-trivial claim, risk, missing contract, and implementation recommendation.
+5. Distinguish these evidence levels in the output:
+   - live source inspection;
+   - current worktree or diff inspection;
+   - CMake registration inspection;
+   - test-source inspection;
+   - successful build;
+   - CTest result;
+   - manual runtime observation.
+6. If no build, CTest, or GUI run occurred, label the result static-only and do not imply runtime verification.
+7. Record unresolved questions, conflicting evidence, and intentionally uninspected surfaces.
 
-1. Inspect exact, structural, and semantic duplication across:
-   - classes, structs, functions, methods, and helpers;
-   - controllers, models, services, repositories, and storage classes;
-   - validation, normalization, formatting, filtering, selection, error handling, and transaction logic;
-   - SQL statements, test fixtures, test setup, and CMake target definitions.
-2. Search by responsibility and behavior, not only identical text. Compare similarly named methods, repeated branches, repeated constants, SQL fragments, model roles, signals, and property-update sequences.
-3. For every duplication cluster:
-   - identify all affected files and symbols;
-   - describe the repeated responsibility;
-   - identify the existing implementation that could be the canonical owner;
-   - explain whether reuse, extension, extraction, or keeping the implementations separate is the safer direction.
-4. Distinguish harmful duplication from intentional separation. Similar fields or control flow are not sufficient evidence when types represent different lifecycle stages, ownership boundaries, thread contexts, or domain meanings.
-5. Do not propose a new abstraction until the relevant existing implementation has been inspected and found insufficient.
+## Qt, QML, And Concurrency Checks
+
+When the scope touches QObjects, controllers, models, workers, asynchronous flows, or Qt SQL:
+
+- Identify each QObject owner, lifetime, and thread affinity. Moving a value does not move a QObject or change its affinity.
+- Distinguish direct function calls from signal notification. Identify the connected receiver, QML handler, and connection type when they affect behavior.
+- Verify that QML-facing controllers and model mutations stay on the GUI thread and that model begin/end and notify contracts match the behavior being researched.
+- Trace facade and executor responsibilities, queued value delivery, active and waiting work, cancellation identity, late-result rejection, shutdown order, and object destruction.
+- Identify the thread where every `QSqlDatabase` connection and active query is created, used, closed, and removed.
+- Trace transaction ownership and any filesystem staging, cleanup, rollback compensation, or crash-recovery limitation.
+- Verify QML exposure in bootstrap, actual QML consumption, stable model roles, properties, invokables, signals, and handlers without broadening into visual review.
+
+## Persistence And Test Checks
+
+When storage is in scope:
+
+- Trace schema initialization and every supported migration path that can reach the affected state.
+- Verify repository query and domain-value mapping in both read and write directions.
+- Identify the service or operation that owns transaction boundaries.
+- Inspect matching storage tests and `tests/support/` fixtures instead of inferring coverage from suite names.
+
+When tests are in scope, map each relevant invariant to a concrete test function or identify the exact missing coverage. Keep test-source inspection separate from an executed CTest result.
+
+## Architecture And Duplication Mode
+
+For architecture, maintainability, duplication, or overlapping-responsibility research, read and follow [references/duplication-analysis.md](references/duplication-analysis.md). Do not load or emit its full duplication deliverable for a narrow symbol or workflow task unless duplication becomes necessary to answer the request.
 
 ## Research Output
 
-Return concise findings with:
+Always return:
 
-- Scope and files inspected.
-- Current C++ ownership and data flow.
-- QML-facing contracts, if any.
-- Relevant tests and missing test coverage.
-- Architecture or maintainability risks.
-- Suggested implementation direction, without changing code.
-- Duplication map grouped by repeated responsibility, with affected files and symbols.
-- Classification of each cluster as exact, structural, semantic, or intentional similarity.
-- Existing implementation that could become the canonical owner.
-- Consolidation risks, including coupling, ownership, lifetime, threading, and domain-boundary concerns.
-When the lead Codex is doing the research and a durable artifact is needed, write it under `For-Agent/Research/` with a clear name such as `cpp-research-YYYY-MM-DD-HHMM-topic.md`. Put a `Created: YYYY-MM-DD HH:MM local time` line at the beginning of the file immediately after the title.
+- Requested scope, stopping boundary, and files inspected.
+- Current ownership and data flow relevant to that scope.
+- Source references for non-trivial claims.
+- QML-facing, Qt model, threading, storage, test, and CMake contracts when applicable.
+- Relevant risks, missing coverage, open questions, and intentional omissions.
+- Suggested implementation direction without changing code.
+- Verification matrix separating static inspection, build, CTest, and manual runtime evidence.
 
-If a read-only subagent is used, treat the subagent output as research input. The lead Codex should compile, verify, and save the final research artifact.
-Do not recommend abstraction based only on similar syntax, naming, or fields. 
-Verify that the implementations share responsibility, invariants, and reasons to change.
+Add only the sections required by the selected mode:
+
+- For architecture or duplication research, include the deliverable defined in `references/duplication-analysis.md`.
+- For implementation planning, include:
+  - the existing entity to reuse or extend;
+  - files and symbols expected to change;
+  - ownership, lifetime, public and QML contracts, error behavior, threading, storage, and transaction decisions;
+  - required tests, CMake registration, and documentation impact;
+  - later build, CTest, and manual verification;
+  - ordered steps, risks, dependencies, and intentional omissions.
+
+Stop before edits after an implementation-planning request. Hand the verified research to `cpp-backend-task` only when the user authorizes implementation.
+
+Create a durable research artifact only when the user explicitly requests saved or durable output. Otherwise return findings in chat without writing files. When authorized, follow `For-Agent/Docs/artifacts.md` and save under `For-Agent/Research/`.
+
+If a read-only subagent is used at the user's request, treat its output as research input. The lead Codex remains responsible for checking the live source, compiling the final findings, and writing any authorized artifact.
 
 ## Boundaries
 
-Do not edit production code during a research task.
-Do not broaden into QML visual review unless the C++ behavior depends on QML contracts.
-Do not run builds or tests unless the user asks for verification or the research depends on current build state.
+- Do not edit production code, CMake, tests, QML, or documentation during research.
+- Do not write a research artifact unless the user explicitly authorizes durable output.
+- Do not broaden into QML visual review unless the C++ behavior depends on the QML contract.
+- Do not run builds, CTest, or the GUI unless the user requests verification or the research genuinely depends on current execution state.
+- Do not recommend a new abstraction until the relevant existing implementation has been inspected and found insufficient.
+- Do not treat similar syntax, names, or fields as shared responsibility without matching invariants and reasons to change.

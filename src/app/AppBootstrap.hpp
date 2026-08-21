@@ -11,9 +11,11 @@
 #include "directory/CompanyRepository.hpp"
 #include "directory/ContactDirectoryController.hpp"
 #include "directory/ContactListModel.hpp"
-#include "jobs/AddJobWorker.hpp"
+#include "jobs/JobSaveWorker.hpp"
 #include "jobs/JobApplicationsController.hpp"
 #include "jobs/JobRepository.hpp"
+#include "maintenance/DataRemovalWorker.hpp"
+#include "maintenance/StorageMutationGate.hpp"
 #include "storage/SqliteDatabase.hpp"
 #include "storage/StoragePaths.hpp"
 
@@ -46,8 +48,10 @@ private:
     CvFileAccessService cvFileAccessService_; 
     CompanyRepository companyRepository_;
     JobRepository jobRepository_;
-    AddJobWorker addJobWorker_;
+    JobSaveWorker jobSaveWorker_;
     CvImportWorker cvImportWorker_;
+    StorageMutationGate storageMutationGate_;
+    DataRemovalWorker dataRemovalWorker_;
     JobApplicationsController jobApplicationsController_; 
     CvLibraryController cvLibraryController_; 
     DashboardController dashboardController_; 

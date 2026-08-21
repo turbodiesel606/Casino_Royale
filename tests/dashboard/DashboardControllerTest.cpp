@@ -47,6 +47,8 @@ private slots:
     void funnelModelExposesRatios();
     void recentModelsExposeBackendRows();
     void recentModelsSortNewestFirstAfterInsertionsAndUpdates();
+    void removalsRefreshMetricsAndArchivedCvsDisappear();
+    void statusUpdatesRefreshMetrics();
 };
 
 void DashboardControllerTest::statsModelAggregatesJobStatuses()
@@ -170,6 +172,72 @@ void DashboardControllerTest::recentModelsSortNewestFirstAfterInsertionsAndUpdat
         QDateTime{QDate{2026, 6, 3}, QTime{10, 0}, Qt::UTC}));
     QCOMPARE(idAt(*recentCvs, 0), QStringLiteral("cv-1"));
     QCOMPARE(recentCvs->rowCount(), 5);
+}
+
+void DashboardControllerTest::removalsRefreshMetricsAndArchivedCvsDisappear()
+{
+    auto applications = testsupport::makeJobApplications();
+    const QStringList removedIds{applications.at(0).id_, applications.at(1).id_};
+    JobApplicationListModel applicationsModel{applications};
+    CvListModel cvModel{{makeCv(QStringLiteral("older"), 10), makeCv(QStringLiteral("newer"), 12)}};
+    DashboardController controller{applicationsModel, cvModel};
+
+    QCOMPARE(controller.recentCvsModel()->rowCount(), 2);
+    applicationsModel.removeApplications(removedIds);
+    QCOMPARE(
+        controller.statsModel()->data(
+            controller.statsModel()->index(0, 0),
+            roleForName(*controller.statsModel(), "value")).toString(),
+        QStringLiteral("4"));
+    QCOMPARE(controller.recentApplicationsModel()->rowCount(), 4);
+
+    const auto updatedAt = QDateTime::currentDateTimeUtc();
+    QVERIFY(cvModel.setArchiveState(QStringLiteral("newer"), updatedAt, updatedAt));
+    QCOMPARE(controller.recentCvsModel()->rowCount(), 1);
+    QCOMPARE(idAt(*controller.recentCvsModel(), 0), QStringLiteral("older"));
+}
+
+void DashboardControllerTest::statusUpdatesRefreshMetrics()
+{
+    auto application = testsupport::makeJobApplication(
+        QStringLiteral("job-status-update"),
+        QStringLiteral("company-status-update"),
+        QStringLiteral("Status Company"),
+        QStringLiteral("Status Role"),
+        QStringLiteral("cv-status-update"),
+        QStringLiteral("status.pdf"),
+        QDate{2026, 8, 20},
+        JobStatus::Applied,
+        QStringLiteral("Follow up"));
+    JobApplicationListModel applicationsModel{{application}};
+    CvListModel cvModel;
+    DashboardController controller{applicationsModel, cvModel};
+
+    QCOMPARE(
+        controller.statsModel()->data(
+            controller.statsModel()->index(1, 0),
+            roleForName(*controller.statsModel(), "value")).toString(),
+        QStringLiteral("1"));
+    QCOMPARE(
+        controller.statsModel()->data(
+            controller.statsModel()->index(2, 0),
+            roleForName(*controller.statsModel(), "value")).toString(),
+        QStringLiteral("0"));
+
+    application.status_ = JobStatus::Interview;
+    application.updatedAt_ = application.updatedAt_.addSecs(1);
+    QVERIFY(applicationsModel.updateApplication(application));
+
+    QCOMPARE(
+        controller.statsModel()->data(
+            controller.statsModel()->index(1, 0),
+            roleForName(*controller.statsModel(), "value")).toString(),
+        QStringLiteral("0"));
+    QCOMPARE(
+        controller.statsModel()->data(
+            controller.statsModel()->index(2, 0),
+            roleForName(*controller.statsModel(), "value")).toString(),
+        QStringLiteral("1"));
 }
 
 QTEST_APPLESS_MAIN(DashboardControllerTest)

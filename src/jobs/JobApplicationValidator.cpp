@@ -79,6 +79,13 @@ JobApplicationValidationResult JobApplicationValidator::validate(
 	const NormalizedJobApplicationDraft& draft,
 	const QUrl& selectedCvUrl)
 {
+	return validate(draft, !selectedCvUrl.isEmpty());
+}
+
+JobApplicationValidationResult JobApplicationValidator::validate(
+	const NormalizedJobApplicationDraft& draft,
+	bool hasCv)
+{
 	return validateValues(
 		draft.jobTitle_,
 		draft.companyName_,
@@ -86,7 +93,7 @@ JobApplicationValidationResult JobApplicationValidator::validate(
 		draft.workFormat_,
 		draft.status_,
 		draft.appliedDate_,
-		!selectedCvUrl.isEmpty());
+		hasCv);
 }
 
 JobApplicationValidationResult JobApplicationValidator::validate(

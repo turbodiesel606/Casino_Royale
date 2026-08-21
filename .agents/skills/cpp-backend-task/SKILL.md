@@ -19,6 +19,13 @@ Read these files before implementation:
 
 Also read `For-Agent/Docs/qml-style.md` and `For-Agent/Docs/qml-to-cpp-extraction.md` when the work changes a QML-facing contract or moves behavior out of QML.
 Use qt-qml-ui-task when implementation also changes QML files.
+
+## C++ Implementation Rules
+
+1. Consolidate C++ functions, classes, and methods that duplicate the same logic, responsibility, and invariants into one canonical function, class, or method. Use overloads, virtual overrides, templates, and template specializations when they are necessary and technically appropriate to expose the canonical implementation without duplicating it.
+2. Use existing C++ classes, functions, and methods when solving a problem. Reuse a fully suitable entity directly. If an entity is only partially suitable, extend it through an overload, override, template, or specialization when appropriate. Create a new entity only when the existing entities are not suitable for the responsibility.
+3. Follow established modern C++ best practices for correctness, type safety, ownership, lifetime and resource management, exception safety, clarity, maintainability, portability, and testability. Apply the concrete conventions in `AGENTS.md`, `For-Agent/Docs/architecture.md`, and `For-Agent/Docs/coding-style.md`.
+
 ## Workflow
 
 1. Inspect `git status` and existing diffs for files in scope. Identify and preserve pre-existing changes.

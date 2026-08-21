@@ -420,7 +420,7 @@ void EndToEndIntegrationTest::workerInitializationFailureCleansConnectionAndRetr
     QVERIFY(QDir{}.mkpath(databasePath));
     const auto initialConnectionCount = QSqlDatabase::connectionNames().size();
 
-    AddJobWorker worker{storage.paths().dataDirectory()};
+    JobSaveWorker worker{storage.paths().dataDirectory()};
     JobApplicationsController controller{{}, worker};
     QSignalSpy queuedSpy{&controller, &JobApplicationsController::applicationQueued};
     QSignalSpy failedSpy{&controller, &JobApplicationsController::saveFailed};

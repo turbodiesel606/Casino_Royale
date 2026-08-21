@@ -128,7 +128,8 @@ public:
 
 		try {
 			auto result = context->importService_.importPreparedDocument(
-				preparation.preparation_);
+				preparation.preparation_,
+				CvArchivedDuplicatePolicy::RestoreArchived);
 			preparation.preparation_.reset();
 			CvImportSaveOutcome outcome;
 			outcome.operationId_ = request.operationId_;
@@ -136,11 +137,15 @@ public:
 			outcome.fileName_ = fileNameForUrl(request.sourceUrl_);
 			outcome.document_ = std::move(result.document_);
 			outcome.success_ = true;
-			outcome.wasInserted_ = result.wasInserted_;
-			outcome.message_ = result.wasInserted_
-				? QStringLiteral("CV added successfully.")
-				: QStringLiteral(
+			outcome.disposition_ = result.disposition_;
+			if (result.disposition_ == CvImportDisposition::Inserted) {
+				outcome.message_ = QStringLiteral("CV added successfully.");
+			} else if (result.disposition_ == CvImportDisposition::RestoredArchived) {
+				outcome.message_ = QStringLiteral("The archived CV was restored to the library.");
+			} else {
+				outcome.message_ = QStringLiteral(
 					"A CV with the same filename and SHA-256 already exists.");
+			}
 
 			postImport(facade, std::move(outcome));
 

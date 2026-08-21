@@ -2,6 +2,7 @@
 #define JOBTRACKER_SRC_DASHBOARD_DASHBOARDCONTROLLER_HPP
 
 #include "common/LimitedSortedProxyModel.hpp"
+#include "common/RoleFilterProxyModel.hpp"
 #include "DashboardMetricListModel.hpp"
 #include "cvs/CvListModel.hpp"
 #include "jobs/JobApplicationListModel.hpp"
@@ -33,6 +34,7 @@ private:
     DashboardMetricListModel statsModel_;
     DashboardMetricListModel funnelModel_;
     LimitedSortedProxyModel recentApplicationsModel_;
+    RoleFilterProxyModel activeCvsModel_;
     LimitedSortedProxyModel recentCvsModel_;
 };
 

@@ -17,15 +17,23 @@ AppBootstrap::AppBootstrap(QCoreApplication& app)
 	, cvFileAccessService_{ storagePaths_ }
 	, companyRepository_{ database_.connection() }
 	, jobRepository_{ database_.connection() }
-	, addJobWorker_{ storagePaths_.dataDirectory() }
+	, jobSaveWorker_{ storagePaths_.dataDirectory() }
 	, cvImportWorker_{ storagePaths_.dataDirectory() }
-	, jobApplicationsController_{ jobRepository_.findAll(), addJobWorker_ }
+	, storageMutationGate_{}
+	, dataRemovalWorker_{ storagePaths_.dataDirectory() }
+	, jobApplicationsController_{
+		jobRepository_.findAll(),
+		jobSaveWorker_,
+		dataRemovalWorker_,
+		storageMutationGate_ }
 	, cvLibraryController_{
 		jobApplicationsController_.jobApplicationListModel(),
 		cvRepository_.findAll(),
 		cvRepository_,
 		cvFileAccessService_,
-		cvImportWorker_ }
+		cvImportWorker_,
+		dataRemovalWorker_,
+		storageMutationGate_ }
 		, dashboardController_{ jobApplicationsController_.jobApplicationListModel(), cvLibraryController_.cvListModel() }
 	, companyDirectoryController_(
 		companyRepository_.findAll(),
@@ -35,23 +43,39 @@ AppBootstrap::AppBootstrap(QCoreApplication& app)
 {
 	const auto recovery = cvManagedFileStore_.reconcile(cvRepository_.findAll());
 	if (recovery.removedStagedFileCount_ > 0
+		|| recovery.removedDeletionFileCount_ > 0
+		|| recovery.restoredDeletionFileCount_ > 0
 		|| !recovery.quarantinedFileNames_.isEmpty()) {
 		qInfo() << "Managed CV recovery removed"
 			<< recovery.removedStagedFileCount_
-			<< "staged files and quarantined"
+			<< "staged files, removed"
+			<< recovery.removedDeletionFileCount_
+			<< "deletion tombstones, restored"
+			<< recovery.restoredDeletionFileCount_
+			<< "deletion tombstones, and quarantined"
 			<< recovery.quarantinedFileNames_.size()
 			<< "orphaned files.";
 	}
 
-	// When a new job opening is successfully created, 
-	// the JobApplicationsController emits a cvUsed signal, indicating which CV was used.
+	// When a job is created or its CV is replaced, the controller publishes the
+	// committed CV relationship so the library can refresh its linked-job counts.
 	QObject::connect(
 		&jobApplicationsController_,
 		&JobApplicationsController::cvUsed,
 		&cvLibraryController_,
 		&CvLibraryController::recordCvUse);
+	QObject::connect(
+		&jobApplicationsController_,
+		&JobApplicationsController::cvReplaced,
+		&cvLibraryController_,
+		&CvLibraryController::recordCvReplacement);
+	QObject::connect(
+		&jobApplicationsController_,
+		&JobApplicationsController::applicationsDeleted,
+		&cvLibraryController_,
+		&CvLibraryController::recordApplicationsDeleted);
 	/*
-	When adding a job, AddJobService can:
+	When creating or updating a job, the save service can:
 	1. find an existing company 
 	2. or create a new company.
 	Upon successful completion, the controller emits companyResolved.

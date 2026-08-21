@@ -163,6 +163,8 @@ Item {
                     Layout.preferredWidth: 104
                     Layout.preferredHeight: 42
                     text: "Save"
+                    enabled: jobApplicationsController.pendingDeletionCount === 0
+                        && cvLibraryController.pendingDeletionCount === 0
                     onClicked: page.submit()
 
                     contentItem: Text {

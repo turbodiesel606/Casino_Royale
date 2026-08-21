@@ -61,7 +61,9 @@ Name tests by the behavior they cover, and keep them registered through the proj
   contracts and controller-specific side effects. The jobs controller suite
   verifies synchronous canonical preflight, immediate complete field errors,
   no queue or worker state for invalid input, first-valid operation-ID
-  allocation, and normalized value capture before form reset. The CV controller
+  allocation, normalized value capture before form reset, update rejection,
+  in-place role publication, failure isolation, replacement-CV publication,
+  and create/update FIFO ordering and state. The CV controller
   suite verifies multi-batch FIFO ordering, pending-state transitions,
   duplicate and failure isolation, database-lock recovery, cancel-all behavior,
   idempotent Add Job/CV publication, and worker SQL connection cleanup.
@@ -74,6 +76,11 @@ Name tests by the behavior they cover, and keep them registered through the proj
 - `JobTrackerAddJobTests` covers service-level Add Job preflight, defensive
   pre-staging validation, cancellation immediately before a transaction,
   transaction behavior, and durable orchestration.
+- `JobTrackerUpdateJobTests` covers in-place metadata and ordered-technology
+  updates, company creation and normalized reuse, replacement-CV insertion,
+  active and archived duplicate reuse, old-CV preservation, rollback and file
+  cleanup, missing targets, defensive invalid-input rejection, and cancellation
+  before the update transaction.
 - `JobTrackerIntegrationTests` covers synchronous invalid-input rejection
   without queue, filesystem, or SQLite mutation; normalized controller FIFO
   admission; exact queued/final event ordering; worker-thread connection

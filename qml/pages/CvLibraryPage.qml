@@ -57,6 +57,56 @@ Item {
                     Layout.fillWidth: true
                 }
 
+                RowLayout {
+                    spacing: 0
+
+                    Button {
+                        Layout.preferredWidth: 104
+                        Layout.preferredHeight: 40
+                        text: "Active"
+                        checked: cvLibraryController.libraryView === 0
+                        onClicked: cvLibraryController.setLibraryView(0)
+
+                        contentItem: Text {
+                            text: parent.text
+                            color: parent.checked ? "white" : page.mutedColor
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            font.pixelSize: 14
+                            font.bold: parent.checked
+                        }
+
+                        background: Rectangle {
+                            radius: 6
+                            color: parent.checked ? page.blueColor : page.panelSoftColor
+                            border.color: parent.checked ? "#59adff" : page.lineColor
+                        }
+                    }
+
+                    Button {
+                        Layout.preferredWidth: 104
+                        Layout.preferredHeight: 40
+                        text: "Archived"
+                        checked: cvLibraryController.libraryView === 1
+                        onClicked: cvLibraryController.setLibraryView(1)
+
+                        contentItem: Text {
+                            text: parent.text
+                            color: parent.checked ? "white" : page.mutedColor
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            font.pixelSize: 14
+                            font.bold: parent.checked
+                        }
+
+                        background: Rectangle {
+                            radius: 6
+                            color: parent.checked ? page.blueColor : page.panelSoftColor
+                            border.color: parent.checked ? "#59adff" : page.lineColor
+                        }
+                    }
+                }
+
                 CvSearchField {
                     Layout.preferredWidth: 485
                     Layout.preferredHeight: 46
@@ -85,6 +135,14 @@ Item {
                     categoryFilter: cvLibraryController.categoryFilter
                     languageFilter: cvLibraryController.languageFilter
                     sortMode: cvLibraryController.sortMode
+                    archivedView: cvLibraryController.libraryView === 1
+                    checkedCvIds: cvLibraryController.checkedCvIds
+                    checkedLinkedCvCount: cvLibraryController.checkedLinkedCvCount
+                    checkedUnlinkedCvCount: cvLibraryController.checkedUnlinkedCvCount
+                    allVisibleCvsChecked: cvLibraryController.allVisibleCvsChecked
+                    someVisibleCvsChecked: cvLibraryController.someVisibleCvsChecked
+                    mutationEnabled: cvLibraryController.canMutateCheckedCvs
+                    mutationBusy: cvLibraryController.mutatingCvs
                     selectedRow: cvLibraryController.selectedCvIndex
                     panelColor: page.panelColor
                     lineColor: page.lineColor
@@ -99,6 +157,11 @@ Item {
                     onLanguageFilterRequested: language => cvLibraryController.setLanguageFilter(language)
                     onSortModeRequested: mode => cvLibraryController.setSortMode(mode)
                     onClearFiltersRequested: cvLibraryController.clearFilters()
+                    onRowCheckToggled: row => cvLibraryController.toggleCvChecked(row)
+                    onAllVisibleCheckedRequested: checked => cvLibraryController.setAllVisibleCvsChecked(checked)
+                    onRemoveRequested: removeConfirmation.open()
+                    onRestoreRequested: cvLibraryController.restoreCheckedCvs()
+                    onPermanentDeleteRequested: permanentDeleteConfirmation.open()
                 }
 
                 CvLibraryPreviewPanel {
@@ -119,5 +182,28 @@ Item {
                 }
             }
         }
+    }
+
+    DestructiveConfirmationDialog {
+        id: removeConfirmation
+        anchors.centerIn: parent
+        title: "Remove CVs from the library"
+        confirmText: "Remove Selected"
+        message: "Remove " + cvLibraryController.checkedCvCount + " selected CV(s)? "
+            + cvLibraryController.checkedLinkedCvCount + " linked CV(s) will be archived and their files kept. "
+            + cvLibraryController.checkedUnlinkedCvCount + " unlinked CV(s) and their managed files will be permanently deleted."
+        onConfirmed: cvLibraryController.removeCheckedCvs()
+    }
+
+    DestructiveConfirmationDialog {
+        id: permanentDeleteConfirmation
+        anchors.centerIn: parent
+        title: "Permanently delete archived CVs"
+        confirmText: "Delete Permanently"
+        message: "Permanently delete " + cvLibraryController.checkedUnlinkedCvCount
+            + " unlinked archived CV(s) and their managed files? "
+            + cvLibraryController.checkedLinkedCvCount
+            + " linked CV(s) will be skipped and remain archived. This action cannot be undone."
+        onConfirmed: cvLibraryController.permanentlyDeleteCheckedCvs()
     }
 }

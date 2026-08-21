@@ -31,6 +31,21 @@ CvDocument buildCvDocument(const CvManagedFilePreparation& preparation)
 
 }
 
+QString cvImportDispositionName(CvImportDisposition disposition)
+{
+    switch (disposition) {
+    case CvImportDisposition::Inserted:
+        return QStringLiteral("inserted");
+    case CvImportDisposition::ExistingActive:
+        return QStringLiteral("existing-active");
+    case CvImportDisposition::RestoredArchived:
+        return QStringLiteral("restored-archived");
+    case CvImportDisposition::ReusedArchived:
+        return QStringLiteral("reused-archived");
+    }
+    return QStringLiteral("existing-active");
+}
+
 CvImportService::CvImportService(
     const CvManagedFileStore& managedFileStore,
     CvRepository& repository)
@@ -47,16 +62,29 @@ CvManagedFilePreparationResult CvImportService::prepareDocument(
 }
 
 CvImportResult CvImportService::importPreparedDocument(
-    const std::shared_ptr<CvManagedFilePreparation>& preparation) const
+    const std::shared_ptr<CvManagedFilePreparation>& preparation,
+    CvArchivedDuplicatePolicy archivedDuplicatePolicy) const
 {
     if (preparation == nullptr) {
         throw std::runtime_error("The prepared CV file is unavailable.");
     }
 
-    if (const auto existing = repository_.findByIdentity(
+    if (auto existing = repository_.findByIdentity(
             preparation->sha256_,
             preparation->originalFileName_)) {
-        return {*existing, {}, false};
+        if (existing->archivedAt_.isValid()) {
+            if (archivedDuplicatePolicy == CvArchivedDuplicatePolicy::RestoreArchived) {
+                const auto updatedAt = repository_.updateArchived(existing->id_, false);
+                if (!updatedAt) {
+                    throw std::runtime_error("The archived CV could not be restored.");
+                }
+                existing->archivedAt_ = {};
+                existing->updatedAt_ = *updatedAt;
+                return {*existing, {}, CvImportDisposition::RestoredArchived};
+            }
+            return {*existing, {}, CvImportDisposition::ReusedArchived};
+        }
+        return {*existing, {}, CvImportDisposition::ExistingActive};
     }
 
     auto document = buildCvDocument(*preparation);
@@ -67,7 +95,7 @@ CvImportResult CvImportService::importPreparedDocument(
         managedFileStore_.removeCompletedFile(completedFilePath);
         throw;
     }
-    return {std::move(document), completedFilePath, true};
+    return {std::move(document), completedFilePath, CvImportDisposition::Inserted};
 }
 
 bool CvImportService::removeCompletedFile(const QString& completedFilePath) const

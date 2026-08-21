@@ -72,13 +72,29 @@ CvManagedFilePreparation::~CvManagedFilePreparation()
 	}
 }
 
+CvManagedFileRemovalPreparation::~CvManagedFileRemovalPreparation()
+{
+    if (!databaseCommitted_
+        && !tombstoneFilePath_.isEmpty()
+        && QFileInfo::exists(tombstoneFilePath_)
+        && !QFileInfo::exists(originalFilePath_)) {
+        QFile::rename(tombstoneFilePath_, originalFilePath_);
+    }
+}
+
 bool CvManagedFilePreparationResult::succeeded() const
 {
 	return preparation_ != nullptr && message_.isEmpty() && !cancelled_;
 }
 
+bool CvManagedFileRemovalPreparationResult::succeeded() const
+{
+    return preparation_ != nullptr && message_.isEmpty();
+}
+
 CvManagedFileStore::CvManagedFileStore(const StoragePaths& paths)
 	: paths_(paths)
+	, pathResolver_{paths}
 {
 }
 
@@ -201,11 +217,78 @@ bool CvManagedFileStore::removeCompletedFile(const QString& completedFilePath) c
 		|| QFile::remove(completedFilePath);
 }
 
+CvManagedFileRemovalPreparationResult CvManagedFileStore::prepareRemoval(
+    const CvDocument& document) const
+{
+    CvManagedFileRemovalPreparationResult result;
+    const auto resolution = pathResolver_.resolve(document);
+    if (!resolution.valid_) {
+        result.message_ = resolution.message_;
+        return result;
+    }
+
+    auto preparation = std::make_shared<CvManagedFileRemovalPreparation>();
+    preparation->originalFilePath_ = resolution.absolutePath_;
+    result.preparation_ = preparation;
+    if (!resolution.exists_) {
+        result.fileWasMissing_ = true;
+        return result;
+    }
+
+    preparation->tombstoneFilePath_ = resolution.absolutePath_ + QStringLiteral(".delete");
+    if (QFileInfo::exists(preparation->tombstoneFilePath_)
+        || !QFile::rename(preparation->originalFilePath_, preparation->tombstoneFilePath_)) {
+        result.message_ = QStringLiteral("The managed CV file could not be prepared for deletion.");
+    }
+    return result;
+}
+
+bool CvManagedFileStore::finalizeRemoval(CvManagedFileRemovalPreparation& preparation) const
+{
+    preparation.databaseCommitted_ = true;
+    if (preparation.tombstoneFilePath_.isEmpty()
+        || !QFileInfo::exists(preparation.tombstoneFilePath_)) {
+        return true;
+    }
+    if (!QFile::remove(preparation.tombstoneFilePath_)) {
+        return false;
+    }
+    preparation.tombstoneFilePath_.clear();
+    return true;
+}
+
 CvManagedFileRecoveryReport CvManagedFileStore::reconcile(
 	const QVector<CvDocument>& documents) const
 {	// Reconciles managed CV files with persisted CV records during application startup
 
 	CvManagedFileRecoveryReport report;
+	QSet<QString> referencedStoredNames;
+	for (const auto& document : documents) {
+		referencedStoredNames.insert(document.storedFileName_);
+	}
+
+	const QDir resumesDirectory{paths_.resumesDirectory()};
+	const auto deletionFiles = resumesDirectory.entryInfoList(
+		{QStringLiteral("*.delete")},
+		QDir::Files | QDir::NoDotAndDotDot,
+		QDir::Name);
+	for (const auto& fileInfo : deletionFiles) {
+		auto storedFileName = fileInfo.fileName();
+		storedFileName.chop(QStringLiteral(".delete").size());
+		const auto originalPath = resumesDirectory.filePath(storedFileName);
+		if (referencedStoredNames.contains(storedFileName)
+			&& !QFileInfo::exists(originalPath)) {
+			if (!QFile::rename(fileInfo.absoluteFilePath(), originalPath)) {
+				throw std::runtime_error("A referenced managed CV deletion tombstone could not be restored.");
+			}
+			++report.restoredDeletionFileCount_;
+		} else {
+			if (!QFile::remove(fileInfo.absoluteFilePath())) {
+				throw std::runtime_error("A managed CV deletion tombstone could not be removed.");
+			}
+			++report.removedDeletionFileCount_;
+		}
+	}
 
 	QDirIterator stagedFiles{
 		paths_.resumesDirectory(),
@@ -227,14 +310,7 @@ CvManagedFileRecoveryReport CvManagedFileStore::reconcile(
 	if (!QDir().mkpath(quarantinePath))
 		throw std::runtime_error("The managed CV quarantine directory could not be created.");
 
-	QSet<QString> referencedStoredNames;
-
-	// find out which files are exist
-	for (const auto& document : documents)
-		referencedStoredNames.insert(document.storedFileName_);
-
 	// Get each file info from .../Resumes/
-	const QDir resumesDirectory{ paths_.resumesDirectory() };
 	const auto completedFiles = resumesDirectory.entryInfoList(
 		QDir::Files | QDir::NoDotAndDotDot,
 		QDir::Name);

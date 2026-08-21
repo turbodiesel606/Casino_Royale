@@ -1,6 +1,12 @@
 # C++ And Qt Style
 
-Use C++20+ Standard where supported by the current compiler and where it does not reduce portability between Windows and Linux.
+Use C++20 Standard where supported by the current compiler and where it does not reduce portability between Windows and Linux.
+
+## Reuse, Generalization, And Best Practices
+
+- Consolidate C++ functions, classes, and methods that duplicate the same logic, responsibility, and invariants into one canonical function, class, or method. Use overloads, inheritance (without virtuals), templates, and template specializations when they are necessary and technically appropriate to expose the canonical implementation without duplicating it.
+- Use existing C++ classes, functions, and methods when solving a problem. Reuse a fully suitable entity directly. If an entity is only partially suitable, extend it through an overload, template, or specialization when appropriate. Create a new entity only when the existing entities are not suitable for the responsibility.
+- Follow established modern C++ best practices for correctness, type safety, ownership, lifetime and resource management, exception safety, clarity, maintainability, portability, and testability.
 
 ## Header Conventions
 

@@ -6,6 +6,7 @@
 #include "common/CancellationState.hpp"
 #include "cvs/CvManagedFileStore.hpp"
 #include "cvs/CvDocument.hpp"
+#include "cvs/CvImportService.hpp"
 #include "directory/Company.hpp"
 
 #include <QVariantMap>
@@ -13,7 +14,6 @@
 
 #include <memory>
 
-class CvImportService;
 class CompanyRepository;
 class JobRepository;
 class QSqlDatabase;
@@ -27,7 +27,7 @@ struct AddJobResult
     JobApplication application_;
     Company company_;
     CvDocument cvDocument_;
-    bool cvWasInserted_ = false;
+    CvImportDisposition cvImportDisposition_ = CvImportDisposition::ExistingActive;
 };
 
 struct AddJobPreflightResult final
@@ -52,7 +52,7 @@ struct AddJobPreparationResult final
 // Coordinates the durable Add Job workflow across validation, CV import,
 // company resolution, and job persistence. Canonical preflight is independent
 // of storage; the production persistence instance is created and used wholly
-// on the dedicated Add Job worker thread. One transaction prevents partial
+// on the shared job-save worker thread. One transaction prevents partial
 // database changes, and completed CV files are cleaned up after ordinary
 // failures.
 class AddJobService final

@@ -20,6 +20,8 @@ if(QT_KNOWN_POLICY_QTP0004)
 endif()
 
 set(JOBTRACKER_COMMON_SOURCES
+    src/common/BulkIdSelectionTracker.cpp
+    src/common/BulkIdSelectionTracker.hpp
     src/common/LimitedSortedProxyModel.cpp
     src/common/LimitedSortedProxyModel.hpp
     src/common/RelationFilterProxyModel.cpp
@@ -57,6 +59,8 @@ set(JOBTRACKER_CV_PERSISTENCE_SOURCES
     src/cvs/CvImportWorker.hpp
     src/cvs/CvManagedFileStore.cpp
     src/cvs/CvManagedFileStore.hpp
+    src/cvs/CvManagedPathResolver.cpp
+    src/cvs/CvManagedPathResolver.hpp
     src/cvs/CvRepository.cpp
     src/cvs/CvRepository.hpp
 )
@@ -69,17 +73,20 @@ set(JOBTRACKER_DIRECTORY_PERSISTENCE_SOURCES
 set(JOBTRACKER_JOB_PERSISTENCE_SOURCES
     src/jobs/AddJobService.cpp
     src/jobs/AddJobService.hpp
-    src/jobs/AddJobWorker.cpp
-    src/jobs/AddJobWorker.hpp
+    src/jobs/JobSaveWorker.cpp
+    src/jobs/JobSaveWorker.hpp
     src/jobs/JobRepository.cpp
     src/jobs/JobRepository.hpp
+    src/jobs/UpdateJobService.cpp
+    src/jobs/UpdateJobService.hpp
 )
 
 set(JOBTRACKER_STORAGE_SOURCES
-    src/storage/SchemaInitializationV3.cpp
+    src/storage/SchemaInitializationV4.cpp
     src/storage/SchemaMigrationSteps.hpp
     src/storage/SchemaMigrationV1ToV2.cpp
     src/storage/SchemaMigrationV2ToV3.cpp
+    src/storage/SchemaMigrationV3ToV4.cpp
     src/storage/SchemaMigrator.cpp
     src/storage/SchemaMigrator.hpp
     src/storage/SqlQuery.cpp
@@ -97,6 +104,15 @@ set(JOBTRACKER_PERSISTENCE_SOURCES
     ${JOBTRACKER_DIRECTORY_PERSISTENCE_SOURCES}
     ${JOBTRACKER_JOB_PERSISTENCE_SOURCES}
     ${JOBTRACKER_STORAGE_SOURCES}
+)
+
+set(JOBTRACKER_MAINTENANCE_SOURCES
+    src/maintenance/DataRemovalService.cpp
+    src/maintenance/DataRemovalService.hpp
+    src/maintenance/DataRemovalWorker.cpp
+    src/maintenance/DataRemovalWorker.hpp
+    src/maintenance/StorageMutationGate.cpp
+    src/maintenance/StorageMutationGate.hpp
 )
 
 set(JOBTRACKER_CV_SOURCES
@@ -142,6 +158,7 @@ qt_add_executable(JobTrackerApp
     ${JOBTRACKER_DASHBOARD_SOURCES}
     ${JOBTRACKER_DIRECTORY_SOURCES}
     ${JOBTRACKER_JOB_SOURCES}
+    ${JOBTRACKER_MAINTENANCE_SOURCES}
     ${JOBTRACKER_PERSISTENCE_SOURCES}
     src/main.cpp
 )
@@ -157,6 +174,8 @@ qt_add_qml_module(JobTrackerApp
     QML_FILES
         qml/Main.qml
         qml/components/NeonCard.qml
+        qml/components/DangerButton.qml
+        qml/components/DestructiveConfirmationDialog.qml
         qml/components/Panel.qml
         qml/components/PrimaryButton.qml
         qml/components/Sidebar.qml
@@ -312,6 +331,8 @@ if(JOBTRACKER_BUILD_TESTS)
         tests/common/StableIdSelectionTrackerTest.cpp
         src/common/RoleFilterProxyModel.cpp
         src/common/RoleFilterProxyModel.hpp
+        src/common/BulkIdSelectionTracker.cpp
+        src/common/BulkIdSelectionTracker.hpp
         src/common/StableIdSelectionTracker.cpp
         src/common/StableIdSelectionTracker.hpp
     )
@@ -320,6 +341,7 @@ if(JOBTRACKER_BUILD_TESTS)
         tests/jobs/JobApplicationsControllerTest.cpp
         ${JOBTRACKER_COMMON_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
+        ${JOBTRACKER_MAINTENANCE_SOURCES}
         ${JOBTRACKER_PERSISTENCE_SOURCES}
     )
 
@@ -339,6 +361,7 @@ if(JOBTRACKER_BUILD_TESTS)
         ${JOBTRACKER_COMMON_SOURCES}
         ${JOBTRACKER_CV_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
+        ${JOBTRACKER_MAINTENANCE_SOURCES}
         ${JOBTRACKER_PERSISTENCE_SOURCES}
     )
 
@@ -359,6 +382,7 @@ if(JOBTRACKER_BUILD_TESTS)
         ${JOBTRACKER_CV_SOURCES}
         ${JOBTRACKER_DASHBOARD_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
+        ${JOBTRACKER_MAINTENANCE_SOURCES}
         ${JOBTRACKER_PERSISTENCE_SOURCES}
     )
 
@@ -378,6 +402,7 @@ if(JOBTRACKER_BUILD_TESTS)
         ${JOBTRACKER_COMMON_SOURCES}
         ${JOBTRACKER_DIRECTORY_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
+        ${JOBTRACKER_MAINTENANCE_SOURCES}
         ${JOBTRACKER_PERSISTENCE_SOURCES}
     )
 
@@ -430,11 +455,30 @@ if(JOBTRACKER_BUILD_TESTS)
     )
 
     jobtracker_add_backend_test(
+        JobTrackerUpdateJobTests
+        tests/storage/UpdateJobServiceTest.cpp
+        ${JOBTRACKER_JOB_DOMAIN_SOURCES}
+        ${JOBTRACKER_CV_PERSISTENCE_SOURCES}
+        ${JOBTRACKER_DIRECTORY_PERSISTENCE_SOURCES}
+        ${JOBTRACKER_JOB_PERSISTENCE_SOURCES}
+        ${JOBTRACKER_STORAGE_SOURCES}
+    )
+
+    jobtracker_add_backend_test(
+        JobTrackerRemovalTests
+        tests/storage/DataRemovalServiceTest.cpp
+        ${JOBTRACKER_JOB_DOMAIN_SOURCES}
+        ${JOBTRACKER_MAINTENANCE_SOURCES}
+        ${JOBTRACKER_PERSISTENCE_SOURCES}
+    )
+
+    jobtracker_add_backend_test(
         JobTrackerIntegrationTests
         tests/storage/EndToEndIntegrationTest.cpp
         ${JOBTRACKER_COMMON_SOURCES}
         ${JOBTRACKER_DIRECTORY_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
+        ${JOBTRACKER_MAINTENANCE_SOURCES}
         ${JOBTRACKER_PERSISTENCE_SOURCES}
     )
 endif()

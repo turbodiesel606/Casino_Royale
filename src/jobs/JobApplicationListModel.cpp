@@ -96,6 +96,83 @@ QVariant roleValue(const JobApplication& application, int role)
     }
 }
 
+QList<int> changedRoles(
+    const JobApplication& previous,
+    const JobApplication& current)
+{
+    QList<int> roles;
+    const auto add = [&roles](std::initializer_list<int> values) {
+        for (const auto role : values) {
+            if (!roles.contains(role)) {
+                roles.append(role);
+            }
+        }
+    };
+
+    if (previous.companyId_ != current.companyId_) {
+        add({JobApplicationListModel::CompanyIdRole});
+    }
+    if (previous.companyName_ != current.companyName_) {
+        add({JobApplicationListModel::CompanyNameRole,
+             JobApplicationListModel::CompanyInitialsRole});
+    }
+    if (previous.jobTitle_ != current.jobTitle_) {
+        add({JobApplicationListModel::JobTitleRole});
+    }
+    if (previous.jobUrl_ != current.jobUrl_) {
+        add({JobApplicationListModel::JobUrlRole});
+    }
+    if (previous.workFormat_ != current.workFormat_) {
+        add({JobApplicationListModel::WorkFormatRole,
+             JobApplicationListModel::WorkFormatValueRole});
+    }
+    if (previous.city_ != current.city_) {
+        add({JobApplicationListModel::CityRole});
+    }
+    if (previous.salary_ != current.salary_) {
+        add({JobApplicationListModel::SalaryRole});
+    }
+    if (previous.status_ != current.status_) {
+        add({JobApplicationListModel::StatusRole,
+             JobApplicationListModel::StatusLabelRole,
+             JobApplicationListModel::StatusAccentRole,
+             JobApplicationListModel::StatusValueRole});
+    }
+    if (previous.appliedDate_ != current.appliedDate_) {
+        add({JobApplicationListModel::AppliedDateRole,
+             JobApplicationListModel::DateLabelRole,
+             JobApplicationListModel::AppliedDateValueRole});
+    }
+    if (previous.nextStep_ != current.nextStep_) {
+        add({JobApplicationListModel::NextStepRole});
+    }
+    if (previous.cvId_ != current.cvId_) {
+        add({JobApplicationListModel::CvIdRole});
+    }
+    if (previous.cvFileName_ != current.cvFileName_) {
+        add({JobApplicationListModel::CvFileNameRole});
+    }
+    if (previous.description_ != current.description_) {
+        add({JobApplicationListModel::DescriptionRole});
+    }
+    if (previous.requirements_ != current.requirements_) {
+        add({JobApplicationListModel::RequirementsRole});
+    }
+    if (previous.techStack_ != current.techStack_) {
+        add({JobApplicationListModel::TechStackRole});
+    }
+    if (previous.notes_ != current.notes_) {
+        add({JobApplicationListModel::NotesRole});
+    }
+    if (previous.createdAt_ != current.createdAt_) {
+        add({JobApplicationListModel::CreatedAtRole});
+    }
+    if (previous.updatedAt_ != current.updatedAt_) {
+        add({JobApplicationListModel::UpdatedAtRole});
+    }
+    return roles;
+}
+
 }
 
 JobApplicationListModel::JobApplicationListModel(QObject* parent)
@@ -180,4 +257,37 @@ void JobApplicationListModel::appendApplication(JobApplication application)
     beginInsertRows({}, row, row);
     applications_.append(std::move(application));
     endInsertRows();
+}
+
+bool JobApplicationListModel::updateApplication(JobApplication application)
+{
+    for (int row = 0; row < applications_.size(); ++row) {
+        if (applications_.at(row).id_ != application.id_) {
+            continue;
+        }
+
+        const auto roles = changedRoles(applications_.at(row), application);
+        applications_[row] = std::move(application);
+        if (!roles.isEmpty()) {
+            const auto modelIndex = index(row, 0);
+            emit dataChanged(modelIndex, modelIndex, roles);
+        }
+        return true;
+    }
+    return false;
+}
+
+int JobApplicationListModel::removeApplications(const QStringList& applicationIds)
+{
+    int removed = 0;
+    for (int row = applications_.size() - 1; row >= 0; --row) {
+        if (!applicationIds.contains(applications_.at(row).id_)) {
+            continue;
+        }
+        beginRemoveRows({}, row, row);
+        applications_.removeAt(row);
+        endRemoveRows();
+        ++removed;
+    }
+    return removed;
 }

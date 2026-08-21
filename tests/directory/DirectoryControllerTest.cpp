@@ -86,6 +86,8 @@ private slots:
     void contactModelExposesNamedRoles();
     void scalarNotificationsAreSemantic();
     void companySelectionPublishesLinkedViewContracts();
+    void jobRemovalRefreshesCompanyCountsAndLinkedView();
+    void companyUpdatesRefreshCountsAndLinkedView();
     void contactSelectionPublishesInteractionContracts();
 };
 
@@ -241,6 +243,70 @@ void DirectoryControllerTest::companySelectionPublishesLinkedViewContracts()
     QCOMPARE(selectedDataSpy.count(), 0);
     QCOMPARE(linkedJobsModel->rowCount(), 1);
     QCOMPARE(linkedContactsModel->rowCount(), 1);
+}
+
+void DirectoryControllerTest::jobRemovalRefreshesCompanyCountsAndLinkedView()
+{
+    auto applications = testsupport::makeJobApplications();
+    applications[0].companyId_ = QStringLiteral("company-beta");
+    applications[1].companyId_ = QStringLiteral("company-alpha");
+    applications[2].companyId_ = QStringLiteral("company-alpha");
+    applications[3].companyId_ = QStringLiteral("company-gamma");
+    applications[4].companyId_ = QStringLiteral("company-gamma");
+    applications[5].companyId_ = QStringLiteral("company-gamma");
+    const QStringList alphaJobIds{applications[1].id_, applications[2].id_};
+    JobApplicationListModel applicationsModel{applications};
+    ContactListModel contactModel{makeContacts()};
+    CompanyDirectoryController controller{
+        makeCompanies(),
+        applicationsModel,
+        contactModel};
+    controller.selectCompany(1);
+    QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-alpha"));
+    QCOMPARE(controller.selectedCompany().value(QStringLiteral("openJobCount")).toInt(), 2);
+    QCOMPARE(controller.linkedJobsModel()->rowCount(), 2);
+
+    applicationsModel.removeApplications(alphaJobIds);
+
+    QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-alpha"));
+    QCOMPARE(controller.selectedCompany().value(QStringLiteral("openJobCount")).toInt(), 0);
+    QCOMPARE(controller.linkedJobsModel()->rowCount(), 0);
+}
+
+void DirectoryControllerTest::companyUpdatesRefreshCountsAndLinkedView()
+{
+    auto application = testsupport::makeJobApplication(
+        QStringLiteral("job-company-update"),
+        QStringLiteral("company-alpha"),
+        QStringLiteral("Alpha"),
+        QStringLiteral("Company Update Role"),
+        QStringLiteral("cv-company-update"),
+        QStringLiteral("company-update.pdf"),
+        QDate{2026, 8, 20},
+        JobStatus::Applied,
+        QStringLiteral("Follow up"));
+    JobApplicationListModel applicationsModel{{application}};
+    ContactListModel contactModel;
+    CompanyDirectoryController controller{
+        makeCompanies(),
+        applicationsModel,
+        contactModel};
+    controller.setSearchText(QStringLiteral("Alpha"));
+    QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-alpha"));
+    QCOMPARE(controller.selectedCompany().value(QStringLiteral("openJobCount")).toInt(), 1);
+    QCOMPARE(controller.linkedJobsModel()->rowCount(), 1);
+
+    application.companyId_ = QStringLiteral("company-beta");
+    application.companyName_ = QStringLiteral("Beta");
+    application.updatedAt_ = application.updatedAt_.addSecs(1);
+    QVERIFY(applicationsModel.updateApplication(application));
+
+    QCOMPARE(controller.selectedCompany().value(QStringLiteral("openJobCount")).toInt(), 0);
+    QCOMPARE(controller.linkedJobsModel()->rowCount(), 0);
+    controller.setSearchText(QStringLiteral("Beta"));
+    QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-beta"));
+    QCOMPARE(controller.selectedCompany().value(QStringLiteral("openJobCount")).toInt(), 1);
+    QCOMPARE(controller.linkedJobsModel()->rowCount(), 1);
 }
 
 void DirectoryControllerTest::contactSelectionPublishesInteractionContracts()

@@ -118,6 +118,7 @@ DashboardController::DashboardController(const JobApplicationListModel& applicat
         JobApplicationListModel::IdRole,
         Qt::DescendingOrder,
         this)
+    , activeCvsModel_{this}
     , recentCvsModel_(
         cvModel,
         CvListModel::UpdatedAtRole,
@@ -126,11 +127,25 @@ DashboardController::DashboardController(const JobApplicationListModel& applicat
         Qt::DescendingOrder,
         this)
 {
+    activeCvsModel_.setExactFilter(CvListModel::IsArchivedRole, QStringLiteral("false"));
+    activeCvsModel_.setSourceModel(const_cast<CvListModel*>(&cvModel));
+    recentCvsModel_.setSourceModel(&activeCvsModel_);
     recentApplicationsModel_.setRoleName(
         JobApplicationListModel::DateLabelRole,
         QByteArrayLiteral("appliedDateLabel"));
     connect(&applicationsModel_, &QAbstractItemModel::rowsInserted, this, &DashboardController::refreshMetrics);
+    connect(&applicationsModel_, &QAbstractItemModel::rowsRemoved, this, &DashboardController::refreshMetrics);
     connect(&applicationsModel_, &QAbstractItemModel::modelReset, this, &DashboardController::refreshMetrics);
+    connect(
+        &applicationsModel_,
+        &QAbstractItemModel::dataChanged,
+        this,
+        [this](const QModelIndex&, const QModelIndex&, const QList<int>& roles) {
+            if (roles.isEmpty()
+                || roles.contains(JobApplicationListModel::StatusValueRole)) {
+                refreshMetrics();
+            }
+        });
 }
 
 QAbstractItemModel* DashboardController::statsModel()

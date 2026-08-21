@@ -67,10 +67,7 @@ LimitedSortedProxyModel::LimitedSortedProxyModel(
 {
     // QAbstractProxyModel requires a mutable pointer, but this proxy only
     // observes the source model and never mutates it.
-    QAbstractProxyModel::setSourceModel(const_cast<QAbstractItemModel*>(&sourceModel));
-    roleNames_ = sourceModel.roleNames();
-    connectSourceModel();
-    rebuildRows();
+    setSourceModel(const_cast<QAbstractItemModel*>(&sourceModel));
 }
 
 QModelIndex LimitedSortedProxyModel::mapToSource(const QModelIndex& proxyIndex) const
@@ -148,6 +145,22 @@ QHash<int, QByteArray> LimitedSortedProxyModel::roleNames() const
     return roleNames_;
 }
 
+void LimitedSortedProxyModel::setSourceModel(QAbstractItemModel* sourceModel)
+{
+    if (this->sourceModel() == sourceModel) {
+        return;
+    }
+    if (this->sourceModel() != nullptr) {
+        disconnect(this->sourceModel(), nullptr, this, nullptr);
+    }
+    QAbstractProxyModel::setSourceModel(sourceModel);
+    roleNames_ = sourceModel != nullptr
+        ? sourceModel->roleNames()
+        : QHash<int, QByteArray>{};
+    connectSourceModel();
+    rebuild();
+}
+
 void LimitedSortedProxyModel::setRoleName(int role, QByteArray name)
 {
     roleNames_.insert(role, std::move(name));
@@ -155,6 +168,9 @@ void LimitedSortedProxyModel::setRoleName(int role, QByteArray name)
 
 void LimitedSortedProxyModel::connectSourceModel()
 {
+    if (sourceModel() == nullptr) {
+        return;
+    }
     const auto rebuildModel = [this]() { rebuild(); };
     connect(sourceModel(), &QAbstractItemModel::rowsInserted, this, rebuildModel);
     connect(sourceModel(), &QAbstractItemModel::rowsRemoved, this, rebuildModel);

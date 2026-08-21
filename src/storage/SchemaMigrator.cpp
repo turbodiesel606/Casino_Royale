@@ -11,7 +11,7 @@
 
 namespace {
 
-	constexpr int latestSchemaVersion = 3;
+	constexpr int latestSchemaVersion = 4;
 
 	int schemaVersion(QSqlDatabase& database)
 	{   // Read the current SQLite schema version from PRAGMA user version.
@@ -59,7 +59,7 @@ void SchemaMigrator::migrate(QSqlDatabase& database)
 
 	// Initialize a new database directly at the latest schema version.
 	if (version == 0) {
-		storage::migrations::initializeVersionThree(database);
+		storage::migrations::initializeVersionFour(database);
 		version = latestSchemaVersion;
 	}
 
@@ -79,6 +79,11 @@ void SchemaMigrator::migrate(QSqlDatabase& database)
 			// Upgrades a version 2 database to version 3 with preserving existing data.
 			storage::migrations::migrateVersionTwoToThree(database);
 			version = 3;
+			break;
+		case 3:
+			// Adds reversible CV Library archival state without changing file identity.
+			storage::migrations::migrateVersionThreeToFour(database);
+			version = 4;
 			break;
 		default:
 			throw std::runtime_error(

@@ -16,6 +16,7 @@ class AddJobServiceTest final : public QObject
 
 private slots:
     void createsJobAndCopiesCv();
+    void reusesArchivedCvWithoutRestoringIt();
     void reusesNormalizedCompanyIdentity();
     void removesCopiedCvWhenJobInsertFails();
     void rejectsInvalidInputWithoutWriting();
@@ -35,7 +36,7 @@ void AddJobServiceTest::createsJobAndCopiesCv()
         QUrl::fromLocalFile(sourcePath));
 
     QVERIFY2(result.success_, qPrintable(result.message_));
-    QVERIFY(result.cvWasInserted_);
+    QCOMPARE(result.cvImportDisposition_, CvImportDisposition::Inserted);
     QVERIFY(!result.company_.id_.isEmpty());
     QCOMPARE(result.application_.companyId_, result.company_.id_);
 
@@ -65,6 +66,30 @@ void AddJobServiceTest::createsJobAndCopiesCv()
     invalidCompany.addBindValue(QStringLiteral("missing-company"));
     invalidCompany.addBindValue(result.application_.id_);
     QVERIFY(!invalidCompany.exec());
+}
+
+void AddJobServiceTest::reusesArchivedCvWithoutRestoringIt()
+{
+    testsupport::AddJobTestFixture fixture;
+    QVERIFY(fixture.isValid());
+    const auto sourcePath = fixture.storage_.createFile(QStringLiteral("archived.pdf"));
+    const auto first = fixture.service_.create(
+        testsupport::validJobDraft(),
+        QUrl::fromLocalFile(sourcePath));
+    QVERIFY(first.success_);
+    QVERIFY(fixture.cvRepository_.updateArchived(first.cvDocument_.id_, true).has_value());
+
+    auto secondDraft = testsupport::validJobDraft();
+    secondDraft.jobTitle_ = QStringLiteral("Second Qt Role");
+    const auto second = fixture.service_.create(secondDraft, QUrl::fromLocalFile(sourcePath));
+
+    QVERIFY2(second.success_, qPrintable(second.message_));
+    QCOMPARE(second.cvImportDisposition_, CvImportDisposition::ReusedArchived);
+    QCOMPARE(second.cvDocument_.id_, first.cvDocument_.id_);
+    QCOMPARE(fixture.cvRepository_.findAll().size(), 1);
+    QVERIFY(fixture.cvRepository_.findById(first.cvDocument_.id_)->archivedAt_.isValid());
+    QCOMPARE(fixture.jobRepository_.findAll().size(), 2);
+    QCOMPARE(QDir{fixture.storage_.paths().resumesDirectory()}.entryList(QDir::Files).size(), 1);
 }
 
 void AddJobServiceTest::reusesNormalizedCompanyIdentity()

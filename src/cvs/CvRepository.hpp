@@ -16,11 +16,14 @@ public:
 	explicit CvRepository(QSqlDatabase& database);
 
 	QVector<CvDocument> findAll() const;
+	std::optional<CvDocument> findById(const QString& cvId) const;
 	std::optional<CvDocument> findByIdentity(
 		const QString& sha256,
 		const QString& originalFileName) const;
 	void insert(const CvDocument& document) const;
 	std::optional<QDateTime> updateFavorite(const QString& cvId, bool isFavorite) const;
+	std::optional<QDateTime> updateArchived(const QString& cvId, bool archived) const;
+	bool removeUnlinked(const QString& cvId) const;
 
 private:
 	QSqlDatabase& database_;

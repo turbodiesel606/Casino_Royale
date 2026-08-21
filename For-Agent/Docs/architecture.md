@@ -26,27 +26,36 @@ The current bootstrap dependency order is:
 5. `CvFileAccessService`
 6. `CompanyRepository`
 7. `JobRepository`
-8. `AddJobWorker`
+8. `JobSaveWorker`
 9. `CvImportWorker`
-10. `JobApplicationsController`
-11. `CvLibraryController`
-12. `DashboardController`
-13. `CompanyDirectoryController`
-14. `ContactDirectoryController`
+10. `StorageMutationGate`
+11. `DataRemovalWorker`
+12. `JobApplicationsController`
+13. `CvLibraryController`
+14. `DashboardController`
+15. `CompanyDirectoryController`
+16. `ContactDirectoryController`
 
-`AddJobWorker` is a GUI-thread facade. On its first submitted request it starts
-one reusable dedicated thread. The GUI controller maps form values and runs
-storage-independent canonical preflight synchronously. For a validated request,
-the worker defensively revalidates the normalized draft and then lazily
-constructs a private `StoragePaths`, `SqliteDatabase`, repository, managed-file,
-import-service, and Add Job service graph inside that thread. Production no
-longer owns GUI-thread `CvImportService` or `AddJobService` instances.
+`JobSaveWorker` is a GUI-thread facade shared by job creation and job updates.
+On its first submitted request it starts one reusable dedicated thread. The GUI
+controller maps form values and runs storage-independent canonical preflight
+synchronously. For a validated request, the worker defensively validates and
+lazily constructs a private `StoragePaths`, `SqliteDatabase`, repository,
+managed-file, import-service, `AddJobService`, and `UpdateJobService` graph
+inside that thread. Production owns no GUI-thread job persistence service.
 
 `CvImportWorker` is a separate GUI-thread facade with one reusable dedicated
 thread for standalone CV Library imports. It lazily constructs a private
 `StoragePaths`, `SqliteDatabase`, `CvRepository`, `CvManagedFileStore`, and
 `CvImportService` graph on that thread. `CvLibraryController` owns the import
 FIFO and receives only value outcomes for GUI-thread model publication.
+
+`DataRemovalWorker` is the shared GUI-thread facade for job deletion and CV
+archive, restore, and permanent-deletion batches. Its reusable executor owns a
+private SQLite graph on its worker thread and returns value-only per-item
+outcomes. `StorageMutationGate` prevents a removal batch from overlapping queued
+job-save or Add CV work and rejects new job-save/Add CV admission while removal
+is active.
 
 Current QML context properties are:
 
@@ -88,10 +97,11 @@ the same contextual error boundary for prepared queries. `SqlTransaction`
 starts one transaction, requires an explicit successful commit, and
 automatically rolls back while still active.
 
-The current SQLite schema is version 3 and contains:
+The current SQLite schema is version 4 and contains:
 
-- `cvs`, which stores managed CV file metadata and uses
-  `(sha256, original_file_name)` as a unique identity pair.
+- `cvs`, which stores managed CV file metadata, uses
+  `(sha256, original_file_name)` as a unique identity pair, and represents
+  library archival with nullable `archived_at`.
 - `companies`, which stores a display name and a unique trimmed, case-folded
   normalized name for each durable company identity.
 - `jobs`, where every row references one persisted company and one persisted CV
@@ -101,29 +111,39 @@ The current SQLite schema is version 3 and contains:
   key references `jobs.id` with `ON DELETE CASCADE`.
 
 `SchemaMigrator` reads `PRAGMA user_version`, rejects unsupported newer
-databases, selects the direct version-3 initialization or applies each forward
+databases, selects the direct version-4 initialization or applies each forward
 migration sequentially, verifies foreign keys, and commits through
-`SqlTransaction`. The explicit initialization, `v1 -> v2`, and `v2 -> v3` SQL
+`SqlTransaction`. The explicit initialization, `v1 -> v2`, `v2 -> v3`, and
+`v3 -> v4` SQL
 live in separate version-specific implementation units. Version 1 databases
 first receive the CV identity migration to version 2, then continue through the
 company identity migration. The `v2 -> v3` step trims and case-folds existing
 job company names, creates one company per normalized identity, rebuilds jobs
 with required company foreign keys, and preserves technology rows. Blank
-legacy company names abort the transaction with a clear error. Initialization
+legacy company names abort the transaction with a clear error. The `v3 -> v4`
+step adds nullable `cvs.archived_at`, so every existing CV remains active.
+Initialization
 and all upgrades run transactionally and verify foreign keys before commit.
 
-`CvRepository` loads and inserts CV metadata, persists favorite changes with an
-updated timestamp, and reconstructs each CV's linked application IDs with a
-left join from `cvs.id` to `jobs.cv_id`.
+`CvRepository` loads and inserts CV metadata, persists favorite and archive
+changes with an updated timestamp, reconstructs each CV's linked application
+IDs with a left join from `cvs.id` to `jobs.cv_id`, and deletes a CV only through
+a guarded `NOT EXISTS` query when no job references it.
 
-`CvFileAccessService` resolves persisted relative paths beneath the managed data
-directory, rejects unsafe or unavailable files, and delegates valid local-file
-URLs to the platform desktop opener.
+`CvManagedPathResolver` is the shared canonical path boundary used by file open
+and permanent deletion. It accepts only a top-level regular file beneath the
+managed `Resumes` directory and rejects absolute, traversal, nested, mismatched,
+and symbolic-link paths. `CvFileAccessService` delegates valid local-file URLs
+to the platform desktop opener.
 
 `CvManagedFileStore` owns the managed CV filesystem boundary. It validates PDF,
 DOC, and DOCX inputs, streams SHA-256 while copying into uniquely named `.part`
 files, atomically finalizes staged files, and removes abandoned stages through
-RAII cleanup. Startup reconciliation removes stale `.part` files and moves any
+RAII cleanup. Permanent deletion first renames an existing managed file to a
+`.delete` tombstone, deletes the guarded database row, then removes the
+tombstone. A failed database operation restores the original filename. Startup
+reconciliation restores tombstones still referenced by `cvs`, removes
+tombstones whose row was committed as deleted, removes stale `.part` files, and moves any
 completed top-level managed file without a matching `cvs.stored_file_name` row
 into `Resumes/Quarantine`; completed orphaned user files are never silently
 deleted.
@@ -131,7 +151,12 @@ deleted.
 `CompanyRepository` loads durable companies and resolves Add Job company names
 through the same trimmed, case-folded identity rule.
 
-`JobRepository` loads and inserts jobs by durable company and CV IDs. Its read
+`JobRepository` loads, finds, inserts, updates, and deletes jobs by durable
+company and CV IDs. An update replaces the job metadata and ordered technology
+rows inside its caller-owned transaction while preserving the application ID
+and creation timestamp.
+Job deletion relies on the existing `job_technologies` cascade and never removes
+the referenced company or CV. Its read
 query joins `companies.display_name` and `cvs.original_file_name` so the
 existing QML-facing company and CV display roles remain unchanged. It then
 loads each job's technologies from `job_technologies` in `position` order.
@@ -140,14 +165,15 @@ Repositories translate the schema's existing ISO text representation into
 typed domain values. Job applied dates use `QDate`; job, CV, and company
 creation/update timestamps use `QDateTime`; job and company URLs use `QUrl`;
 and job status/work format use closed enum values. Writes serialize those
-values back to the existing schema version 3 text columns, so this type
-boundary does not require a schema migration.
+values back to schema text columns. CV archival uses the same ISO timestamp
+representation in schema version 4.
 
 Treat `SchemaMigrator`, the repository queries, and storage tests as the source
 of truth for the current persisted schema and relationships.
 
 The production bootstrap hydrates the company directory from
-`CompanyRepository` and publishes companies resolved by Add Job immediately.
+`CompanyRepository` and publishes companies resolved by job creates or updates
+immediately.
 Company-linked job rows use the same durable IDs after restart. Contacts remain
 non-persisted, and there is no company/contact edit or delete workflow.
 
@@ -166,14 +192,14 @@ opening SQLite, or waiting for the worker. Invalid input emits
 queue mutation, pending-state publication, or worker startup.
 
 For valid input, the controller allocates a monotonically increasing operation
-ID, inserts the normalized draft and CV URL into its GUI-owned FIFO, publishes
+ID, inserts the normalized draft and CV URL into its GUI-owned job-save FIFO, publishes
 pending state, emits `applicationQueued(operationId)`, and schedules the front
 request. The queue keeps one active request plus normalized waiters, so it needs
 no mutex. `pendingSaveCount` is the active-plus-waiting total, and `saving` is
 true exactly while that total is non-zero.
 
 When a request becomes active, the controller creates a shared
-`CancellationState` and submits one `AddJobRequest` to `AddJobWorker`. The
+`CancellationState` and submits one `AddJobRequest` to `JobSaveWorker`. The
 worker thread is started lazily and reused until shutdown. Its private SQLite
 connection opens the same database file under an independent unique Qt
 connection name only after the worker's defensive validation succeeds; the
@@ -206,9 +232,10 @@ model, repository, SQL handle/query, or staged-file object across threads.
 
 `CancellationState` protects only its boolean with a mutex. Cancellation checks
 never hold that mutex during file I/O, SQL, signal emission, or queued delivery.
-`cancelCreateApplication()` cancels only the active request and then continues
-the FIFO. `cancelAllCreateApplications()` removes normalized waiters, cancels
-the active request, suppresses exit-time notifications, and emits
+`cancelCreateApplication()` cancels only an active create request and then
+continues the shared FIFO. `cancelAllJobSaves()` removes normalized create and
+update waiters, cancels the active request, suppresses exit-time notifications,
+and emits
 `saveQueueDrained` only after active cleanup. Once a transaction begins it is
 allowed to commit or roll back; it is never forcibly terminated.
 
@@ -252,15 +279,65 @@ current form. Discard resets current fields and errors, clears the CV selection,
 restores the `Applied` status, and neither cancels queued work nor deletes a
 selected source file.
 
-`Main.qml` owns presentation-only completion notifications and close
-confirmation shared by Add Job and Add CV. Notifications are non-modal,
+`Main.qml` owns presentation-only completion notifications, a single protected
+action guard for Job Description edits, and close confirmation shared by Add
+Job, Add CV, and removal work. Notifications are non-modal,
 display one at a time for 15 seconds, and queue later outcomes. A close request
-while either controller has pending work is rejected and offers only Wait or
+while any controller has pending work is rejected and offers only Wait or
 Interrupt and Exit. Wait resumes hidden notifications without affecting work.
-Interrupt and Exit discards notifications, cancels both controller queues, and
-closes only after both pending counts reach zero. If the work drains naturally
+Interrupt and Exit discards notifications, cancels both add queues, requests
+removal cancellation between items, and closes only after all pending counts
+reach zero. Already committed removals remain committed, and the current item
+finishes or compensates safely. If the work drains naturally
 while the confirmation is open, the confirmation closes and the app remains
 open.
+
+## Update Job Flow
+
+`JobDescriptionPane.qml` has explicit read-only, editing, and saving states. It
+copies the selected application's editable values into local controls only when
+Edit is requested, compares an exact snapshot of those values plus the optional
+replacement-CV URL to determine dirtiness, and shows Save Changes and Discard
+only during the edit session. Read-only tech values are chips; editing uses a
+comma-separated field and the preview reads the live draft.
+
+Explicit Save Changes opens the apply confirmation in the pane. Submission
+calls `JobApplicationsController::updateApplication(applicationId, formValues,
+replacementCvUrl)`. The controller runs `UpdateJobService::preflight()` before
+operation-ID allocation, storage reservation, queue mutation, or worker work.
+It rejects invalid fields synchronously and admits a valid normalized update to
+the same GUI-owned FIFO used by creates. `updatingApplication` remains true from
+admission through the final update outcome.
+
+When the update becomes active, `JobSaveWorker` reloads the target application
+through `JobRepository::findById()`, defensively validates the normalized draft,
+and optionally stages a PDF, DOC, or DOCX replacement. `UpdateJobService` then
+resolves the company, imports or reuses the replacement CV with the existing
+case-sensitive `(sha256, original_file_name)` identity, updates the job row,
+replaces ordered technology rows, and commits one SQLite transaction. The job
+ID and `created_at` remain stable; `updated_at` is refreshed. Archived exact CV
+duplicates remain archived, and the previous CV row and managed file remain in
+the Library. A failed transaction keeps the original job/CV relationship and
+uses the managed-file cleanup and startup reconciliation guarantees.
+
+After commit, the GUI controller updates `JobApplicationListModel` in place and
+emits only the changed roles. Company-role changes refresh directory counts,
+status changes refresh dashboard metrics, and CV changes remove the
+application link from the previous CV before adding it to the replacement CV.
+Failures leave the source model unchanged and return structured field/global
+errors to the editor.
+
+`Main.qml::requestProtectedAction()` guards the Job Applications tab, sidebar
+navigation, Add Job, the global Add CV picker, extensible app-owned actions, and
+application close. A dirty editor shows one modal Unsaved changes dialog with
+Save, Don't Save, and Cancel. Save submits directly and executes the stored
+action only after update success; Don't Save reloads the latest saved model
+state before executing it; Cancel preserves the draft and cancels the action.
+Navigation attempted during an update is deferred until success and abandoned
+on failure. A clean edit session exits to read-only without prompting. The
+editor's own CV picker and confirmation are deliberately outside this guard.
+After an update-driven close continues, the existing pending-work close guard
+still handles unrelated create, CV import, and removal work.
 
 ## Add CV Flow
 
@@ -282,13 +359,15 @@ SHA-256, `.part` staging, exact case-sensitive duplicate lookup by
 `(sha256, original_file_name)`, file finalization, and SQLite insertion on its
 private thread and connection. Same filename with different content and same
 content with a different filename remain distinct CVs. Exact identity returns
-a successful no-insert outcome and lets RAII remove the staged copy.
+an explicit import disposition and lets RAII remove the staged copy. Standalone
+Add CV restores an archived exact duplicate; Add Job reuses the same archived
+row without making it visible in the Library.
 
 The controller publishes successful outcomes idempotently by stable CV ID and
 mutates `CvListModel` only on the GUI thread. This keeps CV Library and Dashboard
 projections live and tolerates overlapping Add Job `cvUsed` publication without
 duplicate rows or missing links. Per-file QML outcomes distinguish inserted,
-duplicate, and failed states for green, yellow, and red notifications.
+restored, duplicate, and failed states for global notifications.
 
 `cancelAllCvImports()` drops waiting URLs, cooperatively cancels the active
 streaming operation, suppresses its exit-time notification, and emits
@@ -296,6 +375,30 @@ streaming operation, suppresses its exit-time notification, and emits
 import begins; finalization or insertion already in progress may legally
 complete, and worker shutdown destroys its SQL graph on the worker thread
 before quitting and waiting.
+
+## Safe Job And CV Removal
+
+Jobs and CVs share one canonical database and one managed `Resumes` store; the
+Library and Job Applications never create separate CV copies. Both controllers
+use `BulkIdSelectionTracker` for checkbox selection by stable domain ID. Select
+all affects only visible proxy rows, filters and CV Active/Archived view changes
+clear checkbox selection, sorting preserves it, and preview selection remains a
+separate `StableIdSelectionTracker` concern.
+
+Each removal batch is best-effort and processes selected IDs independently with
+one transaction per item. Deleting a job removes only that job and its cascaded
+technology rows. Removing an active linked CV archives it without touching the
+file; removing an active unlinked CV permanently deletes its row and managed
+file. Archived CVs can be restored. Permanent deletion of an archived mixed
+selection deletes unlinked items and reports linked items as skipped. Successful
+IDs leave checkbox selection; failed and skipped IDs remain selected.
+
+Archived CVs stay in the source model so jobs, linked views, and startup
+recovery keep their canonical references. They are excluded from the normal CV
+Library view and Dashboard recent-CV projection. Deleting the last job linked
+to an archived CV updates its link count but does not restore or delete it.
+Controller batch summaries report deleted, archived, restored, skipped, failed,
+and canceled outcomes, including item-specific failure details.
 
 ## Boundaries
 
@@ -349,6 +452,11 @@ update so transient proxy-removal batches do not publish intermediate fallback
 selections. Linked selection-dependent models refresh only when the effective
 selected ID changes.
 
+`BulkIdSelectionTracker` is the separate checkbox-selection contract for Job
+Applications and CV Library. It stores a set of domain IDs, derives all-visible
+and partial-visible states from the current proxy, and reconciles source removal
+and proxy layout changes without coupling checkbox selection to preview state.
+
 Controller model-pointer properties are constant because their model objects
 do not change after construction. Model content changes are published through
 the models' row, reset, layout, and data signals. Scalar controller properties
@@ -365,7 +473,7 @@ caches. An empty selected ID produces an empty linked view.
 
 `LimitedSortedProxyModel` owns dashboard recency projections. Recent
 applications expose the five newest jobs by typed creation timestamp; recent
-CVs expose the five newest CVs by typed update timestamp. Both projections use
+CVs expose the five newest active CVs by typed update timestamp. Both projections use
 the domain ID as a deterministic tie-break and rebuild after relevant source
 structure or data changes. The dashboard's existing QML role names remain
 available, including the `appliedDateLabel` alias. CV category summaries notify
@@ -385,9 +493,13 @@ Current backend areas are:
 - `src/app`: process startup, exception boundary, dependency construction, QML engine setup, context properties, and main QML loading.
 - `src/storage`: application data paths, SQLite connection lifetime, and schema migration.
 - `src/common`: reusable role-based filtering, sorting, search, and stable-ID selection helpers.
-- `src/jobs`: typed job value/draft types, canonical factory and validator, job list model, QML controller, repository, and Add Job service.
+- `src/jobs`: typed job value/draft types, canonical factory and validator, job
+  list model, QML controller, repository, shared save worker, and create/update
+  services.
 - `src/cvs`: CV value type, CV list model, QML controller, repository,
   managed-file store, import coordination, and safe file access.
+- `src/maintenance`: the shared mutation gate plus asynchronous best-effort job
+  and CV removal coordination.
 - `src/dashboard`: metric and recent-item read models over jobs and CVs.
 - `src/directory`: company/contact value types, durable company repository,
   directory list models and controllers, and linked read models. Contacts remain
@@ -428,21 +540,27 @@ Use the dependency direction `QML -> controllers/models -> services -> repositor
 - Return worker results through queued delivery and apply model or property changes on the owning thread.
 - Define worker ownership, cancellation, shutdown, and late-result handling before moving work off the GUI thread.
 - Create, use, and close each Qt SQL connection in one thread. Do not share `QSqlDatabase` connections or active `QSqlQuery` objects across threads.
-- Add Job form mapping and canonical preflight run synchronously in the GUI
-  controller and remain pure and storage-independent. Defensive validation,
+- Job create/update form mapping and canonical preflight run synchronously in
+  the GUI controller and remain pure and storage-independent. Defensive validation,
   managed CV work, duplicate lookup, repositories, and transactions run on the
-  dedicated Add Job worker and its private SQLite connection. Only value
+  dedicated job-save worker and its private SQLite connection. Only value
   outcomes return to the GUI thread.
-- Keep Add Job model mutation and QML/cross-screen signal publication in the
+- Keep job-save model mutation and QML/cross-screen signal publication in the
   GUI controller. Destroy the worker persistence graph on its own thread before
   quitting and waiting for that thread; never terminate it.
+- Run deletion/archive batches on the dedicated removal executor with its own
+  SQLite connection. Check cooperative cancellation only between items and
+  return value outcomes for all GUI-thread model mutations.
 
 ### Storage And Transactions
 
 - Let services define business-operation transaction boundaries and coordinate repositories. Keep repositories focused on persistence operations and mapping.
 - Make schema upgrades forward-only, versioned, transactional, and safe for both new databases and every supported prior version.
 - Verify foreign-key state and required invariants before committing schema migrations.
-- When one operation changes both SQLite and managed files, define rollback cleanup for ordinary failures and document any remaining crash-recovery limitation.
+- When one operation changes both SQLite and managed files, rename the managed
+  file to a recoverable tombstone before the database delete, compensate on
+  transaction failure, and reconcile committed or referenced tombstones at
+  startup.
 
 ### Models And QML Contracts
 

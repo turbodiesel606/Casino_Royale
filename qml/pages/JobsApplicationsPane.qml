@@ -29,12 +29,20 @@ Item {
     property string previewCompanyAccent: "#146ce0"
     property string previewNotes: ""
     property string previewStatusAccent: "#c2c7cb"
+    property var checkedApplicationIds: []
+    property bool allVisibleApplicationsChecked: false
+    property bool someVisibleApplicationsChecked: false
+    property bool deleteEnabled: false
+    property bool deletionBusy: false
 
     signal rowSelected(int row)
     signal searchRequested(string text)
     signal statusFilterRequested(string status)
     signal applicationsRequested()
     signal descriptionRequested()
+    signal rowCheckToggled(int row)
+    signal allVisibleCheckedRequested(bool checked)
+    signal deleteRequested()
 
     RowLayout {
         anchors.fill: parent
@@ -100,6 +108,16 @@ Item {
                     }
 
                     Item { Layout.fillWidth: true }
+
+                    DangerButton {
+                        Layout.preferredWidth: 180
+                        Layout.preferredHeight: 42
+                        text: page.deletionBusy
+                            ? "Deleting..."
+                            : "Delete Selected (" + page.checkedApplicationIds.length + ")"
+                        enabled: page.deleteEnabled
+                        onClicked: page.deleteRequested()
+                    }
                 }
 
                 RowLayout {
@@ -167,6 +185,18 @@ Item {
                         height: page.tableHeaderHeight
                         color: "transparent"
 
+                        SelectionCheckBox {
+                            x: 12
+                            anchors.verticalCenter: parent.verticalCenter
+                            checkState: page.allVisibleApplicationsChecked
+                                ? Qt.Checked
+                                : (page.someVisibleApplicationsChecked ? Qt.PartiallyChecked : Qt.Unchecked)
+                            nextCheckState: function() {
+                                return page.allVisibleApplicationsChecked ? Qt.Unchecked : Qt.Checked
+                            }
+                            onClicked: page.allVisibleCheckedRequested(checkState === Qt.Checked)
+                        }
+
                         Repeater {
                             model: page.columns
 
@@ -200,6 +230,7 @@ Item {
                             required property string nextStep
                             required property string companyAccent
                             required property string companyInitials
+                            required property var model
 
                             x: 0
                             y: page.tableHeaderHeight + index * page.tableRowHeight
@@ -240,6 +271,15 @@ Item {
                                     font.bold: true
                                     font.pixelSize: companyInitials.length > 3 ? 10 : 11
                                 }
+                            }
+
+                            SelectionCheckBox {
+                                x: 12
+                                anchors.verticalCenter: parent.verticalCenter
+                                z: 2
+                                tristate: false
+                                checked: page.checkedApplicationIds.indexOf(model.id) >= 0
+                                onClicked: page.rowCheckToggled(index)
                             }
 
                             Text {
@@ -689,6 +729,32 @@ Item {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    component SelectionCheckBox: CheckBox {
+        id: selectionCheckBox
+        implicitWidth: 24
+        implicitHeight: 24
+        tristate: true
+
+        indicator: Rectangle {
+            implicitWidth: 20
+            implicitHeight: 20
+            x: 2
+            y: 2
+            radius: 4
+            color: selectionCheckBox.checkState === Qt.Unchecked ? "#0b1b27" : page.blueColor
+            border.color: selectionCheckBox.checkState === Qt.Unchecked ? "#536674" : "#69a9ff"
+
+            Text {
+                anchors.centerIn: parent
+                text: selectionCheckBox.checkState === Qt.PartiallyChecked ? "−" : "✓"
+                visible: selectionCheckBox.checkState !== Qt.Unchecked
+                color: "white"
+                font.bold: true
+                font.pixelSize: 13
             }
         }
     }

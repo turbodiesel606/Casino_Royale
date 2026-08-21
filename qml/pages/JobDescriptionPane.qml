@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 import "../components"
 
@@ -12,45 +13,312 @@ Item {
     property color panelLineColor: "#223542"
     property color blueColor: "#1687ff"
     property var selectedApplication: ({})
-    readonly property string selectedTitle: selectedApplication.jobTitle || ""
-    readonly property string selectedCompany: selectedApplication.companyName || ""
-    readonly property string selectedCompanyInitials: selectedApplication.companyInitials || ""
-    readonly property string selectedCompanyAccent: selectedApplication.companyAccent || "#146ce0"
-    readonly property string selectedStatus: selectedApplication.statusLabel || selectedApplication.status || ""
-    readonly property string selectedStatusAccent: selectedApplication.statusAccent || "#c2c7cb"
-    readonly property string selectedDate: selectedApplication.dateLabel || selectedApplication.appliedDate || ""
+
+    property bool editMode: false
+    property bool saveInProgress: false
+    property url replacementCvUrl: ""
+    property string replacementCvName: ""
+    property var fieldErrors: ({})
+    property string saveError: ""
+    property string baselineSnapshot: ""
+    property double submittedOperationId: 0
+    property string editingApplicationId: ""
+
+    readonly property string selectedApplicationId: selectedApplication.id || ""
+    readonly property string viewState: saveInProgress
+        ? "saving"
+        : (editMode ? "editing" : "read-only")
+    readonly property bool hasUnsavedChanges: editMode
+        && currentSnapshot() !== baselineSnapshot
+    readonly property bool canSave: editMode
+        && hasUnsavedChanges
+        && editingApplicationId.length > 0
+        && !saveInProgress
+    readonly property string previewTitle: editMode
+        ? jobTitleField.text
+        : valueOrEmpty(selectedApplication.jobTitle)
+    readonly property string previewCompany: editMode
+        ? companyField.text
+        : valueOrEmpty(selectedApplication.companyName)
+    readonly property string previewWorkFormat: editMode
+        ? workFormatField.text
+        : valueOrEmpty(selectedApplication.workFormat)
+    readonly property string previewSalary: editMode
+        ? salaryField.text
+        : valueOrEmpty(selectedApplication.salary)
+    readonly property string previewStatus: editMode
+        ? statusField.text
+        : valueOrEmpty(selectedApplication.statusLabel || selectedApplication.status)
+    readonly property string previewDate: editMode
+        ? appliedDateField.text
+        : valueOrEmpty(selectedApplication.appliedDate)
+    readonly property string previewNextStep: editMode
+        ? nextStepField.text
+        : valueOrEmpty(selectedApplication.nextStep)
+    readonly property string previewCvName: replacementCvName.length > 0
+        ? replacementCvName
+        : valueOrEmpty(selectedApplication.cvFileName)
+    readonly property var previewTechStack: editMode
+        ? technologiesFromText(techStackField.text)
+        : (selectedApplication.techStack || [])
 
     signal applicationsRequested()
+    signal updateSucceeded()
+    signal updateFailed()
+
+    function valueOrEmpty(value) {
+        return value === undefined || value === null ? "" : String(value)
+    }
+
+    function technologiesFromText(text) {
+        const values = String(text).split(",")
+        const result = []
+        for (let index = 0; index < values.length; ++index) {
+            const value = values[index].trim()
+            if (value.length > 0)
+                result.push(value)
+        }
+        return result
+    }
+
+    function fileNameFromUrl(url) {
+        const value = String(url)
+        const separator = value.lastIndexOf("/")
+        return decodeURIComponent(separator >= 0 ? value.substring(separator + 1) : value)
+    }
+
+    function errorFor(fieldName) {
+        return fieldErrors && fieldErrors[fieldName]
+            ? String(fieldErrors[fieldName])
+            : ""
+    }
+
+    function errorSummary() {
+        const messages = []
+        if (saveError.length > 0)
+            messages.push(saveError)
+        if (fieldErrors) {
+            for (const key in fieldErrors) {
+                const value = String(fieldErrors[key])
+                if (value.length > 0 && messages.indexOf(value) < 0)
+                    messages.push(value)
+            }
+        }
+        return messages.join(" ")
+    }
+
+    function currentSnapshot() {
+        return JSON.stringify([
+            jobTitleField.text,
+            jobUrlField.text,
+            companyField.text,
+            workFormatField.text,
+            cityField.text,
+            salaryField.text,
+            statusField.text,
+            appliedDateField.text,
+            nextStepField.text,
+            descriptionField.text,
+            requirementsField.text,
+            techStackField.text,
+            notesField.text,
+            String(replacementCvUrl)
+        ])
+    }
+
+    function draftFormValues() {
+        return {
+            jobTitle: jobTitleField.text,
+            jobUrl: jobUrlField.text,
+            companyName: companyField.text,
+            workFormat: workFormatField.text,
+            city: cityField.text,
+            salary: salaryField.text,
+            status: statusField.text,
+            appliedDate: appliedDateField.text,
+            nextStep: nextStepField.text,
+            description: descriptionField.text,
+            requirements: requirementsField.text,
+            techStack: techStackField.text,
+            notes: notesField.text
+        }
+    }
+
+    function loadSavedState(exitEditMode) {
+        jobTitleField.text = valueOrEmpty(selectedApplication.jobTitle)
+        jobUrlField.text = valueOrEmpty(selectedApplication.jobUrl)
+        companyField.text = valueOrEmpty(selectedApplication.companyName)
+        workFormatField.text = valueOrEmpty(selectedApplication.workFormat)
+        cityField.text = valueOrEmpty(selectedApplication.city)
+        salaryField.text = valueOrEmpty(selectedApplication.salary)
+        statusField.text = valueOrEmpty(
+            selectedApplication.statusLabel || selectedApplication.status)
+        appliedDateField.text = valueOrEmpty(selectedApplication.appliedDate)
+        nextStepField.text = valueOrEmpty(selectedApplication.nextStep)
+        descriptionField.text = valueOrEmpty(selectedApplication.description)
+        requirementsField.text = valueOrEmpty(selectedApplication.requirements)
+        techStackField.text = (selectedApplication.techStack || []).join(", ")
+        notesField.text = valueOrEmpty(selectedApplication.notes)
+        replacementCvUrl = ""
+        replacementCvName = ""
+        fieldErrors = ({})
+        saveError = ""
+        submittedOperationId = 0
+        saveInProgress = false
+        baselineSnapshot = currentSnapshot()
+        if (exitEditMode) {
+            editMode = false
+            editingApplicationId = ""
+        }
+    }
+
+    function beginEdit() {
+        if (selectedApplicationId.length === 0 || saveInProgress)
+            return
+        const applicationId = selectedApplicationId
+        loadSavedState(false)
+        editingApplicationId = applicationId
+        editMode = true
+        baselineSnapshot = currentSnapshot()
+        jobTitleField.forceActiveFocus()
+    }
+
+    function discardEdits() {
+        if (saveInProgress)
+            return
+        loadSavedState(true)
+    }
+
+    function exitCleanEditMode() {
+        if (editMode && !hasUnsavedChanges && !saveInProgress)
+            loadSavedState(true)
+    }
+
+    function submitUpdate() {
+        if (!editMode || !hasUnsavedChanges || saveInProgress
+                || editingApplicationId.length === 0) {
+            return
+        }
+        fieldErrors = ({})
+        saveError = ""
+        submittedOperationId = 0
+        saveInProgress = true
+        jobApplicationsController.updateApplication(
+            editingApplicationId,
+            draftFormValues(),
+            replacementCvUrl)
+    }
+
+    function requestExplicitSave() {
+        if (canSave)
+            applyChangesConfirmation.open()
+    }
+
+    function statusAccent(status) {
+        const normalized = String(status).toLowerCase()
+        if (normalized === "interview")
+            return "#ffbd21"
+        if (normalized === "offer")
+            return "#38c86b"
+        if (normalized === "rejected")
+            return "#ff4b49"
+        if (normalized === "test task")
+            return "#16c5dd"
+        return "#c2c7cb"
+    }
+
+    onSelectedApplicationChanged: {
+        if (!editMode) {
+            Qt.callLater(function() {
+                if (!page.editMode)
+                    page.loadSavedState(false)
+            })
+        }
+    }
+
+    Component.onCompleted: loadSavedState(false)
+
+    Connections {
+        target: jobApplicationsController
+
+        function onApplicationUpdateQueued(operationId, applicationId) {
+            if (applicationId !== page.editingApplicationId)
+                return
+            page.submittedOperationId = operationId
+            page.saveInProgress = true
+        }
+
+        function onApplicationUpdateRejected(operationId, applicationId, errors, message) {
+            if (applicationId !== page.editingApplicationId)
+                return
+            page.submittedOperationId = 0
+            page.saveInProgress = false
+            page.fieldErrors = errors || ({})
+            page.saveError = message || "The changes could not be saved."
+            page.updateFailed()
+        }
+
+        function onApplicationUpdateCompleted(operationId, applicationId, jobTitle,
+                                              success, errors, message) {
+            if (applicationId !== page.editingApplicationId) {
+                return
+            }
+            if (page.submittedOperationId !== 0
+                    && operationId !== page.submittedOperationId) {
+                return
+            }
+            page.submittedOperationId = 0
+            page.saveInProgress = false
+            if (success) {
+                page.loadSavedState(true)
+                page.updateSucceeded()
+            } else {
+                page.fieldErrors = errors || ({})
+                page.saveError = message || "The changes could not be saved."
+                page.updateFailed()
+            }
+        }
+    }
 
     component FieldLabel: Text {
-        color: "#eef3f8"
+        color: page.textColor
         font.pixelSize: 13
         font.weight: Font.Medium
     }
 
     component FormField: TextField {
-        color: "#eef3f8"
+        id: control
+        property string errorText: ""
+
+        readOnly: !page.editMode || page.saveInProgress
+        selectByMouse: true
+        color: page.textColor
         placeholderTextColor: "#7f93a5"
         font.pixelSize: 15
         leftPadding: 12
         rightPadding: 12
         verticalAlignment: TextInput.AlignVCenter
         background: Rectangle {
-            color: "#081923"
-            border.color: "#263a48"
+            color: control.readOnly ? "#0a1822" : "#081923"
+            border.color: control.errorText.length > 0 ? "#ff4b49" : "#263a48"
             radius: 5
         }
     }
 
     component FormArea: TextArea {
-        color: "#eef3f8"
+        id: control
+        property string errorText: ""
+
+        readOnly: !page.editMode || page.saveInProgress
+        selectByMouse: true
+        color: page.textColor
         placeholderTextColor: "#7f93a5"
         font.pixelSize: 14
         padding: 12
         wrapMode: TextEdit.WordWrap
         background: Rectangle {
-            color: "#081923"
-            border.color: "#263a48"
+            color: control.readOnly ? "#0a1822" : "#081923"
+            border.color: control.errorText.length > 0 ? "#ff4b49" : "#263a48"
             radius: 5
         }
     }
@@ -58,7 +326,7 @@ Item {
     component TagChip: Rectangle {
         required property string label
 
-        width: tagText.implicitWidth + 30
+        width: tagText.implicitWidth + 22
         height: 24
         radius: 7
         color: "#0b3d72"
@@ -66,100 +334,151 @@ Item {
         Text {
             id: tagText
             anchors.centerIn: parent
-            text: parent.label + "  Р вЂњРІР‚вЂќ"
+            text: parent.label
             color: "#dcefff"
             font.pixelSize: 13
         }
     }
 
+    FileDialog {
+        id: replacementCvDialog
+        title: "Select replacement CV"
+        fileMode: FileDialog.OpenFile
+        nameFilters: ["CV documents (*.pdf *.doc *.docx)"]
+        onAccepted: {
+            page.replacementCvUrl = selectedFile
+            page.replacementCvName = page.fileNameFromUrl(selectedFile)
+            page.fieldErrors = ({})
+            page.saveError = ""
+        }
+    }
 
-        Rectangle {
-            anchors.fill: parent
-            color: "#07131d"
+    Dialog {
+        id: applyChangesConfirmation
+        anchors.centerIn: parent
+        width: Math.min(560, page.width - 48)
+        modal: true
+        focus: true
+        closePolicy: Popup.NoAutoClose
+        title: "Confirm changes"
+
+        contentItem: Text {
+            text: "Are you sure you want to apply the changes?"
+            color: page.textColor
+            font.pixelSize: 15
+            wrapMode: Text.Wrap
         }
 
-        RowLayout {
-            anchors.fill: parent
-            spacing: 0
+        footer: DialogButtonBox {
+            Button {
+                text: "Cancel"
+                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
+                onClicked: applyChangesConfirmation.reject()
+            }
+            Button {
+                text: "Apply Changes"
+                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+                onClicked: {
+                    applyChangesConfirmation.accept()
+                    page.submitUpdate()
+                }
+            }
+        }
 
-            Item {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
+        background: Rectangle {
+            color: "#102330"
+            border.color: "#2e4657"
+            border.width: 1
+            radius: 8
+        }
+    }
 
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 20
+    Rectangle {
+        anchors.fill: parent
+        color: "#07131d"
+    }
+
+    RowLayout {
+        anchors.fill: parent
+        spacing: 0
+
+        Item {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 20
+                spacing: 8
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 36
                     spacing: 8
 
-                    RowLayout {
-                        Layout.fillWidth: true
+                    Button {
+                        Layout.preferredWidth: 165
                         Layout.preferredHeight: 36
-                        spacing: 8
-
-                        Button {
-                            Layout.preferredWidth: 165
-                            Layout.preferredHeight: 36
-                            text: "Job Applications"
-                            onClicked: page.applicationsRequested()
-
-                            contentItem: Text {
-                                text: parent.text
-                                color: page.textColor
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                                font.pixelSize: 14
-                            }
-
-                            background: Rectangle {
-                                color: "#0b1b27"
-                                border.color: page.panelLineColor
-                                border.width: 1
-                                radius: 5
-                            }
+                        text: "Job Applications"
+                        onClicked: page.applicationsRequested()
+                        contentItem: Text {
+                            text: parent.text
+                            color: page.textColor
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            font.pixelSize: 14
                         }
-
-                        Button {
-                            Layout.preferredWidth: 165
-                            Layout.preferredHeight: 36
-                            text: "Job Description"
-
-                            contentItem: Text {
-                                text: parent.text
-                                color: page.textColor
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                                font.pixelSize: 14
-                                font.weight: Font.DemiBold
-                            }
-
-                            background: Rectangle {
-                                color: "#0b1b27"
-                                border.color: page.blueColor
-                                border.width: 1
-                                radius: 5
-                            }
+                        background: Rectangle {
+                            color: "#0b1b27"
+                            border.color: page.panelLineColor
+                            radius: 5
                         }
-
-                        Item { Layout.fillWidth: true }
                     }
 
-                    Panel {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        Layout.minimumHeight: 700
-                        clip: true
+                    Button {
+                        Layout.preferredWidth: 165
+                        Layout.preferredHeight: 36
+                        text: "Job Description"
+                        contentItem: Text {
+                            text: parent.text
+                            color: page.textColor
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            font.pixelSize: 14
+                            font.weight: Font.DemiBold
+                        }
+                        background: Rectangle {
+                            color: "#0b1b27"
+                            border.color: page.blueColor
+                            radius: 5
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+                }
+
+                Panel {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+
+                    ScrollView {
+                        anchors.fill: parent
+                        anchors.margins: 14
+                        contentWidth: availableWidth
 
                         ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 14
-                            spacing: 8
+                            width: parent.width
+                            spacing: 10
 
                             RowLayout {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 34
+                                Layout.preferredHeight: 38
 
                                 Text {
-                                    text: "Job Description"
+                                    text: page.saveInProgress
+                                        ? "Saving Job Description..."
+                                        : "Job Description"
                                     color: page.textColor
                                     font.bold: true
                                     font.pixelSize: 19
@@ -170,8 +489,10 @@ Item {
                                 Button {
                                     Layout.preferredWidth: 112
                                     Layout.preferredHeight: 34
+                                    visible: !page.editMode
+                                    enabled: page.selectedApplicationId.length > 0
                                     text: "Edit"
-
+                                    onClicked: page.beginEdit()
                                     contentItem: Text {
                                         text: parent.text
                                         color: "white"
@@ -180,9 +501,8 @@ Item {
                                         font.pixelSize: 14
                                         font.weight: Font.DemiBold
                                     }
-
                                     background: Rectangle {
-                                        color: "#1479ee"
+                                        color: parent.enabled ? "#1479ee" : "#31506d"
                                         radius: 5
                                     }
                                 }
@@ -190,18 +510,19 @@ Item {
 
                             GridLayout {
                                 Layout.fillWidth: true
-                                columns: 2
+                                columns: width >= 760 ? 2 : 1
                                 columnSpacing: 18
-                                rowSpacing: 7
+                                rowSpacing: 8
 
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 5
                                     FieldLabel { text: "Job Title" }
                                     FormField {
+                                        id: jobTitleField
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 38
-                                        text: page.selectedTitle
+                                        errorText: page.errorFor("jobTitle")
                                     }
                                 }
 
@@ -210,26 +531,10 @@ Item {
                                     spacing: 5
                                     FieldLabel { text: "Job URL" }
                                     FormField {
+                                        id: jobUrlField
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 38
-                                        text: page.selectedApplication.jobUrl || ""
-                                        rightPadding: 42
-
-                                        Rectangle {
-                                            anchors.right: parent.right
-                                            anchors.top: parent.top
-                                            anchors.bottom: parent.bottom
-                                            width: 42
-                                            color: "#102b3d"
-                                            radius: 5
-
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: "Р Р†РІР‚В РІР‚вЂќ"
-                                                color: page.textColor
-                                                font.pixelSize: 16
-                                            }
-                                        }
+                                        errorText: page.errorFor("jobUrl")
                                     }
                                 }
 
@@ -238,9 +543,10 @@ Item {
                                     spacing: 5
                                     FieldLabel { text: "Company" }
                                     FormField {
+                                        id: companyField
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 38
-                                        text: page.selectedCompany
+                                        errorText: page.errorFor("companyName")
                                     }
                                 }
 
@@ -249,9 +555,11 @@ Item {
                                     spacing: 5
                                     FieldLabel { text: "Work Format" }
                                     FormField {
+                                        id: workFormatField
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 38
-                                        text: page.selectedApplication.workFormat || ""
+                                        placeholderText: "Remote, Hybrid, or On-site"
+                                        errorText: page.errorFor("workFormat")
                                     }
                                 }
 
@@ -260,9 +568,10 @@ Item {
                                     spacing: 5
                                     FieldLabel { text: "City" }
                                     FormField {
+                                        id: cityField
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 38
-                                        text: page.selectedApplication.city || ""
+                                        errorText: page.errorFor("city")
                                     }
                                 }
 
@@ -271,9 +580,10 @@ Item {
                                     spacing: 5
                                     FieldLabel { text: "Salary" }
                                     FormField {
+                                        id: salaryField
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 38
-                                        text: page.selectedApplication.salary || ""
+                                        errorText: page.errorFor("salary")
                                     }
                                 }
 
@@ -282,21 +592,36 @@ Item {
                                     spacing: 5
                                     FieldLabel { text: "Status" }
                                     FormField {
+                                        id: statusField
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 38
-                                        text: page.selectedStatus
-                                        color: page.textColor
+                                        placeholderText: "Applied, Interview, Offer, Test Task, or Rejected"
+                                        errorText: page.errorFor("status")
                                     }
                                 }
 
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 5
-                                    FieldLabel { text: "Application Date" }
+                                    FieldLabel { text: "Application Date (yyyy-MM-dd)" }
                                     FormField {
+                                        id: appliedDateField
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 38
-                                        text: page.selectedDate
+                                        errorText: page.errorFor("appliedDate")
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    Layout.columnSpan: parent.columns
+                                    spacing: 5
+                                    FieldLabel { text: "Next Step" }
+                                    FormField {
+                                        id: nextStepField
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 38
+                                        errorText: page.errorFor("nextStep")
                                     }
                                 }
                             }
@@ -304,7 +629,6 @@ Item {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 5
-
                                 FieldLabel { text: "CV used" }
 
                                 Rectangle {
@@ -312,41 +636,48 @@ Item {
                                     Layout.preferredHeight: 48
                                     radius: 5
                                     color: "#081923"
-                                    border.color: "#263a48"
+                                    border.color: page.errorFor("cv").length > 0
+                                        ? "#ff4b49"
+                                        : "#263a48"
 
                                     Rectangle {
-                                        x: 24
+                                        x: 18
                                         anchors.verticalCenter: parent.verticalCenter
-                                        width: 24
+                                        width: 30
                                         height: 30
                                         radius: 4
                                         color: "#2588ff"
-
                                         Text {
                                             anchors.centerIn: parent
-                                            text: "PDF"
+                                            text: "CV"
                                             color: "white"
-                                            font.pixelSize: 8
+                                            font.pixelSize: 9
                                             font.bold: true
                                         }
                                     }
 
                                     Text {
-                                        x: 74
+                                        x: 60
+                                        anchors.right: changeCvButton.left
+                                        anchors.rightMargin: 14
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: page.selectedApplication.cvFileName || ""
+                                        text: page.previewCvName
                                         color: page.textColor
                                         font.pixelSize: 15
+                                        elide: Text.ElideMiddle
                                     }
 
                                     Button {
-                                        anchors.right: closeCv.left
-                                        anchors.rightMargin: 18
+                                        id: changeCvButton
+                                        anchors.right: parent.right
+                                        anchors.rightMargin: 10
                                         anchors.verticalCenter: parent.verticalCenter
                                         width: 112
                                         height: 34
+                                        visible: page.editMode
+                                        enabled: !page.saveInProgress
                                         text: "Change CV"
-
+                                        onClicked: replacementCvDialog.open()
                                         contentItem: Text {
                                             text: parent.text
                                             color: page.textColor
@@ -354,40 +685,30 @@ Item {
                                             verticalAlignment: Text.AlignVCenter
                                             font.pixelSize: 13
                                         }
-
                                         background: Rectangle {
                                             color: "transparent"
                                             border.color: "#40576a"
                                             radius: 5
                                         }
                                     }
-
-                                    Text {
-                                        id: closeCv
-                                        anchors.right: parent.right
-                                        anchors.rightMargin: 20
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: "Р вЂњРІР‚вЂќ"
-                                        color: page.textColor
-                                        font.pixelSize: 20
-                                    }
                                 }
                             }
 
                             GridLayout {
                                 Layout.fillWidth: true
-                                columns: 2
+                                columns: width >= 760 ? 2 : 1
                                 columnSpacing: 18
-                                rowSpacing: 6
+                                rowSpacing: 8
 
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 5
                                     FieldLabel { text: "Description" }
                                     FormArea {
+                                        id: descriptionField
                                         Layout.fillWidth: true
-                                        Layout.preferredHeight: 86
-                                        text: page.selectedApplication.description || ""
+                                        Layout.preferredHeight: 92
+                                        errorText: page.errorFor("description")
                                     }
                                 }
 
@@ -396,9 +717,10 @@ Item {
                                     spacing: 5
                                     FieldLabel { text: "Requirements" }
                                     FormArea {
+                                        id: requirementsField
                                         Layout.fillWidth: true
-                                        Layout.preferredHeight: 86
-                                        text: page.selectedApplication.requirements || ""
+                                        Layout.preferredHeight: 92
+                                        errorText: page.errorFor("requirements")
                                     }
                                 }
                             }
@@ -406,43 +728,28 @@ Item {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 5
-
                                 FieldLabel { text: "Tech Stack" }
 
-                                Rectangle {
+                                FormField {
+                                    id: techStackField
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: 38
-                                    radius: 5
-                                    color: "#081923"
-                                    border.color: "#263a48"
+                                    visible: page.editMode
+                                    placeholderText: "Qt, C++, CMake"
+                                    errorText: page.errorFor("techStack")
+                                }
 
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 12
-                                        anchors.rightMargin: 12
-                                        spacing: 10
+                                Flow {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: Math.max(38, childrenRect.height)
+                                    visible: !page.editMode
+                                    spacing: 8
 
-                                        Repeater {
-                                            model: page.selectedApplication.techStack || []
-
-                                            delegate: TagChip {
-                                                required property string modelData
-                                                label: modelData
-                                            }
-                                        }
-
-                                        Text {
-                                            Layout.fillWidth: true
-                                            text: "Add technology..."
-                                            color: page.mutedColor
-                                            font.pixelSize: 13
-                                            verticalAlignment: Text.AlignVCenter
-                                        }
-
-                                        Text {
-                                            text: "Р Р†Р Р‰РІР‚С›"
-                                            color: page.mutedColor
-                                            font.pixelSize: 18
+                                    Repeater {
+                                        model: page.previewTechStack
+                                        delegate: TagChip {
+                                            required property string modelData
+                                            label: modelData
                                         }
                                     }
                                 }
@@ -451,26 +758,35 @@ Item {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 5
-
                                 FieldLabel { text: "Notes" }
-
                                 FormArea {
+                                    id: notesField
                                     Layout.fillWidth: true
-                                    Layout.preferredHeight: 60
-                                    text: page.selectedApplication.notes || ""
+                                    Layout.preferredHeight: 72
+                                    errorText: page.errorFor("notes")
                                 }
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                visible: page.errorSummary().length > 0
+                                text: page.errorSummary()
+                                color: "#ff6b69"
+                                font.pixelSize: 12
+                                wrapMode: Text.Wrap
                             }
 
                             RowLayout {
                                 Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                Layout.alignment: Qt.AlignBottom
+                                Layout.preferredHeight: 42
+                                visible: page.editMode
 
                                 Button {
                                     Layout.preferredWidth: 86
                                     Layout.preferredHeight: 38
+                                    enabled: !page.saveInProgress
                                     text: "Discard"
-
+                                    onClicked: page.discardEdits()
                                     contentItem: Text {
                                         text: parent.text
                                         color: page.textColor
@@ -478,7 +794,6 @@ Item {
                                         verticalAlignment: Text.AlignVCenter
                                         font.pixelSize: 13
                                     }
-
                                     background: Rectangle {
                                         color: "#0b1b27"
                                         border.color: page.panelLineColor
@@ -491,8 +806,9 @@ Item {
                                 Button {
                                     Layout.preferredWidth: 132
                                     Layout.preferredHeight: 38
-                                    text: "Save Changes"
-
+                                    enabled: page.canSave
+                                    text: page.saveInProgress ? "Saving..." : "Save Changes"
+                                    onClicked: page.requestExplicitSave()
                                     contentItem: Text {
                                         text: parent.text
                                         color: "white"
@@ -500,9 +816,8 @@ Item {
                                         verticalAlignment: Text.AlignVCenter
                                         font.pixelSize: 13
                                     }
-
                                     background: Rectangle {
-                                        color: "#1479ee"
+                                        color: parent.enabled ? "#1479ee" : "#31506d"
                                         radius: 5
                                     }
                                 }
@@ -511,359 +826,145 @@ Item {
                     }
                 }
             }
+        }
 
-            Panel {
-                Layout.preferredWidth: 430
-                Layout.fillHeight: true
-                radius: 0
+        Panel {
+            Layout.preferredWidth: 400
+            Layout.fillHeight: true
+            visible: page.width >= 1120
+            radius: 0
 
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 18
-                    spacing: 12
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 18
+                spacing: 14
 
-                    Text {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 34
-                        text: "Preview"
-                        color: page.textColor
-                        font.bold: true
-                        font.pixelSize: 18
-                        verticalAlignment: Text.AlignVCenter
-                    }
+                Text {
+                    Layout.fillWidth: true
+                    text: "Live Preview"
+                    color: page.textColor
+                    font.bold: true
+                    font.pixelSize: 18
+                }
 
-                    Panel {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 382
+                Panel {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 410
 
-                        Item {
-                            anchors.fill: parent
-                            anchors.margins: 18
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 18
+                        spacing: 14
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 14
 
                             Rectangle {
-                                width: 72
-                                height: 72
+                                Layout.preferredWidth: 64
+                                Layout.preferredHeight: 64
                                 radius: 7
-                                color: page.selectedCompanyAccent
-
+                                color: page.selectedApplication.companyAccent || "#146ce0"
                                 Text {
                                     anchors.centerIn: parent
-                                    text: page.selectedCompanyInitials
+                                    text: page.previewCompany.substring(0, 2).toUpperCase()
                                     color: "white"
                                     font.pixelSize: 16
                                     font.bold: true
                                 }
                             }
 
-                            Text {
-                                x: 94
-                                y: 11
-                                width: parent.width - 104
-                                text: page.selectedTitle
-                                color: page.textColor
-                                font.pixelSize: 20
-                                font.bold: true
-                            }
-
-                            Text {
-                                x: 94
-                                y: 43
-                                width: parent.width - 104
-                                text: page.selectedCompany
-                                color: page.mutedColor
-                                font.pixelSize: 15
-                            }
-
-                            Column {
-                                x: 0
-                                y: 102
-                                width: parent.width
-                                spacing: 16
-
-                                Repeater {
-                                    model: [
-                                        ["C", "CV used", page.selectedApplication.cvFileName || "", "link"],
-                                        ["S", "Status", page.selectedStatus, "status"],
-                                        ["D", "Applied", page.selectedDate, "text"],
-                                        ["$", "Salary", page.selectedApplication.salary || "", "text"],
-                                        ["F", "Format", page.selectedApplication.workFormat || "", "text"],
-                                        ["N", "Next step", page.selectedApplication.nextStep || "", "text"]
-                                    ]
-
-                                    delegate: Item {
-                                        required property var modelData
-
-                                        width: parent.width
-                                        height: 26
-
-                                        Text {
-                                            x: 0
-                                            width: 28
-                                            height: parent.height
-                                            text: modelData[0]
-                                            color: page.mutedColor
-                                            font.pixelSize: 17
-                                            verticalAlignment: Text.AlignVCenter
-                                        }
-
-                                        Text {
-                                            x: 36
-                                            width: 110
-                                            height: parent.height
-                                            text: modelData[1]
-                                            color: page.mutedColor
-                                            font.pixelSize: 15
-                                            verticalAlignment: Text.AlignVCenter
-                                        }
-
-                                        StatusChip {
-                                            x: 154
-                                            width: 74
-                                            height: 26
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            visible: modelData[3] === "status"
-                                            label: modelData[2]
-                                            accent: page.selectedStatusAccent
-                                        }
-
-                                        Text {
-                                            x: 154
-                                            width: parent.width - 154
-                                            height: parent.height
-                                            visible: modelData[3] !== "status"
-                                            text: modelData[2]
-                                            color: modelData[3] === "link" ? page.blueColor : page.textColor
-                                            font.pixelSize: 15
-                                            verticalAlignment: Text.AlignVCenter
-                                            elide: Text.ElideRight
-                                        }
-                                    }
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 5
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: page.previewTitle
+                                    color: page.textColor
+                                    font.pixelSize: 20
+                                    font.bold: true
+                                    elide: Text.ElideRight
+                                }
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: page.previewCompany
+                                    color: page.mutedColor
+                                    font.pixelSize: 15
+                                    elide: Text.ElideRight
                                 }
                             }
                         }
-                    }
-
-                    Panel {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 108
-                        clip: true
 
                         Repeater {
                             model: [
-                                ["Р Р†РІР‚вЂњР’В¤", "Requirements"],
-                                ["Р Р†Р вЂљРІвЂћвЂ“Р Р†Р вЂљРЎвЂќ", "Tech Stack"]
+                                ["CV used", page.previewCvName, "link"],
+                                ["Status", page.previewStatus, "status"],
+                                ["Applied", page.previewDate, "text"],
+                                ["Salary", page.previewSalary, "text"],
+                                ["Format", page.previewWorkFormat, "text"],
+                                ["Next step", page.previewNextStep, "text"]
                             ]
 
-                            delegate: Rectangle {
+                            delegate: RowLayout {
                                 required property var modelData
-                                required property int index
-
-                                x: 0
-                                y: index * 54
-                                width: parent.width
-                                height: 54
-                                color: "transparent"
-
-                                Rectangle {
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-                                    anchors.bottom: parent.bottom
-                                    height: 1
-                                    color: page.panelLineColor
-                                    visible: index === 0
-                                }
-
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 30
                                 Text {
-                                    x: 18
-                                    width: 32
-                                    height: parent.height
+                                    Layout.preferredWidth: 104
                                     text: modelData[0]
                                     color: page.mutedColor
-                                    font.pixelSize: 18
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-
-                                Text {
-                                    x: 56
-                                    width: parent.width - 96
-                                    height: parent.height
-                                    text: modelData[1]
-                                    color: page.mutedColor
-                                    font.pixelSize: 15
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-
-                                Text {
-                                    anchors.right: parent.right
-                                    anchors.rightMargin: 18
-                                    height: parent.height
-                                    text: "Р Р†Р вЂљРЎвЂќ"
-                                    color: page.textColor
-                                    font.pixelSize: 22
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-                            }
-                        }
-                    }
-
-                    Panel {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 132
-
-                        ColumnLayout {
-                            anchors.fill: parent
-                            anchors.margins: 14
-                            spacing: 10
-
-                            Text {
-                                text: "Contacts"
-                                color: page.textColor
-                                font.bold: true
-                                font.pixelSize: 16
-                            }
-
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 54
-                                radius: 6
-                                color: "#0b1b27"
-                                border.color: page.panelLineColor
-
-                                Rectangle {
-                                    x: 12
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 38
-                                    height: 38
-                                    radius: 19
-                                    color: "#d6a07a"
-
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: page.selectedCompanyInitials
-                                        color: "white"
-                                        font.pixelSize: 12
-                                        font.bold: true
-                                    }
-                                }
-
-                                Text {
-                                    x: 62
-                                    y: 10
-                                    text: page.selectedCompany
-                                    color: page.textColor
                                     font.pixelSize: 14
-                                    font.bold: true
                                 }
-
+                                StatusChip {
+                                    visible: modelData[2] === "status"
+                                    label: modelData[1]
+                                    accent: page.statusAccent(modelData[1])
+                                }
                                 Text {
-                                    x: 62
-                                    y: 30
-                                    text: page.selectedTitle
-                                    color: page.mutedColor
-                                    font.pixelSize: 12
+                                    Layout.fillWidth: true
+                                    visible: modelData[2] !== "status"
+                                    text: modelData[1]
+                                    color: modelData[2] === "link"
+                                        ? page.blueColor
+                                        : page.textColor
+                                    font.pixelSize: 14
+                                    elide: Text.ElideRight
                                 }
-
-                                Rectangle {
-                                    anchors.right: parent.right
-                                    anchors.rightMargin: 132
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 34
-                                    height: 34
-                                    radius: 5
-                                    color: "#0b1b27"
-                                    border.color: page.panelLineColor
-
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "Р Р†РЎС™РІР‚В°"
-                                        color: page.textColor
-                                        font.pixelSize: 15
-                                    }
-                                }
-
-                                Rectangle {
-                                    anchors.right: parent.right
-                                    anchors.rightMargin: 92
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 34
-                                    height: 34
-                                    radius: 5
-                                    color: "#0b1b27"
-                                    border.color: page.panelLineColor
-
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "in"
-                                        color: page.blueColor
-                                        font.pixelSize: 14
-                                        font.bold: true
-                                    }
-                                }
-
-                                Rectangle {
-                                    anchors.right: parent.right
-                                    anchors.rightMargin: 10
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 74
-                                    height: 34
-                                    radius: 5
-                                    color: "#0b1b27"
-                                    border.color: page.panelLineColor
-
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "Open Link"
-                                        color: page.textColor
-                                        font.pixelSize: 12
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Item { Layout.fillHeight: true }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 54
-                        spacing: 12
-
-                        Button {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 54
-                            text: "Р Р†РІР‚вЂњР в‚¬  Mark Next Step / Add Reminder"
-
-                            contentItem: Text {
-                                text: parent.text
-                                color: "white"
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                                font.pixelSize: 15
-                            }
-
-                            background: Rectangle {
-                                color: "#1479ee"
-                                border.color: "#1687ff"
-                                radius: 6
-                            }
-                        }
-
-                        Rectangle {
-                            Layout.preferredWidth: 58
-                            Layout.preferredHeight: 54
-                            radius: 6
-                            color: "#0b1b27"
-                            border.color: page.panelLineColor
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: "..."
-                                color: page.textColor
-                                font.pixelSize: 18
                             }
                         }
                     }
                 }
+
+                Panel {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 118
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 14
+                        spacing: 10
+                        Text {
+                            text: "Tech Stack"
+                            color: page.mutedColor
+                            font.pixelSize: 14
+                        }
+                        Flow {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            spacing: 8
+                            Repeater {
+                                model: page.previewTechStack
+                                delegate: TagChip {
+                                    required property string modelData
+                                    label: modelData
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Item { Layout.fillHeight: true }
             }
         }
+    }
 }

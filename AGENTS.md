@@ -47,7 +47,6 @@ Use project skills from `.agents/skills/` for repeatable workflows:
 - `.agents/skills/qt-qml-ui-task/SKILL.md`.
 - `.agents/skills/qml-code-research/SKILL.md`.
 - `.agents/skills/qml-code-review/SKILL.md`.
-- `.agents/skills/qml-codebase-research/SKILL.md`.
 - `.agents/skills/qml-to-cpp-extraction/SKILL.md`.
 - `.agents/skills/cpp-backend-task/SKILL.md`.
 - `.agents/skills/test-and-review/SKILL.md`.
@@ -136,6 +135,9 @@ Avoid god classes, god files, and monolithic QML files. Decompose the codebase i
 
 ## C++ / Qt Rules
 
+- Consolidate C++ functions, classes, and methods that duplicate the same logic, responsibility, and invariants into one canonical function, class, or method. Use overloads, inheritance (without virtuals), templates, and template specializations when they are necessary and technically appropriate to expose the canonical implementation without duplicating it.
+- Use existing C++ classes, functions, and methods when solving a problem. Reuse a fully suitable entity directly. If an entity is only partially suitable, extend it through an overload, template, or specialization when appropriate. Create a new entity only when the existing entities are not suitable for the responsibility.
+- Follow established modern C++ best practices for correctness, type safety, ownership, lifetime and resource management, exception safety, clarity, maintainability, portability, and testability.
 - Use modern C++20 where supported by the current compiler and where it does not reduce portability.
 - Use `#ifndef` / `#define` include guards instead of `#pragma once` in C++ headers.
 - Use the `.hpp` extension for all C++ header files.

@@ -3,6 +3,7 @@
 
 #include "JobApplication.hpp"
 
+#include <optional>
 #include <QVector>
 
 class QSqlDatabase;
@@ -16,7 +17,10 @@ public:
     explicit JobRepository(QSqlDatabase& database);
 
     QVector<JobApplication> findAll() const;
+    std::optional<JobApplication> findById(const QString& applicationId) const;
     void insert(const JobApplication& application) const;
+    bool update(const JobApplication& application) const;
+    bool remove(const QString& applicationId) const;
 
 private:
     QSqlDatabase& database_;

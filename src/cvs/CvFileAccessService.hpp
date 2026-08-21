@@ -1,6 +1,8 @@
 #ifndef JOBTRACKER_SRC_CVS_CVFILEACCESSSERVICE_HPP
 #define JOBTRACKER_SRC_CVS_CVFILEACCESSSERVICE_HPP
 
+#include "CvManagedPathResolver.hpp"
+
 #include <QString>
 
 struct CvDocument;
@@ -21,7 +23,7 @@ public:
     CvFileAccessResult openDocument(const CvDocument& document) const;
 
 private:
-    const StoragePaths& paths_;
+    CvManagedPathResolver pathResolver_;
 };
 
 #endif // JOBTRACKER_SRC_CVS_CVFILEACCESSSERVICE_HPP

@@ -46,6 +46,24 @@ namespace {
 
 		return application;
 	}
+
+	void insertTechnologies(QSqlDatabase& database, const JobApplication& application)
+	{
+		for (int position = 0; position < application.techStack_.size(); ++position) {
+			QSqlQuery technologyQuery{database};
+			technologyQuery.prepare(QStringLiteral(
+				"INSERT INTO job_technologies (job_id, position, technology) VALUES (?, ?, ?)"));
+			technologyQuery.addBindValue(application.id_);
+			technologyQuery.addBindValue(position);
+			technologyQuery.addBindValue(application.techStack_.at(position));
+
+			if (!technologyQuery.exec()) {
+				storage::sql::throwQueryError(
+					technologyQuery,
+					QStringLiteral("insert a job application technology"));
+			}
+		}
+	}
 }
 
 JobRepository::JobRepository(QSqlDatabase& database)
@@ -107,6 +125,39 @@ QVector<JobApplication> JobRepository::findAll() const
 	return applications;
 }
 
+std::optional<JobApplication> JobRepository::findById(const QString& applicationId) const
+{
+	QSqlQuery jobQuery{database_};
+	jobQuery.prepare(QStringLiteral(
+		"SELECT jobs.*, companies.display_name AS company_name, cvs.original_file_name "
+		"FROM jobs "
+		"JOIN companies ON companies.id = jobs.company_id "
+		"JOIN cvs ON cvs.id = jobs.cv_id "
+		"WHERE jobs.id = ?"));
+	jobQuery.addBindValue(applicationId);
+	if (!jobQuery.exec()) {
+		storage::sql::throwQueryError(jobQuery, QStringLiteral("load a job application"));
+	}
+	if (!jobQuery.next()) {
+		return std::nullopt;
+	}
+
+	auto application = convertToJobApplication(jobQuery);
+	QSqlQuery technologiesQuery{database_};
+	technologiesQuery.prepare(QStringLiteral(
+		"SELECT technology FROM job_technologies WHERE job_id = ? ORDER BY position"));
+	technologiesQuery.addBindValue(applicationId);
+	if (!technologiesQuery.exec()) {
+		storage::sql::throwQueryError(
+			technologiesQuery,
+			QStringLiteral("load job application technologies"));
+	}
+	while (technologiesQuery.next()) {
+		application.techStack_.append(technologiesQuery.value(0).toString());
+	}
+	return application;
+}
+
 void JobRepository::insert(const JobApplication& application) const
 {
 	QSqlQuery query(database_);
@@ -134,18 +185,58 @@ void JobRepository::insert(const JobApplication& application) const
 	if (!query.exec())
 		storage::sql::throwQueryError(query, QStringLiteral("insert a job application"));
 
-	for (int position = 0; position < application.techStack_.size(); ++position) {
-		QSqlQuery technologyQuery(database_);
-		technologyQuery.prepare(QStringLiteral(
-			"INSERT INTO job_technologies (job_id, position, technology) VALUES (?, ?, ?)"));
-		technologyQuery.addBindValue(application.id_);
-		technologyQuery.addBindValue(position);
-		technologyQuery.addBindValue(application.techStack_.at(position));
+	insertTechnologies(database_, application);
+}
 
-		if (!technologyQuery.exec())
-			storage::sql::throwQueryError(
-				technologyQuery,
-				QStringLiteral("insert a job application technology"));
-
+bool JobRepository::update(const JobApplication& application) const
+{
+	QSqlQuery query{database_};
+	query.prepare(QStringLiteral(
+		"UPDATE jobs SET company_id = ?, job_title = ?, job_url = ?, work_format = ?,"
+		" city = ?, salary = ?, status = ?, applied_date = ?, next_step = ?, cv_id = ?,"
+		" description = ?, requirements = ?, notes = ?, updated_at = ? WHERE id = ?"));
+	query.addBindValue(application.companyId_);
+	query.addBindValue(application.jobTitle_);
+	query.addBindValue(sqlText(application.jobUrl_.toString()));
+	query.addBindValue(sqlText(workFormatToString(application.workFormat_)));
+	query.addBindValue(sqlText(application.city_));
+	query.addBindValue(sqlText(application.salary_));
+	query.addBindValue(jobStatusToString(application.status_));
+	query.addBindValue(application.appliedDate_.toString(Qt::ISODate));
+	query.addBindValue(sqlText(application.nextStep_));
+	query.addBindValue(application.cvId_);
+	query.addBindValue(sqlText(application.description_));
+	query.addBindValue(sqlText(application.requirements_));
+	query.addBindValue(sqlText(application.notes_));
+	query.addBindValue(application.updatedAt_.toUTC().toString(Qt::ISODateWithMs));
+	query.addBindValue(application.id_);
+	if (!query.exec()) {
+		storage::sql::throwQueryError(query, QStringLiteral("update a job application"));
 	}
+	if (query.numRowsAffected() != 1) {
+		return false;
+	}
+
+	QSqlQuery deleteTechnologies{database_};
+	deleteTechnologies.prepare(QStringLiteral(
+		"DELETE FROM job_technologies WHERE job_id = ?"));
+	deleteTechnologies.addBindValue(application.id_);
+	if (!deleteTechnologies.exec()) {
+		storage::sql::throwQueryError(
+			deleteTechnologies,
+			QStringLiteral("replace job application technologies"));
+	}
+	insertTechnologies(database_, application);
+	return true;
+}
+
+bool JobRepository::remove(const QString& applicationId) const
+{
+	QSqlQuery query{database_};
+	query.prepare(QStringLiteral("DELETE FROM jobs WHERE id = ?"));
+	query.addBindValue(applicationId);
+	if (!query.exec()) {
+		storage::sql::throwQueryError(query, QStringLiteral("delete a job application"));
+	}
+	return query.numRowsAffected() == 1;
 }

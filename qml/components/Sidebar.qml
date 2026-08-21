@@ -9,6 +9,7 @@ Rectangle {
     border.width: 1
 
     property int currentIndex: 0
+    property bool actionsEnabled: true
     signal navigate(int index)
     signal addJob()
     signal addCv()
@@ -96,9 +97,10 @@ Rectangle {
             Layout.fillWidth: true
  Layout.preferredHeight: 48
             text: "+   Add Job"
+            enabled: sidebar.actionsEnabled
             onClicked: sidebar.addJob()
             contentItem: Text { text: parent.text
- color: "#69a9ff"
+ color: parent.enabled ? "#69a9ff" : "#687784"
  font.pixelSize: 16
  horizontalAlignment: Text.AlignHCenter
  verticalAlignment: Text.AlignVCenter }
@@ -110,9 +112,10 @@ Rectangle {
             Layout.fillWidth: true
  Layout.preferredHeight: 43
  text: "+   Add CV"
+            enabled: sidebar.actionsEnabled
             onClicked: sidebar.addCv()
             contentItem: Text { text: parent.text
- color: "#30cde1"
+ color: parent.enabled ? "#30cde1" : "#687784"
  font.pixelSize: 15
  horizontalAlignment: Text.AlignHCenter
  verticalAlignment: Text.AlignVCenter }

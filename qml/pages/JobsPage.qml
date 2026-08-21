@@ -7,8 +7,14 @@ Item {
     id: page
 
     signal addJobRequested()
+    signal protectedActionRequested(string kind, var payload)
 
     property bool descriptionMode: false
+
+    readonly property bool hasUnsavedJobChanges: descriptionPane.editMode
+        && descriptionPane.hasUnsavedChanges
+    readonly property bool jobUpdateInProgress: descriptionPane.saveInProgress
+    readonly property bool jobDescriptionEditMode: descriptionPane.editMode
 
     readonly property var selectedApplication: jobApplicationsController.selectedApplication
 
@@ -23,13 +29,13 @@ Item {
     readonly property int tableFooterHeight: 68
 
     readonly property var columns: [
-        { "title": "Company", "x": 18, "width": 160 },
-        { "title": "CV Used", "x": 178, "width": 145 },
-        { "title": "Date", "x": 320, "width": 118 },
-        { "title": "Job Title", "x": 452, "width": 175 },
-        { "title": "Status", "x": 635, "width": 118 },
-        { "title": "Applied", "x": 756, "width": 112 },
-        { "title": "Next Step", "x": 876, "width": 140 }
+        { "title": "Company", "x": 52, "width": 145 },
+        { "title": "CV Used", "x": 197, "width": 132 },
+        { "title": "Date", "x": 329, "width": 105 },
+        { "title": "Job Title", "x": 442, "width": 160 },
+        { "title": "Status", "x": 610, "width": 105 },
+        { "title": "Applied", "x": 723, "width": 100 },
+        { "title": "Next Step", "x": 831, "width": 130 }
     ]
 
     readonly property var previewDetails: [
@@ -40,6 +46,23 @@ Item {
         ["AD", "Applied", page.selectedApplication.appliedDate],
         ["NS", "Next Step", page.selectedApplication.nextStep]
     ]
+
+    function savePendingJobChanges() {
+        descriptionPane.submitUpdate()
+    }
+
+    function discardPendingJobChanges() {
+        descriptionPane.discardEdits()
+    }
+
+    function exitCleanJobEditMode() {
+        descriptionPane.exitCleanEditMode()
+    }
+
+    function showApplications() {
+        descriptionPane.exitCleanEditMode()
+        page.descriptionMode = false
+    }
 
     JobsApplicationsPane {
         anchors.fill: parent
@@ -65,14 +88,23 @@ Item {
         previewCompanyAccent: page.selectedApplication.companyAccent
         previewNotes: page.selectedApplication.notes
         previewStatusAccent: page.selectedApplication.statusAccent
+        checkedApplicationIds: jobApplicationsController.checkedApplicationIds
+        allVisibleApplicationsChecked: jobApplicationsController.allVisibleApplicationsChecked
+        someVisibleApplicationsChecked: jobApplicationsController.someVisibleApplicationsChecked
+        deleteEnabled: jobApplicationsController.canDeleteApplications
+        deletionBusy: jobApplicationsController.deletingApplications
         onRowSelected: row => jobApplicationsController.selectApplication(row)
         onSearchRequested: text => jobApplicationsController.setSearchText(text)
         onStatusFilterRequested: status => jobApplicationsController.setStatusFilter(status)
         onApplicationsRequested: page.descriptionMode = false
         onDescriptionRequested: page.descriptionMode = true
+        onRowCheckToggled: row => jobApplicationsController.toggleApplicationChecked(row)
+        onAllVisibleCheckedRequested: checked => jobApplicationsController.setAllVisibleApplicationsChecked(checked)
+        onDeleteRequested: deleteConfirmation.open()
     }
 
     JobDescriptionPane {
+        id: descriptionPane
         anchors.fill: parent
         visible: page.descriptionMode
         textColor: page.textColor
@@ -80,6 +112,17 @@ Item {
         panelLineColor: page.panelLineColor
         blueColor: page.blueColor
         selectedApplication: page.selectedApplication
-        onApplicationsRequested: page.descriptionMode = false
+        onApplicationsRequested: page.protectedActionRequested(
+            "showJobApplications", ({}))
+    }
+
+    DestructiveConfirmationDialog {
+        id: deleteConfirmation
+        anchors.centerIn: parent
+        title: "Delete job applications"
+        confirmText: "Delete Selected"
+        message: "Delete " + jobApplicationsController.checkedApplicationCount
+            + " selected job application(s)? Their CVs will remain in the CV Library."
+        onConfirmed: jobApplicationsController.deleteCheckedApplications()
     }
 }

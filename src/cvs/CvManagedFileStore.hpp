@@ -2,6 +2,7 @@
 #define JOBTRACKER_SRC_CVS_CVMANAGEDFILESTORE_HPP
 
 #include "CvDocument.hpp"
+#include "CvManagedPathResolver.hpp"
 #include "common/CancellationState.hpp"
 
 #include <QString>
@@ -45,7 +46,30 @@ struct CvManagedFilePreparationResult final
 struct CvManagedFileRecoveryReport final
 {
     int removedStagedFileCount_ = 0;
+    int removedDeletionFileCount_ = 0;
+    int restoredDeletionFileCount_ = 0;
     QStringList quarantinedFileNames_;
+};
+
+struct CvManagedFileRemovalPreparation final
+{
+    CvManagedFileRemovalPreparation() = default;
+    CvManagedFileRemovalPreparation(const CvManagedFileRemovalPreparation&) = delete;
+    CvManagedFileRemovalPreparation& operator=(const CvManagedFileRemovalPreparation&) = delete;
+    ~CvManagedFileRemovalPreparation();
+
+    QString originalFilePath_;
+    QString tombstoneFilePath_;
+    bool databaseCommitted_ = false;
+};
+
+struct CvManagedFileRemovalPreparationResult final
+{
+    std::shared_ptr<CvManagedFileRemovalPreparation> preparation_;
+    QString message_;
+    bool fileWasMissing_ = false;
+
+    bool succeeded() const;
 };
 
 // Manages CV files on disk and directly performs filesystem operations.
@@ -60,12 +84,15 @@ public:
         const std::shared_ptr<CancellationState>& cancellation) const;
     QString finalize(CvManagedFilePreparation& preparation) const;
     bool removeCompletedFile(const QString& completedFilePath) const;
+    CvManagedFileRemovalPreparationResult prepareRemoval(const CvDocument& document) const;
+    bool finalizeRemoval(CvManagedFileRemovalPreparation& preparation) const;
     CvManagedFileRecoveryReport reconcile(const QVector<CvDocument>& documents) const;
 
     QString quarantineDirectory() const;
 
 private:
     const StoragePaths& paths_;
+    CvManagedPathResolver pathResolver_;
 };
 
 #endif // JOBTRACKER_SRC_CVS_CVMANAGEDFILESTORE_HPP

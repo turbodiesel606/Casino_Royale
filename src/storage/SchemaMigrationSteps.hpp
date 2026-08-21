@@ -5,9 +5,10 @@ class QSqlDatabase;
 
 namespace storage::migrations {
 
-void initializeVersionThree(QSqlDatabase& database);
+void initializeVersionFour(QSqlDatabase& database);
 void migrateVersionOneToTwo(QSqlDatabase& database);
 void migrateVersionTwoToThree(QSqlDatabase& database);
+void migrateVersionThreeToFour(QSqlDatabase& database);
 
 }
 

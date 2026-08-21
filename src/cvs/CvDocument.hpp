@@ -21,6 +21,7 @@ struct CvDocument
     bool isFavorite_ = false;
     QDateTime createdAt_;
     QDateTime updatedAt_;
+    QDateTime archivedAt_;
 };
 
 #endif // JOBTRACKER_SRC_CVS_CVDOCUMENT_HPP

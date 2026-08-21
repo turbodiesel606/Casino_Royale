@@ -16,6 +16,11 @@ public:
         const NormalizedJobApplicationDraft& draft,
         const Company& company,
         const CvDocument& cvDocument);
+    static JobApplication update(
+        const JobApplication& existing,
+        const NormalizedJobApplicationDraft& draft,
+        const Company& company,
+        const CvDocument* replacementCv = nullptr);
 };
 
 #endif // JOBTRACKER_SRC_JOBS_JOBAPPLICATIONFACTORY_HPP

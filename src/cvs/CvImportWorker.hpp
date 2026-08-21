@@ -2,6 +2,7 @@
 #define JOBTRACKER_SRC_CVS_CVIMPORTWORKER_HPP
 
 #include "CvDocument.hpp"
+#include "CvImportService.hpp"
 #include "common/CancellationState.hpp"
 
 #include <QMetaType>
@@ -29,7 +30,7 @@ struct CvImportSaveOutcome final
     CvDocument document_;
     QString message_;
     bool success_ = false;
-    bool wasInserted_ = false;
+    CvImportDisposition disposition_ = CvImportDisposition::ExistingActive;
 };
 
 Q_DECLARE_METATYPE(CvImportSaveOutcome)

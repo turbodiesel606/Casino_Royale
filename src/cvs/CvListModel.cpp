@@ -58,6 +58,10 @@ QVariant roleValue(const CvDocument& cv, int role)
         return cv.createdAt_;
     case CvListModel::UpdatedAtRole:
         return cv.updatedAt_;
+    case CvListModel::IsArchivedRole:
+        return cv.archivedAt_.isValid();
+    case CvListModel::ArchivedAtRole:
+        return cv.archivedAt_;
     default:
         return {};
     }
@@ -107,6 +111,8 @@ QHash<int, QByteArray> CvListModel::roleNames() const
         {IsFavoriteRole, "isFavorite"},
         {CreatedAtRole, "createdAt"},
         {UpdatedAtRole, "updatedAt"},
+        {IsArchivedRole, "isArchived"},
+        {ArchivedAtRole, "archivedAt"},
     };
 }
 
@@ -144,6 +150,48 @@ bool CvListModel::addLinkedApplication(const QString& cvId, const QString& appli
     return false;
 }
 
+bool CvListModel::removeLinkedApplication(
+    const QString& cvId,
+    const QString& applicationId)
+{
+    for (int row = 0; row < cvs_.size(); ++row) {
+        auto& document = cvs_[row];
+        if (document.id_ != cvId
+            || document.linkedApplicationIds_.removeAll(applicationId) <= 0) {
+            continue;
+        }
+
+        const auto modelIndex = index(row, 0);
+        emit dataChanged(
+            modelIndex,
+            modelIndex,
+            {LinkedApplicationCountRole, LinkedApplicationCountLabelRole});
+        return true;
+    }
+    return false;
+}
+
+void CvListModel::removeLinkedApplications(const QStringList& applicationIds)
+{
+    if (applicationIds.isEmpty()) {
+        return;
+    }
+    for (int row = 0; row < cvs_.size(); ++row) {
+        auto& document = cvs_[row];
+        bool changed = false;
+        for (const auto& applicationId : applicationIds) {
+            changed = document.linkedApplicationIds_.removeAll(applicationId) > 0 || changed;
+        }
+        if (changed) {
+            const auto modelIndex = index(row, 0);
+            emit dataChanged(
+                modelIndex,
+                modelIndex,
+                {LinkedApplicationCountRole, LinkedApplicationCountLabelRole});
+        }
+    }
+}
+
 bool CvListModel::setFavorite(
     const QString& cvId,
     bool isFavorite,
@@ -162,4 +210,39 @@ bool CvListModel::setFavorite(
         }
     }
     return false;
+}
+
+bool CvListModel::setArchiveState(
+    const QString& cvId,
+    const QDateTime& archivedAt,
+    const QDateTime& updatedAt)
+{
+    for (int row = 0; row < cvs_.size(); ++row) {
+        if (cvs_[row].id_ == cvId) {
+            cvs_[row].archivedAt_ = archivedAt;
+            cvs_[row].updatedAt_ = updatedAt;
+            const auto modelIndex = index(row, 0);
+            emit dataChanged(
+                modelIndex,
+                modelIndex,
+                {IsArchivedRole, ArchivedAtRole, LastModifiedLabelRole, UpdatedAtRole});
+            return true;
+        }
+    }
+    return false;
+}
+
+int CvListModel::removeDocuments(const QStringList& cvIds)
+{
+    int removed = 0;
+    for (int row = cvs_.size() - 1; row >= 0; --row) {
+        if (!cvIds.contains(cvs_.at(row).id_)) {
+            continue;
+        }
+        beginRemoveRows({}, row, row);
+        cvs_.removeAt(row);
+        endRemoveRows();
+        ++removed;
+    }
+    return removed;
 }

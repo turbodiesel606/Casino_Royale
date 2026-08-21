@@ -3,7 +3,9 @@
 
 #include "common/RoleFilterProxyModel.hpp"
 #include "common/RelationFilterProxyModel.hpp"
+#include "common/BulkIdSelectionTracker.hpp"
 #include "common/StableIdSelectionTracker.hpp"
+#include "CvImportService.hpp"
 #include "CvListModel.hpp"
 
 #include <QObject>
@@ -20,9 +22,13 @@ class QAbstractItemModel;
 class CvFileAccessService;
 class CvImportWorker;
 class CvRepository;
+class DataRemovalWorker;
+class StorageMutationGate;
 class CancellationState;
 class JobApplicationListModel;
 struct CvImportSaveOutcome;
+struct DataRemovalBatchOutcome;
+enum class DataRemovalKind;
 
 // Exposes CV Library presentation state and owns the GUI-thread FIFO that
 // publishes standalone import outcomes into the shared CV model.
@@ -43,8 +49,25 @@ class CvLibraryController final : public QObject
     Q_PROPERTY(QString resultSummary READ resultSummary NOTIFY resultSummaryChanged)
     Q_PROPERTY(bool importing READ importing NOTIFY importingChanged)
     Q_PROPERTY(int pendingImportCount READ pendingImportCount NOTIFY pendingImportCountChanged)
+    Q_PROPERTY(LibraryView libraryView READ libraryView WRITE setLibraryView NOTIFY libraryViewChanged)
+    Q_PROPERTY(QStringList checkedCvIds READ checkedCvIds NOTIFY checkedCvsChanged)
+    Q_PROPERTY(int checkedCvCount READ checkedCvCount NOTIFY checkedCvsChanged)
+    Q_PROPERTY(int checkedLinkedCvCount READ checkedLinkedCvCount NOTIFY checkedCvsChanged)
+    Q_PROPERTY(int checkedUnlinkedCvCount READ checkedUnlinkedCvCount NOTIFY checkedCvsChanged)
+    Q_PROPERTY(bool allVisibleCvsChecked READ allVisibleCvsChecked NOTIFY checkedCvsChanged)
+    Q_PROPERTY(bool someVisibleCvsChecked READ someVisibleCvsChecked NOTIFY checkedCvsChanged)
+    Q_PROPERTY(bool mutatingCvs READ mutatingCvs NOTIFY mutatingCvsChanged)
+    Q_PROPERTY(int pendingDeletionCount READ pendingDeletionCount NOTIFY pendingDeletionCountChanged)
+    Q_PROPERTY(bool canMutateCheckedCvs READ canMutateCheckedCvs NOTIFY mutationAvailabilityChanged)
 
 public:
+    enum class LibraryView
+    {
+        Active,
+        Archived
+    };
+    Q_ENUM(LibraryView)
+
     CvLibraryController(
         const JobApplicationListModel& applicationsModel,
         CvRepository& repository,
@@ -57,6 +80,15 @@ public:
         CvRepository& repository,
         CvFileAccessService& fileAccessService,
         CvImportWorker& importWorker,
+        QObject* parent = nullptr);
+    CvLibraryController(
+        const JobApplicationListModel& applicationsModel,
+        QVector<CvDocument> documents,
+        CvRepository& repository,
+        CvFileAccessService& fileAccessService,
+        CvImportWorker& importWorker,
+        DataRemovalWorker& removalWorker,
+        StorageMutationGate& mutationGate,
         QObject* parent = nullptr);
     ~CvLibraryController() override;
 
@@ -76,6 +108,16 @@ public:
     QString resultSummary() const;
     bool importing() const;
     int pendingImportCount() const;
+    LibraryView libraryView() const;
+    QStringList checkedCvIds() const;
+    int checkedCvCount() const;
+    int checkedLinkedCvCount() const;
+    int checkedUnlinkedCvCount() const;
+    bool allVisibleCvsChecked() const;
+    bool someVisibleCvsChecked() const;
+    bool mutatingCvs() const;
+    int pendingDeletionCount() const;
+    bool canMutateCheckedCvs() const;
 
     Q_INVOKABLE void selectCv(int index);
     Q_INVOKABLE void setSearchText(const QString& text);
@@ -87,7 +129,24 @@ public:
     Q_INVOKABLE void openCv(const QString& cvId);
     Q_INVOKABLE void addCvs(const QList<QUrl>& sourceUrls);
     Q_INVOKABLE void cancelAllCvImports();
-    void recordCvUse(const CvDocument& document, const QString& applicationId, bool wasInserted);
+    Q_INVOKABLE void setLibraryView(LibraryView view);
+    Q_INVOKABLE void toggleCvChecked(int index);
+    Q_INVOKABLE void setAllVisibleCvsChecked(bool checked);
+    Q_INVOKABLE void clearCheckedCvs();
+    Q_INVOKABLE void removeCheckedCvs();
+    Q_INVOKABLE void restoreCheckedCvs();
+    Q_INVOKABLE void permanentlyDeleteCheckedCvs();
+    Q_INVOKABLE void cancelCvMutation();
+    void recordCvUse(
+        const CvDocument& document,
+        const QString& applicationId,
+        CvImportDisposition disposition);
+    void recordCvReplacement(
+        const QString& previousCvId,
+        const CvDocument& document,
+        const QString& applicationId,
+        CvImportDisposition disposition);
+    void recordApplicationsDeleted(const QStringList& applicationIds);
 
 signals:
     void categorySummaryChanged();
@@ -102,11 +161,24 @@ signals:
     void resultSummaryChanged();
     void importingChanged();
     void pendingImportCountChanged();
+    void libraryViewChanged();
+    void checkedCvsChanged();
+    void mutatingCvsChanged();
+    void pendingDeletionCountChanged();
+    void mutationAvailabilityChanged();
     void cvImportCompleted(
         quint64 operationId,
         const QString& fileName,
         bool success,
-        bool wasInserted,
+        const QString& disposition,
+        const QString& message);
+    void cvMutationCompleted(
+        int deletedCount,
+        int archivedCount,
+        int restoredCount,
+        int skippedCount,
+        int failedCount,
+        bool cancelled,
         const QString& message);
     void importQueueDrained();
     void operationFailed(QString message);
@@ -132,25 +204,36 @@ private:
         quint64 operationId,
         const std::shared_ptr<CancellationState>& cancellation) const;
     void releaseActiveCvImport();
+    void submitCvMutation(DataRemovalKind kind);
+    void handleRemovalCompleted(const DataRemovalBatchOutcome& outcome);
+    void releaseCvMutation();
 
 private:
     CvRepository& repository_;
     CvFileAccessService& fileAccessService_;
     CvImportWorker& importWorker_;
+    DataRemovalWorker* removalWorker_ = nullptr;
+    StorageMutationGate* mutationGate_ = nullptr;
     CvListModel cvModel_;
     RoleFilterProxyModel filteredCvModel_;
     RelationFilterProxyModel linkedApplicationsModel_;
     StableIdSelectionTracker selectionTracker_;
+    BulkIdSelectionTracker bulkSelectionTracker_;
     QString searchText_;
     QString categoryFilter_;
     QString languageFilter_;
     QString sortMode_ = QStringLiteral("Last Modified");
+    LibraryView libraryView_ = LibraryView::Active;
     int publishedCvCount_ = 0;
     bool visibleCountNotificationsSuppressed_ = false;
     std::deque<QueuedCvImport> importQueue_;
     std::optional<QueuedCvImport> activeImport_;
     std::shared_ptr<CancellationState> activeImportCancellation_;
     quint64 nextImportOperationId_ = 0;
+    std::shared_ptr<CancellationState> activeMutationCancellation_;
+    quint64 activeMutationOperationId_ = 0;
+    quint64 nextMutationOperationId_ = 0;
+    std::optional<DataRemovalKind> activeMutationKind_;
     bool suppressActiveImportNotification_ = false;
     bool shuttingDown_ = false;
 };

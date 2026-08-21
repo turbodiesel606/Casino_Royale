@@ -8,9 +8,10 @@
 #include "cvs/CvRepository.hpp"
 #include "directory/CompanyRepository.hpp"
 #include "jobs/AddJobService.hpp"
-#include "jobs/AddJobWorker.hpp"
+#include "jobs/JobSaveWorker.hpp"
 #include "jobs/JobApplicationDraft.hpp"
 #include "jobs/JobRepository.hpp"
+#include "jobs/UpdateJobService.hpp"
 
 namespace testsupport {
 
@@ -58,6 +59,11 @@ public:
               jobRepository_,
               companyRepository_,
               importer_}
+        , updateService_{
+              database_.connection(),
+              jobRepository_,
+              companyRepository_,
+              importer_}
     {
     }
 
@@ -74,6 +80,7 @@ public:
     CvManagedFileStore fileStore_;
     CvImportService importer_;
     AddJobService service_;
+    UpdateJobService updateService_;
 };
 
 class AddJobWorkerTestFixture final
@@ -84,6 +91,13 @@ public:
         , cvRepository_{database_.connection()}
         , companyRepository_{database_.connection()}
         , jobRepository_{database_.connection()}
+        , fileStore_{storage_.paths()}
+        , importer_{fileStore_, cvRepository_}
+        , service_{
+              database_.connection(),
+              jobRepository_,
+              companyRepository_,
+              importer_}
         , worker_{storage_.paths().dataDirectory()}
     {
     }
@@ -98,7 +112,10 @@ public:
     CvRepository cvRepository_;
     CompanyRepository companyRepository_;
     JobRepository jobRepository_;
-    AddJobWorker worker_;
+    CvManagedFileStore fileStore_;
+    CvImportService importer_;
+    AddJobService service_;
+    JobSaveWorker worker_;
 };
 
 } // namespace testsupport

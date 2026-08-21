@@ -24,6 +24,8 @@ private slots:
     void cancelsPreparationAndCleansStage();
     void reconcilesStaleStagesAndQuarantinesOrphans();
     void reusesCvWithSameIdentity();
+    void restoresArchivedExactDuplicateForStandaloneImport();
+    void reusesArchivedExactDuplicateWithoutRestoringForJobImport();
     void distinguishesSameContentWithDifferentNames();
     void distinguishesCaseOnlyFileNames();
     void distinguishesDifferentContentWithSameName();
@@ -136,9 +138,68 @@ void CvFileStoreImportTest::reusesCvWithSameIdentity()
     const auto second = importer.importPreparedDocument(secondPreparation.preparation_);
     secondPreparation.preparation_.reset();
 
-    QVERIFY(first.wasInserted_);
-    QVERIFY(!second.wasInserted_);
+    QCOMPARE(first.disposition_, CvImportDisposition::Inserted);
+    QCOMPARE(second.disposition_, CvImportDisposition::ExistingActive);
     QCOMPARE(first.document_.id_, second.document_.id_);
+    QCOMPARE(repository.findAll().size(), 1);
+    QCOMPARE(QDir{fixture.storage().paths().resumesDirectory()}.entryList(QDir::Files).size(), 1);
+}
+
+void CvFileStoreImportTest::restoresArchivedExactDuplicateForStandaloneImport()
+{
+    testsupport::TemporaryDatabaseFixture fixture;
+    QVERIFY(fixture.isValid());
+    CvRepository repository{fixture.database().connection()};
+    CvManagedFileStore fileStore{fixture.storage().paths()};
+    CvImportService importer{fileStore, repository};
+    const auto sourcePath = fixture.storage().createFile(QStringLiteral("restore.pdf"));
+    const auto cancellation = std::make_shared<CancellationState>();
+
+    auto preparation = importer.prepareDocument(QUrl::fromLocalFile(sourcePath), cancellation);
+    QVERIFY(preparation.succeeded());
+    const auto inserted = importer.importPreparedDocument(preparation.preparation_);
+    QCOMPARE(inserted.disposition_, CvImportDisposition::Inserted);
+    QVERIFY(repository.updateArchived(inserted.document_.id_, true).has_value());
+
+    preparation = importer.prepareDocument(QUrl::fromLocalFile(sourcePath), cancellation);
+    QVERIFY(preparation.succeeded());
+    const auto restored = importer.importPreparedDocument(
+        preparation.preparation_,
+        CvArchivedDuplicatePolicy::RestoreArchived);
+    preparation.preparation_.reset();
+
+    QCOMPARE(restored.disposition_, CvImportDisposition::RestoredArchived);
+    QCOMPARE(restored.document_.id_, inserted.document_.id_);
+    QVERIFY(!repository.findById(inserted.document_.id_)->archivedAt_.isValid());
+    QCOMPARE(repository.findAll().size(), 1);
+    QCOMPARE(QDir{fixture.storage().paths().resumesDirectory()}.entryList(QDir::Files).size(), 1);
+}
+
+void CvFileStoreImportTest::reusesArchivedExactDuplicateWithoutRestoringForJobImport()
+{
+    testsupport::TemporaryDatabaseFixture fixture;
+    QVERIFY(fixture.isValid());
+    CvRepository repository{fixture.database().connection()};
+    CvManagedFileStore fileStore{fixture.storage().paths()};
+    CvImportService importer{fileStore, repository};
+    const auto sourcePath = fixture.storage().createFile(QStringLiteral("reuse.pdf"));
+    const auto cancellation = std::make_shared<CancellationState>();
+
+    auto preparation = importer.prepareDocument(QUrl::fromLocalFile(sourcePath), cancellation);
+    QVERIFY(preparation.succeeded());
+    const auto inserted = importer.importPreparedDocument(preparation.preparation_);
+    QVERIFY(repository.updateArchived(inserted.document_.id_, true).has_value());
+
+    preparation = importer.prepareDocument(QUrl::fromLocalFile(sourcePath), cancellation);
+    QVERIFY(preparation.succeeded());
+    const auto reused = importer.importPreparedDocument(
+        preparation.preparation_,
+        CvArchivedDuplicatePolicy::PreserveArchived);
+    preparation.preparation_.reset();
+
+    QCOMPARE(reused.disposition_, CvImportDisposition::ReusedArchived);
+    QCOMPARE(reused.document_.id_, inserted.document_.id_);
+    QVERIFY(repository.findById(inserted.document_.id_)->archivedAt_.isValid());
     QCOMPARE(repository.findAll().size(), 1);
     QCOMPARE(QDir{fixture.storage().paths().resumesDirectory()}.entryList(QDir::Files).size(), 1);
 }
@@ -161,8 +222,8 @@ void CvFileStoreImportTest::distinguishesSameContentWithDifferentNames()
     const auto first = importer.importPreparedDocument(firstPreparation.preparation_);
     const auto second = importer.importPreparedDocument(secondPreparation.preparation_);
 
-    QVERIFY(first.wasInserted_);
-    QVERIFY(second.wasInserted_);
+    QCOMPARE(first.disposition_, CvImportDisposition::Inserted);
+    QCOMPARE(second.disposition_, CvImportDisposition::Inserted);
     QVERIFY(first.document_.id_ != second.document_.id_);
     QCOMPARE(repository.findAll().size(), 2);
 }
@@ -202,8 +263,8 @@ void CvFileStoreImportTest::distinguishesCaseOnlyFileNames()
     const auto upper = importer.importPreparedDocument(upperPreparation.preparation_);
     const auto lower = importer.importPreparedDocument(lowerPreparation.preparation_);
 
-    QVERIFY(upper.wasInserted_);
-    QVERIFY(lower.wasInserted_);
+    QCOMPARE(upper.disposition_, CvImportDisposition::Inserted);
+    QCOMPARE(lower.disposition_, CvImportDisposition::Inserted);
     QVERIFY(upper.document_.id_ != lower.document_.id_);
     QCOMPARE(repository.findAll().size(), 2);
 }
@@ -236,8 +297,8 @@ void CvFileStoreImportTest::distinguishesDifferentContentWithSameName()
     const auto first = importer.importPreparedDocument(firstPreparation.preparation_);
     const auto second = importer.importPreparedDocument(secondPreparation.preparation_);
 
-    QVERIFY(first.wasInserted_);
-    QVERIFY(second.wasInserted_);
+    QCOMPARE(first.disposition_, CvImportDisposition::Inserted);
+    QCOMPARE(second.disposition_, CvImportDisposition::Inserted);
     QVERIFY(first.document_.id_ != second.document_.id_);
     QCOMPARE(repository.findAll().size(), 2);
 }

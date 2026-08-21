@@ -1,4 +1,5 @@
 #include "common/RoleFilterProxyModel.hpp"
+#include "common/BulkIdSelectionTracker.hpp"
 #include "common/StableIdSelectionTracker.hpp"
 
 #include "../support/MutableRecordModel.hpp"
@@ -13,6 +14,7 @@ class StableIdSelectionTrackerTest final : public QObject
 private slots:
     void fallsBackAcrossFiltersAndEmptyResults();
     void reportsSourceMutationsPrecisely();
+    void bulkSelectionUsesVisibleStableIdsAndSurvivesSorting();
 };
 
 void StableIdSelectionTrackerTest::fallsBackAcrossFiltersAndEmptyResults()
@@ -115,6 +117,43 @@ void StableIdSelectionTrackerTest::reportsSourceMutationsPrecisely()
     QCOMPARE(selectionSpy.first().at(0).toBool(), true);
     QCOMPARE(selectionSpy.first().at(1).toBool(), true);
     QCOMPARE(selectionSpy.first().at(2).toBool(), false);
+}
+
+void StableIdSelectionTrackerTest::bulkSelectionUsesVisibleStableIdsAndSurvivesSorting()
+{
+    testsupport::MutableRecordModel model;
+    model.addRow(QStringLiteral("a"), QStringLiteral("Alpha"), QStringLiteral("Engineering"), QStringLiteral("Email"), 1);
+    model.addRow(QStringLiteral("b"), QStringLiteral("Beta"), QStringLiteral("Design"), QStringLiteral("Email"), 2);
+    model.addRow(QStringLiteral("c"), QStringLiteral("Gamma"), QStringLiteral("Engineering"), QStringLiteral("Phone"), 3);
+
+    RoleFilterProxyModel proxy;
+    proxy.setSearchRoles({testsupport::MutableRecordModel::NameRole});
+    proxy.setSourceModel(&model);
+    BulkIdSelectionTracker tracker{proxy, testsupport::MutableRecordModel::IdRole};
+    QSignalSpy changedSpy{&tracker, &BulkIdSelectionTracker::selectionChanged};
+
+    tracker.toggleRow(0);
+    QVERIFY(tracker.contains(QStringLiteral("a")));
+    QVERIFY(tracker.someVisibleSelected());
+    QVERIFY(!tracker.allVisibleSelected());
+
+    proxy.setSort(testsupport::MutableRecordModel::ScoreRole, Qt::DescendingOrder);
+    QVERIFY(tracker.contains(QStringLiteral("a")));
+    QCOMPARE(tracker.selectedCount(), 1);
+
+    tracker.setAllVisibleSelected(true);
+    QCOMPARE(tracker.selectedCount(), 3);
+    QVERIFY(tracker.allVisibleSelected());
+
+    proxy.setSearchText(QStringLiteral("Gamma"));
+    QCOMPARE(tracker.selectedIds(), QStringList{QStringLiteral("c")});
+    QCOMPARE(tracker.selectedCount(), 1);
+    QVERIFY(tracker.allVisibleSelected());
+
+    tracker.removeIds({QStringLiteral("c")});
+    QCOMPARE(tracker.selectedCount(), 0);
+    QVERIFY(!tracker.someVisibleSelected());
+    QVERIFY(changedSpy.count() >= 3);
 }
 
 QTEST_GUILESS_MAIN(StableIdSelectionTrackerTest)

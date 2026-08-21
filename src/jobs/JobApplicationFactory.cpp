@@ -85,3 +85,35 @@ JobApplication JobApplicationFactory::create(
     application.updatedAt_ = now;
     return application;
 }
+
+JobApplication JobApplicationFactory::update(
+    const JobApplication& existing,
+    const NormalizedJobApplicationDraft& draft,
+    const Company& company,
+    const CvDocument* replacementCv)
+{
+    auto application = existing;
+    application.companyId_ = company.id_;
+    application.companyName_ = company.name_;
+    application.jobTitle_ = draft.jobTitle_;
+    application.jobUrl_ = draft.jobUrl_;
+    application.workFormat_ = draft.workFormat_;
+    application.city_ = draft.city_;
+    application.salary_ = draft.salary_;
+    application.status_ = draft.status_;
+    application.appliedDate_ = draft.appliedDate_;
+    application.nextStep_ = draft.nextStep_;
+    if (replacementCv != nullptr) {
+        application.cvId_ = replacementCv->id_;
+        application.cvFileName_ = replacementCv->originalFileName_;
+    }
+    application.description_ = draft.description_;
+    application.requirements_ = draft.requirements_;
+    application.techStack_ = draft.techStack_;
+    application.notes_ = draft.notes_;
+    application.updatedAt_ = QDateTime::currentDateTimeUtc();
+    if (application.updatedAt_ <= existing.updatedAt_) {
+        application.updatedAt_ = existing.updatedAt_.addMSecs(1);
+    }
+    return application;
+}

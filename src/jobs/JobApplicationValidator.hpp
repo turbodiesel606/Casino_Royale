@@ -22,6 +22,9 @@ public:
     static JobApplicationValidationResult validate(
         const NormalizedJobApplicationDraft& draft,
         const QUrl& selectedCvUrl);
+    static JobApplicationValidationResult validate(
+        const NormalizedJobApplicationDraft& draft,
+        bool hasCv);
     static JobApplicationValidationResult validate(const JobApplication& application);
 };
 

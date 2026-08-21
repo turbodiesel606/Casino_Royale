@@ -21,12 +21,25 @@ Item {
     property string categoryFilter: ""
     property string languageFilter: ""
     property string sortMode: "Last Modified"
+    property bool archivedView: false
+    property var checkedCvIds: []
+    property int checkedLinkedCvCount: 0
+    property int checkedUnlinkedCvCount: 0
+    property bool allVisibleCvsChecked: false
+    property bool someVisibleCvsChecked: false
+    property bool mutationEnabled: false
+    property bool mutationBusy: false
 
     signal rowSelected(int row)
     signal categoryFilterRequested(string category)
     signal languageFilterRequested(string language)
     signal sortModeRequested(string mode)
     signal clearFiltersRequested()
+    signal rowCheckToggled(int row)
+    signal allVisibleCheckedRequested(bool checked)
+    signal removeRequested()
+    signal restoreRequested()
+    signal permanentDeleteRequested()
 
     function categoryOptions() {
         var options = ["All"]
@@ -72,11 +85,14 @@ Item {
 
                     delegate: CvCard {
                         required property int index
+                        required property var model
 
                         Layout.fillWidth: true
                         Layout.preferredHeight: 132
                         selected: index === root.selectedRow
+                        checked: root.checkedCvIds.indexOf(model.id) >= 0
                         onClicked: root.rowSelected(index)
+                        onCheckToggled: root.rowCheckToggled(index)
                     }
                 }
 
@@ -345,6 +361,16 @@ Item {
             anchors.rightMargin: 12
             spacing: 12
 
+            SelectionCheckBox {
+                checkState: root.allVisibleCvsChecked
+                    ? Qt.Checked
+                    : (root.someVisibleCvsChecked ? Qt.PartiallyChecked : Qt.Unchecked)
+                nextCheckState: function() {
+                    return root.allVisibleCvsChecked ? Qt.Unchecked : Qt.Checked
+                }
+                onClicked: root.allVisibleCheckedRequested(checkState === Qt.Checked)
+            }
+
             Text {
                 text: root.resultSummary
                 color: root.mutedColor
@@ -354,6 +380,50 @@ Item {
 
             Item {
                 Layout.fillWidth: true
+            }
+
+            Button {
+                visible: root.archivedView
+                Layout.preferredWidth: 126
+                Layout.preferredHeight: 40
+                text: root.mutationBusy ? "Working..." : "Restore (" + root.checkedCvIds.length + ")"
+                enabled: root.mutationEnabled
+                onClicked: root.restoreRequested()
+
+                contentItem: Text {
+                    text: parent.text
+                    color: parent.enabled ? "white" : "#81909d"
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    font.pixelSize: 14
+                    font.bold: true
+                }
+
+                background: Rectangle {
+                    radius: 6
+                    color: parent.enabled ? "#1479ee" : "#26343e"
+                    border.color: parent.enabled ? "#59adff" : "#3b4a55"
+                }
+            }
+
+            DangerButton {
+                Layout.preferredWidth: root.archivedView ? 170 : 158
+                Layout.preferredHeight: 40
+                text: root.mutationBusy
+                    ? "Working..."
+                    : (root.archivedView
+                        ? "Delete Permanently (" + root.checkedUnlinkedCvCount + ")"
+                        : "Remove Selected (" + root.checkedCvIds.length + ")")
+                enabled: root.mutationEnabled
+                    && (!root.archivedView || root.checkedUnlinkedCvCount > 0)
+                onClicked: root.archivedView
+                    ? root.permanentDeleteRequested()
+                    : root.removeRequested()
+
+                ToolTip.visible: hovered && root.archivedView
+                    && root.checkedCvIds.length > 0
+                    && root.checkedUnlinkedCvCount === 0
+                ToolTip.text: "Selected CVs are still used by job applications."
             }
 
             Text {
@@ -385,32 +455,6 @@ Item {
                 }
             }
 
-            Rectangle {
-                Layout.preferredWidth: 128
-                Layout.preferredHeight: 48
-                radius: 6
-                color: "#0d1b25"
-                border.color: "#2b3d4c"
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.margins: 6
-                    spacing: 0
-
-                    IconButton {
-                        Layout.fillHeight: true
-                        Layout.preferredWidth: 58
-                        label: "Grid"
-                        active: true
-                    }
-
-                    IconButton {
-                        Layout.fillHeight: true
-                        Layout.preferredWidth: 58
-                        label: "List"
-                    }
-                }
-            }
         }
     }
 
@@ -426,7 +470,9 @@ Item {
         required property string lastModifiedLabel
         required property string linkedApplicationCountLabel
         property bool selected: false
+        property bool checked: false
         signal clicked()
+        signal checkToggled()
 
         color: selected ? "#0e2434" : root.panelColor
         border.color: selected ? root.blueColor : root.lineColor
@@ -444,6 +490,13 @@ Item {
             anchors.topMargin: 18
             anchors.bottomMargin: 18
             spacing: 22
+
+            SelectionCheckBox {
+                tristate: false
+                checked: card.checked
+                Layout.alignment: Qt.AlignVCenter
+                onClicked: card.checkToggled()
+            }
 
             PdfIcon {
                 Layout.preferredWidth: 64
@@ -545,6 +598,32 @@ Item {
                     color: "#3ba0ff"
                     font.pixelSize: 14
                 }
+            }
+        }
+    }
+
+    component SelectionCheckBox: CheckBox {
+        id: selectionCheckBox
+        implicitWidth: 24
+        implicitHeight: 24
+        tristate: true
+
+        indicator: Rectangle {
+            implicitWidth: 20
+            implicitHeight: 20
+            x: 2
+            y: 2
+            radius: 4
+            color: selectionCheckBox.checkState === Qt.Unchecked ? "#0b1b27" : root.blueColor
+            border.color: selectionCheckBox.checkState === Qt.Unchecked ? "#536674" : "#69a9ff"
+
+            Text {
+                anchors.centerIn: parent
+                text: selectionCheckBox.checkState === Qt.PartiallyChecked ? "−" : "✓"
+                visible: selectionCheckBox.checkState !== Qt.Unchecked
+                color: "white"
+                font.bold: true
+                font.pixelSize: 13
             }
         }
     }

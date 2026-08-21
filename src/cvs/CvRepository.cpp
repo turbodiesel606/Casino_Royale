@@ -26,6 +26,9 @@ namespace {
 		document.updatedAt_ = QDateTime::fromString(
 			query.value(QStringLiteral("updated_at")).toString(),
 			Qt::ISODate);
+		document.archivedAt_ = QDateTime::fromString(
+			query.value(QStringLiteral("archived_at")).toString(),
+			Qt::ISODate);
 		return document;
 	}
 
@@ -66,6 +69,7 @@ namespace {
 			"    cvs.is_favorite, "
 			"    cvs.created_at, "
 			"    cvs.updated_at, "
+			"    cvs.archived_at, "
 			"    jobs.id AS job_id "
 			"FROM cvs "
 			"LEFT JOIN jobs ON jobs.cv_id = cvs.id "
@@ -74,6 +78,35 @@ namespace {
 
 	QString sqlText(const QString& value) { return value.isNull() ? QStringLiteral("") : value; }
 
+	std::optional<CvDocument> readJoinedDocument(QSqlQuery& query)
+	{
+		if (!query.next()) {
+			return std::nullopt;
+		}
+
+		CvDocument document = convertToCvDocument(query);
+		do {
+			const auto jobId = query.value(QStringLiteral("job_id")).toString();
+			if (!jobId.isEmpty()) {
+				document.linkedApplicationIds_.append(jobId);
+			}
+		} while (query.next());
+		return document;
+	}
+
+}
+
+std::optional<CvDocument> CvRepository::findById(const QString& cvId) const
+{
+	QSqlQuery query{database_};
+	query.prepare(selectCvsWithLinkedJob().replace(
+		QStringLiteral("ORDER BY cvs.created_at DESC, jobs.created_at ASC"),
+		QStringLiteral("WHERE cvs.id = ? ORDER BY jobs.created_at ASC")));
+	query.addBindValue(cvId);
+	if (!query.exec()) {
+		storage::sql::throwQueryError(query, QStringLiteral("find a CV by ID"));
+	}
+	return readJoinedDocument(query);
 }
 
 CvRepository::CvRepository(QSqlDatabase& database)
@@ -147,8 +180,8 @@ void CvRepository::insert(const CvDocument& document) const
 	QSqlQuery query{ database_ };
 	query.prepare(QStringLiteral(
 		"INSERT INTO cvs (id, original_file_name, stored_file_name, relative_path, sha256,"
-		" size_bytes, title, category, language, description, is_favorite, created_at, updated_at)"
-		" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
+		" size_bytes, title, category, language, description, is_favorite, created_at, updated_at, archived_at)"
+		" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"));
 	query.addBindValue(document.id_);
 	query.addBindValue(document.originalFileName_);
 	query.addBindValue(document.storedFileName_);
@@ -162,10 +195,45 @@ void CvRepository::insert(const CvDocument& document) const
 	query.addBindValue(document.isFavorite_);
 	query.addBindValue(document.createdAt_.toUTC().toString(Qt::ISODate));
 	query.addBindValue(document.updatedAt_.toUTC().toString(Qt::ISODate));
+	query.addBindValue(document.archivedAt_.isValid()
+		? QVariant{document.archivedAt_.toUTC().toString(Qt::ISODateWithMs)}
+		: QVariant{});
 
 	if (!query.exec())
 		storage::sql::throwQueryError(query, QStringLiteral("insert a CV"));
 
+}
+
+std::optional<QDateTime> CvRepository::updateArchived(const QString& cvId, bool archived) const
+{
+	const auto updatedAt = QDateTime::currentDateTimeUtc();
+	QSqlQuery query{database_};
+	query.prepare(QStringLiteral(
+		"UPDATE cvs SET archived_at = ?, updated_at = ? WHERE id = ?"));
+	query.addBindValue(archived
+		? QVariant{updatedAt.toString(Qt::ISODateWithMs)}
+		: QVariant{});
+	query.addBindValue(updatedAt.toString(Qt::ISODateWithMs));
+	query.addBindValue(cvId);
+	if (!query.exec()) {
+		storage::sql::throwQueryError(query, QStringLiteral("update a CV archive state"));
+	}
+	return query.numRowsAffected() == 1
+		? std::optional<QDateTime>{updatedAt}
+		: std::nullopt;
+}
+
+bool CvRepository::removeUnlinked(const QString& cvId) const
+{
+	QSqlQuery query{database_};
+	query.prepare(QStringLiteral(
+		"DELETE FROM cvs WHERE id = ? "
+		"AND NOT EXISTS (SELECT 1 FROM jobs WHERE jobs.cv_id = cvs.id)"));
+	query.addBindValue(cvId);
+	if (!query.exec()) {
+		storage::sql::throwQueryError(query, QStringLiteral("delete an unlinked CV"));
+	}
+	return query.numRowsAffected() == 1;
 }
 
 std::optional<QDateTime> CvRepository::updateFavorite(const QString& cvId, bool isFavorite) const

@@ -216,6 +216,78 @@ bool createVersionTwoDatabase(
     return succeeded;
 }
 
+bool createVersionThreeDatabase(const QString& databasePath, QString& errorMessage)
+{
+    const auto connectionName = QStringLiteral("jobtracker-v3-test-%1")
+        .arg(QUuid::createUuid().toString(QUuid::WithoutBraces));
+    auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
+    database.setDatabaseName(databasePath);
+
+    bool succeeded = database.open();
+    const QStringList statements{
+        QStringLiteral("PRAGMA foreign_keys = ON"),
+        QStringLiteral(
+            "CREATE TABLE cvs ("
+            "id TEXT PRIMARY KEY, original_file_name TEXT NOT NULL, stored_file_name TEXT NOT NULL, "
+            "relative_path TEXT NOT NULL UNIQUE, sha256 TEXT NOT NULL, size_bytes INTEGER NOT NULL, "
+            "title TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT '', "
+            "language TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '', "
+            "is_favorite INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, "
+            "UNIQUE (sha256, original_file_name))"),
+        QStringLiteral(
+            "CREATE TABLE companies ("
+            "id TEXT PRIMARY KEY, display_name TEXT NOT NULL, normalized_name TEXT NOT NULL UNIQUE, "
+            "created_at TEXT NOT NULL, updated_at TEXT NOT NULL)"),
+        QStringLiteral(
+            "CREATE TABLE jobs ("
+            "id TEXT PRIMARY KEY, company_id TEXT NOT NULL, job_title TEXT NOT NULL, "
+            "job_url TEXT NOT NULL DEFAULT '', work_format TEXT NOT NULL DEFAULT '', "
+            "city TEXT NOT NULL DEFAULT '', salary TEXT NOT NULL DEFAULT '', status TEXT NOT NULL, "
+            "applied_date TEXT NOT NULL, next_step TEXT NOT NULL DEFAULT '', cv_id TEXT NOT NULL, "
+            "description TEXT NOT NULL DEFAULT '', requirements TEXT NOT NULL DEFAULT '', "
+            "notes TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, "
+            "FOREIGN KEY (company_id) REFERENCES companies(id), FOREIGN KEY (cv_id) REFERENCES cvs(id))"),
+        QStringLiteral(
+            "CREATE TABLE job_technologies ("
+            "job_id TEXT NOT NULL, position INTEGER NOT NULL, technology TEXT NOT NULL, "
+            "PRIMARY KEY (job_id, position), "
+            "FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE)"),
+        QStringLiteral(
+            "INSERT INTO cvs VALUES ('v3-cv', 'resume.pdf', 'v3.pdf', 'Resumes/v3.pdf', "
+            "'v3-hash', 42, 'V3 CV', 'General', 'English', '', 1, "
+            "'2026-07-01T10:00:00Z', '2026-07-01T10:00:00Z')"),
+        QStringLiteral(
+            "INSERT INTO companies VALUES ('v3-company', 'V3 Company', 'v3 company', "
+            "'2026-07-01T10:00:00Z', '2026-07-01T10:00:00Z')"),
+        QStringLiteral(
+            "INSERT INTO jobs (id, company_id, job_title, status, applied_date, cv_id, created_at, updated_at) "
+            "VALUES ('v3-job', 'v3-company', 'V3 Role', 'Applied', '2026-07-01', 'v3-cv', "
+            "'2026-07-01T10:00:00Z', '2026-07-01T10:00:00Z')"),
+        QStringLiteral("PRAGMA user_version = 3"),
+    };
+
+    if (!succeeded) {
+        errorMessage = database.lastError().text();
+    }
+    {
+        QSqlQuery query{database};
+        for (const auto& statement : statements) {
+            if (!succeeded) {
+                break;
+            }
+            succeeded = query.exec(statement);
+            if (!succeeded) {
+                errorMessage = query.lastError().text();
+            }
+        }
+    }
+
+    database.close();
+    database = {};
+    QSqlDatabase::removeDatabase(connectionName);
+    return succeeded;
+}
+
 } // namespace
 
 class MigrationTest final : public QObject
@@ -228,6 +300,7 @@ private slots:
     void constructorFailureUnregistersNamedConnection();
     void migratesVersionOneAndPreservesLinks();
     void migratesVersionTwoCompanyIdentity();
+    void migratesVersionThreeArchiveState();
     void rejectsBlankLegacyCompanyTransactionally();
 };
 
@@ -241,12 +314,23 @@ void MigrationTest::initializesCurrentSchemaAndReopens()
         QSqlQuery version{database.connection()};
         QVERIFY(version.exec(QStringLiteral("PRAGMA user_version")));
         QVERIFY(version.next());
-        QCOMPARE(version.value(0).toInt(), 3);
+        QCOMPARE(version.value(0).toInt(), 4);
 
         QSqlQuery foreignKeys{database.connection()};
         QVERIFY(foreignKeys.exec(QStringLiteral("PRAGMA foreign_keys")));
         QVERIFY(foreignKeys.next());
         QCOMPARE(foreignKeys.value(0).toInt(), 1);
+
+        QSqlQuery columns{database.connection()};
+        QVERIFY(columns.exec(QStringLiteral("PRAGMA table_info(cvs)")));
+        bool foundArchivedAt = false;
+        while (columns.next()) {
+            if (columns.value(1).toString() == QStringLiteral("archived_at")) {
+                foundArchivedAt = true;
+                break;
+            }
+        }
+        QVERIFY(foundArchivedAt);
     }
 
     SqliteDatabase reopened{storage.paths().databasePath()};
@@ -270,7 +354,7 @@ void MigrationTest::rejectsNewerSchemaVersion()
     QVERIFY(database.open());
     {
         QSqlQuery version{database};
-        QVERIFY(version.exec(QStringLiteral("PRAGMA user_version = 4")));
+        QVERIFY(version.exec(QStringLiteral("PRAGMA user_version = 5")));
     }
 
     QString migrationError;
@@ -300,7 +384,7 @@ void MigrationTest::constructorFailureUnregistersNamedConnection()
     QVERIFY(setupDatabase.open());
     {
         QSqlQuery version{setupDatabase};
-        QVERIFY(version.exec(QStringLiteral("PRAGMA user_version = 4")));
+        QVERIFY(version.exec(QStringLiteral("PRAGMA user_version = 5")));
     }
     setupDatabase.close();
     setupDatabase = {};
@@ -338,6 +422,7 @@ void MigrationTest::migratesVersionOneAndPreservesLinks()
 
     QCOMPARE(documents.size(), 1);
     QCOMPARE(documents.first().id_, QStringLiteral("legacy-cv"));
+    QVERIFY(!documents.first().archivedAt_.isValid());
     QCOMPARE(documents.first().linkedApplicationIds_, QStringList{QStringLiteral("legacy-job")});
     QCOMPARE(storedCompanies.size(), 1);
     QCOMPARE(storedCompanies.first().name_, QStringLiteral("Legacy Company"));
@@ -350,6 +435,10 @@ void MigrationTest::migratesVersionOneAndPreservesLinks()
     QSqlQuery foreignKeyCheck{database.connection()};
     QVERIFY(foreignKeyCheck.exec(QStringLiteral("PRAGMA foreign_key_check")));
     QVERIFY(!foreignKeyCheck.next());
+    QSqlQuery version{database.connection()};
+    QVERIFY(version.exec(QStringLiteral("PRAGMA user_version")));
+    QVERIFY(version.next());
+    QCOMPARE(version.value(0).toInt(), 4);
 }
 
 void MigrationTest::migratesVersionTwoCompanyIdentity()
@@ -390,6 +479,39 @@ void MigrationTest::migratesVersionTwoCompanyIdentity()
         }
     }
     QVERIFY(hasCompanyForeignKey);
+    QSqlQuery version{database.connection()};
+    QVERIFY(version.exec(QStringLiteral("PRAGMA user_version")));
+    QVERIFY(version.next());
+    QCOMPARE(version.value(0).toInt(), 4);
+}
+
+void MigrationTest::migratesVersionThreeArchiveState()
+{
+    testsupport::TemporaryStorageFixture storage;
+    QVERIFY(storage.isValid());
+    QString setupError;
+    QVERIFY2(
+        createVersionThreeDatabase(storage.paths().databasePath(), setupError),
+        qPrintable(setupError));
+
+    SqliteDatabase database{storage.paths().databasePath()};
+    CvRepository cvs{database.connection()};
+    JobRepository jobs{database.connection()};
+    const auto documents = cvs.findAll();
+    const auto applications = jobs.findAll();
+
+    QCOMPARE(documents.size(), 1);
+    QCOMPARE(documents.first().id_, QStringLiteral("v3-cv"));
+    QVERIFY(!documents.first().archivedAt_.isValid());
+    QVERIFY(documents.first().isFavorite_);
+    QCOMPARE(documents.first().linkedApplicationIds_, QStringList{QStringLiteral("v3-job")});
+    QCOMPARE(applications.size(), 1);
+    QCOMPARE(applications.first().cvId_, QStringLiteral("v3-cv"));
+
+    QSqlQuery version{database.connection()};
+    QVERIFY(version.exec(QStringLiteral("PRAGMA user_version")));
+    QVERIFY(version.next());
+    QCOMPARE(version.value(0).toInt(), 4);
 }
 
 void MigrationTest::rejectsBlankLegacyCompanyTransactionally()

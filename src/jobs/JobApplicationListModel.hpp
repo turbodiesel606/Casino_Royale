@@ -51,6 +51,8 @@ public:
     const JobApplication* applicationAt(int row) const;
     void setApplications(QVector<JobApplication> applications);
     void appendApplication(JobApplication application);
+    bool updateApplication(JobApplication application);
+    int removeApplications(const QStringList& applicationIds);
 
 private:
     QVector<JobApplication> applications_;

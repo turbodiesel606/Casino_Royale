@@ -43,9 +43,24 @@ CompanyDirectoryController::CompanyDirectoryController(
         [this]() { refreshCompanyJobCounts(); });
     QObject::connect(
         &applicationsModel_,
+        &QAbstractItemModel::rowsRemoved,
+        this,
+        [this]() { refreshCompanyJobCounts(); });
+    QObject::connect(
+        &applicationsModel_,
         &QAbstractItemModel::modelReset,
         this,
         [this]() { refreshCompanyJobCounts(); });
+    QObject::connect(
+        &applicationsModel_,
+        &QAbstractItemModel::dataChanged,
+        this,
+        [this](const QModelIndex&, const QModelIndex&, const QList<int>& roles) {
+            if (roles.isEmpty()
+                || roles.contains(JobApplicationListModel::CompanyIdRole)) {
+                refreshCompanyJobCounts();
+            }
+        });
     refreshCompanyJobCounts();
     connect(
         &selectionTracker_,

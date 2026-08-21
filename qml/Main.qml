@@ -22,11 +22,17 @@ ApplicationWindow {
     property var currentNotification: null
     property bool notificationsPaused: false
     property bool exitAfterPendingWorkDrained: false
+    property var pendingProtectedAction: null
+    property bool allowUnsavedCloseOnce: false
 
-    function openJobForm() {
+    function performOpenJobForm() {
         window.previousPage = window.currentPage >= 0 ? window.currentPage : 0
         window.currentPage = -1
         window.jobFormVisible = true
+    }
+
+    function openJobForm() {
+        requestProtectedAction("openJobForm", ({}))
     }
 
     function closeJobForm() {
@@ -34,9 +40,70 @@ ApplicationWindow {
         window.currentPage = window.previousPage
     }
 
+    function performProtectedAction(action) {
+        if (!action)
+            return
+
+        jobsPage.exitCleanJobEditMode()
+        const payload = action.payload || ({})
+        if (action.kind === "navigate") {
+            window.currentPage = payload.index
+            window.jobFormVisible = false
+        } else if (action.kind === "openJobForm") {
+            window.performOpenJobForm()
+        } else if (action.kind === "openCvPicker") {
+            cvFileDialog.open()
+        } else if (action.kind === "showJobApplications") {
+            jobsPage.showApplications()
+        } else if (action.kind === "closeApplication") {
+            window.allowUnsavedCloseOnce = true
+            Qt.callLater(function() { window.close() })
+        } else if (typeof payload.execute === "function") {
+            payload.execute()
+        }
+    }
+
+    function requestProtectedAction(kind, payload) {
+        if (window.pendingProtectedAction !== null)
+            return
+
+        const action = { kind: kind, payload: payload || ({}) }
+        if (jobsPage.jobUpdateInProgress) {
+            window.pendingProtectedAction = action
+            return
+        }
+        if (jobsPage.hasUnsavedJobChanges) {
+            window.pendingProtectedAction = action
+            unsavedChangesDialog.open()
+            return
+        }
+
+        window.performProtectedAction(action)
+    }
+
+    function saveUnsavedChangesAndContinue() {
+        unsavedChangesDialog.close()
+        jobsPage.savePendingJobChanges()
+    }
+
+    function discardUnsavedChangesAndContinue() {
+        const action = window.pendingProtectedAction
+        window.pendingProtectedAction = null
+        unsavedChangesDialog.close()
+        jobsPage.discardPendingJobChanges()
+        window.performProtectedAction(action)
+    }
+
+    function cancelProtectedAction() {
+        window.pendingProtectedAction = null
+        unsavedChangesDialog.close()
+    }
+
     function pendingWorkCount() {
         return jobApplicationsController.pendingSaveCount
             + cvLibraryController.pendingImportCount
+            + jobApplicationsController.pendingDeletionCount
+            + cvLibraryController.pendingDeletionCount
     }
 
     function enqueueNotification(title, severity, message) {
@@ -109,12 +176,25 @@ ApplicationWindow {
         exitAfterPendingWorkDrained = true
         discardNotifications()
         closeConfirmation.close()
-        jobApplicationsController.cancelAllCreateApplications()
+        jobApplicationsController.cancelAllJobSaves()
         cvLibraryController.cancelAllCvImports()
+        jobApplicationsController.cancelApplicationDeletion()
+        cvLibraryController.cancelCvMutation()
         finishCloseIfWorkDrained()
     }
 
     onClosing: function(close) {
+        if (window.allowUnsavedCloseOnce) {
+            window.allowUnsavedCloseOnce = false
+        } else if (jobsPage.jobUpdateInProgress
+                   || jobsPage.hasUnsavedJobChanges) {
+            close.accepted = false
+            window.requestProtectedAction("closeApplication", ({}))
+            return
+        } else {
+            jobsPage.exitCleanJobEditMode()
+        }
+
         if (window.pendingWorkCount() > 0) {
             close.accepted = false
             if (!exitAfterPendingWorkDrained && !closeConfirmation.visible) {
@@ -137,22 +217,74 @@ ApplicationWindow {
         function onPendingSaveCountChanged() {
             window.finishCloseIfWorkDrained()
         }
+
+        function onApplicationUpdateRejected(operationId, applicationId, errors, message) {
+            window.pendingProtectedAction = null
+            window.enqueueNotification(
+                "Update rejected",
+                "error",
+                message)
+        }
+
+        function onApplicationUpdateCompleted(operationId, applicationId, jobTitle,
+                                              success, errors, message) {
+            window.enqueueNotification(
+                success ? "Updated: " + jobTitle : "Update failed: " + jobTitle,
+                success ? "success" : "error",
+                message)
+
+            const action = window.pendingProtectedAction
+            window.pendingProtectedAction = null
+            if (success && action) {
+                Qt.callLater(function() {
+                    window.performProtectedAction(action)
+                })
+            }
+        }
+
+        function onApplicationDeletionCompleted(deletedCount, failedCount, cancelled, message) {
+            const severity = failedCount > 0 ? "error" : (cancelled ? "warning" : "success")
+            window.enqueueNotification(
+                "Job deletion complete: " + deletedCount + " deleted",
+                severity,
+                message)
+        }
+
+        function onPendingDeletionCountChanged() {
+            window.finishCloseIfWorkDrained()
+        }
     }
 
     Connections {
         target: cvLibraryController
 
-        function onCvImportCompleted(operationId, fileName, success, wasInserted, message) {
-            const severity = !success ? "error" : (wasInserted ? "success" : "warning")
+        function onCvImportCompleted(operationId, fileName, success, disposition, message) {
+            const added = disposition === "inserted"
+            const restored = disposition === "restored-archived"
+            const severity = !success ? "error" : ((added || restored) ? "success" : "warning")
             const title = !success
                 ? "CV upload failed: " + fileName
-                : (wasInserted
+                : (added
                     ? "CV added: " + fileName
-                    : "CV already exists: " + fileName)
+                    : (restored
+                        ? "CV restored: " + fileName
+                        : "CV already exists: " + fileName))
             window.enqueueNotification(title, severity, message)
         }
 
         function onPendingImportCountChanged() {
+            window.finishCloseIfWorkDrained()
+        }
+
+        function onCvMutationCompleted(deletedCount, archivedCount, restoredCount, skippedCount, failedCount, cancelled, message) {
+            const severity = failedCount > 0 ? "error" : ((skippedCount > 0 || cancelled) ? "warning" : "success")
+            window.enqueueNotification(
+                "CV operation complete",
+                severity,
+                message)
+        }
+
+        function onPendingDeletionCountChanged() {
             window.finishCloseIfWorkDrained()
         }
     }
@@ -231,6 +363,52 @@ ApplicationWindow {
     }
 
     Dialog {
+        id: unsavedChangesDialog
+        x: Math.round((window.width - width) / 2)
+        y: Math.round((window.height - height) / 2)
+        width: Math.min(590, window.width - 48)
+        modal: true
+        focus: true
+        closePolicy: Popup.NoAutoClose
+        title: "Unsaved changes"
+        z: 1100
+
+        contentItem: Text {
+            text: "You have unsaved changes in the Job Description. What would you like to do?"
+            color: "#eef3f8"
+            font.pixelSize: 15
+            wrapMode: Text.Wrap
+        }
+
+        footer: DialogButtonBox {
+            Button {
+                text: "Cancel"
+                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
+                onClicked: window.cancelProtectedAction()
+            }
+
+            Button {
+                text: "Don't Save"
+                DialogButtonBox.buttonRole: DialogButtonBox.DestructiveRole
+                onClicked: window.discardUnsavedChangesAndContinue()
+            }
+
+            Button {
+                text: "Save"
+                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
+                onClicked: window.saveUnsavedChangesAndContinue()
+            }
+        }
+
+        background: Rectangle {
+            color: "#102330"
+            border.color: "#2e4657"
+            border.width: 1
+            radius: 8
+        }
+    }
+
+    Dialog {
         id: closeConfirmation
         x: Math.round((window.width - width) / 2)
         y: Math.round((window.height - height) / 2)
@@ -245,6 +423,10 @@ ApplicationWindow {
             text: {
                 const pendingJobs = jobApplicationsController.pendingSaveCount > 0
                 const pendingCvs = cvLibraryController.pendingImportCount > 0
+                const deleting = jobApplicationsController.pendingDeletionCount > 0
+                    || cvLibraryController.pendingDeletionCount > 0
+                if (deleting)
+                    return "Items are still being deleted or archived. Do you want to wait or interrupt after the current item and exit? Already completed items will remain committed."
                 if (pendingJobs && pendingCvs)
                     return "Job applications and CVs are still being saved. Do you want to wait or interrupt the pending work and exit?"
                 if (pendingCvs)
@@ -286,12 +468,13 @@ ApplicationWindow {
             Layout.fillHeight: true
             Layout.preferredWidth: 242
             currentIndex: window.jobFormVisible ? -1 : window.currentPage
+            actionsEnabled: jobApplicationsController.pendingDeletionCount === 0
+                && cvLibraryController.pendingDeletionCount === 0
             onNavigate: index => {
-                window.currentPage = index
-                window.jobFormVisible = false
+                window.requestProtectedAction("navigate", { index: index })
             }
             onAddJob: window.openJobForm()
-            onAddCv: cvFileDialog.open()
+            onAddCv: window.requestProtectedAction("openCvPicker", ({}))
         }
 
         StackLayout {
@@ -300,7 +483,13 @@ ApplicationWindow {
             currentIndex: window.jobFormVisible ? 5 : Math.max(window.currentPage, 0)
 
             DashboardPage { onAddJobRequested: window.openJobForm() }
-            JobsPage { onAddJobRequested: window.openJobForm() }
+            JobsPage {
+                id: jobsPage
+                onAddJobRequested: window.openJobForm()
+                onProtectedActionRequested: function(kind, payload) {
+                    window.requestProtectedAction(kind, payload)
+                }
+            }
             CvLibraryPage { }
             CompaniesPage { }
             ContactsPage { }
