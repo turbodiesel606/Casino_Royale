@@ -178,6 +178,7 @@ qt_add_qml_module(JobTrackerApp
         qml/components/DestructiveConfirmationDialog.qml
         qml/components/Panel.qml
         qml/components/PrimaryButton.qml
+        qml/components/SelectionCheckBox.qml
         qml/components/Sidebar.qml
         qml/components/SidebarButton.qml
         qml/components/StatusChip.qml

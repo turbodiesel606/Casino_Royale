@@ -46,33 +46,6 @@ Item {
                     font.bold: true
                     Layout.fillWidth: true
                 }
-
-                Rectangle {
-                    Layout.preferredWidth: 113
-                    Layout.preferredHeight: 38
-                    radius: 6
-                    color: "#0c1a24"
-                    border.color: "#2b3d4c"
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.margins: 3
-                        spacing: 0
-
-                        IconButton {
-                            Layout.fillHeight: true
-                            Layout.preferredWidth: 56
-                            label: "Grid"
-                            active: true
-                        }
-
-                        IconButton {
-                            Layout.fillHeight: true
-                            Layout.preferredWidth: 48
-                            label: "List"
-                        }
-                    }
-                }
             }
 
             Rectangle {
@@ -262,23 +235,6 @@ Item {
                     Layout.fillHeight: true
                 }
             }
-        }
-    }
-
-    component IconButton: Rectangle {
-        property string label: ""
-        property bool active: false
-
-        radius: 6
-        color: active ? "#0f4c8f" : "#101f2a"
-        border.color: active ? root.blueColor : "#2b3d4c"
-
-        Text {
-            anchors.centerIn: parent
-            text: label
-            color: active ? "white" : "#d7e5f2"
-            font.pixelSize: label.length > 2 ? 11 : 23
-            font.bold: active
         }
     }
 

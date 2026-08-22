@@ -26,6 +26,7 @@ Item {
     property bool someVisibleCvsChecked: false
     property bool mutationEnabled: false
     property bool mutationBusy: false
+    property real selectionSizeMultiplier: 1.0
 
     signal rowSelected(int row)
     signal sortModeRequested(string mode)
@@ -77,6 +78,8 @@ Item {
             spacing: 12
 
             SelectionCheckBox {
+                accentColor: root.blueColor
+                sizeMultiplier: root.selectionSizeMultiplier
                 checkState: root.allVisibleCvsChecked
                     ? Qt.Checked
                     : (root.someVisibleCvsChecked ? Qt.PartiallyChecked : Qt.Unchecked)
@@ -175,7 +178,7 @@ Item {
         signal checkToggled()
 
         color: selected ? "#0e2434" : root.panelColor
-        border.color: selected ? root.blueColor : root.lineColor
+        border.color: root.lineColor
         radius: 7
 
         MouseArea {
@@ -192,6 +195,8 @@ Item {
             spacing: 22
 
             SelectionCheckBox {
+                accentColor: root.blueColor
+                sizeMultiplier: root.selectionSizeMultiplier
                 tristate: false
                 checked: card.checked
                 Layout.alignment: Qt.AlignVCenter
@@ -309,32 +314,6 @@ Item {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: card.clicked()
                 }
-            }
-        }
-    }
-
-    component SelectionCheckBox: CheckBox {
-        id: selectionCheckBox
-        implicitWidth: 24
-        implicitHeight: 24
-        tristate: true
-
-        indicator: Rectangle {
-            implicitWidth: 20
-            implicitHeight: 20
-            x: 2
-            y: 2
-            radius: 4
-            color: selectionCheckBox.checkState === Qt.Unchecked ? "#0b1b27" : root.blueColor
-            border.color: selectionCheckBox.checkState === Qt.Unchecked ? "#536674" : "#69a9ff"
-
-            Text {
-                anchors.centerIn: parent
-                text: selectionCheckBox.checkState === Qt.PartiallyChecked ? "−" : "✓"
-                visible: selectionCheckBox.checkState !== Qt.Unchecked
-                color: "white"
-                font.bold: true
-                font.pixelSize: 13
             }
         }
     }

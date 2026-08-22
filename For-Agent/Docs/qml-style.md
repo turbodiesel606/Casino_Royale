@@ -66,6 +66,21 @@ and visually distinct `MouseArea`-backed actions. Keep data-row selection,
 checkboxes, combo boxes, scrollbars, native file dialogs, and operating-system
 controls outside this button palette.
 
+## Selection Controls
+
+Use the shared `SelectionCheckBox` for application and CV bulk selection. It
+must derive from `QtQuick.Templates.CheckBox` and define its own indicator,
+background, and content so platform styles cannot inject native glyphs or hover
+layers. Draw the checked state with the shared white vector checkmark. Indicate
+the partially checked state only with its soft state-specific fill and border;
+do not draw an inner dash or other glyph. Do not use font glyphs, bitmap assets,
+native indicators, or secondary focus squares. Show visual keyboard focus by
+increasing the same semantic border to 2 px.
+
+Indicate the selected data row or card with its subtle background fill while
+retaining only the ordinary structural divider or border. Do not add a blue
+accent outline or selection bar around selected data items.
+
 ## Verification
 
 After QML changes, run the normal build unless impossible.

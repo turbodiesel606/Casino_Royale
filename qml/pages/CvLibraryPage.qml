@@ -58,7 +58,7 @@ Item {
                 }
 
                 RowLayout {
-                    spacing: 0
+                    spacing: 10
 
                     PrimaryButton {
                         Layout.preferredWidth: 104
@@ -118,6 +118,7 @@ Item {
                     someVisibleCvsChecked: cvLibraryController.someVisibleCvsChecked
                     mutationEnabled: cvLibraryController.canMutateCheckedCvs
                     mutationBusy: cvLibraryController.mutatingCvs
+                    selectionSizeMultiplier: 1 / page.uiScale
                     selectedRow: cvLibraryController.selectedCvIndex
                     panelColor: page.panelColor
                     lineColor: page.lineColor

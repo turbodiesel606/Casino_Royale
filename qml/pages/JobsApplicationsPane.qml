@@ -63,6 +63,11 @@ Item {
 
                 RowLayout {
                     Layout.fillWidth: true
+                    Layout.fillHeight: false
+                    Layout.minimumHeight: 45
+                    Layout.preferredHeight: 45
+                    Layout.maximumHeight: 45
+                    Layout.alignment: Qt.AlignTop
                     spacing: 12
 
                     TextField {
@@ -129,6 +134,7 @@ Item {
                         SelectionCheckBox {
                             x: 12
                             anchors.verticalCenter: parent.verticalCenter
+                            accentColor: page.blueColor
                             checkState: page.allVisibleApplicationsChecked
                                 ? Qt.Checked
                                 : (page.someVisibleApplicationsChecked ? Qt.PartiallyChecked : Qt.Unchecked)
@@ -178,8 +184,6 @@ Item {
                             width: applicationsPanel.width
                             height: page.tableRowHeight
                             color: index === page.selectedRow ? "#123757" : (rowMouse.containsMouse ? "#0d2738" : "transparent")
-                            border.color: index === page.selectedRow ? page.blueColor : "transparent"
-                            border.width: index === page.selectedRow ? 1 : 0
 
                             Rectangle {
                                 anchors.left: parent.left
@@ -187,7 +191,6 @@ Item {
                                 anchors.bottom: parent.bottom
                                 height: 1
                                 color: page.panelLineColor
-                                visible: index !== page.selectedRow
                             }
 
                             MouseArea {
@@ -218,6 +221,7 @@ Item {
                                 x: 12
                                 anchors.verticalCenter: parent.verticalCenter
                                 z: 2
+                                accentColor: page.blueColor
                                 tristate: false
                                 checked: page.checkedApplicationIds.indexOf(model.id) >= 0
                                 onClicked: page.rowCheckToggled(index)
@@ -370,35 +374,14 @@ Item {
                         }
                     }
                 }
+
+                Item {
+                    Layout.fillHeight: true
+                    Layout.minimumHeight: 0
+                }
             }
         }
 
-    }
-
-    component SelectionCheckBox: CheckBox {
-        id: selectionCheckBox
-        implicitWidth: 24
-        implicitHeight: 24
-        tristate: true
-
-        indicator: Rectangle {
-            implicitWidth: 20
-            implicitHeight: 20
-            x: 2
-            y: 2
-            radius: 4
-            color: selectionCheckBox.checkState === Qt.Unchecked ? "#0b1b27" : page.blueColor
-            border.color: selectionCheckBox.checkState === Qt.Unchecked ? "#536674" : "#69a9ff"
-
-            Text {
-                anchors.centerIn: parent
-                text: selectionCheckBox.checkState === Qt.PartiallyChecked ? "−" : "✓"
-                visible: selectionCheckBox.checkState !== Qt.Unchecked
-                color: "white"
-                font.bold: true
-                font.pixelSize: 13
-            }
-        }
     }
 
 }

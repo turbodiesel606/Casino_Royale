@@ -125,37 +125,5 @@ Rectangle {
             enabled: sidebar.actionsEnabled
             onClicked: sidebar.addCv()
         }
-
-        Rectangle {
-            Layout.fillWidth: true
- Layout.preferredHeight: 76
- Layout.topMargin: 10
-            radius: 7
- color: "#0b1c29"
- border.color: "#223442"
-            RowLayout { anchors.fill: parent
- anchors.margins: 10
- spacing: 10
-                Rectangle { width: 40
- height: 40
- radius: 20
- color: "#1266c9"
- Text { anchors.centerIn: parent
- text: "JD"
- color: "white"
- font.pixelSize: 16 } }
-                ColumnLayout { spacing: 2
- Text { text: "John Doe"
- color: "#f0f4f8"
- font.pixelSize: 15 }
- Text { text: "john.doe@example.com"
- color: "#aab7c3"
- font.pixelSize: 11 } }
-                Item { Layout.fillWidth: true }
- Text { text: "⌄"
- color: "#d5dde5"
- font.pixelSize: 19 }
-            }
-        }
     }
 }
