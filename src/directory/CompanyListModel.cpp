@@ -1,24 +1,10 @@
 #include "CompanyListModel.hpp"
 
-#include <QLocale>
+#include "common/ModelPresentation.hpp"
 
 #include <utility>
 
 namespace {
-
-QString countLabel(int count, const QString& singular, const QString& plural)
-{
-    return count == 1 ? QStringLiteral("1 %1").arg(singular) : QStringLiteral("%1 %2").arg(count).arg(plural);
-}
-
-QString dateLabel(const QDateTime& dateTime)
-{
-    return dateTime.isValid()
-        ? QLocale::c().toString(
-            dateTime.toLocalTime().date(),
-            QStringLiteral("MMM d, yyyy"))
-        : QString{};
-}
 
 QVariant roleValue(const Company& company, int role)
 {
@@ -30,19 +16,25 @@ QVariant roleValue(const Company& company, int role)
     case CompanyListModel::WebsiteRole:
         return company.website_.toString();
     case CompanyListModel::LogoTextRole:
-        return company.name_.left(2).toUpper();
+        return common::presentation::twoCharacterInitials(company.name_);
     case CompanyListModel::LogoAccentRole:
-        return QStringLiteral("#146ce0");
+        return common::presentation::companyAccent();
     case CompanyListModel::OpenJobCountRole:
         return company.openJobCount_;
     case CompanyListModel::OpenJobCountLabelRole:
-        return countLabel(company.openJobCount_, QStringLiteral("job"), QStringLiteral("jobs"));
+        return common::presentation::countLabel(
+            company.openJobCount_,
+            QStringLiteral("job"),
+            QStringLiteral("jobs"));
     case CompanyListModel::ContactCountRole:
         return company.contactCount_;
     case CompanyListModel::ContactCountLabelRole:
-        return countLabel(company.contactCount_, QStringLiteral("contact"), QStringLiteral("contacts"));
+        return common::presentation::countLabel(
+            company.contactCount_,
+            QStringLiteral("contact"),
+            QStringLiteral("contacts"));
     case CompanyListModel::LastActivityLabelRole:
-        return dateLabel(company.lastActivityAt_);
+        return common::presentation::shortLocalDateLabel(company.lastActivityAt_);
     case CompanyListModel::DescriptionRole:
         return company.description_;
     case CompanyListModel::NotesRole:
@@ -107,9 +99,23 @@ const Company* CompanyListModel::companyAt(int row) const
     return row >= 0 && row < companies_.size() ? &companies_.at(row) : nullptr;
 }
 
+int CompanyListModel::rowForId(const QString& companyId) const
+{
+    if (companyId.isEmpty()) {
+        return -1;
+    }
+
+    for (int row = 0; row < companies_.size(); ++row) {
+        if (companies_.at(row).id_ == companyId) {
+            return row;
+        }
+    }
+    return -1;
+}
+
 bool CompanyListModel::upsertCompany(Company company)
 {
-    if (company.id_.isEmpty() || indexOfCompany(company.id_) >= 0) {
+    if (company.id_.isEmpty() || rowForId(company.id_) >= 0) {
         return false;
     }
 
@@ -122,7 +128,7 @@ bool CompanyListModel::upsertCompany(Company company)
 
 void CompanyListModel::setOpenJobCount(const QString& companyId, int count)
 {
-    const auto row = indexOfCompany(companyId);
+    const auto row = rowForId(companyId);
     if (row < 0 || companies_[row].openJobCount_ == count) {
         return;
     }
@@ -133,14 +139,4 @@ void CompanyListModel::setOpenJobCount(const QString& companyId, int count)
         modelIndex,
         modelIndex,
         {OpenJobCountRole, OpenJobCountLabelRole});
-}
-
-int CompanyListModel::indexOfCompany(const QString& companyId) const
-{
-    for (int row = 0; row < companies_.size(); ++row) {
-        if (companies_.at(row).id_ == companyId) {
-            return row;
-        }
-    }
-    return -1;
 }

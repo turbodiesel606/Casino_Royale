@@ -1,6 +1,7 @@
 #include "CompanyDirectoryController.hpp"
 
 #include "ContactListModel.hpp"
+#include "common/ModelRoleUtils.hpp"
 #include "jobs/JobApplicationListModel.hpp"
 
 #include <QHash>
@@ -67,24 +68,16 @@ CompanyDirectoryController::CompanyDirectoryController(
         &StableIdSelectionTracker::selectionChanged,
         this,
         &CompanyDirectoryController::handleSelectionChanged);
+    connect(
+        &selectionTracker_,
+        &StableIdSelectionTracker::visibleRowCountChanged,
+        this,
+        [this]() {
+            emit companyCountChanged();
+            emit resultSummaryChanged();
+        });
     filteredCompanyModel_.setSourceModel(&companyModel_);
     selectionTracker_.synchronize();
-    publishedCompanyCount_ = companyCount();
-    connect(
-        &filteredCompanyModel_,
-        &QAbstractItemModel::rowsInserted,
-        this,
-        [this]() { handleVisibleCountChanged(); });
-    connect(
-        &filteredCompanyModel_,
-        &QAbstractItemModel::rowsRemoved,
-        this,
-        [this]() { handleVisibleCountChanged(); });
-    connect(
-        &filteredCompanyModel_,
-        &QAbstractItemModel::modelReset,
-        this,
-        [this]() { handleVisibleCountChanged(); });
 }
 
 QAbstractItemModel* CompanyDirectoryController::companyModel()
@@ -104,7 +97,7 @@ QAbstractItemModel* CompanyDirectoryController::linkedContactsModel()
 
 int CompanyDirectoryController::companyCount() const
 {
-    return filteredCompanyModel_.rowCount();
+    return selectionTracker_.visibleRowCount();
 }
 
 int CompanyDirectoryController::selectedCompanyIndex() const
@@ -125,7 +118,7 @@ QVariantMap CompanyDirectoryController::selectedCompany() const
 
 QString CompanyDirectoryController::searchText() const
 {
-    return searchText_;
+    return filteredCompanyModel_.searchText();
 }
 
 QString CompanyDirectoryController::sortMode() const
@@ -150,17 +143,13 @@ void CompanyDirectoryController::selectCompany(int index)
 void CompanyDirectoryController::setSearchText(const QString& text)
 {
     const auto normalized = text.trimmed();
-    if (searchText_ == normalized) {
+    if (searchText() == normalized) {
         return;
     }
 
-    searchText_ = normalized;
     selectionTracker_.beginModelUpdate();
-    visibleCountNotificationsSuppressed_ = true;
-    filteredCompanyModel_.setSearchText(searchText_);
-    visibleCountNotificationsSuppressed_ = false;
+    filteredCompanyModel_.setSearchText(normalized);
     selectionTracker_.endModelUpdate();
-    handleVisibleCountChanged();
     emit searchTextChanged();
 }
 
@@ -186,40 +175,26 @@ void CompanyDirectoryController::setSortMode(const QString& sortMode)
 
 void CompanyDirectoryController::clearFilters()
 {
-    if (searchText_.isEmpty()) {
+    if (searchText().isEmpty()) {
         return;
     }
 
-    searchText_.clear();
     selectionTracker_.beginModelUpdate();
-    visibleCountNotificationsSuppressed_ = true;
     filteredCompanyModel_.setSearchText(QString());
-    visibleCountNotificationsSuppressed_ = false;
     selectionTracker_.endModelUpdate();
-    handleVisibleCountChanged();
     emit searchTextChanged();
 }
 
-void CompanyDirectoryController::publishCompany(
-    const QString& companyId,
-    const QString& companyName)
+void CompanyDirectoryController::publishCompany(const Company& company)
 {
-    const auto displayName = companyName.trimmed();
-    if (companyId.isEmpty() || displayName.isEmpty()) {
+    auto publishedCompany = company;
+    publishedCompany.name_ = publishedCompany.name_.trimmed();
+    if (publishedCompany.id_.isEmpty() || publishedCompany.name_.isEmpty()) {
         return;
     }
 
-    Company company;
-    company.id_ = companyId;
-    company.name_ = displayName;
-    companyModel_.upsertCompany(std::move(company));
+    companyModel_.upsertCompany(std::move(publishedCompany));
     refreshCompanyJobCounts();
-}
-
-const Company* CompanyDirectoryController::selectedSourceCompany() const
-{
-    const auto sourceIndex = selectionTracker_.selectedSourceIndex();
-    return sourceIndex.isValid() ? companyModel_.companyAt(sourceIndex.row()) : nullptr;
 }
 
 void CompanyDirectoryController::handleSelectionChanged(
@@ -237,22 +212,6 @@ void CompanyDirectoryController::handleSelectionChanged(
     if (idChanged || dataChanged) {
         emit selectedCompanyChanged();
     }
-}
-
-void CompanyDirectoryController::handleVisibleCountChanged()
-{
-    if (visibleCountNotificationsSuppressed_) {
-        return;
-    }
-
-    const auto count = companyCount();
-    if (publishedCompanyCount_ == count) {
-        return;
-    }
-
-    publishedCompanyCount_ = count;
-    emit companyCountChanged();
-    emit resultSummaryChanged();
 }
 
 void CompanyDirectoryController::refreshCompanyJobCounts()
@@ -278,22 +237,21 @@ void CompanyDirectoryController::refreshCompanyJobCounts()
 
 QVariantMap CompanyDirectoryController::companyToMap(int sourceRow) const
 {
-    const auto modelIndex = companyModel_.index(sourceRow, 0);
-    const auto roleData = [this, &modelIndex](int role) {
-        return companyModel_.data(modelIndex, role);
-    };
-    return {
-        {QStringLiteral("id"), roleData(CompanyListModel::IdRole)},
-        {QStringLiteral("name"), roleData(CompanyListModel::NameRole)},
-        {QStringLiteral("website"), roleData(CompanyListModel::WebsiteRole)},
-        {QStringLiteral("logoText"), roleData(CompanyListModel::LogoTextRole)},
-        {QStringLiteral("logoAccent"), roleData(CompanyListModel::LogoAccentRole)},
-        {QStringLiteral("openJobCount"), roleData(CompanyListModel::OpenJobCountRole)},
-        {QStringLiteral("contactCount"), roleData(CompanyListModel::ContactCountRole)},
-        {QStringLiteral("lastActivityLabel"), roleData(CompanyListModel::LastActivityLabelRole)},
-        {QStringLiteral("description"), roleData(CompanyListModel::DescriptionRole)},
-        {QStringLiteral("notes"), roleData(CompanyListModel::NotesRole)},
-    };
+    return common::model::rowToVariantMap(
+        companyModel_,
+        sourceRow,
+        {
+            CompanyListModel::IdRole,
+            CompanyListModel::NameRole,
+            CompanyListModel::WebsiteRole,
+            CompanyListModel::LogoTextRole,
+            CompanyListModel::LogoAccentRole,
+            CompanyListModel::OpenJobCountRole,
+            CompanyListModel::ContactCountRole,
+            CompanyListModel::LastActivityLabelRole,
+            CompanyListModel::DescriptionRole,
+            CompanyListModel::NotesRole,
+        });
 }
 
 void CompanyDirectoryController::updateLinkedModels()

@@ -35,6 +35,8 @@ private slots:
     void modelExposesNamedRoles();
     void modelStartsEmpty();
     void modelExposesExplicitApplications();
+    void modelFindsApplicationsByStableId();
+    void modelPublishesOnlyChangedRoleValues();
     void controllerExposesSelectedApplication();
     void controllerIgnoresInvalidSelection();
     void controllerFiltersBySearchTextAndStatus();
@@ -99,9 +101,56 @@ void JobApplicationsControllerTest::modelExposesExplicitApplications()
 
     QCOMPARE(model->rowCount(), 6);
     QCOMPARE(model->data(firstRow, roleForName(*model, "companyName")).toString(), QStringLiteral("KDAB"));
+    QCOMPARE(model->data(firstRow, roleForName(*model, "companyInitials")).toString(), QStringLiteral("KD"));
+    QCOMPARE(model->data(firstRow, roleForName(*model, "companyAccent")).toString(), QStringLiteral("#146ce0"));
     QCOMPARE(model->data(firstRow, roleForName(*model, "jobTitle")).toString(), QStringLiteral("C++/Qt Developer"));
     QCOMPARE(model->data(firstRow, roleForName(*model, "cvFileName")).toString(), QStringLiteral("CV_Qt_2026.pdf"));
     QCOMPARE(model->data(firstRow, roleForName(*model, "statusLabel")).toString(), QStringLiteral("Applied"));
+    QCOMPARE(model->data(firstRow, roleForName(*model, "dateLabel")).toString(), QStringLiteral("May 12, 2026"));
+}
+
+void JobApplicationsControllerTest::modelFindsApplicationsByStableId()
+{
+    const auto applications = testsupport::makeJobApplications();
+    JobApplicationListModel model{applications};
+    const auto expectedId = applications.at(2).id_;
+
+    QCOMPARE(model.rowForId(expectedId), 2);
+    const auto* application = model.applicationById(expectedId);
+    QVERIFY(application != nullptr);
+    QCOMPARE(application->id_, expectedId);
+    QCOMPARE(model.rowForId(QStringLiteral("missing-application")), -1);
+    QCOMPARE(model.rowForId(QString{}), -1);
+    QVERIFY(model.applicationById(QStringLiteral("missing-application")) == nullptr);
+}
+
+void JobApplicationsControllerTest::modelPublishesOnlyChangedRoleValues()
+{
+    const auto applications = testsupport::makeJobApplications();
+    JobApplicationListModel model{applications};
+    QSignalSpy dataChangedSpy{&model, &QAbstractItemModel::dataChanged};
+
+    QVERIFY(model.updateApplication(applications.first()));
+    QCOMPARE(dataChangedSpy.count(), 0);
+
+    auto changed = applications.first();
+    changed.companyName_ = QStringLiteral("KD New Name");
+    changed.status_ = JobStatus::Interview;
+    QVERIFY(model.updateApplication(changed));
+    QCOMPARE(dataChangedSpy.count(), 1);
+
+    const auto roles = dataChangedSpy.first().at(2).value<QList<int>>();
+    QVERIFY(roles.contains(JobApplicationListModel::CompanyNameRole));
+    QVERIFY(!roles.contains(JobApplicationListModel::CompanyInitialsRole));
+    QVERIFY(roles.contains(JobApplicationListModel::StatusRole));
+    QVERIFY(roles.contains(JobApplicationListModel::StatusLabelRole));
+    QVERIFY(roles.contains(JobApplicationListModel::StatusAccentRole));
+    QVERIFY(roles.contains(JobApplicationListModel::StatusValueRole));
+    QVERIFY(!roles.contains(JobApplicationListModel::JobTitleRole));
+
+    changed.id_ = QStringLiteral("missing-application");
+    QVERIFY(!model.updateApplication(std::move(changed)));
+    QCOMPARE(dataChangedSpy.count(), 1);
 }
 
 void JobApplicationsControllerTest::controllerExposesSelectedApplication()
@@ -118,8 +167,38 @@ void JobApplicationsControllerTest::controllerExposesSelectedApplication()
     QCOMPARE(selectedDataSpy.count(), 1);
     QCOMPARE(controller.selectedApplicationIndex(), 1);
     QCOMPARE(controller.selectedApplicationId(), QStringLiteral("job-techsoft-qt-qml"));
-    QCOMPARE(controller.selectedApplication().value(QStringLiteral("companyName")).toString(), QStringLiteral("TechSoft"));
-    QCOMPARE(controller.selectedApplication().value(QStringLiteral("statusLabel")).toString(), QStringLiteral("Interview"));
+    const auto selected = controller.selectedApplication();
+    QCOMPARE(selected.value(QStringLiteral("companyName")).toString(), QStringLiteral("TechSoft"));
+    QCOMPARE(selected.value(QStringLiteral("statusLabel")).toString(), QStringLiteral("Interview"));
+
+    auto keys = selected.keys();
+    QStringList expectedKeys{
+        QStringLiteral("appliedDate"),
+        QStringLiteral("city"),
+        QStringLiteral("companyAccent"),
+        QStringLiteral("companyId"),
+        QStringLiteral("companyInitials"),
+        QStringLiteral("companyName"),
+        QStringLiteral("cvFileName"),
+        QStringLiteral("cvId"),
+        QStringLiteral("dateLabel"),
+        QStringLiteral("description"),
+        QStringLiteral("id"),
+        QStringLiteral("jobTitle"),
+        QStringLiteral("jobUrl"),
+        QStringLiteral("nextStep"),
+        QStringLiteral("notes"),
+        QStringLiteral("requirements"),
+        QStringLiteral("salary"),
+        QStringLiteral("status"),
+        QStringLiteral("statusAccent"),
+        QStringLiteral("statusLabel"),
+        QStringLiteral("techStack"),
+        QStringLiteral("workFormat"),
+    };
+    keys.sort();
+    expectedKeys.sort();
+    QCOMPARE(keys, expectedKeys);
 }
 
 void JobApplicationsControllerTest::controllerIgnoresInvalidSelection()

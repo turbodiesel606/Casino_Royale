@@ -19,7 +19,26 @@ if(QT_KNOWN_POLICY_QTP0004)
     qt_policy(SET QTP0004 NEW)
 endif()
 
+set(JOBTRACKER_COMMON_LEAF_SOURCES
+    src/common/CancellationState.cpp
+    src/common/CancellationState.hpp
+    src/common/ExceptionUtils.cpp
+    src/common/ExceptionUtils.hpp
+    src/common/ModelPresentation.cpp
+    src/common/ModelPresentation.hpp
+    src/common/ModelRoleUtils.cpp
+    src/common/ModelRoleUtils.hpp
+    src/common/SerialOperationQueue.hpp
+    src/common/SingleActiveWorkerFacade.hpp
+    src/common/SingleActiveWorkerRuntime.cpp
+    src/common/SingleActiveWorkerRuntime.hpp
+    src/common/TimeUtils.cpp
+    src/common/TimeUtils.hpp
+    
+)
+
 set(JOBTRACKER_COMMON_SOURCES
+    ${JOBTRACKER_COMMON_LEAF_SOURCES}
     src/common/BulkIdSelectionTracker.cpp
     src/common/BulkIdSelectionTracker.hpp
     src/common/LimitedSortedProxyModel.cpp
@@ -30,6 +49,7 @@ set(JOBTRACKER_COMMON_SOURCES
     src/common/RoleFilterProxyModel.hpp
     src/common/StableIdSelectionTracker.cpp
     src/common/StableIdSelectionTracker.hpp
+
 )
 
 set(JOBTRACKER_JOB_DOMAIN_SOURCES
@@ -51,12 +71,13 @@ set(JOBTRACKER_JOB_SOURCES
 )
 
 set(JOBTRACKER_CV_PERSISTENCE_SOURCES
-    src/common/CancellationState.cpp
-    src/common/CancellationState.hpp
     src/cvs/CvImportService.cpp
     src/cvs/CvImportService.hpp
+    src/cvs/CvImportExecutor.cpp
+    src/cvs/CvImportExecutor.hpp
     src/cvs/CvImportWorker.cpp
     src/cvs/CvImportWorker.hpp
+    src/cvs/CvImportWorkerTypes.hpp
     src/cvs/CvManagedFileStore.cpp
     src/cvs/CvManagedFileStore.hpp
     src/cvs/CvManagedPathResolver.cpp
@@ -73,8 +94,11 @@ set(JOBTRACKER_DIRECTORY_PERSISTENCE_SOURCES
 set(JOBTRACKER_JOB_PERSISTENCE_SOURCES
     src/jobs/AddJobService.cpp
     src/jobs/AddJobService.hpp
+    src/jobs/JobSaveExecutor.cpp
+    src/jobs/JobSaveExecutor.hpp
     src/jobs/JobSaveWorker.cpp
     src/jobs/JobSaveWorker.hpp
+    src/jobs/JobSaveWorkerTypes.hpp
     src/jobs/JobRepository.cpp
     src/jobs/JobRepository.hpp
     src/jobs/UpdateJobService.cpp
@@ -288,6 +312,7 @@ if(JOBTRACKER_BUILD_TESTS)
     function(jobtracker_add_backend_test target_name test_source)
         add_executable(${target_name}
             ${test_source}
+            ${JOBTRACKER_COMMON_LEAF_SOURCES}
             ${ARGN}
         )
 
@@ -336,6 +361,11 @@ if(JOBTRACKER_BUILD_TESTS)
         src/common/BulkIdSelectionTracker.hpp
         src/common/StableIdSelectionTracker.cpp
         src/common/StableIdSelectionTracker.hpp
+    )
+
+    jobtracker_add_backend_test(
+        JobTrackerAsyncInfrastructureTests
+        tests/common/AsyncInfrastructureTest.cpp
     )
 
     add_executable(JobTrackerJobsTests

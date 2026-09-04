@@ -29,6 +29,7 @@ private slots:
     void distinguishesSameContentWithDifferentNames();
     void distinguishesCaseOnlyFileNames();
     void distinguishesDifferentContentWithSameName();
+    void importDispositionMessagesRemainExact();
 };
 
 void CvFileStoreImportTest::streamsHashAndStagesCopy()
@@ -301,6 +302,22 @@ void CvFileStoreImportTest::distinguishesDifferentContentWithSameName()
     QCOMPARE(second.disposition_, CvImportDisposition::Inserted);
     QVERIFY(first.document_.id_ != second.document_.id_);
     QCOMPARE(repository.findAll().size(), 2);
+}
+
+void CvFileStoreImportTest::importDispositionMessagesRemainExact()
+{
+    QCOMPARE(
+        cvImportSuccessMessage(CvImportDisposition::Inserted),
+        QStringLiteral("CV added successfully."));
+    QCOMPARE(
+        cvImportSuccessMessage(CvImportDisposition::RestoredArchived),
+        QStringLiteral("The archived CV was restored to the library."));
+    QCOMPARE(
+        cvImportSuccessMessage(CvImportDisposition::ExistingActive),
+        QStringLiteral("A CV with the same filename and SHA-256 already exists."));
+    QCOMPARE(
+        cvImportSuccessMessage(CvImportDisposition::ReusedArchived),
+        QStringLiteral("A CV with the same filename and SHA-256 already exists."));
 }
 
 QTEST_GUILESS_MAIN(CvFileStoreImportTest)

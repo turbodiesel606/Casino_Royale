@@ -2,11 +2,14 @@
 
 #include "common/CancellationState.hpp"
 #include "maintenance/DataRemovalService.hpp"
+#include "maintenance/DataRemovalWorker.hpp"
 #include "maintenance/StorageMutationGate.hpp"
 
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QSignalSpy>
+#include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QUrl>
 #include <QtTest/QtTest>
@@ -63,6 +66,7 @@ private slots:
     void recoversReferencedAndCommittedTombstones();
     void rejectsSymlinkWhenSupported();
     void mutationGateSerializesAddAndRemovalWork();
+    void workerShutdownCancelsActiveWorkAndClosesItsConnection();
 };
 
 void DataRemovalServiceTest::deletingJobCascadesTechnologiesAndPreservesCompanyAndCv()
@@ -112,6 +116,8 @@ void DataRemovalServiceTest::removingLinkedActiveCvArchivesWithoutRemovingFile()
     const auto stored = fixture.cvRepository_.findById(created.cvDocument_.id_);
     QVERIFY(stored.has_value());
     QVERIFY(stored->archivedAt_.isValid());
+    QCOMPARE(result.items_.first().document_.archivedAt_, stored->archivedAt_);
+    QCOMPARE(result.items_.first().document_.updatedAt_, stored->updatedAt_);
     QCOMPARE(stored->linkedApplicationIds_, QStringList{created.application_.id_});
     QVERIFY(QFileInfo::exists(managedPath));
 }
@@ -197,6 +203,8 @@ void DataRemovalServiceTest::restorePreservesIdentityMetadataFavoriteLinksAndFil
     QCOMPARE(after->linkedApplicationIds_, before->linkedApplicationIds_);
     QVERIFY(after->isFavorite_);
     QVERIFY(!after->archivedAt_.isValid());
+    QVERIFY(!result.items_.first().document_.archivedAt_.isValid());
+    QCOMPARE(result.items_.first().document_.updatedAt_, after->updatedAt_);
     QVERIFY(QFileInfo::exists(managedPath));
 }
 
@@ -365,6 +373,36 @@ void DataRemovalServiceTest::mutationGateSerializesAddAndRemovalWork()
     gate.endRemoval();
     QVERIFY(gate.reserveJobSave());
     gate.releaseJobSave();
+}
+
+void DataRemovalServiceTest::workerShutdownCancelsActiveWorkAndClosesItsConnection()
+{
+    const auto initialConnectionCount = QSqlDatabase::connectionNames().size();
+    testsupport::TemporaryStorageFixture storage;
+    QVERIFY(storage.isValid());
+
+    DataRemovalWorker worker{storage.paths().dataDirectory()};
+    QSignalSpy completedSpy{&worker, &DataRemovalWorker::removalCompleted};
+    worker.submit({
+        1,
+        DataRemovalKind::DeleteJobs,
+        {{QStringLiteral("missing-job"), QStringLiteral("Missing job")}},
+        std::make_shared<CancellationState>()});
+    QTRY_COMPARE_WITH_TIMEOUT(completedSpy.count(), 1, 10000);
+    QCOMPARE(QSqlDatabase::connectionNames().size(), initialConnectionCount + 1);
+
+    QVector<DataRemovalItemRequest> items;
+    items.reserve(100);
+    for (int index = 0; index < 100; ++index) {
+        const auto id = QStringLiteral("missing-job-%1").arg(index);
+        items.append({id, id});
+    }
+    const auto cancellation = std::make_shared<CancellationState>();
+    worker.submit({2, DataRemovalKind::DeleteJobs, std::move(items), cancellation});
+    worker.shutdown();
+
+    QVERIFY(cancellation->isCancellationRequested());
+    QCOMPARE(QSqlDatabase::connectionNames().size(), initialConnectionCount);
 }
 
 QTEST_GUILESS_MAIN(DataRemovalServiceTest)

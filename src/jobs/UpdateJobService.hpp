@@ -20,15 +20,6 @@ class JobRepository;
 class QSqlDatabase;
 class QThread;
 
-struct UpdateJobPreflightResult final
-{
-    NormalizedJobApplicationDraft draft_;
-    QVariantMap fieldErrors_;
-    QString message_;
-
-    bool isValid() const;
-};
-
 struct UpdateJobPreparationResult final
 {
     bool success_ = false;
@@ -64,10 +55,6 @@ public:
         CompanyRepository& companyRepository,
         CvImportService& cvImportService);
 
-    static UpdateJobPreflightResult preflight(
-        const JobApplicationDraft& draft,
-        bool hasCurrentCv,
-        const QUrl& replacementCvUrl);
     UpdateJobPreparationResult prepare(
         const QString& applicationId,
         const NormalizedJobApplicationDraft& draft,

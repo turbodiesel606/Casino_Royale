@@ -39,7 +39,8 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     const CvDocument* cvAt(int row) const;
-    void setDocuments(QVector<CvDocument> documents);
+    int rowForId(const QString& cvId) const;
+    const CvDocument* cvById(const QString& cvId) const;
     void appendDocument(CvDocument document);
     bool addLinkedApplication(const QString& cvId, const QString& applicationId);
     bool removeLinkedApplication(const QString& cvId, const QString& applicationId);

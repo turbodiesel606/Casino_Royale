@@ -46,6 +46,7 @@ class EndToEndIntegrationTest final : public QObject
     Q_OBJECT
 
 private slots:
+    void initTestCase();
     void persistsAndHydratesJobAcrossDatabaseReopen();
     void controllerPublishesSuccessfulCreation();
     void rapidSubmissionsPersistInFifoOrderWithExactStateTransitions();
@@ -59,6 +60,11 @@ private slots:
     void cancelAllRemovesQueuedWorkAndCleansActiveRequest();
     void controllerShutdownLeavesNoPartialState();
 };
+
+void EndToEndIntegrationTest::initTestCase()
+{
+    qRegisterMetaType<Company>();
+}
 
 void EndToEndIntegrationTest::persistsAndHydratesJobAcrossDatabaseReopen()
 {
@@ -135,6 +141,17 @@ void EndToEndIntegrationTest::controllerPublishesSuccessfulCreation()
     QCOMPARE(queuedSpy.count(), 1);
     QCOMPARE(createdSpy.count(), 1);
     QCOMPARE(companySpy.count(), 1);
+    const auto publishedCompany = companySpy.first().at(0).value<Company>();
+    const auto storedCompanies = fixture.companyRepository_.findAll();
+    QCOMPARE(storedCompanies.size(), 1);
+    const auto& storedCompany = storedCompanies.first();
+    QCOMPARE(publishedCompany.id_, storedCompany.id_);
+    QCOMPARE(publishedCompany.name_, storedCompany.name_);
+    QCOMPARE(publishedCompany.website_, storedCompany.website_);
+    QCOMPARE(publishedCompany.description_, storedCompany.description_);
+    QCOMPARE(publishedCompany.notes_, storedCompany.notes_);
+    QCOMPARE(publishedCompany.createdAt_, storedCompany.createdAt_);
+    QCOMPARE(publishedCompany.updatedAt_, storedCompany.updatedAt_);
     QVERIFY(completedSpy.first().at(2).toBool());
     QVERIFY(!completedSpy.first().at(3).toString().isEmpty());
     QCOMPARE(controller.applicationCount(), 1);
@@ -651,7 +668,7 @@ void EndToEndIntegrationTest::cancelAllRemovesQueuedWorkAndCleansActiveRequest()
     controller.createApplication(
         testsupport::validJobFormValues(QStringLiteral("Queued Role 2")),
         QUrl::fromLocalFile(queuedPath));
-    controller.cancelAllCreateApplications();
+    controller.cancelAllJobSaves();
 
     QCOMPARE(queuedSpy.count(), 3);
     QCOMPARE(controller.pendingSaveCount(), 1);

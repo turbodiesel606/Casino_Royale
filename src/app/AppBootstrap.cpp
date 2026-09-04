@@ -8,6 +8,38 @@
 #include <cstdlib>
 #include <stdexcept>
 
+namespace {
+
+	QVector<CvDocument> resolveCvDocuments(
+		CvRepository& repository,
+		CvManagedFileStore& managedFileStore)
+	{	
+
+		/*
+			EXCEPTION_HANDLING
+		*/
+
+		auto documents = repository.findAll();
+		const auto recovery = managedFileStore.reconcile(documents);
+		if (recovery.removedStagedFileCount_ > 0
+			|| recovery.removedDeletionFileCount_ > 0
+			|| recovery.restoredDeletionFileCount_ > 0
+			|| !recovery.quarantinedFileNames_.isEmpty()) {
+			qInfo() << "Managed CV recovery removed"
+				<< recovery.removedStagedFileCount_
+				<< "staged files, removed"
+				<< recovery.removedDeletionFileCount_
+				<< "deletion tombstones, restored"
+				<< recovery.restoredDeletionFileCount_
+				<< "deletion tombstones, and quarantined"
+				<< recovery.quarantinedFileNames_.size()
+				<< "orphaned files.";
+		}
+		return documents;
+	}
+
+} // namespace
+
 AppBootstrap::AppBootstrap(QCoreApplication& app)
 	: app_{ app }
 	, storagePaths_{}
@@ -26,37 +58,21 @@ AppBootstrap::AppBootstrap(QCoreApplication& app)
 		jobSaveWorker_,
 		dataRemovalWorker_,
 		storageMutationGate_ }
-	, cvLibraryController_{
-		jobApplicationsController_.jobApplicationListModel(),
-		cvRepository_.findAll(),
-		cvRepository_,
-		cvFileAccessService_,
-		cvImportWorker_,
-		dataRemovalWorker_,
-		storageMutationGate_ }
-		, dashboardController_{ jobApplicationsController_.jobApplicationListModel(), cvLibraryController_.cvListModel() }
+		, cvLibraryController_{
+			jobApplicationsController_.jobApplicationListModel(),
+			resolveCvDocuments(cvRepository_, cvManagedFileStore_),
+			cvRepository_,
+			cvFileAccessService_,
+			cvImportWorker_,
+			dataRemovalWorker_,
+			storageMutationGate_ }
+			, dashboardController_{ jobApplicationsController_.jobApplicationListModel(), cvLibraryController_.cvListModel() }
 	, companyDirectoryController_(
 		companyRepository_.findAll(),
 		jobApplicationsController_.jobApplicationListModel(),
 		contactModel_)
 	, contactDirectoryController_(contactModel_)
 {
-	const auto recovery = cvManagedFileStore_.reconcile(cvRepository_.findAll());
-	if (recovery.removedStagedFileCount_ > 0
-		|| recovery.removedDeletionFileCount_ > 0
-		|| recovery.restoredDeletionFileCount_ > 0
-		|| !recovery.quarantinedFileNames_.isEmpty()) {
-		qInfo() << "Managed CV recovery removed"
-			<< recovery.removedStagedFileCount_
-			<< "staged files, removed"
-			<< recovery.removedDeletionFileCount_
-			<< "deletion tombstones, restored"
-			<< recovery.restoredDeletionFileCount_
-			<< "deletion tombstones, and quarantined"
-			<< recovery.quarantinedFileNames_.size()
-			<< "orphaned files.";
-	}
-
 	// When a job is created or its CV is replaced, the controller publishes the
 	// committed CV relationship so the library can refresh its linked-job counts.
 	QObject::connect(
@@ -76,10 +92,10 @@ AppBootstrap::AppBootstrap(QCoreApplication& app)
 		&CvLibraryController::recordApplicationsDeleted);
 	/*
 	When creating or updating a job, the save service can:
-	1. find an existing company 
+	1. find an existing company
 	2. or create a new company.
-	Upon successful completion, the controller emits companyResolved.
-	Then, CompanyDirectoryController::publishCompany() adds or updates the company in its model.
+	Upon successful completion, the controller emits the committed Company value.
+	Then, CompanyDirectoryController::publishCompany() adds it when it is not already present.
 	*/
 	QObject::connect(
 		&jobApplicationsController_,

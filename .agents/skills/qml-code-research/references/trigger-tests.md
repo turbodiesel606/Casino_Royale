@@ -32,6 +32,6 @@ Use these cases only when changing `qml-code-research` selection or instructions
 - Narrow research does not load decomposition guidance or inventory the entire QML tree.
 - Reports distinguish source existence, QML registration, instantiation, navigation reachability, build success, and manual runtime observation.
 - QML-to-C++ traces distinguish bindings, direct calls, signal emissions, signal handlers, and backend notifications.
-- Research performs no edits, builds, CTest runs, GUI launches, artifact writes, or subagent delegation unless separately authorized.
+- Research performs no edits, builds, CTest runs, GUI launches, or subagent delegation unless separately authorized.
 - Implementation planning stops before code changes and produces a handoff suitable for `qt-qml-ui-task` or `qml-to-cpp-extraction`.
 - No routing or documentation references remain for the retired duplicate QML research skill.

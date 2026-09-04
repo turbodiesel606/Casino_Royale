@@ -1,5 +1,7 @@
 #include "JobApplicationValidator.hpp"
 
+#include "JobApplicationFactory.hpp"
+
 namespace {
 
 	JobApplicationValidationResult validateValues(
@@ -73,6 +75,26 @@ QStringList JobApplicationValidationResult::messages() const
 		result.append(it.value().toString());
 	}
 	return result;
+}
+
+bool JobApplicationPreflightResult::isValid() const
+{
+    return fieldErrors_.isEmpty();
+}
+
+JobApplicationPreflightResult JobApplicationValidator::preflight(
+    const JobApplicationDraft& draft,
+    bool hasCv)
+{
+    JobApplicationPreflightResult result;
+    result.draft_ = JobApplicationFactory::normalize(draft);
+
+    const auto validation = validate(result.draft_, hasCv);
+    result.fieldErrors_ = validation.fieldErrors_;
+    if (!validation.isValid()) 
+        result.message_ = QStringLiteral("Please correct the highlighted fields.");
+    
+    return result;
 }
 
 JobApplicationValidationResult JobApplicationValidator::validate(

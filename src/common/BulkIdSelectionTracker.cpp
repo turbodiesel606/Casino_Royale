@@ -1,5 +1,7 @@
 #include "BulkIdSelectionTracker.hpp"
 
+#include "ModelRoleUtils.hpp"
+
 #include <QAbstractItemModel>
 #include <QAbstractProxyModel>
 
@@ -114,10 +116,7 @@ void BulkIdSelectionTracker::removeIds(const QStringList& ids)
 
 QString BulkIdSelectionTracker::idAt(int proxyRow) const
 {
-    if (proxyRow < 0 || proxyRow >= proxyModel_.rowCount()) {
-        return {};
-    }
-    return proxyModel_.data(proxyModel_.index(proxyRow, 0), idRole_).toString();
+    return common::model::stringRoleAt(proxyModel_, proxyRow, idRole_);
 }
 
 QStringList BulkIdSelectionTracker::visibleIds() const

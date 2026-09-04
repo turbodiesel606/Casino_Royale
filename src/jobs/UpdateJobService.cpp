@@ -25,28 +25,6 @@ UpdateJobService::UpdateJobService(
 {
 }
 
-bool UpdateJobPreflightResult::isValid() const
-{
-    return fieldErrors_.isEmpty();
-}
-
-UpdateJobPreflightResult UpdateJobService::preflight(
-    const JobApplicationDraft& draft,
-    bool hasCurrentCv,
-    const QUrl& replacementCvUrl)
-{
-    UpdateJobPreflightResult result;
-    result.draft_ = JobApplicationFactory::normalize(draft);
-    const auto validation = JobApplicationValidator::validate(
-        result.draft_,
-        hasCurrentCv || !replacementCvUrl.isEmpty());
-    result.fieldErrors_ = validation.fieldErrors_;
-    if (!validation.isValid()) {
-        result.message_ = QStringLiteral("Please correct the highlighted fields.");
-    }
-    return result;
-}
-
 UpdateJobPreparationResult UpdateJobService::prepare(
     const QString& applicationId,
     const NormalizedJobApplicationDraft& draft,

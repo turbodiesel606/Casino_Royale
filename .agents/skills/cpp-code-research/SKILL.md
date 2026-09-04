@@ -22,16 +22,13 @@ Read these files first:
 
 1. `AGENTS.md`
 2. `For-Agent/Docs/architecture.md`
-3. `For-Agent/Docs/artifacts.md`
-4. `For-Agent/Docs/coding-style.md`
-5. `For-Agent/Docs/testing.md`
+3. `For-Agent/Docs/coding-style.md`
+4. `For-Agent/Docs/testing.md`
 
 Also read:
 
 - `For-Agent/Docs/qml-to-cpp-extraction.md` when the research involves QML-facing controllers, models, or durable behavior being moved out of QML.
 - `For-Agent/Docs/build.md` when the user requests current build or test verification.
-
-Before overlapping prior research, check the relevant files in `For-Agent/Research/`, `For-Agent/Review/`, and `For-Agent/Task-Report/`. Follow `For-Agent/Docs/artifacts.md` for recency and reuse. Treat artifacts as context only and reverify every current claim against the live instructions, source, worktree, and focused diff.
 
 ## Scope Gate
 
@@ -130,14 +127,11 @@ Add only the sections required by the selected mode:
 
 Stop before edits after an implementation-planning request. Hand the verified research to `cpp-backend-task` only when the user authorizes implementation.
 
-Create a durable research artifact only when the user explicitly requests saved or durable output. Otherwise return findings in chat without writing files. When authorized, follow `For-Agent/Docs/artifacts.md` and save under `For-Agent/Research/`.
-
-If a read-only subagent is used at the user's request, treat its output as research input. The lead Codex remains responsible for checking the live source, compiling the final findings, and writing any authorized artifact.
+If a read-only subagent is used at the user's request, treat its output as research input. The lead Codex remains responsible for checking the live source and compiling the final findings.
 
 ## Boundaries
 
 - Do not edit production code, CMake, tests, QML, or documentation during research.
-- Do not write a research artifact unless the user explicitly authorizes durable output.
 - Do not broaden into QML visual review unless the C++ behavior depends on the QML contract.
 - Do not run builds, CTest, or the GUI unless the user requests verification or the research genuinely depends on current execution state.
 - Do not recommend a new abstraction until the relevant existing implementation has been inspected and found insufficient.

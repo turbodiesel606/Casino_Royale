@@ -26,6 +26,7 @@ enum class CvImportDisposition
 };
 
 QString cvImportDispositionName(CvImportDisposition disposition);
+QString cvImportSuccessMessage(CvImportDisposition disposition);
 
 struct CvImportResult final
 {

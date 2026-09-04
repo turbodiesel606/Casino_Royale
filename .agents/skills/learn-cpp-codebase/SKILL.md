@@ -13,9 +13,8 @@ Read these files before teaching:
 
 1. `AGENTS.md`
 2. `For-Agent/Docs/architecture.md`
-3. `For-Agent/Docs/artifacts.md`
-4. `For-Agent/Docs/coding-style.md`
-5. `For-Agent/Docs/testing.md`
+3. `For-Agent/Docs/coding-style.md`
+4. `For-Agent/Docs/testing.md`
 
 ## Teaching Rules
 
@@ -174,7 +173,7 @@ Treat the saved artifact as part of each phase's definition of done, not as an o
 7. Include the phase status, inspected scope, learner-oriented explanation, architecture or data-flow relationships, exact source anchors, recap, recommended reading, comprehension questions, and unverified areas.
 8. Save the artifact before reporting the phase as complete. Link the saved file in the phase response.
 9. During Phase 4, create the phase artifact after the first completed domain lesson, update the same file after every remaining domain lesson, and mark it complete only after all listed domains are covered.
-10. Use `For-Human/Architecture/` for this skill's learning outputs. Do not duplicate them under `For-Agent/Research/` unless the user explicitly requests both locations.
+10. Use `For-Human/Architecture/` for this skill's learning outputs.
 
 ## Delivery Modes
 

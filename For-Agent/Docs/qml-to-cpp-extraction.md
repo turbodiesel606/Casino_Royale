@@ -13,7 +13,7 @@ C++ should own durable product behavior:
 - Filtering, sorting, grouping, and search rules that affect product behavior.
 - Parsing, storage, import, export, and file-system access.
 - Data models consumed by more than one QML view.
-- Operations that need tests or stable cross-platform behavior.
+- Operations that require durable ownership outside one view or stable cross-platform behavior.
 
 ## What Can Stay In QML
 
@@ -44,6 +44,8 @@ Mock data can stay in QML only for short-lived prototypes. Move it behind C++ mo
 6. Replace QML business logic with bindings, signal handlers, and calls into the exposed C++ API.
 7. Add or update tests for validation, parsing, algorithms, storage, model roles, and signal behavior.
 8. Run the applicable build and tests from `D:\Project_CV\Root`.
+
+Define the extraction boundary and production API from product responsibilities. Do not move behavior, expose internals, add commands or signals, or widen a QML/C++ contract solely to accommodate tests; tests must exercise the production contract that the feature requires.
 
 ## C++ Backend Shape
 
@@ -102,6 +104,8 @@ Add or update tests when extraction moves:
 - Signals or property notifications that QML depends on.
 
 Use Qt Test for QObject, signal, and model behavior. Use `QSignalSpy` when verifying emitted signals.
+
+Keep test fixtures, mocks, fakes, and helpers under `tests/`. Production C++ and QML-facing APIs must not reference or depend on them.
 
 ## Manual Checks
 

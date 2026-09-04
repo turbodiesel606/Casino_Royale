@@ -36,12 +36,11 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     const Company* companyAt(int row) const;
+    int rowForId(const QString& companyId) const;
     bool upsertCompany(Company company);
     void setOpenJobCount(const QString& companyId, int count);
 
 private:
-    int indexOfCompany(const QString& companyId) const;
-
     QVector<Company> companies_;
 };
 

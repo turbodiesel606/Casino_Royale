@@ -4,6 +4,7 @@
 #include "CvImportWorker.hpp"
 #include "CvRepository.hpp"
 #include "common/CancellationState.hpp"
+#include "common/ModelRoleUtils.hpp"
 #include "jobs/JobApplicationListModel.hpp"
 #include "maintenance/DataRemovalWorker.hpp"
 #include "maintenance/StorageMutationGate.hpp"
@@ -64,6 +65,14 @@ CvLibraryController::CvLibraryController(
 		this,
 		&CvLibraryController::handleSelectionChanged);
 	connect(
+		&selectionTracker_,
+		&StableIdSelectionTracker::visibleRowCountChanged,
+		this,
+		[this]() {
+			emit cvCountChanged();
+			emit resultSummaryChanged();
+		});
+	connect(
 		&bulkSelectionTracker_,
 		&BulkIdSelectionTracker::selectionChanged,
 		this,
@@ -73,22 +82,6 @@ CvLibraryController::CvLibraryController(
 		});
 	filteredCvModel_.setSourceModel(&cvModel_);
 	selectionTracker_.synchronize();
-	publishedCvCount_ = cvCount();
-	connect(
-		&filteredCvModel_,
-		&QAbstractItemModel::rowsInserted,
-		this,
-		[this]() { handleVisibleCountChanged(); });
-	connect(
-		&filteredCvModel_,
-		&QAbstractItemModel::rowsRemoved,
-		this,
-		[this]() { handleVisibleCountChanged(); });
-	connect(
-		&filteredCvModel_,
-		&QAbstractItemModel::modelReset,
-		this,
-		[this]() { handleVisibleCountChanged(); });
 	connect(
 		&cvModel_,
 		&QAbstractItemModel::rowsInserted,
@@ -157,15 +150,10 @@ CvLibraryController::~CvLibraryController()
 {
 	shuttingDown_ = true;
 	if (mutationGate_ != nullptr) {
-		mutationGate_->releaseCvImports(static_cast<int>(importQueue_.size()));
-		if (activeImport_.has_value()) {
-			mutationGate_->releaseCvImports(1);
-		}
+		mutationGate_->releaseCvImports(importQueue_.pendingCount());
 	}
-	importQueue_.clear();
-	if (activeImportCancellation_ != nullptr) {
-		activeImportCancellation_->requestCancellation();
-	}
+	importQueue_.clearWaiting();
+	importQueue_.requestActiveCancellation();
 	if (activeMutationCancellation_ != nullptr) {
 		activeMutationCancellation_->requestCancellation();
 		if (mutationGate_ != nullptr) {
@@ -267,7 +255,7 @@ QVariantList CvLibraryController::categorySummary() const
 
 int CvLibraryController::cvCount() const
 {
-	return filteredCvModel_.rowCount();
+	return selectionTracker_.visibleRowCount();
 }
 
 int CvLibraryController::selectedCvIndex() const
@@ -288,7 +276,7 @@ QVariantMap CvLibraryController::selectedCv() const
 
 QString CvLibraryController::searchText() const
 {
-	return searchText_;
+	return filteredCvModel_.searchText();
 }
 
 QString CvLibraryController::categoryFilter() const
@@ -319,7 +307,7 @@ bool CvLibraryController::importing() const
 
 int CvLibraryController::pendingImportCount() const
 {
-	return static_cast<int>(importQueue_.size()) + (activeImport_.has_value() ? 1 : 0);
+	return importQueue_.pendingCount();
 }
 
 CvLibraryController::LibraryView CvLibraryController::libraryView() const
@@ -341,7 +329,7 @@ int CvLibraryController::checkedLinkedCvCount() const
 {
 	int count = 0;
 	for (const auto& id : checkedCvIds()) {
-		const auto* document = findCv(id);
+		const auto* document = cvModel_.cvById(id);
 		if (document != nullptr && !document->linkedApplicationIds_.isEmpty()) {
 			++count;
 		}
@@ -391,18 +379,14 @@ void CvLibraryController::selectCv(int index)
 void CvLibraryController::setSearchText(const QString& text)
 {
 	const auto normalized = text.trimmed();
-	if (searchText_ == normalized) {
+	if (searchText() == normalized) {
 		return;
 	}
 
-	searchText_ = normalized;
 	bulkSelectionTracker_.clear();
 	selectionTracker_.beginModelUpdate();
-	visibleCountNotificationsSuppressed_ = true;
-	filteredCvModel_.setSearchText(searchText_);
-	visibleCountNotificationsSuppressed_ = false;
+	filteredCvModel_.setSearchText(normalized);
 	selectionTracker_.endModelUpdate();
-	handleVisibleCountChanged();
 	emit searchTextChanged();
 }
 
@@ -422,11 +406,8 @@ void CvLibraryController::setCategoryFilter(const QString& category)
 	categoryFilter_ = normalized;
 	bulkSelectionTracker_.clear();
 	selectionTracker_.beginModelUpdate();
-	visibleCountNotificationsSuppressed_ = true;
 	filteredCvModel_.setExactFilter(CvListModel::CategoryRole, categoryFilter_ == QStringLiteral("All") ? QString() : categoryFilter_);
-	visibleCountNotificationsSuppressed_ = false;
 	selectionTracker_.endModelUpdate();
-	handleVisibleCountChanged();
 	emit categoryFilterChanged();
 	if (previousSummarySelection != nextSummarySelection) {
 		emit categorySummaryChanged();
@@ -443,11 +424,8 @@ void CvLibraryController::setLanguageFilter(const QString& language)
 	languageFilter_ = normalized;
 	bulkSelectionTracker_.clear();
 	selectionTracker_.beginModelUpdate();
-	visibleCountNotificationsSuppressed_ = true;
 	filteredCvModel_.setExactFilter(CvListModel::LanguageRole, languageFilter_ == QStringLiteral("All") ? QString() : languageFilter_);
-	visibleCountNotificationsSuppressed_ = false;
 	selectionTracker_.endModelUpdate();
-	handleVisibleCountChanged();
 	emit languageFilterChanged();
 }
 
@@ -475,21 +453,19 @@ void CvLibraryController::setSortMode(const QString& sortMode)
 
 void CvLibraryController::clearFilters()
 {
-	if (searchText_.isEmpty() && categoryFilter_.isEmpty() && languageFilter_.isEmpty()) {
+	if (searchText().isEmpty() && categoryFilter_.isEmpty() && languageFilter_.isEmpty()) {
 		return;
 	}
 
-	const bool didSearchTextChange = !searchText_.isEmpty();
+	const bool didSearchTextChange = !searchText().isEmpty();
 	const bool didCategoryFilterChange = !categoryFilter_.isEmpty();
 	const bool didCategorySummaryChange = didCategoryFilterChange
 		&& categoryFilter_ != QStringLiteral("All");
 	const bool didLanguageFilterChange = !languageFilter_.isEmpty();
-	searchText_.clear();
 	categoryFilter_.clear();
 	languageFilter_.clear();
 	bulkSelectionTracker_.clear();
 	selectionTracker_.beginModelUpdate();
-	visibleCountNotificationsSuppressed_ = true;
 	filteredCvModel_.setSearchText(QString());
 	filteredCvModel_.setExactFilter(CvListModel::CategoryRole, QString());
 	filteredCvModel_.setExactFilter(CvListModel::LanguageRole, QString());
@@ -498,9 +474,7 @@ void CvLibraryController::clearFilters()
 		libraryView_ == LibraryView::Archived
 			? QStringLiteral("true")
 			: QStringLiteral("false"));
-	visibleCountNotificationsSuppressed_ = false;
 	selectionTracker_.endModelUpdate();
-	handleVisibleCountChanged();
 	if (didSearchTextChange) {
 		emit searchTextChanged();
 	}
@@ -521,7 +495,7 @@ void CvLibraryController::toggleFavorite(const QString& cvId)
 		emit operationFailed(QStringLiteral("Wait for the active deletion to finish."));
 		return;
 	}
-	const auto* cv = findCv(cvId);
+	const auto* cv = cvModel_.cvById(cvId);
 	if (cv == nullptr) {
 		emit operationFailed(QStringLiteral("CV was not found."));
 		return;
@@ -554,7 +528,7 @@ void CvLibraryController::toggleFavorite(const QString& cvId)
 
 void CvLibraryController::openCv(const QString& cvId)
 {
-	const auto* cv = findCv(cvId);
+	const auto* cv = cvModel_.cvById(cvId);
 	if (cv == nullptr) {
 		emit operationFailed(QStringLiteral("CV was not found."));
 		return;
@@ -587,8 +561,9 @@ void CvLibraryController::addCvs(const QList<QUrl>& sourceUrls)
 
 	const auto previousCount = pendingImportCount();
 	for (const auto& sourceUrl : sourceUrls) {
-		if (!sourceUrl.isEmpty())
-			importQueue_.push_back({ ++nextImportOperationId_, sourceUrl });
+		if (!sourceUrl.isEmpty()) {
+			importQueue_.enqueue({sourceUrl});
+		}
 	}
 
 	publishPendingImportStateChange(previousCount);
@@ -598,14 +573,11 @@ void CvLibraryController::addCvs(const QList<QUrl>& sourceUrls)
 void CvLibraryController::cancelAllCvImports()
 {
 	const auto previousCount = pendingImportCount();
+	const auto clearedCount = importQueue_.clearWaiting();
 	if (mutationGate_ != nullptr) {
-		mutationGate_->releaseCvImports(static_cast<int>(importQueue_.size()));
+		mutationGate_->releaseCvImports(clearedCount);
 	}
-	importQueue_.clear();
-	if (activeImportCancellation_ != nullptr) {
-		suppressActiveImportNotification_ = true;
-		activeImportCancellation_->requestCancellation();
-	}
+	importQueue_.requestActiveCancellation();
 	publishPendingImportStateChange(previousCount);
 }
 
@@ -617,15 +589,12 @@ void CvLibraryController::setLibraryView(LibraryView view)
 	libraryView_ = view;
 	bulkSelectionTracker_.clear();
 	selectionTracker_.beginModelUpdate();
-	visibleCountNotificationsSuppressed_ = true;
 	filteredCvModel_.setExactFilter(
 		CvListModel::IsArchivedRole,
 		libraryView_ == LibraryView::Archived
 			? QStringLiteral("true")
 			: QStringLiteral("false"));
-	visibleCountNotificationsSuppressed_ = false;
 	selectionTracker_.endModelUpdate();
-	handleVisibleCountChanged();
 	emit libraryViewChanged();
 	emit categorySummaryChanged();
 }
@@ -638,11 +607,6 @@ void CvLibraryController::toggleCvChecked(int index)
 void CvLibraryController::setAllVisibleCvsChecked(bool checked)
 {
 	bulkSelectionTracker_.setAllVisibleSelected(checked);
-}
-
-void CvLibraryController::clearCheckedCvs()
-{
-	bulkSelectionTracker_.clear();
 }
 
 void CvLibraryController::removeCheckedCvs()
@@ -700,7 +664,7 @@ void CvLibraryController::submitCvMutation(DataRemovalKind kind)
 
 	QVector<DataRemovalItemRequest> items;
 	for (const auto& id : checkedCvIds()) {
-		const auto* document = findCv(id);
+		const auto* document = cvModel_.cvById(id);
 		items.append({id, document != nullptr ? document->originalFileName_ : id});
 	}
 
@@ -719,45 +683,26 @@ void CvLibraryController::submitCvMutation(DataRemovalKind kind)
 
 QVariantMap CvLibraryController::cvToMap(int sourceRow) const
 {
-	const auto modelIndex = cvModel_.index(sourceRow, 0);
-	const auto roleData = [this, &modelIndex](int role) {
-		return cvModel_.data(modelIndex, role);
-		};
-	return {
-		{QStringLiteral("id"), roleData(CvListModel::IdRole)},
-		{QStringLiteral("fileName"), roleData(CvListModel::FileNameRole)},
-		{QStringLiteral("title"), roleData(CvListModel::TitleRole)},
-		{QStringLiteral("category"), roleData(CvListModel::CategoryRole)},
-		{QStringLiteral("categoryAccent"), roleData(CvListModel::CategoryAccentRole)},
-		{QStringLiteral("language"), roleData(CvListModel::LanguageRole)},
-		{QStringLiteral("languageAccent"), roleData(CvListModel::LanguageAccentRole)},
-		{QStringLiteral("lastModifiedLabel"), roleData(CvListModel::LastModifiedLabelRole)},
-		{QStringLiteral("fileSizeLabel"), roleData(CvListModel::FileSizeLabelRole)},
-		{QStringLiteral("description"), roleData(CvListModel::DescriptionRole)},
-		{QStringLiteral("linkedApplicationCount"), roleData(CvListModel::LinkedApplicationCountRole)},
-		{QStringLiteral("linkedApplicationCountLabel"), roleData(CvListModel::LinkedApplicationCountLabelRole)},
-		{QStringLiteral("isFavorite"), roleData(CvListModel::IsFavoriteRole)},
-		{QStringLiteral("isArchived"), roleData(CvListModel::IsArchivedRole)},
-		{QStringLiteral("archivedAt"), roleData(CvListModel::ArchivedAtRole)},
-	};
-}
-
-const CvDocument* CvLibraryController::findCv(const QString& cvId) const
-{
-	for (int row = 0; row < cvModel_.rowCount(); ++row) {
-		const auto* cv = cvModel_.cvAt(row);
-		if (cv != nullptr && cv->id_ == cvId) {
-			return cv;
-		}
-	}
-
-	return nullptr;
-}
-
-const CvDocument* CvLibraryController::selectedSourceCv() const
-{
-	const auto sourceIndex = selectionTracker_.selectedSourceIndex();
-	return sourceIndex.isValid() ? cvModel_.cvAt(sourceIndex.row()) : nullptr;
+	return common::model::rowToVariantMap(
+		cvModel_,
+		sourceRow,
+		{
+			CvListModel::IdRole,
+			CvListModel::FileNameRole,
+			CvListModel::TitleRole,
+			CvListModel::CategoryRole,
+			CvListModel::CategoryAccentRole,
+			CvListModel::LanguageRole,
+			CvListModel::LanguageAccentRole,
+			CvListModel::LastModifiedLabelRole,
+			CvListModel::FileSizeLabelRole,
+			CvListModel::DescriptionRole,
+			CvListModel::LinkedApplicationCountRole,
+			CvListModel::LinkedApplicationCountLabelRole,
+			CvListModel::IsFavoriteRole,
+			CvListModel::IsArchivedRole,
+			CvListModel::ArchivedAtRole,
+		});
 }
 
 void CvLibraryController::publishCvDocument(
@@ -768,7 +713,7 @@ void CvLibraryController::publishCvDocument(
 		return;
 	}
 
-	if (findCv(document.id_) == nullptr) {
+	if (cvModel_.cvById(document.id_) == nullptr) {
 		auto newDocument = document;
 		if (!applicationId.isEmpty()
 			&& !newDocument.linkedApplicationIds_.contains(applicationId)) {
@@ -804,22 +749,6 @@ void CvLibraryController::handleSelectionChanged(
 	}
 }
 
-void CvLibraryController::handleVisibleCountChanged()
-{
-	if (visibleCountNotificationsSuppressed_) {
-		return;
-	}
-
-	const auto count = cvCount();
-	if (publishedCvCount_ == count) {
-		return;
-	}
-
-	publishedCvCount_ = count;
-	emit cvCountChanged();
-	emit resultSummaryChanged();
-}
-
 void CvLibraryController::updateLinkedApplications()
 {
 	linkedApplicationsModel_.setSelectedId(selectedCvId());
@@ -827,19 +756,17 @@ void CvLibraryController::updateLinkedApplications()
 
 void CvLibraryController::startNextCvImport()
 {
-	if (shuttingDown_ || activeImport_.has_value() || importQueue_.empty()) 
+	if (shuttingDown_ || !importQueue_.activateNext()) {
 		return;
-	
-	activeImport_ = std::move(importQueue_.front());
-	importQueue_.pop_front();
-	activeImportCancellation_ = std::make_shared<CancellationState>();
-	suppressActiveImportNotification_ = false;
+	}
+
+	const auto* const active = importQueue_.active();
 
 	importWorker_.submit(
-		{
-		activeImport_->operationId_,
-		activeImport_->sourceUrl_,
-		activeImportCancellation_
+		CvImportRequest{
+		active->operationId_,
+		active->payload_.sourceUrl_,
+		importQueue_.activeCancellation()
 		});
 }
 
@@ -861,8 +788,10 @@ void CvLibraryController::publishPendingImportStateChange(int previousCount)
 
 void CvLibraryController::handleCvImport(const CvImportSaveOutcome& outcome)
 {
-	if (!isActiveImportOutcome(outcome.operationId_, outcome.cancellation_)) 
+	if (shuttingDown_
+		|| !importQueue_.matches(outcome.operationId_, outcome.cancellation_)) {
 		return;
+	}
 
 	if (outcome.success_) {
 		if (outcome.disposition_ == CvImportDisposition::RestoredArchived) {
@@ -875,15 +804,10 @@ void CvLibraryController::handleCvImport(const CvImportSaveOutcome& outcome)
 		}
 	}
 
-	if (!suppressActiveImportNotification_) {
+	if (!importQueue_.completionSuppressed()) {
 		const auto message = outcome.message_.isEmpty()
 			? (outcome.success_
-				? (outcome.disposition_ == CvImportDisposition::Inserted
-					? QStringLiteral("CV added successfully.")
-					: (outcome.disposition_ == CvImportDisposition::RestoredArchived
-						? QStringLiteral("The archived CV was restored to the library.")
-						: QStringLiteral(
-							"A CV with the same filename and SHA-256 already exists.")))
+				? cvImportSuccessMessage(outcome.disposition_)
 				: QStringLiteral("The CV could not be added."))
 			: outcome.message_;
 			emit cvImportCompleted(
@@ -987,25 +911,13 @@ void CvLibraryController::releaseCvMutation()
 	emit mutationAvailabilityChanged();
 }
 
-bool CvLibraryController::isActiveImportOutcome(
-	quint64 operationId,
-	const std::shared_ptr<CancellationState>& cancellation) const
-{
-	return !shuttingDown_
-		&& activeImport_.has_value()
-		&& activeImport_->operationId_ == operationId
-		&& activeImportCancellation_ == cancellation;
-}
-
 void CvLibraryController::releaseActiveCvImport()
 {
 	const auto previousCount = pendingImportCount();
-	activeImport_.reset();
-	activeImportCancellation_.reset();
+	importQueue_.finishActive();
 	if (mutationGate_ != nullptr) {
 		mutationGate_->releaseCvImports(1);
 	}
-	suppressActiveImportNotification_ = false;
 	publishPendingImportStateChange(previousCount);
 	startNextCvImport();
 }

@@ -1,8 +1,8 @@
 #include "CvImportService.hpp"
 
 #include "CvRepository.hpp"
+#include "common/TimeUtils.hpp"
 
-#include <QDateTime>
 #include <QFileInfo>
 #include <QUuid>
 
@@ -22,9 +22,7 @@ CvDocument buildCvDocument(const CvManagedFilePreparation& preparation)
     document.sizeBytes_ = preparation.sizeBytes_;
     document.title_ = QFileInfo{preparation.originalFileName_}.completeBaseName();
     document.category_ = QStringLiteral("General");
-    document.createdAt_ = QDateTime::fromString(
-        QDateTime::currentDateTimeUtc().toString(Qt::ISODate),
-        Qt::ISODate).toUTC();
+    document.createdAt_ = common::currentUtcSecond();
     document.updatedAt_ = document.createdAt_;
     return document;
 }
@@ -36,14 +34,28 @@ QString cvImportDispositionName(CvImportDisposition disposition)
     switch (disposition) {
     case CvImportDisposition::Inserted:
         return QStringLiteral("inserted");
-    case CvImportDisposition::ExistingActive:
-        return QStringLiteral("existing-active");
     case CvImportDisposition::RestoredArchived:
         return QStringLiteral("restored-archived");
     case CvImportDisposition::ReusedArchived:
         return QStringLiteral("reused-archived");
+    case CvImportDisposition::ExistingActive:
+    default:
+        return QStringLiteral("existing-active");
     }
-    return QStringLiteral("existing-active");
+}
+
+QString cvImportSuccessMessage(CvImportDisposition disposition)
+{
+    switch (disposition) {
+    case CvImportDisposition::Inserted:
+        return QStringLiteral("CV added successfully.");
+    case CvImportDisposition::RestoredArchived:
+        return QStringLiteral("The archived CV was restored to the library.");
+    case CvImportDisposition::ExistingActive:
+    case CvImportDisposition::ReusedArchived:
+    default:
+        return QStringLiteral("A CV with the same filename and SHA-256 already exists.");
+    }
 }
 
 CvImportService::CvImportService(
@@ -65,10 +77,10 @@ CvImportResult CvImportService::importPreparedDocument(
     const std::shared_ptr<CvManagedFilePreparation>& preparation,
     CvArchivedDuplicatePolicy archivedDuplicatePolicy) const
 {
-    if (preparation == nullptr) {
+    if (preparation == nullptr)
         throw std::runtime_error("The prepared CV file is unavailable.");
-    }
-
+    
+    // Consider replacing this with switch-case
     if (auto existing = repository_.findByIdentity(
             preparation->sha256_,
             preparation->originalFileName_)) {
@@ -78,8 +90,7 @@ CvImportResult CvImportService::importPreparedDocument(
                 if (!updatedAt) {
                     throw std::runtime_error("The archived CV could not be restored.");
                 }
-                existing->archivedAt_ = {};
-                existing->updatedAt_ = *updatedAt;
+                existing->applyArchiveState(QDateTime{}, *updatedAt);
                 return {*existing, {}, CvImportDisposition::RestoredArchived};
             }
             return {*existing, {}, CvImportDisposition::ReusedArchived};

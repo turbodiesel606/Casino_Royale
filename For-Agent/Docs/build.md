@@ -16,6 +16,8 @@ Allow enough execution time for the build to finish and return its final exit co
 
 If an external command timeout terminates the build, confirm that no build process remains before retrying once with a longer timeout and elevated access.
 
+Keep normal configure, build, and deployment independent of tests. When `JOBTRACKER_BUILD_TESTS=OFF`, CMake must not require Qt Test or another test-only package, create or register test targets, compile test sources, deploy test dependencies, or otherwise change the `JobTrackerApp` build. Keep test-only package discovery, targets, registration, compilation, and deployment inside the test-enabled configuration.
+
 ## Windows Build
 
 Configure:

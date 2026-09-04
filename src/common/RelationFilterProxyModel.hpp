@@ -15,7 +15,6 @@ public:
         int relationRole,
         QObject* parent = nullptr);
 
-    QString selectedId() const;
     void setSelectedId(const QString& selectedId);
 
 protected:

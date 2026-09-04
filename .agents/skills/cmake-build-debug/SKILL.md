@@ -19,6 +19,7 @@ Use this skill for JobTracker build, test, and CMake verification work.
 8. If an external timeout terminates a build, confirm that no build process remains before retrying once with a longer timeout and elevated access.
 9. Do not delete build directories, caches, generated files, or deployment artifacts without explicit user approval.
 10. If a command fails, stop and report the exact command, exit code, and key error excerpt.
+11. Keep non-test configure, build, and deployment independent of tests. With `JOBTRACKER_BUILD_TESTS=OFF`, do not require test-only packages, create or register test targets, compile test sources, deploy test dependencies, or change the production application artifact.
 
 ## Normal Windows Build
 

@@ -2,6 +2,7 @@
 #define JOBTRACKER_SRC_DIRECTORY_COMPANY_HPP
 
 #include <QDateTime>
+#include <QMetaType>
 #include <QString>
 #include <QUrl>
 
@@ -18,5 +19,7 @@ struct Company
     QDateTime createdAt_;
     QDateTime updatedAt_;
 };
+
+Q_DECLARE_METATYPE(Company)
 
 #endif // JOBTRACKER_SRC_DIRECTORY_COMPANY_HPP

@@ -7,43 +7,22 @@ StorageMutationGate::StorageMutationGate(QObject* parent)
 
 bool StorageMutationGate::reserveJobSave()
 {
-    if (removalActive_) {
-        return false;
-    }
-    ++pendingJobSaves_;
-    emit stateChanged();
-    return true;
+    return reserveOperations(pendingJobSaves_, 1);
 }
 
 void StorageMutationGate::releaseJobSave()
 {
-    if (pendingJobSaves_ <= 0) {
-        return;
-    }
-    --pendingJobSaves_;
-    emit stateChanged();
+    releaseOperations(pendingJobSaves_, 1);
 }
 
 bool StorageMutationGate::reserveCvImports(int count)
 {
-    if (count <= 0) {
-        return true;
-    }
-    if (removalActive_) {
-        return false;
-    }
-    pendingCvImports_ += count;
-    emit stateChanged();
-    return true;
+    return reserveOperations(pendingCvImports_, count);
 }
 
 void StorageMutationGate::releaseCvImports(int count)
 {
-    if (count <= 0 || pendingCvImports_ <= 0) {
-        return;
-    }
-    pendingCvImports_ = qMax(0, pendingCvImports_ - count);
-    emit stateChanged();
+    releaseOperations(pendingCvImports_, count);
 }
 
 bool StorageMutationGate::beginRemoval()
@@ -73,4 +52,29 @@ bool StorageMutationGate::removalActive() const
 bool StorageMutationGate::canBeginRemoval() const
 {
     return !removalActive_ && pendingJobSaves_ == 0 && pendingCvImports_ == 0;
+}
+
+bool StorageMutationGate::reserveOperations(int& pendingCount, int count)
+{
+    // Reserving zero operations is a successful no - op.
+    if (count <= 0)
+        return true;
+
+    // Removal has exclusive mutation ownership.
+    if (removalActive_)
+        return false;
+
+    // Track admitted work and notify dependent UI/controller state.
+    pendingCount += count;
+    emit stateChanged();
+    return true;
+}
+
+void StorageMutationGate::releaseOperations(int& pendingCount, int count)
+{
+    if (count <= 0 || pendingCount <= 0) {
+        return;
+    }
+    pendingCount = qMax(0, pendingCount - count);
+    emit stateChanged();
 }

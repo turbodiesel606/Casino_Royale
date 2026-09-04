@@ -1,4 +1,5 @@
 #include "common/LimitedSortedProxyModel.hpp"
+#include "common/ExceptionUtils.hpp"
 #include "common/RoleFilterProxyModel.hpp"
 #include "jobs/JobApplicationFactory.hpp"
 #include "jobs/JobApplicationValidator.hpp"
@@ -8,20 +9,52 @@
 #include <QDateTime>
 #include <QtTest/QtTest>
 
+#include <exception>
+#include <stdexcept>
+
 class FilterAndValidationTest final : public QObject
 {
     Q_OBJECT
 
 private slots:
+    void exceptionMessagesPreserveDetailsAndFallbacks();
     void proxyFiltersSearchTextAcrossConfiguredRoles();
     void proxyCombinesExactAndRequiredRoleFilters();
     void proxySortsStringAndNumericRoles();
     void limitedSortedProxyKeepsNewestRowsAcrossMutations();
+    void jobEnumMappingsPreserveExistingTokens();
     void jobDraftNormalizationAppliesCanonicalDefaults();
+    void jobPreflightNormalizesAndValidates();
     void jobValidationReturnsStructuredCanonicalErrors();
     void jobValidationAcceptsBlankOptionalUrl();
     void jobValidationRejectsMalformedNonEmptyUrls();
 };
+
+void FilterAndValidationTest::exceptionMessagesPreserveDetailsAndFallbacks()
+{
+    const auto fallback = QStringLiteral("Fallback message.");
+    QCOMPARE(common::exceptionMessage({}, fallback), fallback);
+
+    std::exception_ptr standardException;
+    try {
+        throw std::runtime_error("Detailed failure.");
+    }
+    catch (...) {
+        standardException = std::current_exception();
+    }
+    QCOMPARE(
+        common::exceptionMessage(standardException, fallback),
+        QStringLiteral("Detailed failure."));
+
+    std::exception_ptr unknownException;
+    try {
+        throw 42;
+    }
+    catch (...) {
+        unknownException = std::current_exception();
+    }
+    QCOMPARE(common::exceptionMessage(unknownException, fallback), fallback);
+}
 
 void FilterAndValidationTest::proxyFiltersSearchTextAcrossConfiguredRoles()
 {
@@ -145,6 +178,37 @@ void FilterAndValidationTest::limitedSortedProxyKeepsNewestRowsAcrossMutations()
         QStringLiteral("eight"));
 }
 
+void FilterAndValidationTest::jobEnumMappingsPreserveExistingTokens()
+{
+    const QList<QPair<JobStatus, QString>> statuses{
+        {JobStatus::Applied, QStringLiteral("Applied")},
+        {JobStatus::Interview, QStringLiteral("Interview")},
+        {JobStatus::Offer, QStringLiteral("Offer")},
+        {JobStatus::TestTask, QStringLiteral("Test Task")},
+        {JobStatus::Rejected, QStringLiteral("Rejected")},
+    };
+    for (const auto& [status, text] : statuses) {
+        QCOMPARE(jobStatusFromString(QStringLiteral("  ") + text.toLower()), status);
+        QCOMPARE(jobStatusToString(status), text);
+    }
+    QCOMPARE(jobStatusFromString(QStringLiteral("Pending")), JobStatus::Unknown);
+    QVERIFY(jobStatusToString(JobStatus::Unknown).isEmpty());
+
+    const QList<QPair<WorkFormat, QString>> workFormats{
+        {WorkFormat::Remote, QStringLiteral("Remote")},
+        {WorkFormat::Hybrid, QStringLiteral("Hybrid")},
+        {WorkFormat::OnSite, QStringLiteral("On-site")},
+    };
+    for (const auto& [workFormat, text] : workFormats) {
+        QCOMPARE(workFormatFromString(QStringLiteral("  ") + text.toUpper()), workFormat);
+        QCOMPARE(workFormatToString(workFormat), text);
+    }
+    QCOMPARE(workFormatFromString(QString{}), WorkFormat::Unspecified);
+    QCOMPARE(workFormatFromString(QStringLiteral("Office")), WorkFormat::Unknown);
+    QVERIFY(workFormatToString(WorkFormat::Unspecified).isEmpty());
+    QVERIFY(workFormatToString(WorkFormat::Unknown).isEmpty());
+}
+
 void FilterAndValidationTest::jobDraftNormalizationAppliesCanonicalDefaults()
 {
     JobApplicationDraft draft;
@@ -172,6 +236,32 @@ void FilterAndValidationTest::jobDraftNormalizationAppliesCanonicalDefaults()
     QCOMPARE(
         normalized.techStack_,
         QStringList({QStringLiteral("Qt"), QStringLiteral("C++")}));
+}
+
+void FilterAndValidationTest::jobPreflightNormalizesAndValidates()
+{
+    JobApplicationDraft draft;
+    draft.jobTitle_ = QStringLiteral("  Qt Developer  ");
+    draft.companyName_ = QStringLiteral("  Example Company  ");
+    draft.workFormat_ = QStringLiteral(" remote ");
+    draft.status_ = QStringLiteral(" applied ");
+    draft.appliedDate_ = QStringLiteral(" 2026-08-24 ");
+
+    const auto valid = JobApplicationValidator::preflight(draft, true);
+    QVERIFY2(valid.isValid(), qPrintable(valid.message_));
+    QCOMPARE(valid.draft_.jobTitle_, QStringLiteral("Qt Developer"));
+    QCOMPARE(valid.draft_.companyName_, QStringLiteral("Example Company"));
+    QCOMPARE(valid.draft_.workFormat_, WorkFormat::Remote);
+    QCOMPARE(valid.draft_.status_, JobStatus::Applied);
+    QCOMPARE(valid.draft_.appliedDate_, QDate(2026, 8, 24));
+    QVERIFY(valid.message_.isEmpty());
+
+    const auto missingCv = JobApplicationValidator::preflight(draft, false);
+    QVERIFY(!missingCv.isValid());
+    QVERIFY(missingCv.fieldErrors_.contains(QStringLiteral("cv")));
+    QCOMPARE(
+        missingCv.message_,
+        QStringLiteral("Please correct the highlighted fields."));
 }
 
 void FilterAndValidationTest::jobValidationReturnsStructuredCanonicalErrors()

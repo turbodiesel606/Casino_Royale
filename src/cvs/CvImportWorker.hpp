@@ -1,74 +1,67 @@
 #ifndef JOBTRACKER_SRC_CVS_CVIMPORTWORKER_HPP
 #define JOBTRACKER_SRC_CVS_CVIMPORTWORKER_HPP
 
-#include "CvDocument.hpp"
-#include "CvImportService.hpp"
-#include "common/CancellationState.hpp"
+#include "CvImportExecutor.hpp"
+#include "CvImportWorkerTypes.hpp"
+#include "common/SingleActiveWorkerFacade.hpp"
 
+#include <QFileInfo>
+#include <QLatin1StringView>
 #include <QMetaType>
 #include <QObject>
 #include <QString>
-#include <QThread>
-#include <QUrl>
 
-#include <memory>
+#include <utility>
 
-// Carries one CV Library import request into the worker thread.
-struct CvImportRequest final
+struct CvImportWorkerRequestMessages
 {
-    quint64 operationId_ = 0;
-    QUrl sourceUrl_;
-    std::shared_ptr<CancellationState> cancellation_;
+	static constexpr auto errorMessage =
+		QLatin1StringView{"An unexpected CV import error occurred."};
+
+	static constexpr auto shuttingDownMessage =
+		QLatin1StringView{"The CV import worker is shutting down."};
+
+	static constexpr auto busyMessage =
+		QLatin1StringView{"The CV import worker already has an active request."};
 };
 
-// Returns one value-only import outcome to the GUI thread.
-struct CvImportSaveOutcome final
+template<>
+struct SingleActiveWorkerRequestTraits<CvImportRequest>
+	: CvImportWorkerRequestMessages
 {
-    quint64 operationId_ = 0;
-    std::shared_ptr<CancellationState> cancellation_;
-    QString fileName_;
-    CvDocument document_;
-    QString message_;
-    bool success_ = false;
-    CvImportDisposition disposition_ = CvImportDisposition::ExistingActive;
+	static CvImportSaveOutcome unavailableOutcome(
+		const CvImportRequest& request,
+		QString message)
+	{
+		const auto selectedFileName =
+			QFileInfo{ request.sourceUrl_.toLocalFile() }.fileName();
+
+		CvImportSaveOutcome outcome;
+		outcome.operationId_ = request.operationId_;
+		outcome.cancellation_ = request.cancellation_;
+		outcome.fileName_ = selectedFileName.isEmpty()
+			? QStringLiteral("Selected CV")
+			: selectedFileName;
+		outcome.message_ = std::move(message);
+		return outcome;
+	}
 };
 
-Q_DECLARE_METATYPE(CvImportSaveOutcome)
-
-// GUI-thread facade for one reusable CV import worker thread and its private
-// persistence context. The controller submits at most one active request.
-class CvImportWorker final : public QObject
+// GUI-thread facade for one reusable CV import worker thread.
+class CvImportWorker final
+	: public SingleActiveWorkerFacade<CvImportExecutor>
 {
-    Q_OBJECT
+	Q_OBJECT
+
+	using Base = SingleActiveWorkerFacade<CvImportExecutor>;
 
 public:
-    explicit CvImportWorker(QString dataDirectory, QObject* parent = nullptr);
-    ~CvImportWorker() override;
-
-    void submit(CvImportRequest request);
-    void shutdown();
-    bool isRunning() const;
+	explicit CvImportWorker(
+		QString dataDirectory,
+		QObject* parent = nullptr);
 
 signals:
-    void importCompleted(const CvImportSaveOutcome& outcome);
-
-private:
-    class Executor;
-
-    void deliverImportOutcome(CvImportSaveOutcome outcome);
-    void queueUnavailableOutcome(const CvImportRequest& request, const QString& message);
-    bool isActiveOutcome(
-        quint64 operationId,
-        const std::shared_ptr<CancellationState>& cancellation) const;
-    void clearActiveRequest();
-
-    QString dataDirectory_;
-    QThread workerThread_;
-    Executor* executor_ = nullptr;
-    std::shared_ptr<CancellationState> activeCancellation_;
-    quint64 activeOperationId_ = 0;
-    bool busy_ = false;
-    bool shuttingDown_ = false;
+	void importCompleted(const CvImportSaveOutcome& outcome);
 };
 
 #endif // JOBTRACKER_SRC_CVS_CVIMPORTWORKER_HPP

@@ -34,24 +34,32 @@ Read the relevant detailed layer before acting:
 Use `For-Agent/` as the Codex-facing project knowledge area:
 
 - `For-Agent/Docs/`: stable instruction and project guidance documents.
-- `For-Agent/Task-Report/`: reports and handoff notes from recent tasks.
 - `For-Agent/Review/`: documents that compile code review information.
-- `For-Agent/Research/`: research files and investigation notes.
 
-Use project skills from `.agents/skills/` for repeatable workflows:
+## Task Routing
 
-- `.agents/skills/cmake-build-debug/SKILL.md`.
-- `.agents/skills/cpp-code-research/SKILL.md`.
-- `.agents/skills/learn-cpp-codebase/SKILL.md`.
-- `.agents/skills/cpp-code-review/SKILL.md`.
-- `.agents/skills/qt-qml-ui-task/SKILL.md`.
-- `.agents/skills/qml-code-research/SKILL.md`.
-- `.agents/skills/qml-code-review/SKILL.md`.
-- `.agents/skills/qml-to-cpp-extraction/SKILL.md`.
-- `.agents/skills/cpp-backend-task/SKILL.md`.
-- `.agents/skills/test-and-review/SKILL.md`.
+Project skills live under `.agents/skills/`.
 
-Use project subagents from `.codex/agents/` when the user requests subagents, parallel review, project research, or an independent review pass.
+A bounded implementation task does not require a separate research phase. Use a research skill only when ownership, flow, or scope is unclear.
+
+Choose the narrowest matching workflow:
+
+| Task | Skill | Start And Boundary |
+| --- | --- | --- |
+| C++ backend implementation | `cpp-backend-task` | Start from the affected model, controller, service, repository, storage class, utility, or startup surface. |
+| QML/UI implementation | `qt-qml-ui-task` | Start from the target page or component. Inspect `qml/Main.qml` only for shell, navigation, or reachability changes. |
+| Move durable QML behavior to C++ | `qml-to-cpp-extraction` | Start from the target QML behavior and its exposed C++ contract; preserve the UI behavior while moving durable logic. |
+| C++ research or implementation planning | `cpp-code-research` | Keep the investigation read-only, start from the smallest relevant backend entry point, and stop before edits. |
+| QML research or implementation planning | `qml-code-research` | Keep the investigation read-only, start from the target screen, component, or binding, and stop before edits. |
+| C++ code review | `cpp-code-review` | Inspect the requested diff and nearby C++ contracts without fixing the reviewed code unless implementation is requested. |
+| QML/UI code review | `qml-code-review` | Inspect the requested diff, affected component boundaries, backend contracts, registration, and manual UI risks. |
+| Configure, build, test, or diagnose CMake | `cmake-build-debug` | Read `For-Agent/Docs/build.md` and use only its documented commands. |
+| Teach the complete backend progressively | `learn-cpp-codebase` | Use the phased read-only learning workflow rather than ordinary task research. |
+| Final implementation validation | `test-and-review` | Inspect the focused final diff, verification evidence, documentation impact, manual checks, and residual risks. |
+
+Use `.agents/skills/review-code-for-human/SKILL.md` only when the user explicitly requests `review-code-for-human` by name. Do not invoke it implicitly for a code review, explanation, walkthrough, or teaching request.
+
+Use project subagents from `.codex/agents/` only when the user requests subagents, parallel review, project research, or an independent review pass. Subagents are read-only and return findings; the lead Codex compiles and verifies final results.
 
 Project subagents are split by task and code area:
 
@@ -60,27 +68,13 @@ Project subagents are split by task and code area:
 - `qml_researcher`: read-only QML/UI research.
 - `qml_reviewer`: read-only QML/UI review.
 
-## Research And Review Workflow
-
-Use `learn-cpp-codebase` for a progressive, read-only teaching tour of the complete C++ backend from project inventory through startup, domains, workflows, Qt contracts, storage, tests, and final synthesis.
-
-Use `cpp-code-research` or `qml-code-research` for investigation before implementation.
-
-Use `cpp-backend-task` as the entry point for C++ backend implementation. Complete applicable build and test verification through `cmake-build-debug`, then use `test-and-review` for the final scope, documentation, verification, and risk pass.
-
-Use `cpp-code-review` or `qml-code-review` for review after changes or when the user asks for a review.
-
-Use `.agents/skills/review-code-for-human/SKILL.md` only when the user explicitly requests `review-code-for-human` by name. Do not invoke it implicitly for a code review, explanation, walkthrough, or teaching request.
-
-Use `.codex/agents/` subagents only when the user requests subagents, parallel research, or independent review. Subagents are read-only and return findings; the lead Codex compiles, verifies, and saves final artifacts when needed.
-
-Save durable research artifacts under `For-Agent/Research/`.
+## Review Artifacts
 
 Save durable review artifacts under `For-Agent/Review/`.
 
-When creating durable research or review artifacts, include the creation date and time in the filename using `YYYY-MM-DD-HHMM`, and put a `Created: YYYY-MM-DD HH:MM local time` line at the beginning of the file immediately after the title.
+When creating a durable review artifact, include the creation date and time in the filename using `YYYY-MM-DD-HHMM`, and put a `Created: YYYY-MM-DD HH:MM local time` line at the beginning of the file immediately after the title.
 
-Before repeating broad research or review, check the relevant artifact folders in `For-Agent/Research/`, `For-Agent/Review/`, and `For-Agent/Task-Report/`. Use the most recent relevant artifact by timestamp as context, then verify current facts against the actual source, instructions, and diff. Determine recency from the filename timestamp first; for legacy date-only artifacts, inspect the beginning of the file for a `Created:` timestamp, and if no time exists, treat the artifact as the earliest one for that date.
+Before repeating a broad review, check `For-Agent/Review/`. Use the most recent relevant artifact by timestamp as context, then verify current facts against the actual source, instructions, and diff. Determine recency from the filename timestamp first; for legacy date-only artifacts, inspect the beginning of the file for a `Created:` timestamp, and if no time exists, treat the artifact as the earliest one for that date.
 
 ## Core Rules
 
@@ -126,6 +120,14 @@ Keep the project separated into:
 - Storage and configuration.
 - Utilities.
 - Tests.
+
+### Production And Test Isolation
+
+Tests must follow the production architecture; production code must never be changed to accommodate tests.
+
+The dependency direction is strictly one-way: test targets may depend on production code, but `src/`, production targets, normal configure/build/deploy workflows, and production APIs must never depend on or reference test sources, test targets, Qt Test, fixtures, mocks, test-only compile definitions, or test-only hooks.
+
+Do not add or widen production APIs, alter access control, ownership, lifetime, threading, behavior, or architectural boundaries solely to make testing easier. Tests and test support code belong under `tests/` and must exercise existing production contracts.
 
 Never place business logic in QML. Move ALL business logic to C++.
 
@@ -175,19 +177,6 @@ After code, QML, CMake, resource, storage, or runtime-behavior changes, run the 
 Run tests when the change affects business logic, storage, parsing, algorithms, or risky behavior.
 
 Do not claim that code works unless it was verified.
-
-## Task Workflow
-
-For simple local changes, implement directly.
-
-Start from the most relevant entry points:
-
-- UI task: QML entry point, then connected C++ backend.
-- Backend task: affected class, service, model, or controller.
-- Storage/config task: storage, config, and bootstrap layer.
-- Build task: CMake files, presets, Qt/QML module setup, and platform-specific configuration.
-
-Do not perform broad project scans unless the task requires it.
 
 ## Documentation Synchronization
 

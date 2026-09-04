@@ -25,6 +25,9 @@ signals:
     void stateChanged();
 
 private:
+    bool reserveOperations(int& pendingCount, int count);
+    void releaseOperations(int& pendingCount, int count);
+
     int pendingJobSaves_ = 0;
     int pendingCvImports_ = 0;
     bool removalActive_ = false;

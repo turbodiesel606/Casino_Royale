@@ -30,15 +30,6 @@ struct AddJobResult
     CvImportDisposition cvImportDisposition_ = CvImportDisposition::ExistingActive;
 };
 
-struct AddJobPreflightResult final
-{
-    NormalizedJobApplicationDraft draft_;
-    QVariantMap fieldErrors_;
-    QString message_;
-
-    bool isValid() const;
-};
-
 struct AddJobPreparationResult final
 {
     bool success_ = false;
@@ -64,10 +55,11 @@ public:
         CompanyRepository& companyRepository,
         CvImportService& cvImportService);
 
-    static AddJobPreflightResult preflight(
-        const JobApplicationDraft& draft,
-        const QUrl& selectedCvUrl);
     AddJobPreparationResult prepare(
+        const NormalizedJobApplicationDraft& draft,
+        const QUrl& selectedCvUrl,
+        const std::shared_ptr<CancellationState>& cancellation) const;
+    AddJobPreparationResult prepareValidated(
         const NormalizedJobApplicationDraft& draft,
         const QUrl& selectedCvUrl,
         const std::shared_ptr<CancellationState>& cancellation) const;

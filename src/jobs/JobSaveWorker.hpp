@@ -1,96 +1,84 @@
 #ifndef JOBTRACKER_SRC_JOBS_JOBSAVEWORKER_HPP
 #define JOBTRACKER_SRC_JOBS_JOBSAVEWORKER_HPP
 
-#include "AddJobService.hpp"
-#include "UpdateJobService.hpp"
-#include "common/CancellationState.hpp"
+#include "JobSaveExecutor.hpp"
+#include "JobSaveWorkerTypes.hpp"
+#include "common/SingleActiveWorkerFacade.hpp"
 
+#include <QLatin1StringView>
 #include <QMetaType>
 #include <QObject>
 #include <QString>
-#include <QThread>
-#include <QUrl>
 
-#include <memory>
+#include <utility>
 
-// Carries one controller-validated Add Job request into the worker thread.
-struct AddJobRequest final
+struct JobSaveWorkerRequestMessages
 {
-    quint64 operationId_ = 0;
-    NormalizedJobApplicationDraft draft_;
-    QUrl selectedCvUrl_;
-    std::shared_ptr<CancellationState> cancellation_;
+	static constexpr auto errorMessage =
+		QLatin1StringView{"An unexpected job-save worker error occurred."};
+
+	static constexpr auto shuttingDownMessage =
+		QLatin1StringView{"The job-save worker is shutting down."};
+
+	static constexpr auto busyMessage =
+		QLatin1StringView{"The job-save worker already has an active request."};
 };
 
-// Returns the value-only durable result after worker-side CV and SQL work.
-struct AddJobSaveOutcome final
+template<>
+struct SingleActiveWorkerRequestTraits<AddJobRequest>
+	: JobSaveWorkerRequestMessages
 {
-    quint64 operationId_ = 0;
-    std::shared_ptr<CancellationState> cancellation_;
-    QString jobTitle_;
-    AddJobResult result_;
+	static AddJobSaveOutcome unavailableOutcome(
+		const AddJobRequest& request,
+		QString message)
+	{
+		AddJobResult result;
+		result.message_ = std::move(message);
+
+		return {
+			request.operationId_,
+			request.cancellation_,
+			request.draft_.jobTitle_,
+			std::move(result) };
+	}
 };
 
-Q_DECLARE_METATYPE(AddJobSaveOutcome)
-
-struct UpdateJobRequest final
+template<>
+struct SingleActiveWorkerRequestTraits<UpdateJobRequest>
+	: JobSaveWorkerRequestMessages
 {
-    quint64 operationId_ = 0;
-    QString applicationId_;
-    NormalizedJobApplicationDraft draft_;
-    QUrl replacementCvUrl_;
-    std::shared_ptr<CancellationState> cancellation_;
+	static UpdateJobSaveOutcome unavailableOutcome(
+		const UpdateJobRequest& request,
+		QString message)
+	{
+		UpdateJobResult result;
+		result.message_ = std::move(message);
+
+		return {
+			request.operationId_,
+			request.cancellation_,
+			request.applicationId_,
+			request.draft_.jobTitle_,
+			std::move(result) };
+	}
 };
 
-struct UpdateJobSaveOutcome final
+// GUI-thread facade for one reusable job-save worker thread.
+class JobSaveWorker final
+	: public SingleActiveWorkerFacade<JobSaveExecutor>
 {
-    quint64 operationId_ = 0;
-    std::shared_ptr<CancellationState> cancellation_;
-    QString applicationId_;
-    QString jobTitle_;
-    UpdateJobResult result_;
-};
+	Q_OBJECT
 
-Q_DECLARE_METATYPE(UpdateJobSaveOutcome)
-
-// GUI-thread facade for one reusable job-save worker thread and its private
-// persistence context. The controller submits at most one active request.
-class JobSaveWorker final : public QObject
-{
-    Q_OBJECT
+	using Base = SingleActiveWorkerFacade<JobSaveExecutor>;
 
 public:
-    explicit JobSaveWorker(QString dataDirectory, QObject* parent = nullptr);
-    ~JobSaveWorker() override;
-
-    void submit(AddJobRequest request);
-    void submit(UpdateJobRequest request);
-    void shutdown();
-    bool isRunning() const;
+	explicit JobSaveWorker(
+		QString dataDirectory,
+		QObject* parent = nullptr);
 
 signals:
-    void saveCompleted(const AddJobSaveOutcome& outcome);
-    void updateCompleted(const UpdateJobSaveOutcome& outcome);
-
-private:
-    class Executor;
-
-    void deliverSaveOutcome(AddJobSaveOutcome outcome);
-    void deliverUpdateOutcome(UpdateJobSaveOutcome outcome);
-    void queueUnavailableOutcome(const AddJobRequest& request, const QString& message);
-    void queueUnavailableOutcome(const UpdateJobRequest& request, const QString& message);
-    bool isActiveOutcome(
-        quint64 operationId,
-        const std::shared_ptr<CancellationState>& cancellation) const;
-    void clearActiveRequest();
-
-    QString dataDirectory_;
-    QThread workerThread_;
-    Executor* executor_ = nullptr;
-    std::shared_ptr<CancellationState> activeCancellation_;
-    quint64 activeOperationId_ = 0;
-    bool busy_ = false;
-    bool shuttingDown_ = false;
+	void saveCompleted(const AddJobSaveOutcome& outcome);
+	void updateCompleted(const UpdateJobSaveOutcome& outcome);
 };
 
 #endif // JOBTRACKER_SRC_JOBS_JOBSAVEWORKER_HPP

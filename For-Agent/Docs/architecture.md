@@ -36,16 +36,26 @@ The current bootstrap dependency order is:
 15. `CompanyDirectoryController`
 16. `ContactDirectoryController`
 
-`JobSaveWorker` is a GUI-thread facade shared by job creation and job updates.
-On its first submitted request it starts one reusable dedicated thread. The GUI
+`SingleActiveWorkerRuntime` owns the common mechanics for one reusable worker
+thread: lazy executor creation, busy and shutdown state, active-operation and
+cancellation correlation, stale-result rejection, worker-thread context
+destruction, and quit/wait handling. `SingleActiveWorkerFacade<Executor>` builds
+on that runtime for typed one-operation facades, standardizing request admission,
+queued value-outcome delivery, and infrastructure-failure translation.
+`JobSaveWorker` and `CvImportWorker` derive from that facade; `DataRemovalWorker`
+composes the runtime directly for its best-effort batch executor. The concrete
+workers retain their domain requests, outcomes, signals, pipelines, and messages.
+
+`JobSaveWorker` is shared by job creation and job updates. On its first
+submitted request its runtime starts the dedicated thread. The GUI
 controller maps form values and runs storage-independent canonical preflight
 synchronously. For a validated request, the worker defensively validates and
 lazily constructs a private `StoragePaths`, `SqliteDatabase`, repository,
 managed-file, import-service, `AddJobService`, and `UpdateJobService` graph
 inside that thread. Production owns no GUI-thread job persistence service.
 
-`CvImportWorker` is a separate GUI-thread facade with one reusable dedicated
-thread for standalone CV Library imports. It lazily constructs a private
+`CvImportWorker` is a separate facade for standalone CV Library imports. Its
+runtime reuses one dedicated thread, and its executor lazily constructs a private
 `StoragePaths`, `SqliteDatabase`, `CvRepository`, `CvManagedFileStore`, and
 `CvImportService` graph on that thread. `CvLibraryController` owns the import
 FIFO and receives only value outcomes for GUI-thread model publication.
@@ -148,6 +158,9 @@ completed top-level managed file without a matching `cvs.stored_file_name` row
 into `Resumes/Quarantine`; completed orphaned user files are never silently
 deleted.
 
+Bootstrap loads CV documents once, reconciles the managed store against that
+snapshot, and passes the same document values to `CvLibraryController`.
+
 `CompanyRepository` loads durable companies and resolves Add Job company names
 through the same trimmed, case-folded identity rule.
 
@@ -185,22 +198,27 @@ Add Job is implemented as a QML-to-C++ workflow.
 
 `JobApplicationsController::createApplication()` maps the raw `QVariantMap` to
 `JobApplicationDraft` and calls the storage-independent
-`AddJobService::preflight()` synchronously. Preflight normalizes the draft and
-runs the canonical validator without reading the CV, touching the filesystem,
-opening SQLite, or waiting for the worker. Invalid input emits
+`JobApplicationValidator::preflight()` synchronously. The canonical preflight
+normalizes and validates the draft without reading the CV, touching the
+filesystem, opening SQLite, or waiting for the worker. Invalid input emits
 `saveFailed(fieldErrors, message)` and returns before operation-ID allocation,
 queue mutation, pending-state publication, or worker startup.
 
-For valid input, the controller allocates a monotonically increasing operation
-ID, inserts the normalized draft and CV URL into its GUI-owned job-save FIFO, publishes
-pending state, emits `applicationQueued(operationId)`, and schedules the front
-request. The queue keeps one active request plus normalized waiters, so it needs
-no mutex. `pendingSaveCount` is the active-plus-waiting total, and `saving` is
-true exactly while that total is non-zero.
+For valid input, the controller reserves job-save admission and enqueues the
+normalized create or update payload in its composed
+`SerialOperationQueue<QueuedJobSave>`. The value-level queue assigns a
+monotonically increasing operation ID and owns normalized waiters, one active
+entry, its cancellation identity, completion suppression, correlation checks,
+and drained transitions. The controller retains domain admission, worker
+submission, signals, mutation-gate coordination, and completion side effects.
+It publishes pending state, emits `applicationQueued(operationId)` for creates,
+and schedules the front request. `pendingSaveCount` is the active-plus-waiting
+total, and `saving` is true exactly while that total is non-zero.
 
-When a request becomes active, the controller creates a shared
-`CancellationState` and submits one `AddJobRequest` to `JobSaveWorker`. The
-worker thread is started lazily and reused until shutdown. Its private SQLite
+When a request becomes active, the serial queue creates its shared
+`CancellationState`, and the controller submits the typed request to
+`JobSaveWorker`. Its runtime starts the worker thread lazily and reuses it until
+shutdown. The private SQLite
 connection opens the same database file under an independent unique Qt
 connection name only after the worker's defensive validation succeeds; the
 existing GUI connection remains responsible for startup hydration and
@@ -241,8 +259,9 @@ allowed to commit or roll back; it is never forcibly terminated.
 
 `JobApplicationFactory` owns draft trimming, status/date defaults,
 case-insensitive technology deduplication, typed conversion, and final job
-domain-object construction. `JobApplicationValidator` is the one canonical job
-validation path for both Add Job and selected-application validation. It
+domain-object construction. `JobApplicationValidator` owns the one canonical
+preflight result and validation path shared by creation, updates, and stored
+application validation. It
 returns field-addressable errors for required values, optional HTTP/HTTPS URLs
 with a required host, ISO dates, and allowed status/work-format choices.
 
@@ -259,14 +278,17 @@ The worker-owned `AddJobService` owns durable Add Job orchestration:
 
 `CvImportService` connects the worker's managed-file store to its private
 `CvRepository`. It prepares the file, then resolves the existing composite CV
-identity or finalizes and inserts a new CV on the same worker thread. The
-transaction orders new-file work as finalization, CV insertion, job insertion,
-and commit. A process crash after finalization but before commit leaves a
+identity or finalizes and inserts a new CV on the same worker thread. For a
+standalone import, an ordinary metadata-insert failure removes the completed
+file. When Add Job or Update Job calls the service, their surrounding
+transaction orders CV finalization and insertion before the job write and
+commit. A process crash after finalization but before that commit can leave a
 completed orphan that startup recovery quarantines.
 
-After successful job creation, `AppBootstrap` forwards CV usage to
-`CvLibraryController` and the resolved company to `CompanyDirectoryController`,
-so both directories update immediately. On restart, CV and company links are
+After successful job creation or update, `AppBootstrap` forwards the resolved
+company plus CV-use or CV-replacement signals to the relevant directory
+controllers, so those projections update immediately. It also forwards deleted
+job IDs to remove their CV links. On restart, CV and company links are
 reconstructed from persisted jobs.
 
 `JobFormPage.qml` keeps unsaved form values and the selected CV while the user
@@ -303,10 +325,11 @@ comma-separated field.
 
 Explicit Save Changes opens the apply confirmation in the pane. Submission
 calls `JobApplicationsController::updateApplication(applicationId, formValues,
-replacementCvUrl)`. The controller runs `UpdateJobService::preflight()` before
-operation-ID allocation, storage reservation, queue mutation, or worker work.
-It rejects invalid fields synchronously and admits a valid normalized update to
-the same GUI-owned FIFO used by creates. `updatingApplication` remains true from
+replacementCvUrl)`. The controller runs
+`JobApplicationValidator::preflight()` before operation-ID allocation, storage
+reservation, queue mutation, or worker work. It rejects invalid fields
+synchronously and admits a valid normalized update to the same GUI-owned
+`SerialOperationQueue` used by creates. `updatingApplication` remains true from
 admission through the final update outcome.
 
 When the update becomes active, `JobSaveWorker` reloads the target application
@@ -347,15 +370,19 @@ current page. The dialog filters for PDF, DOC, and DOCX, while the managed-file
 store remains the defensive validation boundary for local, readable, supported
 files.
 
-`CvLibraryController` assigns monotonically increasing operation IDs and owns
-one active request plus a FIFO of waiting URLs. `pendingImportCount` is the
-active-plus-waiting total, `importing` is true exactly while it is non-zero,
-and later picker batches append behind existing work. Duplicate or failed
-requests release only their own active slot and never block later imports.
+`CvLibraryController` composes `SerialOperationQueue<QueuedCvImport>` for its
+import FIFO. The queue assigns monotonically increasing operation IDs and owns
+one active request, waiting URLs, the active cancellation identity, completion
+suppression, correlation checks, and drained transitions. The controller keeps
+domain admission, worker submission, mutation-gate coordination, signals, and
+model publication. `pendingImportCount` is the active-plus-waiting total,
+`importing` is true exactly while it is non-zero, and later picker batches
+append behind existing work. Duplicate or failed requests release only their
+own active slot and never block later imports.
 
-For each active request, the controller creates a shared `CancellationState`
-and submits it to `CvImportWorker`. The worker performs validation, streaming
-SHA-256, `.part` staging, exact case-sensitive duplicate lookup by
+For each active request, the serial queue creates a shared `CancellationState`,
+and the controller submits it to `CvImportWorker`. The worker performs
+validation, streaming SHA-256, `.part` staging, exact case-sensitive duplicate lookup by
 `(sha256, original_file_name)`, file finalization, and SQLite insertion on its
 private thread and connection. Same filename with different content and same
 content with a different filename remain distinct CVs. Exact identity returns
@@ -444,13 +471,15 @@ QML-facing controllers should expose a small screen contract and delegate non-tr
 `StableIdSelectionTracker` is the shared selection contract for the jobs, CV,
 company, and contact controllers. Each controller composes one tracker with
 its proxy model and ID role. The tracker owns the selected domain ID and
-derived proxy row, reconciles proxy insert, remove, move, reset, layout, and
-data changes, and applies the common fallback policy: choose the first visible
-row when the selected ID is hidden, or clear selection when no row is visible.
-Controller-owned filter and sort updates are reconciled as one completed model
-update so transient proxy-removal batches do not publish intermediate fallback
-selections. Linked selection-dependent models refresh only when the effective
-selected ID changes.
+derived proxy row plus the visible row count, reconciles proxy insert, remove,
+move, reset, layout, and data changes, and applies the common fallback policy:
+choose the first visible row when the selected ID is hidden, or clear selection
+when no row is visible. Controller-owned filter and sort updates reconcile
+selection and visible count as one completed model update so transient proxy
+batches do not publish intermediate fallback selections or counts. Controllers
+translate the tracker's generic visible-count change into their domain-specific
+count and summary notifications. Linked selection-dependent models refresh only
+when the effective selected ID changes.
 
 `BulkIdSelectionTracker` is the separate checkbox-selection contract for Job
 Applications and CV Library. It stores a set of domain IDs, derives all-visible
@@ -485,14 +514,21 @@ labels, and file-size labels from typed values while preserving the existing
 QML role names and displayed values. The job, CV, and company models also
 publish typed `createdAt` and `updatedAt` roles for backend sorting; jobs add
 typed status, work-format, and applied-date roles. `RoleFilterProxyModel`
-compares `QDate` and `QDateTime` values directly. QML continues to receive the
-pre-existing string roles and selected-item map fields.
+compares `QDate` and `QDateTime` values directly and is the sole owner of
+normalized search text. Controllers expose their existing search properties and
+notifications while delegating normalized search storage and matching to the
+proxy. Selected-item maps project explicit public-role whitelists, so internal
+model roles are not exposed accidentally; QML continues to receive its existing
+string roles and selected-item map fields.
 
 Current backend areas are:
 
 - `src/app`: process startup, exception boundary, dependency construction, QML engine setup, context properties, and main QML loading.
 - `src/storage`: application data paths, SQLite connection lifetime, and schema migration.
-- `src/common`: reusable role-based filtering, sorting, search, and stable-ID selection helpers.
+- `src/common`: reusable role-based filtering, sorting, search, stable-ID and
+  bulk selection, explicit role projection, presentation, timestamp, and error
+  helpers, value-level serial queues, and single-active-worker lifecycle
+  infrastructure.
 - `src/jobs`: typed job value/draft types, canonical factory and validator, job
   list model, QML controller, repository, shared save worker, and create/update
   services.
@@ -510,6 +546,8 @@ Current backend areas are:
 
 Use the dependency direction `QML -> controllers/models -> services -> repositories -> storage`.
 
+Tests sit outside that production chain. Their only permitted dependency direction is `tests -> production`; no production layer may depend on test code, test support, Qt Test, test-only build settings, or test targets.
+
 ### Dependency Direction
 
 - QML consumes focused controllers and models. Do not expose repositories or broad service objects directly to QML.
@@ -519,6 +557,7 @@ Use the dependency direction `QML -> controllers/models -> services -> repositor
 - Repositories encapsulate persistence queries and map stored rows to domain values without depending on QML contracts.
 - Storage classes own database connections, schema migration, and platform-aware storage primitives.
 - Bootstrap/application classes construct and own the dependency graph and connect cross-component notifications. Do not place business rules in bootstrap wiring.
+- Define production responsibilities and contracts from product behavior and architecture. Do not add or widen an API, expose an internal, weaken access control, or change ownership, lifetime, threading, or module boundaries solely for tests; tests must exercise the resulting production contract.
 
 ### Ownership And Lifetime
 
@@ -539,6 +578,9 @@ Use the dependency direction `QML -> controllers/models -> services -> repositor
 - Keep QML-facing controllers, Qt models, and their mutations on the GUI thread.
 - Return worker results through queued delivery and apply model or property changes on the owning thread.
 - Define worker ownership, cancellation, shutdown, and late-result handling before moving work off the GUI thread.
+- Use `SingleActiveWorkerRuntime` for the shared single-executor thread,
+  cancellation, correlation, and shutdown mechanics while keeping domain
+  requests, outcomes, pipelines, and signals in their typed worker facades.
 - Create, use, and close each Qt SQL connection in one thread. Do not share `QSqlDatabase` connections or active `QSqlQuery` objects across threads.
 - Job create/update form mapping and canonical preflight run synchronously in
   the GUI controller and remain pure and storage-independent. Defensive validation,

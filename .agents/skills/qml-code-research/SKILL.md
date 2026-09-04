@@ -22,15 +22,12 @@ Read these files first:
 
 1. `AGENTS.md`
 2. `For-Agent/Docs/architecture.md`
-3. `For-Agent/Docs/artifacts.md`
-4. `For-Agent/Docs/qml-style.md`
+3. `For-Agent/Docs/qml-style.md`
 
 Also read:
 
 - `For-Agent/Docs/qml-to-cpp-extraction.md` when the research involves mock data, validation, filtering, sorting, search, grouping, parsing, storage, cross-screen state, or other durable behavior in QML.
 - `For-Agent/Docs/build.md` when the user requests current build or runtime verification.
-
-Before overlapping prior research, check the relevant files in `For-Agent/Research/`, `For-Agent/Review/`, and `For-Agent/Task-Report/`. Follow `For-Agent/Docs/artifacts.md` for recency and reuse. Treat artifacts as context only and reverify every current claim against the live instructions, source, worktree, and focused diff.
 
 ## Scope Gate
 
@@ -122,14 +119,11 @@ Add only the sections required by the selected mode:
 
 Stop before edits after an implementation-planning request. Hand the verified research to `qt-qml-ui-task` or `qml-to-cpp-extraction` only when the user authorizes implementation.
 
-Create a durable research artifact only when the user explicitly requests saved or durable output. Otherwise return findings in chat without writing files. When authorized, follow `For-Agent/Docs/artifacts.md` and save under `For-Agent/Research/`.
-
-If a read-only subagent is used at the user's request, treat its output as research input. The lead Codex remains responsible for checking the live source, compiling the final findings, and writing any authorized artifact.
+If a read-only subagent is used at the user's request, treat its output as research input. The lead Codex remains responsible for checking the live source and compiling the final findings.
 
 ## Boundaries
 
 - Do not edit QML, C++, CMake, tests, or documentation during research.
-- Do not write a research artifact unless the user explicitly authorizes durable output.
 - Do not recommend a global visual redesign unless the user asks for it.
 - Do not treat presentation-only behavior as a backend migration candidate.
 - Do not propose a split or new component from line count alone; inspect responsibilities, ownership, APIs, repetition, and existing reusable components first.

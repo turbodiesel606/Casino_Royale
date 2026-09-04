@@ -16,6 +16,8 @@ class RepositoryTest final : public QObject
 
 private slots:
     void queryErrorsIncludeOperationContext();
+    void preparedQueryErrorsIncludeOperationContext();
+    void sqlLeafConversionsPreserveValues();
     void transactionGuardRollsBackUntilCommitted();
     void persistsFavoriteAcrossDatabaseReopen();
 };
@@ -37,6 +39,73 @@ void RepositoryTest::queryErrorsIncludeOperationContext()
 
     QVERIFY(errorMessage.contains(QStringLiteral("insert a query-helper test row")));
     QVERIFY(errorMessage.contains(QStringLiteral("missing_table")));
+}
+
+void RepositoryTest::preparedQueryErrorsIncludeOperationContext()
+{
+    testsupport::TemporaryDatabaseFixture fixture;
+    QVERIFY(fixture.isValid());
+
+    auto& connection = fixture.database().connection();
+    storage::sql::execute(
+        connection,
+        QStringLiteral("CREATE TABLE prepared_query_probe (value INTEGER PRIMARY KEY)"),
+        QStringLiteral("create the prepared query probe"));
+    storage::sql::execute(
+        connection,
+        QStringLiteral("INSERT INTO prepared_query_probe VALUES (1)"),
+        QStringLiteral("insert the first prepared query probe row"));
+
+    QSqlQuery query{connection};
+    QVERIFY(query.prepare(QStringLiteral(
+        "INSERT INTO prepared_query_probe VALUES (:value)")));
+    query.bindValue(QStringLiteral(":value"), 1);
+
+    QString errorMessage;
+    try {
+        storage::sql::execute(
+            query,
+            QStringLiteral("execute a prepared query-helper test statement"));
+    } catch (const std::exception& error) {
+        errorMessage = QString::fromUtf8(error.what());
+    }
+
+    QVERIFY(errorMessage.contains(QStringLiteral("prepared query-helper test statement")));
+    QVERIFY(errorMessage.contains(QStringLiteral("UNIQUE"), Qt::CaseInsensitive));
+}
+
+void RepositoryTest::sqlLeafConversionsPreserveValues()
+{
+    QString nullText;
+    QVERIFY(nullText.isNull());
+    const auto normalizedNull = storage::sql::nonNullText(nullText);
+    QVERIFY(!normalizedNull.isNull());
+    QVERIFY(normalizedNull.isEmpty());
+
+    const auto text = QStringLiteral("  unchanged  ");
+    QCOMPARE(storage::sql::nonNullText(text), text);
+
+    testsupport::TemporaryDatabaseFixture fixture;
+    QVERIFY(fixture.isValid());
+    auto& connection = fixture.database().connection();
+    storage::sql::execute(
+        connection,
+        QStringLiteral("CREATE TABLE timestamp_probe (value TEXT)"),
+        QStringLiteral("create the timestamp conversion probe"));
+    storage::sql::execute(
+        connection,
+        QStringLiteral("INSERT INTO timestamp_probe VALUES "
+                       "('2026-08-24T10:20:30Z'), (NULL)"),
+        QStringLiteral("insert timestamp conversion probes"));
+
+    QSqlQuery query{connection};
+    QVERIFY(query.exec(QStringLiteral("SELECT value FROM timestamp_probe ORDER BY rowid")));
+    QVERIFY(query.next());
+    QCOMPARE(
+        storage::sql::readIsoDateTime(query, QStringLiteral("value")),
+        QDateTime::fromString(QStringLiteral("2026-08-24T10:20:30Z"), Qt::ISODate));
+    QVERIFY(query.next());
+    QVERIFY(!storage::sql::readIsoDateTime(query, QStringLiteral("value")).isValid());
 }
 
 void RepositoryTest::transactionGuardRollsBackUntilCommitted()

@@ -1,9 +1,11 @@
 #ifndef JOBTRACKER_SRC_STORAGE_SQLQUERY_HPP
 #define JOBTRACKER_SRC_STORAGE_SQLQUERY_HPP
 
+#include <QDateTime>
+#include <QString>
+
 class QSqlDatabase;
 class QSqlQuery;
-class QString;
 
 namespace storage::sql {
 
@@ -19,6 +21,16 @@ void execute(
     QSqlDatabase& database,
     const QString& statement,
     const QString& operationContext);
+
+void execute(
+    QSqlQuery& query,
+    const QString& operationContext);
+
+QString nonNullText(const QString& value);
+
+QDateTime readIsoDateTime(
+    const QSqlQuery& query,
+    const QString& columnName);
 
 }
 

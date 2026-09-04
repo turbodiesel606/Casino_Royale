@@ -14,11 +14,6 @@ RelationFilterProxyModel::RelationFilterProxyModel(
     setSourceModel(const_cast<QAbstractItemModel*>(&sourceModel));
 }
 
-QString RelationFilterProxyModel::selectedId() const
-{
-    return selectedId_;
-}
-
 void RelationFilterProxyModel::setSelectedId(const QString& selectedId)
 {
     if (selectedId_ == selectedId) {

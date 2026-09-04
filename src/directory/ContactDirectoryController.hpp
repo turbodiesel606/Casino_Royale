@@ -62,20 +62,15 @@ signals:
 private:
     const Contact* selectedSourceContact() const;
     void handleSelectionChanged(bool idChanged, bool rowChanged, bool dataChanged);
-    void handleVisibleCountChanged();
-    QVariantMap contactToMap(const Contact& contact) const;
     void updateInteractionHistory();
 
     ContactListModel& contactModel_;
     RoleFilterProxyModel filteredContactModel_;
     ContactInteractionListModel interactionHistoryModel_;
     StableIdSelectionTracker selectionTracker_;
-    QString searchText_;
     QString companyFilter_;
     QString channelFilter_;
     QString sortMode_ = QStringLiteral("Name");
-    int publishedContactCount_ = 0;
-    bool visibleCountNotificationsSuppressed_ = false;
 };
 
 #endif // JOBTRACKER_SRC_DIRECTORY_CONTACTDIRECTORYCONTROLLER_HPP

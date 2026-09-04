@@ -6,6 +6,7 @@
 // Shares cooperative cancellation across threads without exposing the
 // synchronization primitive to callers.
 class CancellationState final
+    // replace controlled variable with atomic in future
 {
 public:
     void requestCancellation();

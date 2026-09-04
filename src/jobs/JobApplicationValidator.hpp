@@ -15,10 +15,23 @@ struct JobApplicationValidationResult
     QStringList messages() const;
 };
 
-// Applies the same structured validation contract to Add Job and stored jobs.
+struct JobApplicationPreflightResult final
+{
+    NormalizedJobApplicationDraft draft_;
+    QVariantMap fieldErrors_;
+    QString message_;
+
+    bool isValid() const;
+};
+
+// Owns storage-independent draft preflight and the structured validation
+// contract shared by job creation, updates, and stored applications.
 class JobApplicationValidator final
 {
 public:
+    static JobApplicationPreflightResult preflight(
+        const JobApplicationDraft& draft,
+        bool hasCv);
     static JobApplicationValidationResult validate(
         const NormalizedJobApplicationDraft& draft,
         const QUrl& selectedCvUrl);

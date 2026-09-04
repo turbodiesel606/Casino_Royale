@@ -33,7 +33,7 @@ int App::start(int argc, char* argv[])
 		QGuiApplication app{ argc, argv };
 		QCoreApplication::setApplicationName(QStringLiteral("JobTracker"));
 		AppBootstrap bootstrap{ app };
-
+		
 		return bootstrap.run();
 	}
 	catch (const std::exception& exception) {

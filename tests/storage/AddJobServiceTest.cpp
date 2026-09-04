@@ -1,5 +1,6 @@
 #include "../support/AddJobTestFixture.hpp"
 #include "common/CancellationState.hpp"
+#include "jobs/JobApplicationValidator.hpp"
 
 #include <QDir>
 #include <QFileInfo>
@@ -54,6 +55,8 @@ void AddJobServiceTest::createsJobAndCopiesCv()
     QCOMPARE(applications.first().status_, JobStatus::Applied);
     QCOMPARE(applications.first().appliedDate_, QDate(2026, 7, 9));
     QVERIFY(applications.first().createdAt_.isValid());
+    QCOMPARE(applications.first().createdAt_, applications.first().updatedAt_);
+    QCOMPARE(applications.first().createdAt_.time().msec(), 0);
     QCOMPARE(cvs.size(), 1);
     QVERIFY(cvs.first().createdAt_.isValid());
     QCOMPARE(companies.size(), 1);
@@ -164,10 +167,8 @@ void AddJobServiceTest::preflightNormalizesAndReturnsAllValidationErrors()
     auto validDraft = testsupport::validJobDraft();
     validDraft.jobTitle_ = QStringLiteral("  Qt Developer  ");
     validDraft.jobUrl_.clear();
-    const auto selectedCv = QUrl::fromLocalFile(
-        QDir{fixture.storage_.rootPath()}.filePath(QStringLiteral("not-read-during-preflight.pdf")));
 
-    const auto validPreflight = fixture.service_.preflight(validDraft, selectedCv);
+    const auto validPreflight = JobApplicationValidator::preflight(validDraft, true);
 
     QVERIFY2(validPreflight.isValid(), qPrintable(validPreflight.message_));
     QCOMPARE(validPreflight.draft_.jobTitle_, QStringLiteral("Qt Developer"));
@@ -182,7 +183,7 @@ void AddJobServiceTest::preflightNormalizesAndReturnsAllValidationErrors()
     invalidDraft.status_ = QStringLiteral("Pending");
     invalidDraft.appliedDate_ = QStringLiteral("2026-99-87");
 
-    const auto invalidPreflight = fixture.service_.preflight(invalidDraft, {});
+    const auto invalidPreflight = JobApplicationValidator::preflight(invalidDraft, false);
 
     QVERIFY(!invalidPreflight.isValid());
     const QStringList expectedFields{
@@ -207,7 +208,7 @@ void AddJobServiceTest::prepareDefensivelyRejectsInvalidDraftWithoutStaging()
     auto draft = testsupport::validJobDraft();
     draft.companyName_.clear();
     const auto sourceUrl = QUrl::fromLocalFile(fixture.storage_.createFile());
-    const auto preflight = fixture.service_.preflight(draft, sourceUrl);
+    const auto preflight = JobApplicationValidator::preflight(draft, true);
     QVERIFY(!preflight.isValid());
     const auto cancellation = std::make_shared<CancellationState>();
 
@@ -227,9 +228,9 @@ void AddJobServiceTest::cancelsPreparedJobBeforeTransaction()
     QVERIFY(fixture.isValid());
     const auto sourceUrl = QUrl::fromLocalFile(fixture.storage_.createFile());
     const auto cancellation = std::make_shared<CancellationState>();
-    const auto preflight = fixture.service_.preflight(
+    const auto preflight = JobApplicationValidator::preflight(
         testsupport::validJobDraft(),
-        sourceUrl);
+        true);
     QVERIFY(preflight.isValid());
 
     auto preparation = fixture.service_.prepare(

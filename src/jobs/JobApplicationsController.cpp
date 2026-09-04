@@ -1,9 +1,8 @@
 #include "JobApplicationsController.hpp"
-#include "AddJobService.hpp"
-#include "JobSaveWorker.hpp"
 #include "JobApplicationValidator.hpp"
-#include "UpdateJobService.hpp"
+#include "JobSaveWorker.hpp"
 #include "common/CancellationState.hpp"
+#include "common/ModelRoleUtils.hpp"
 #include "maintenance/DataRemovalWorker.hpp"
 #include "maintenance/StorageMutationGate.hpp"
 
@@ -44,11 +43,11 @@ JobApplicationsController::JobApplicationsController(
 	QVector<JobApplication> applications,
 	JobSaveWorker& jobSaveWorker,
 	QObject* parent)
-	: QObject{parent}
-	, applicationsModel_{std::move(applications)}
-	, selectionTracker_{filteredApplicationsModel_, JobApplicationListModel::IdRole}
-	, bulkSelectionTracker_{filteredApplicationsModel_, JobApplicationListModel::IdRole}
-	, jobSaveWorker_{jobSaveWorker}
+	: QObject{ parent }
+	, applicationsModel_{ std::move(applications) }
+	, selectionTracker_{ filteredApplicationsModel_, JobApplicationListModel::IdRole }
+	, bulkSelectionTracker_{ filteredApplicationsModel_, JobApplicationListModel::IdRole }
+	, jobSaveWorker_{ jobSaveWorker }
 {
 	filteredApplicationsModel_.setSearchRoles({
 		JobApplicationListModel::CompanyNameRole,
@@ -73,29 +72,16 @@ JobApplicationsController::JobApplicationsController(
 			emit checkedApplicationsChanged();
 			emit deletionAvailabilityChanged();
 		});
+	connect(
+		&selectionTracker_,
+		&StableIdSelectionTracker::visibleRowCountChanged,
+		this,
+		[this]() {
+			emit applicationCountChanged();
+			emit resultSummaryChanged();
+		});
 	filteredApplicationsModel_.setSourceModel(&applicationsModel_);
 	selectionTracker_.synchronize();
-	publishedApplicationCount_ = applicationCount();
-	connect(
-		&filteredApplicationsModel_,
-		&QAbstractItemModel::rowsInserted,
-		this,
-		[this]() { handleVisibleCountChanged(); });
-	connect(
-		&filteredApplicationsModel_,
-		&QAbstractItemModel::rowsMoved,
-		this,
-		[this]() { handleVisibleCountChanged(); });
-	connect(
-		&filteredApplicationsModel_,
-		&QAbstractItemModel::rowsRemoved,
-		this,
-		[this]() { handleVisibleCountChanged(); });
-	connect(
-		&filteredApplicationsModel_,
-		&QAbstractItemModel::modelReset,
-		this,
-		[this]() { handleVisibleCountChanged(); });
 	connect(
 		&jobSaveWorker_,
 		&JobSaveWorker::saveCompleted,
@@ -134,17 +120,12 @@ JobApplicationsController::~JobApplicationsController()
 {
 	shuttingDown_ = true;
 	if (mutationGate_ != nullptr) {
-		for (qsizetype index = 0; index < saveQueue_.size(); ++index) {
-			mutationGate_->releaseJobSave();
-		}
-		if (activeJobSave_.has_value()) {
+		for (int index = 0; index < saveQueue_.pendingCount(); ++index) {
 			mutationGate_->releaseJobSave();
 		}
 	}
-	saveQueue_.clear();
-	if (activeSaveCancellation_ != nullptr) {
-		activeSaveCancellation_->requestCancellation();
-	}
+	saveQueue_.clearWaiting();
+	saveQueue_.requestActiveCancellation();
 	if (activeDeletionCancellation_ != nullptr) {
 		activeDeletionCancellation_->requestCancellation();
 		if (mutationGate_ != nullptr) {
@@ -170,7 +151,7 @@ const JobApplicationListModel& JobApplicationsController::jobApplicationListMode
 
 int JobApplicationsController::applicationCount() const
 {
-	return filteredApplicationsModel_.rowCount();
+	return selectionTracker_.visibleRowCount();
 }
 
 int JobApplicationsController::selectedApplicationIndex() const
@@ -191,7 +172,7 @@ QVariantMap JobApplicationsController::selectedApplication() const
 
 QString JobApplicationsController::searchText() const
 {
-	return searchText_;
+	return filteredApplicationsModel_.searchText();
 }
 
 QString JobApplicationsController::statusFilter() const
@@ -221,9 +202,7 @@ bool JobApplicationsController::saving() const
 
 int JobApplicationsController::pendingSaveCount() const
 {
-	return static_cast<int>(saveQueue_.size())
-		+ (activeJobSave_.has_value()
-			? 1 : 0);
+	return saveQueue_.pendingCount();
 }
 
 bool JobApplicationsController::updatingApplication() const
@@ -273,18 +252,14 @@ bool JobApplicationsController::canDeleteApplications() const
 void JobApplicationsController::setSearchText(const QString& text)
 {
 	const auto normalized = text.trimmed();
-	if (searchText_ == normalized) {
+	if (searchText() == normalized) {
 		return;
 	}
 
-	searchText_ = normalized;
 	bulkSelectionTracker_.clear();
 	selectionTracker_.beginModelUpdate();
-	visibleCountNotificationsSuppressed_ = true;
-	filteredApplicationsModel_.setSearchText(searchText_);
-	visibleCountNotificationsSuppressed_ = false;
+	filteredApplicationsModel_.setSearchText(normalized);
 	selectionTracker_.endModelUpdate();
-	handleVisibleCountChanged();
 	emit searchTextChanged();
 }
 
@@ -298,7 +273,6 @@ void JobApplicationsController::setStatusFilter(const QString& status)
 	statusFilter_ = normalized;
 	bulkSelectionTracker_.clear();
 	selectionTracker_.beginModelUpdate();
-	visibleCountNotificationsSuppressed_ = true;
 	if (statusFilter_.isEmpty() || statusFilter_ == QStringLiteral("All")) {
 		filteredApplicationsModel_.clearExactFilter();
 	}
@@ -307,30 +281,24 @@ void JobApplicationsController::setStatusFilter(const QString& status)
 			JobApplicationListModel::StatusValueRole,
 			QString::number(static_cast<int>(jobStatusFromString(statusFilter_))));
 	}
-	visibleCountNotificationsSuppressed_ = false;
 	selectionTracker_.endModelUpdate();
-	handleVisibleCountChanged();
 	emit statusFilterChanged();
 }
 
 void JobApplicationsController::clearFilters()
 {
-	if (searchText_.isEmpty() && statusFilter_.isEmpty()) {
+	if (searchText().isEmpty() && statusFilter_.isEmpty()) {
 		return;
 	}
 
-	const bool didSearchTextChange = !searchText_.isEmpty();
+	const bool didSearchTextChange = !searchText().isEmpty();
 	const bool didStatusFilterChange = !statusFilter_.isEmpty();
-	searchText_.clear();
 	statusFilter_.clear();
 	bulkSelectionTracker_.clear();
 	selectionTracker_.beginModelUpdate();
-	visibleCountNotificationsSuppressed_ = true;
 	filteredApplicationsModel_.setSearchText(QString());
 	filteredApplicationsModel_.clearExactFilter();
-	visibleCountNotificationsSuppressed_ = false;
 	selectionTracker_.endModelUpdate();
-	handleVisibleCountChanged();
 	if (didSearchTextChange) {
 		emit searchTextChanged();
 	}
@@ -352,15 +320,24 @@ void JobApplicationsController::createApplication(
 	const QVariantMap& formValues,
 	const QUrl& selectedCvUrl)
 {
-	if (shuttingDown_) {
+	// Do not accept new work while the controller/application is closing.
+	if (shuttingDown_)
 		return;
-	}
 
-	const auto preflight = AddJobService::preflight(fillDraft(formValues), selectedCvUrl);
+	/* Convert the untyped QML map into a typed raw draft.
+	Then normalize and validate it synchronously on the GUI thread. */
+	const auto preflight = JobApplicationValidator::preflight(
+		fillDraft(formValues),
+		!selectedCvUrl.isEmpty());
+
+	// Invalid input never reaches the FIFO, worker, filesystem, or database.
 	if (!preflight.isValid()) {
 		emit saveFailed(preflight.fieldErrors_, preflight.message_);
 		return;
 	}
+
+	// Cross - operation admission guard.
+	// A job save cannot begin while destructive storage work is active.
 	if (mutationGate_ != nullptr && !mutationGate_->reserveJobSave()) {
 		emit saveFailed(
 			{},
@@ -368,14 +345,23 @@ void JobApplicationsController::createApplication(
 		return;
 	}
 
-	const auto operationId = ++nextSaveOperationId_;
+	// Capture the old pending count before changing the FIFO.
+	// It is later compared with the new count to emit precise property signals.
 	const auto previousCount = pendingSaveCount();
-	saveQueue_.emplace_back(QueuedCreateApplication{
-		operationId,
+
+	// Store the already normalized draft and CV URL as values.
+	// enqueue() assigns the next stable operation ID.
+	const auto operationId = saveQueue_.enqueue(QueuedCreateApplication{
 		preflight.draft_,
-		selectedCvUrl});
+		selectedCvUrl });
 	publishPendingSaveStateChange(previousCount);
+
+	// Notify QML that the request was accepted into the FIFO.
+	// JobFormPage responds by clearing the form immediately.
 	emit applicationQueued(operationId);
+
+	// Start this item immediately if the FIFO has no active operation.
+	// Otherwise it remains waiting the current create/update operation.
 	startNextJobSave();
 }
 
@@ -407,10 +393,9 @@ void JobApplicationsController::updateApplication(
 		return;
 	}
 
-	const auto preflight = UpdateJobService::preflight(
+	const auto preflight = JobApplicationValidator::preflight(
 		fillDraft(formValues),
-		!existing->cvId_.trimmed().isEmpty(),
-		replacementCvUrl);
+		!existing->cvId_.trimmed().isEmpty() || !replacementCvUrl.isEmpty());
 	if (!preflight.isValid()) {
 		emit applicationUpdateRejected(
 			0,
@@ -428,15 +413,13 @@ void JobApplicationsController::updateApplication(
 		return;
 	}
 
-	const auto operationId = ++nextSaveOperationId_;
 	const auto previousCount = pendingSaveCount();
-	pendingUpdateOperationId_ = operationId;
-	pendingUpdateApplicationId_ = normalizedId;
-	saveQueue_.emplace_back(QueuedUpdateApplication{
-		operationId,
+	const auto operationId = saveQueue_.enqueue(QueuedUpdateApplication{
 		normalizedId,
 		preflight.draft_,
-		replacementCvUrl});
+		replacementCvUrl });
+	pendingUpdateOperationId_ = operationId;
+	pendingUpdateApplicationId_ = normalizedId;
 	emit updatingApplicationChanged();
 	publishPendingSaveStateChange(previousCount);
 	emit applicationUpdateQueued(operationId, normalizedId);
@@ -445,69 +428,63 @@ void JobApplicationsController::updateApplication(
 
 void JobApplicationsController::startNextJobSave()
 {
-	if (shuttingDown_ || activeJobSave_.has_value() || saveQueue_.empty()) {
+	// reject if already-active or empty queue. 
+	if (shuttingDown_ || !saveQueue_.activateNext())
 		return;
-	}
 
-	activeJobSave_ = std::move(saveQueue_.front());
-	saveQueue_.pop_front();
-	activeSaveCancellation_ = std::make_shared<CancellationState>();
-	suppressActiveCompletionNotification_ = false;
+	// Obtain the active value request and its cancellation token.
+	const auto* const active = saveQueue_.active(); // pointer check is not required, see activateNext()
+	const auto cancellation = saveQueue_.activeCancellation();
 
+	// The same FIFO stores create and update requests.
+	// And we need choose current visitor (create/update).
 	std::visit(
-		[this](const auto& queued) {
-			using Request = std::decay_t<decltype(queued)>;
+		[this, active, cancellation](const auto& queued) {
+			using Request = std::remove_cvref_t<decltype(queued)>;
 			if constexpr (std::is_same_v<Request, QueuedCreateApplication>) {
-				jobSaveWorker_.submit({
-					queued.operationId_,
+				jobSaveWorker_.submit(AddJobRequest{
+					active->operationId_,
 					queued.draft_,
 					queued.selectedCvUrl_,
-					activeSaveCancellation_});
+					cancellation });
 			}
 			else {
-				jobSaveWorker_.submit({
-					queued.operationId_,
+				jobSaveWorker_.submit(UpdateJobRequest{
+					active->operationId_,
 					queued.applicationId_,
 					queued.draft_,
 					queued.replacementCvUrl_,
-					activeSaveCancellation_});
+					cancellation });
 			}
 		},
-		*activeJobSave_);
+		active->payload_);
 }
 
 void JobApplicationsController::cancelCreateApplication()
 {
-	if (activeJobSave_.has_value()
-		&& std::holds_alternative<QueuedCreateApplication>(*activeJobSave_)
-		&& activeSaveCancellation_ != nullptr) {
-		activeSaveCancellation_->requestCancellation();
+	const auto* const active = saveQueue_.active();
+	if (active != nullptr
+		&& std::holds_alternative<QueuedCreateApplication>(active->payload_)) {
+		saveQueue_.requestActiveCancellation(false);
 	}
-}
-
-void JobApplicationsController::cancelAllCreateApplications()
-{
-	cancelAllJobSaves();
 }
 
 void JobApplicationsController::cancelAllJobSaves()
 {
 	const auto previousCount = pendingSaveCount();
+	const auto clearedCount = saveQueue_.clearWaiting();
 	if (mutationGate_ != nullptr) {
-		for (qsizetype index = 0; index < saveQueue_.size(); ++index) {
+		for (int index = 0; index < clearedCount; ++index) {
 			mutationGate_->releaseJobSave();
 		}
 	}
-	saveQueue_.clear();
-	const bool activeUpdate = activeJobSave_.has_value()
-		&& std::holds_alternative<QueuedUpdateApplication>(*activeJobSave_);
+	const auto* const active = saveQueue_.active();
+	const bool activeUpdate = active != nullptr
+		&& std::holds_alternative<QueuedUpdateApplication>(active->payload_);
 	if (!activeUpdate) {
 		clearPendingUpdate();
 	}
-	if (activeSaveCancellation_ != nullptr) {
-		suppressActiveCompletionNotification_ = true;
-		activeSaveCancellation_->requestCancellation();
-	}
+	saveQueue_.requestActiveCancellation();
 	publishPendingSaveStateChange(previousCount);
 }
 
@@ -521,7 +498,7 @@ void JobApplicationsController::handleAddJobSave(const AddJobSaveOutcome& outcom
 
 	if (result.success_) {
 		applicationsModel_.appendApplication(result.application_);
-		emit companyResolved(result.company_.id_, result.company_.name_);
+		emit companyResolved(result.company_);
 		filteredApplicationsModel_.sort(filteredApplicationsModel_.sortColumn(), filteredApplicationsModel_.sortOrder());
 		emit cvUsed(
 			result.cvDocument_,
@@ -530,7 +507,7 @@ void JobApplicationsController::handleAddJobSave(const AddJobSaveOutcome& outcom
 		emit applicationCreated(result.application_.id_);
 	}
 
-	if (!suppressActiveCompletionNotification_) {
+	if (!saveQueue_.completionSuppressed()) {
 		const auto message = result.message_.isEmpty()
 			? (result.success_
 				? QStringLiteral("Job application saved successfully.")
@@ -558,7 +535,7 @@ void JobApplicationsController::handleUpdateJobSave(const UpdateJobSaveOutcome& 
 	if (success) {
 		success = applicationsModel_.updateApplication(result.application_);
 		if (success) {
-			emit companyResolved(result.company_.id_, result.company_.name_);
+			emit companyResolved(result.company_);
 			if (result.replacementCvDocument_.has_value()
 				&& result.previousCvId_ != result.replacementCvDocument_->id_) {
 				emit cvReplaced(
@@ -579,7 +556,7 @@ void JobApplicationsController::handleUpdateJobSave(const UpdateJobSaveOutcome& 
 			? QStringLiteral("Job application changes saved successfully.")
 			: QStringLiteral("Job application changes could not be saved.");
 	}
-	if (!suppressActiveCompletionNotification_) {
+	if (!saveQueue_.completionSuppressed()) {
 		emit applicationUpdateCompleted(
 			outcome.operationId_,
 			outcome.applicationId_,
@@ -597,33 +574,27 @@ bool JobApplicationsController::isActiveSaveOutcome(
 	bool expectUpdate) const
 {
 	if (shuttingDown_
-		|| !activeJobSave_.has_value()
-		|| activeSaveCancellation_ != cancellation) {
+		|| !saveQueue_.matches(operationId, cancellation)) {
 		return false;
 	}
 
-	const bool activeUpdate = std::holds_alternative<QueuedUpdateApplication>(
-		*activeJobSave_);
-	const auto activeOperationId = std::visit(
-		[](const auto& queued) { return queued.operationId_; },
-		*activeJobSave_);
-	return activeUpdate == expectUpdate && activeOperationId == operationId;
+	return std::holds_alternative<QueuedUpdateApplication>(
+		saveQueue_.active()->payload_) == expectUpdate;
 }
 
 void JobApplicationsController::releaseActiveJobSave()
 {
 	const auto previousCount = pendingSaveCount();
-	const bool wasUpdate = activeJobSave_.has_value()
-		&& std::holds_alternative<QueuedUpdateApplication>(*activeJobSave_);
-	activeJobSave_.reset();
-	activeSaveCancellation_.reset();
+	const auto* const active = saveQueue_.active();
+	const bool wasUpdate = active != nullptr
+		&& std::holds_alternative<QueuedUpdateApplication>(active->payload_);
+	saveQueue_.finishActive();
 	if (mutationGate_ != nullptr) {
 		mutationGate_->releaseJobSave();
 	}
 	if (wasUpdate) {
 		clearPendingUpdate();
 	}
-	suppressActiveCompletionNotification_ = false;
 	publishPendingSaveStateChange(previousCount);
 	startNextJobSave();
 }
@@ -648,11 +619,6 @@ void JobApplicationsController::setAllVisibleApplicationsChecked(bool checked)
 	bulkSelectionTracker_.setAllVisibleSelected(checked);
 }
 
-void JobApplicationsController::clearCheckedApplications()
-{
-	bulkSelectionTracker_.clear();
-}
-
 void JobApplicationsController::deleteCheckedApplications()
 {
 	if (!canDeleteApplications() || !mutationGate_->beginRemoval()) {
@@ -666,15 +632,9 @@ void JobApplicationsController::deleteCheckedApplications()
 
 	QVector<DataRemovalItemRequest> items;
 	for (const auto& id : checkedApplicationIds()) {
-		QString label = id;
-		for (int row = 0; row < applicationsModel_.rowCount(); ++row) {
-			const auto* application = applicationsModel_.applicationAt(row);
-			if (application != nullptr && application->id_ == id) {
-				label = application->jobTitle_;
-				break;
-			}
-		}
-		items.append({id, label});
+		const auto* const application = applicationsModel_.applicationById(id);
+		const auto label = application != nullptr ? application->jobTitle_ : id;
+		items.append({ id, label });
 	}
 
 	activeDeletionOperationId_ = ++nextDeletionOperationId_;
@@ -686,7 +646,7 @@ void JobApplicationsController::deleteCheckedApplications()
 		activeDeletionOperationId_,
 		DataRemovalKind::DeleteJobs,
 		std::move(items),
-		activeDeletionCancellation_});
+		activeDeletionCancellation_ });
 }
 
 void JobApplicationsController::cancelApplicationDeletion()
@@ -711,7 +671,8 @@ void JobApplicationsController::handleRemovalCompleted(
 	for (const auto& item : outcome.result_.items_) {
 		if (item.status_ == DataRemovalItemStatus::Deleted) {
 			deletedIds.append(item.id_);
-		} else {
+		}
+		else {
 			failureDetails.append(QStringLiteral("%1: %2").arg(item.label_, item.message_));
 		}
 	}
@@ -759,12 +720,12 @@ void JobApplicationsController::publishPendingSaveStateChange(int previousCount)
 
 	emit pendingSaveCountChanged();
 
-	if ((previousCount == 0) != (currentCount == 0)) 
+	if ((previousCount == 0) != (currentCount == 0))
 		emit savingChanged();
-	
+
 	if (previousCount > 0 && currentCount == 0 && !shuttingDown_)
 		emit saveQueueDrained();
-	
+
 }
 
 const JobApplication* JobApplicationsController::selectedSourceApplication() const
@@ -776,16 +737,7 @@ const JobApplication* JobApplicationsController::selectedSourceApplication() con
 const JobApplication* JobApplicationsController::sourceApplicationById(
 	const QString& applicationId) const
 {
-	if (applicationId.isEmpty()) {
-		return nullptr;
-	}
-	for (int row = 0; row < applicationsModel_.rowCount(); ++row) {
-		const auto* const application = applicationsModel_.applicationAt(row);
-		if (application != nullptr && application->id_ == applicationId) {
-			return application;
-		}
-	}
-	return nullptr;
+	return applicationsModel_.applicationById(applicationId);
 }
 
 void JobApplicationsController::handleSelectionChanged(
@@ -804,50 +756,33 @@ void JobApplicationsController::handleSelectionChanged(
 	}
 }
 
-void JobApplicationsController::handleVisibleCountChanged()
-{
-	if (visibleCountNotificationsSuppressed_) {
-		return;
-	}
-
-	const auto count = applicationCount();
-	if (publishedApplicationCount_ == count) {
-		return;
-	}
-
-	publishedApplicationCount_ = count;
-	emit applicationCountChanged();
-	emit resultSummaryChanged();
-}
-
 QVariantMap JobApplicationsController::applicationToMap(int sourceRow) const
 {
-	const auto modelIndex = applicationsModel_.index(sourceRow, 0);
-	const auto roleData = [this, &modelIndex](int role) {
-		return applicationsModel_.data(modelIndex, role);
-		};
-	return {
-		{QStringLiteral("id"), roleData(JobApplicationListModel::IdRole)},
-		{QStringLiteral("companyId"), roleData(JobApplicationListModel::CompanyIdRole)},
-		{QStringLiteral("companyName"), roleData(JobApplicationListModel::CompanyNameRole)},
-		{QStringLiteral("companyInitials"), roleData(JobApplicationListModel::CompanyInitialsRole)},
-		{QStringLiteral("companyAccent"), roleData(JobApplicationListModel::CompanyAccentRole)},
-		{QStringLiteral("jobTitle"), roleData(JobApplicationListModel::JobTitleRole)},
-		{QStringLiteral("jobUrl"), roleData(JobApplicationListModel::JobUrlRole)},
-		{QStringLiteral("workFormat"), roleData(JobApplicationListModel::WorkFormatRole)},
-		{QStringLiteral("city"), roleData(JobApplicationListModel::CityRole)},
-		{QStringLiteral("salary"), roleData(JobApplicationListModel::SalaryRole)},
-		{QStringLiteral("status"), roleData(JobApplicationListModel::StatusRole)},
-		{QStringLiteral("statusLabel"), roleData(JobApplicationListModel::StatusLabelRole)},
-		{QStringLiteral("statusAccent"), roleData(JobApplicationListModel::StatusAccentRole)},
-		{QStringLiteral("appliedDate"), roleData(JobApplicationListModel::AppliedDateRole)},
-		{QStringLiteral("dateLabel"), roleData(JobApplicationListModel::DateLabelRole)},
-		{QStringLiteral("nextStep"), roleData(JobApplicationListModel::NextStepRole)},
-		{QStringLiteral("cvId"), roleData(JobApplicationListModel::CvIdRole)},
-		{QStringLiteral("cvFileName"), roleData(JobApplicationListModel::CvFileNameRole)},
-		{QStringLiteral("description"), roleData(JobApplicationListModel::DescriptionRole)},
-		{QStringLiteral("requirements"), roleData(JobApplicationListModel::RequirementsRole)},
-		{QStringLiteral("techStack"), roleData(JobApplicationListModel::TechStackRole)},
-		{QStringLiteral("notes"), roleData(JobApplicationListModel::NotesRole)},
-	};
+	return common::model::rowToVariantMap(
+		applicationsModel_,
+		sourceRow,
+		{
+			JobApplicationListModel::IdRole,
+			JobApplicationListModel::CompanyIdRole,
+			JobApplicationListModel::CompanyNameRole,
+			JobApplicationListModel::CompanyInitialsRole,
+			JobApplicationListModel::CompanyAccentRole,
+			JobApplicationListModel::JobTitleRole,
+			JobApplicationListModel::JobUrlRole,
+			JobApplicationListModel::WorkFormatRole,
+			JobApplicationListModel::CityRole,
+			JobApplicationListModel::SalaryRole,
+			JobApplicationListModel::StatusRole,
+			JobApplicationListModel::StatusLabelRole,
+			JobApplicationListModel::StatusAccentRole,
+			JobApplicationListModel::AppliedDateRole,
+			JobApplicationListModel::DateLabelRole,
+			JobApplicationListModel::NextStepRole,
+			JobApplicationListModel::CvIdRole,
+			JobApplicationListModel::CvFileNameRole,
+			JobApplicationListModel::DescriptionRole,
+			JobApplicationListModel::RequirementsRole,
+			JobApplicationListModel::TechStackRole,
+			JobApplicationListModel::NotesRole,
+		});
 }

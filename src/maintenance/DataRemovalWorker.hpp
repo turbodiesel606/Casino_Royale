@@ -3,10 +3,10 @@
 
 #include "DataRemovalService.hpp"
 #include "common/CancellationState.hpp"
+#include "common/SingleActiveWorkerRuntime.hpp"
 
 #include <QMetaType>
 #include <QObject>
-#include <QThread>
 
 #include <memory>
 
@@ -48,18 +48,8 @@ private:
 
     void deliverOutcome(DataRemovalBatchOutcome outcome);
     void queueUnavailableOutcome(const DataRemovalRequest& request, const QString& message);
-    bool isActiveOutcome(
-        quint64 operationId,
-        const std::shared_ptr<CancellationState>& cancellation) const;
-    void clearActiveRequest();
 
-    QString dataDirectory_;
-    QThread workerThread_;
-    Executor* executor_ = nullptr;
-    std::shared_ptr<CancellationState> activeCancellation_;
-    quint64 activeOperationId_ = 0;
-    bool busy_ = false;
-    bool shuttingDown_ = false;
+    SingleActiveWorkerRuntime runtime_;
 };
 
 #endif // JOBTRACKER_SRC_MAINTENANCE_DATAREMOVALWORKER_HPP

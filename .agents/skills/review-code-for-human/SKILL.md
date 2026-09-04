@@ -19,7 +19,7 @@ Do not dump unrelated files or unrelated methods merely to increase coverage. Co
 ## Review Workflow
 
 1. Identify the exact target and scenario. Resolve ambiguity from the repository when possible; ask only when different interpretations would produce materially different reviews.
-2. Read `AGENTS.md` and the directly relevant `For-Agent/Docs/` guidance. Check recent research, review, or task artifacts only when they overlap the scope, and verify every current fact against live source.
+2. Read `AGENTS.md` and the directly relevant `For-Agent/Docs/` guidance. Check recent review artifacts only when they overlap the scope, and verify every current fact against live source.
 3. Inspect the target, its real callers, every relevant project-defined nested call, connected QML or C++ contracts, state publication, and focused tests.
 4. Build an internal entity inventory before writing. Include every QML component or handler, C++ class, struct, enum, request/result type, controller, worker, service, repository, storage helper, model, and signal that materially participates in the scenario.
 5. For every inventoried entity, record its definition location, responsibility, owned state, owner and lifetime, thread affinity, inputs, outputs, callers, callees, and observable side effects. Mark genuinely inapplicable fields rather than silently skipping them.

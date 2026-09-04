@@ -4,6 +4,7 @@
 #include "common/RoleFilterProxyModel.hpp"
 #include "common/RelationFilterProxyModel.hpp"
 #include "common/BulkIdSelectionTracker.hpp"
+#include "common/SerialOperationQueue.hpp"
 #include "common/StableIdSelectionTracker.hpp"
 #include "CvImportService.hpp"
 #include "CvListModel.hpp"
@@ -14,7 +15,6 @@
 #include <QVariantList>
 #include <QVariantMap>
 
-#include <deque>
 #include <memory>
 #include <optional>
 
@@ -132,7 +132,6 @@ public:
     Q_INVOKABLE void setLibraryView(LibraryView view);
     Q_INVOKABLE void toggleCvChecked(int index);
     Q_INVOKABLE void setAllVisibleCvsChecked(bool checked);
-    Q_INVOKABLE void clearCheckedCvs();
     Q_INVOKABLE void removeCheckedCvs();
     Q_INVOKABLE void restoreCheckedCvs();
     Q_INVOKABLE void permanentlyDeleteCheckedCvs();
@@ -186,23 +185,16 @@ signals:
 private:
     struct QueuedCvImport final
     {
-        quint64 operationId_ = 0;
         QUrl sourceUrl_;
     };
 
     QVariantMap cvToMap(int sourceRow) const;
-    const CvDocument* findCv(const QString& cvId) const;
-    const CvDocument* selectedSourceCv() const;
     void publishCvDocument(const CvDocument& document, const QString& applicationId = {});
     void handleSelectionChanged(bool idChanged, bool rowChanged, bool dataChanged);
-    void handleVisibleCountChanged();
     void updateLinkedApplications();
     void startNextCvImport();
     void publishPendingImportStateChange(int previousCount);
     void handleCvImport(const CvImportSaveOutcome& outcome);
-    bool isActiveImportOutcome(
-        quint64 operationId,
-        const std::shared_ptr<CancellationState>& cancellation) const;
     void releaseActiveCvImport();
     void submitCvMutation(DataRemovalKind kind);
     void handleRemovalCompleted(const DataRemovalBatchOutcome& outcome);
@@ -219,22 +211,15 @@ private:
     RelationFilterProxyModel linkedApplicationsModel_;
     StableIdSelectionTracker selectionTracker_;
     BulkIdSelectionTracker bulkSelectionTracker_;
-    QString searchText_;
     QString categoryFilter_;
     QString languageFilter_;
     QString sortMode_ = QStringLiteral("Last Modified");
     LibraryView libraryView_ = LibraryView::Active;
-    int publishedCvCount_ = 0;
-    bool visibleCountNotificationsSuppressed_ = false;
-    std::deque<QueuedCvImport> importQueue_;
-    std::optional<QueuedCvImport> activeImport_;
-    std::shared_ptr<CancellationState> activeImportCancellation_;
-    quint64 nextImportOperationId_ = 0;
+    SerialOperationQueue<QueuedCvImport> importQueue_;
     std::shared_ptr<CancellationState> activeMutationCancellation_;
     quint64 activeMutationOperationId_ = 0;
     quint64 nextMutationOperationId_ = 0;
     std::optional<DataRemovalKind> activeMutationKind_;
-    bool suppressActiveImportNotification_ = false;
     bool shuttingDown_ = false;
 };
 

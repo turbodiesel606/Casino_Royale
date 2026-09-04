@@ -40,7 +40,7 @@ ApplicationCounts countApplications(const JobApplicationListModel& model)
     ApplicationCounts counts;
     counts.total_ = model.rowCount();
 
-    for (int row = 0; row < model.rowCount(); ++row) {
+    for (int row = 0; row < counts.total_; ++row) {
         const auto* application = model.applicationAt(row);
         if (application == nullptr) {
             continue;
@@ -80,9 +80,8 @@ double ratio(int count, int total)
     return total > 0 ? static_cast<double>(count) / static_cast<double>(total) : 0.0;
 }
 
-QVector<DashboardMetric> makeStats(const JobApplicationListModel& model)
+QVector<DashboardMetric> makeStats(const ApplicationCounts& counts)
 {
-    const auto counts = countApplications(model);
     return {
         makeMetric(QStringLiteral("J"), QStringLiteral("Total Jobs"), QString::number(counts.total_), QStringLiteral("All time"), 1.0, QStringLiteral("#1687ff")),
         makeMetric(QStringLiteral(">"), QStringLiteral("Applied"), QString::number(counts.applied_), percentageNote(counts.applied_, counts.total_), ratio(counts.applied_, counts.total_), QStringLiteral("#2ecb68")),
@@ -92,9 +91,8 @@ QVector<DashboardMetric> makeStats(const JobApplicationListModel& model)
     };
 }
 
-QVector<DashboardMetric> makeFunnel(const JobApplicationListModel& model)
+QVector<DashboardMetric> makeFunnel(const ApplicationCounts& counts)
 {
-    const auto counts = countApplications(model);
     return {
         makeMetric(QString(), QStringLiteral("Total Jobs"), countWithPercent(counts.total_, counts.total_), QString(), 1.0, QStringLiteral("#167aff")),
         makeMetric(QString(), QStringLiteral("Applied"), countWithPercent(counts.applied_, counts.total_), QString(), ratio(counts.applied_, counts.total_), QStringLiteral("#2ecb68")),
@@ -109,8 +107,8 @@ QVector<DashboardMetric> makeFunnel(const JobApplicationListModel& model)
 DashboardController::DashboardController(const JobApplicationListModel& applicationsModel, const CvListModel& cvModel, QObject* parent)
     : QObject(parent)
     , applicationsModel_(applicationsModel)
-    , statsModel_(makeStats(applicationsModel), this)
-    , funnelModel_(makeFunnel(applicationsModel), this)
+    , statsModel_(QVector<DashboardMetric>{}, this)
+    , funnelModel_(QVector<DashboardMetric>{}, this)
     , recentApplicationsModel_(
         applicationsModel,
         JobApplicationListModel::CreatedAtRole,
@@ -146,6 +144,7 @@ DashboardController::DashboardController(const JobApplicationListModel& applicat
                 refreshMetrics();
             }
         });
+    refreshMetrics();
 }
 
 QAbstractItemModel* DashboardController::statsModel()
@@ -170,6 +169,7 @@ QAbstractItemModel* DashboardController::recentCvsModel()
 
 void DashboardController::refreshMetrics()
 {
-    statsModel_.setMetrics(makeStats(applicationsModel_));
-    funnelModel_.setMetrics(makeFunnel(applicationsModel_));
+    const auto counts = countApplications(applicationsModel_);
+    statsModel_.setMetrics(makeStats(counts));
+    funnelModel_.setMetrics(makeFunnel(counts));
 }

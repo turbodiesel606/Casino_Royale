@@ -1,6 +1,7 @@
 #include "../support/AddJobTestFixture.hpp"
 
 #include "common/CancellationState.hpp"
+#include "jobs/JobApplicationValidator.hpp"
 
 #include <QDir>
 #include <QFileInfo>
@@ -19,10 +20,7 @@ UpdateJobResult updateJob(
     const JobApplicationDraft& draft,
     const QUrl& replacementCvUrl = {})
 {
-    const auto preflight = UpdateJobService::preflight(
-        draft,
-        true,
-        replacementCvUrl);
+    const auto preflight = JobApplicationValidator::preflight(draft, true);
     if (!preflight.isValid()) {
         UpdateJobResult result;
         result.fieldErrors_ = preflight.fieldErrors_;
@@ -274,7 +272,7 @@ void UpdateJobServiceTest::rejectsMissingAndInvalidApplicationsWithoutMutation()
     invalidDraft.companyName_.clear();
     invalidDraft.status_ = QStringLiteral("Pending");
     invalidDraft.appliedDate_ = QStringLiteral("not-a-date");
-    const auto preflight = UpdateJobService::preflight(invalidDraft, true, {});
+    const auto preflight = JobApplicationValidator::preflight(invalidDraft, true);
     QVERIFY(!preflight.isValid());
     QVERIFY(preflight.fieldErrors_.contains(QStringLiteral("jobTitle")));
     QVERIFY(preflight.fieldErrors_.contains(QStringLiteral("companyName")));
@@ -306,10 +304,9 @@ void UpdateJobServiceTest::cancelsPreparedReplacementBeforeTransaction()
     const auto replacementUrl = QUrl::fromLocalFile(fixture.storage_.createFile(
         QStringLiteral("cancelled-replacement.pdf"),
         QByteArrayLiteral("%PDF cancelled replacement")));
-    const auto preflight = UpdateJobService::preflight(
+    const auto preflight = JobApplicationValidator::preflight(
         testsupport::validJobDraft(),
-        true,
-        replacementUrl);
+        true);
     QVERIFY(preflight.isValid());
     const auto cancellation = std::make_shared<CancellationState>();
     auto preparation = fixture.updateService_.prepare(

@@ -7,6 +7,7 @@ Use C++20 Standard where supported by the current compiler and where it does not
 - Consolidate C++ functions, classes, and methods that duplicate the same logic, responsibility, and invariants into one canonical function, class, or method. Use overloads, inheritance (without virtuals), templates, and template specializations when they are necessary and technically appropriate to expose the canonical implementation without duplicating it.
 - Use existing C++ classes, functions, and methods when solving a problem. Reuse a fully suitable entity directly. If an entity is only partially suitable, extend it through an overload, template, or specialization when appropriate. Create a new entity only when the existing entities are not suitable for the responsibility.
 - Follow established modern C++ best practices for correctness, type safety, ownership, lifetime and resource management, exception safety, clarity, maintainability, portability, and testability.
+- Treat testability as an outcome of clear production responsibilities, not as permission to reshape production for tests. Do not add or widen production APIs, weaken access control, introduce test-only hooks or compile definitions, or alter ownership, lifetime, threading, behavior, or architectural boundaries solely for tests. Keep test support under `tests/`.
 
 ## Header Conventions
 

@@ -3,20 +3,20 @@
 
 #include "common/BulkIdSelectionTracker.hpp"
 #include "common/RoleFilterProxyModel.hpp"
+#include "common/SerialOperationQueue.hpp"
 #include "common/StableIdSelectionTracker.hpp"
 #include "JobApplicationDraft.hpp"
 #include "JobApplicationListModel.hpp"
 #include "cvs/CvDocument.hpp"
 #include "cvs/CvImportService.hpp"
+#include "directory/Company.hpp"
 
 #include <QObject>
 #include <QStringList>
 #include <QUrl>
 #include <QVariantMap>
 
-#include <deque>
 #include <memory>
-#include <optional>
 #include <variant>
 
 class QAbstractItemModel;
@@ -97,11 +97,9 @@ public:
         const QVariantMap& formValues,
         const QUrl& replacementCvUrl);
     Q_INVOKABLE void cancelCreateApplication();
-    Q_INVOKABLE void cancelAllCreateApplications();
     Q_INVOKABLE void cancelAllJobSaves();
     Q_INVOKABLE void toggleApplicationChecked(int index);
     Q_INVOKABLE void setAllVisibleApplicationsChecked(bool checked);
-    Q_INVOKABLE void clearCheckedApplications();
     Q_INVOKABLE void deleteCheckedApplications();
     Q_INVOKABLE void cancelApplicationDeletion();
 
@@ -147,7 +145,8 @@ signals:
         const QString& message);
     void applicationsDeleted(const QStringList& applicationIds);
     void applicationCreated(const QString& applicationId);
-    void companyResolved(const QString& companyId, const QString& companyName);
+    void companyResolved(const Company& company);
+    // saveFailed is a Qt signal handled by JobFormPage.qml (onSaveFailed).
     void saveFailed(const QVariantMap& fieldErrors, const QString& message);
     void cvUsed(
         const CvDocument& document,
@@ -162,14 +161,12 @@ signals:
 private:
     struct QueuedCreateApplication final
     {
-        quint64 operationId_ = 0;
         NormalizedJobApplicationDraft draft_;
         QUrl selectedCvUrl_;
     };
 
     struct QueuedUpdateApplication final
     {
-        quint64 operationId_ = 0;
         QString applicationId_;
         NormalizedJobApplicationDraft draft_;
         QUrl replacementCvUrl_;
@@ -180,7 +177,6 @@ private:
     const JobApplication* selectedSourceApplication() const;
     const JobApplication* sourceApplicationById(const QString& applicationId) const;
     void handleSelectionChanged(bool idChanged, bool rowChanged, bool dataChanged);
-    void handleVisibleCountChanged();
     void startNextJobSave();
     void publishPendingSaveStateChange(int previousCount);
     void handleAddJobSave(const AddJobSaveOutcome& outcome);
@@ -199,20 +195,13 @@ private:
     RoleFilterProxyModel filteredApplicationsModel_;
     StableIdSelectionTracker selectionTracker_;
     BulkIdSelectionTracker bulkSelectionTracker_;
-    QString searchText_;
     QString statusFilter_;
-    int publishedApplicationCount_ = 0;
-    bool visibleCountNotificationsSuppressed_ = false;
     JobSaveWorker& jobSaveWorker_;
     DataRemovalWorker* removalWorker_ = nullptr;
     StorageMutationGate* mutationGate_ = nullptr;
-    std::deque<QueuedJobSave> saveQueue_;
-    std::optional<QueuedJobSave> activeJobSave_;
-    std::shared_ptr<CancellationState> activeSaveCancellation_;
-    quint64 nextSaveOperationId_ = 0;
+    SerialOperationQueue<QueuedJobSave> saveQueue_;
     quint64 pendingUpdateOperationId_ = 0;
     QString pendingUpdateApplicationId_;
-    bool suppressActiveCompletionNotification_ = false;
     std::shared_ptr<CancellationState> activeDeletionCancellation_;
     quint64 activeDeletionOperationId_ = 0;
     quint64 nextDeletionOperationId_ = 0;

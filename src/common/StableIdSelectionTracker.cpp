@@ -1,5 +1,7 @@
 #include "StableIdSelectionTracker.hpp"
 
+#include "ModelRoleUtils.hpp"
+
 #include <QAbstractProxyModel>
 
 #include <utility>
@@ -7,6 +9,7 @@
 StableIdSelectionTracker::StableIdSelectionTracker(QAbstractProxyModel& proxyModel, int idRole)
     : proxyModel_(proxyModel)
     , idRole_(idRole)
+    , visibleRowCount_(proxyModel.rowCount())
 {
     connect(
         &proxyModel_,
@@ -56,6 +59,11 @@ int StableIdSelectionTracker::selectedRow() const
     return selectedRow_;
 }
 
+int StableIdSelectionTracker::visibleRowCount() const
+{
+    return visibleRowCount_;
+}
+
 QModelIndex StableIdSelectionTracker::selectedSourceIndex() const
 {
     if (selectedRow_ < 0 || selectedRow_ >= proxyModel_.rowCount()) {
@@ -71,7 +79,10 @@ void StableIdSelectionTracker::selectRow(int proxyRow)
         return;
     }
 
-    applySelection(idAt(proxyRow), proxyRow, false);
+    applySelection(
+        common::model::stringRoleAt(proxyModel_, proxyRow, idRole_),
+        proxyRow,
+        false);
 }
 
 void StableIdSelectionTracker::beginModelUpdate()
@@ -99,30 +110,6 @@ void StableIdSelectionTracker::synchronize()
     requestReconcile();
 }
 
-QString StableIdSelectionTracker::idAt(int proxyRow) const
-{
-    if (proxyRow < 0 || proxyRow >= proxyModel_.rowCount()) {
-        return {};
-    }
-
-    return proxyModel_.data(proxyModel_.index(proxyRow, 0), idRole_).toString();
-}
-
-int StableIdSelectionTracker::rowForId(const QString& id) const
-{
-    if (id.isEmpty()) {
-        return -1;
-    }
-
-    for (int row = 0; row < proxyModel_.rowCount(); ++row) {
-        if (idAt(row) == id) {
-            return row;
-        }
-    }
-
-    return -1;
-}
-
 void StableIdSelectionTracker::requestReconcile(bool selectedDataChanged)
 {
     if (modelUpdateDepth_ > 0) {
@@ -136,19 +123,29 @@ void StableIdSelectionTracker::requestReconcile(bool selectedDataChanged)
 
 void StableIdSelectionTracker::reconcile(bool selectedDataChanged)
 {
+    const auto nextVisibleRowCount = proxyModel_.rowCount();
+    const bool didVisibleRowCountChange = visibleRowCount_ != nextVisibleRowCount;
+    visibleRowCount_ = nextVisibleRowCount;
+
     auto nextId = selectedId_;
-    auto nextRow = rowForId(selectedId_);
+    auto nextRow = common::model::rowForStringRoleValue(
+        proxyModel_,
+        idRole_,
+        selectedId_);
 
     if (nextRow < 0) {
         if (proxyModel_.rowCount() > 0) {
             nextRow = 0;
-            nextId = idAt(0);
+            nextId = common::model::stringRoleAt(proxyModel_, 0, idRole_);
         } else {
             nextId.clear();
         }
     }
 
     applySelection(std::move(nextId), nextRow, selectedDataChanged);
+    if (didVisibleRowCountChange) {
+        emit visibleRowCountChanged();
+    }
 }
 
 void StableIdSelectionTracker::applySelection(

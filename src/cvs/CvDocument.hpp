@@ -7,6 +7,12 @@
 
 struct CvDocument
 {
+    void applyArchiveState(const QDateTime& archivedAt, const QDateTime& updatedAt)
+    {
+        archivedAt_ = archivedAt;
+        updatedAt_ = updatedAt;
+    }
+
     QString id_;
     QString originalFileName_;
     QString storedFileName_;

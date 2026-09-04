@@ -42,6 +42,7 @@ Lead with findings ordered by severity:
 - Harmful duplication or overlapping responsibility that can cause behavior drift, inconsistent fixes, excessive maintenance cost, or unnecessary coupling.
 - Missing `Q_PROPERTY` notify signals or unstable model roles consumed by QML.
 - Business logic left in QML when the change claims a backend migration.
+- Production code, APIs, access control, ownership, threading, behavior, or architecture changed solely to accommodate tests; reverse dependencies from production code or normal build paths to test code, Qt Test, fixtures, mocks, test-only settings, or test targets.
 - Missing tests for validation, parsing, filtering, sorting, model roles, signals, or high-risk behavior.
 - Build or CMake registration mistakes.
 - Scope creep and unrelated refactors.

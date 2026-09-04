@@ -244,7 +244,30 @@ void CvLibraryControllerTest::selectedCvControlsLinkedApplications()
     QCOMPARE(selectedIdSpy.count(), 1);
     QCOMPARE(selectedDataSpy.count(), 1);
     QCOMPARE(controller.selectedCvId(), QStringLiteral("cv-general"));
-    QCOMPARE(controller.selectedCv().value(QStringLiteral("fileName")).toString(), QStringLiteral("CV_General.pdf"));
+    const auto selected = controller.selectedCv();
+    QCOMPARE(selected.value(QStringLiteral("fileName")).toString(), QStringLiteral("CV_General.pdf"));
+
+    auto keys = selected.keys();
+    QStringList expectedKeys{
+        QStringLiteral("archivedAt"),
+        QStringLiteral("category"),
+        QStringLiteral("categoryAccent"),
+        QStringLiteral("description"),
+        QStringLiteral("fileName"),
+        QStringLiteral("fileSizeLabel"),
+        QStringLiteral("id"),
+        QStringLiteral("isArchived"),
+        QStringLiteral("isFavorite"),
+        QStringLiteral("language"),
+        QStringLiteral("languageAccent"),
+        QStringLiteral("lastModifiedLabel"),
+        QStringLiteral("linkedApplicationCount"),
+        QStringLiteral("linkedApplicationCountLabel"),
+        QStringLiteral("title"),
+    };
+    keys.sort();
+    expectedKeys.sort();
+    QCOMPARE(keys, expectedKeys);
 
     const auto* linkedModel = controller.linkedApplicationsModel();
     QCOMPARE(linkedModel->rowCount(), 3);

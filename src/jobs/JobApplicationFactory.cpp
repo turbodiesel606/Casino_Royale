@@ -1,5 +1,6 @@
 #include "JobApplicationFactory.hpp"
 
+#include "common/TimeUtils.hpp"
 #include "cvs/CvDocument.hpp"
 #include "directory/Company.hpp"
 
@@ -24,15 +25,28 @@ QStringList normalizedTechnologies(const QStringList& values)
     return result;
 }
 
-QDateTime currentUtcSecond()
+void applyEditableFields(
+    JobApplication& application,
+    const NormalizedJobApplicationDraft& draft,
+    const Company& company)
 {
-    return QDateTime::fromString(
-               QDateTime::currentDateTimeUtc().toString(Qt::ISODate),
-               Qt::ISODate)
-        .toUTC();
+    application.companyId_ = company.id_;
+    application.companyName_ = company.name_;
+    application.jobTitle_ = draft.jobTitle_;
+    application.jobUrl_ = draft.jobUrl_;
+    application.workFormat_ = draft.workFormat_;
+    application.city_ = draft.city_;
+    application.salary_ = draft.salary_;
+    application.status_ = draft.status_;
+    application.appliedDate_ = draft.appliedDate_;
+    application.nextStep_ = draft.nextStep_;
+    application.description_ = draft.description_;
+    application.requirements_ = draft.requirements_;
+    application.techStack_ = draft.techStack_;
+    application.notes_ = draft.notes_;
 }
 
-}
+} // namespace
 
 NormalizedJobApplicationDraft JobApplicationFactory::normalize(const JobApplicationDraft& draft)
 {
@@ -62,25 +76,12 @@ JobApplication JobApplicationFactory::create(
     const Company& company,
     const CvDocument& cvDocument)
 {
-    const auto now = currentUtcSecond();
+    const auto now = common::currentUtcSecond();
     JobApplication application;
     application.id_ = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    application.companyId_ = company.id_;
-    application.companyName_ = company.name_;
-    application.jobTitle_ = draft.jobTitle_;
-    application.jobUrl_ = draft.jobUrl_;
-    application.workFormat_ = draft.workFormat_;
-    application.city_ = draft.city_;
-    application.salary_ = draft.salary_;
-    application.status_ = draft.status_;
-    application.appliedDate_ = draft.appliedDate_;
-    application.nextStep_ = draft.nextStep_;
+    applyEditableFields(application, draft, company);
     application.cvId_ = cvDocument.id_;
     application.cvFileName_ = cvDocument.originalFileName_;
-    application.description_ = draft.description_;
-    application.requirements_ = draft.requirements_;
-    application.techStack_ = draft.techStack_;
-    application.notes_ = draft.notes_;
     application.createdAt_ = now;
     application.updatedAt_ = now;
     return application;
@@ -93,24 +94,11 @@ JobApplication JobApplicationFactory::update(
     const CvDocument* replacementCv)
 {
     auto application = existing;
-    application.companyId_ = company.id_;
-    application.companyName_ = company.name_;
-    application.jobTitle_ = draft.jobTitle_;
-    application.jobUrl_ = draft.jobUrl_;
-    application.workFormat_ = draft.workFormat_;
-    application.city_ = draft.city_;
-    application.salary_ = draft.salary_;
-    application.status_ = draft.status_;
-    application.appliedDate_ = draft.appliedDate_;
-    application.nextStep_ = draft.nextStep_;
+    applyEditableFields(application, draft, company);
     if (replacementCv != nullptr) {
         application.cvId_ = replacementCv->id_;
         application.cvFileName_ = replacementCv->originalFileName_;
     }
-    application.description_ = draft.description_;
-    application.requirements_ = draft.requirements_;
-    application.techStack_ = draft.techStack_;
-    application.notes_ = draft.notes_;
     application.updatedAt_ = QDateTime::currentDateTimeUtc();
     if (application.updatedAt_ <= existing.updatedAt_) {
         application.updatedAt_ = existing.updatedAt_.addMSecs(1);

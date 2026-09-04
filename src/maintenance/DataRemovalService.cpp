@@ -1,6 +1,7 @@
 #include "DataRemovalService.hpp"
 
 #include "common/CancellationState.hpp"
+#include "common/ExceptionUtils.hpp"
 #include "cvs/CvManagedFileStore.hpp"
 #include "cvs/CvRepository.hpp"
 #include "jobs/JobRepository.hpp"
@@ -20,22 +21,6 @@ DataRemovalItemOutcome failureOutcome(
     QString message)
 {
     return {item.id_, item.label_, DataRemovalItemStatus::Failed, {}, std::move(message)};
-}
-
-QString exceptionMessage(const std::exception_ptr& exception)
-{
-    try {
-        if (exception != nullptr) {
-            std::rethrow_exception(exception);
-        }
-    } catch (const std::exception& error) {
-        const auto message = QString::fromUtf8(error.what());
-        if (!message.isEmpty()) {
-            return message;
-        }
-    } catch (...) {
-    }
-    return QStringLiteral("An unexpected deletion error occurred.");
 }
 
 }
@@ -81,7 +66,11 @@ DataRemovalBatchResult DataRemovalService::process(
                 break;
             }
         } catch (...) {
-            result.items_.append(failureOutcome(item, exceptionMessage(std::current_exception())));
+            result.items_.append(failureOutcome(
+                item,
+                common::exceptionMessage(
+                    std::current_exception(),
+                    QStringLiteral("An unexpected deletion error occurred."))));
         }
     }
     return result;
@@ -112,8 +101,7 @@ DataRemovalItemOutcome DataRemovalService::removeActiveCv(const DataRemovalItemR
         if (!updatedAt) {
             return failureOutcome(item, QStringLiteral("The CV could not be archived."));
         }
-        document->archivedAt_ = *updatedAt;
-        document->updatedAt_ = *updatedAt;
+        document->applyArchiveState(*updatedAt, *updatedAt);
         transaction.commit();
         return {item.id_, item.label_, DataRemovalItemStatus::Archived, *document, {}};
     }
@@ -134,8 +122,7 @@ DataRemovalItemOutcome DataRemovalService::restoreArchivedCv(const DataRemovalIt
     if (!updatedAt) {
         return failureOutcome(item, QStringLiteral("The CV could not be restored."));
     }
-    document->archivedAt_ = {};
-    document->updatedAt_ = *updatedAt;
+    document->applyArchiveState(QDateTime{}, *updatedAt);
     transaction.commit();
     return {item.id_, item.label_, DataRemovalItemStatus::Restored, *document, {}};
 }
@@ -186,8 +173,7 @@ DataRemovalItemOutcome DataRemovalService::deleteUnlinkedCv(
             const auto updatedAt = cvRepository_.updateArchived(item.id_, true);
             if (updatedAt) {
                 auto archived = *current;
-                archived.archivedAt_ = *updatedAt;
-                archived.updatedAt_ = *updatedAt;
+                archived.applyArchiveState(*updatedAt, *updatedAt);
                 transaction.commit();
                 return {
                     item.id_,
@@ -201,7 +187,6 @@ DataRemovalItemOutcome DataRemovalService::deleteUnlinkedCv(
     }
 
     transaction.commit();
-    removal.preparation_->databaseCommitted_ = true;
     const bool cleaned = managedFileStore_.finalizeRemoval(*removal.preparation_);
     QString message;
     if (removal.fileWasMissing_) {

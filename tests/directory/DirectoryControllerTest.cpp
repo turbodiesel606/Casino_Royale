@@ -83,6 +83,8 @@ class DirectoryControllerTest final : public QObject
 
 private slots:
     void companyModelExposesNamedRoles();
+    void companyModelLooksUpStableIds();
+    void companyPublicationPreservesCanonicalValue();
     void contactModelExposesNamedRoles();
     void scalarNotificationsAreSemantic();
     void companySelectionPublishesLinkedViewContracts();
@@ -112,6 +114,64 @@ void DirectoryControllerTest::companyModelExposesNamedRoles()
     QCOMPARE(controller.selectedCompanyIndex(), -1);
     QVERIFY(controller.selectedCompanyId().isEmpty());
     QCOMPARE(controller.resultSummary(), QStringLiteral("Showing 0 companies"));
+}
+
+void DirectoryControllerTest::companyModelLooksUpStableIds()
+{
+    CompanyListModel model{makeCompanies()};
+
+    QCOMPARE(model.rowForId(QStringLiteral("company-beta")), 0);
+    QCOMPARE(model.rowForId(QStringLiteral("company-alpha")), 1);
+    QCOMPARE(model.rowForId(QStringLiteral("company-missing")), -1);
+    QCOMPARE(model.rowForId(QString()), -1);
+}
+
+void DirectoryControllerTest::companyPublicationPreservesCanonicalValue()
+{
+    JobApplicationListModel applicationsModel;
+    ContactListModel contactModel;
+    CompanyDirectoryController controller{applicationsModel, contactModel};
+
+    Company company;
+    company.id_ = QStringLiteral("company-published");
+    company.name_ = QStringLiteral("  Published Company  ");
+    company.website_ = QUrl{QStringLiteral("https://published.example")};
+    company.description_ = QStringLiteral("Description");
+    company.notes_ = QStringLiteral("Notes");
+    company.createdAt_ = QDateTime{QDate{2026, 8, 22}, QTime{9, 30}, Qt::UTC};
+    company.updatedAt_ = QDateTime{QDate{2026, 8, 23}, QTime{10, 45}, Qt::UTC};
+
+    controller.publishCompany(company);
+
+    const auto* model = controller.companyModel();
+    QCOMPARE(model->rowCount(), 1);
+    const auto index = model->index(0, 0);
+    QCOMPARE(
+        model->data(index, roleForName(*model, "name")).toString(),
+        QStringLiteral("Published Company"));
+    QCOMPARE(
+        model->data(index, roleForName(*model, "website")).toString(),
+        QStringLiteral("https://published.example"));
+    QCOMPARE(
+        model->data(index, roleForName(*model, "createdAt")).toDateTime(),
+        company.createdAt_);
+    QCOMPARE(
+        model->data(index, roleForName(*model, "updatedAt")).toDateTime(),
+        company.updatedAt_);
+    QCOMPARE(
+        controller.selectedCompany().keys(),
+        QStringList({
+            QStringLiteral("contactCount"),
+            QStringLiteral("description"),
+            QStringLiteral("id"),
+            QStringLiteral("lastActivityLabel"),
+            QStringLiteral("logoAccent"),
+            QStringLiteral("logoText"),
+            QStringLiteral("name"),
+            QStringLiteral("notes"),
+            QStringLiteral("openJobCount"),
+            QStringLiteral("website"),
+        }));
 }
 
 void DirectoryControllerTest::contactModelExposesNamedRoles()
@@ -232,9 +292,10 @@ void DirectoryControllerTest::companySelectionPublishesLinkedViewContracts()
     selectedIdSpy.clear();
     selectedDataSpy.clear();
 
-    controller.publishCompany(
-        QStringLiteral("company-aardvark"),
-        QStringLiteral("Aardvark"));
+    Company company;
+    company.id_ = QStringLiteral("company-aardvark");
+    company.name_ = QStringLiteral("Aardvark");
+    controller.publishCompany(company);
 
     QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-beta"));
     QCOMPARE(controller.selectedCompanyIndex(), 2);
@@ -315,6 +376,27 @@ void DirectoryControllerTest::contactSelectionPublishesInteractionContracts()
     ContactDirectoryController controller{contactModel};
     controller.selectContact(1);
     QCOMPARE(controller.selectedContactId(), QStringLiteral("contact-alice"));
+    QCOMPARE(
+        controller.selectedContact().keys(),
+        QStringList({
+            QStringLiteral("avatarAccent"),
+            QStringLiteral("companyId"),
+            QStringLiteral("companyName"),
+            QStringLiteral("displayName"),
+            QStringLiteral("email"),
+            QStringLiteral("id"),
+            QStringLiteral("initials"),
+            QStringLiteral("lastContactLabel"),
+            QStringLiteral("linkedin"),
+            QStringLiteral("notes"),
+            QStringLiteral("relatedApplicationId"),
+            QStringLiteral("relatedApplicationTitle"),
+            QStringLiteral("roleTitle"),
+            QStringLiteral("telegram"),
+        }));
+    QCOMPARE(
+        controller.selectedContact().value(QStringLiteral("displayName")).toString(),
+        QStringLiteral("Alice"));
 
     QSignalSpy selectedIndexSpy{&controller, &ContactDirectoryController::selectedContactIndexChanged};
     QSignalSpy selectedIdSpy{&controller, &ContactDirectoryController::selectedContactIdChanged};

@@ -12,7 +12,9 @@ Use `For-Agent/Docs/qml-to-cpp-extraction.md` for the extraction workflow and QM
 
 QML may keep simple UI state such as selected tabs, expanded rows, hover state, local popups, animations, and layout behavior.
 
-Move durable behavior to C++ when it affects product state, validation, storage, parsing, filtering, sorting, search, grouping, cross-screen data, or behavior that should be covered by tests.
+Move durable behavior to C++ when it affects product state, validation, storage, parsing, filtering, sorting, search, grouping, cross-screen data, or stable cross-platform behavior.
+
+Choose the QML/C++ boundary from product responsibility and architecture, never from test convenience. Do not add or widen QML-facing production APIs solely for tests; tests must follow the established production contract.
 
 QML should send user intent to C++ through explicit signals, slots, or invokable commands, then consume backend state through properties, signals, and models.
 

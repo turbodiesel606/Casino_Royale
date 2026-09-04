@@ -1,5 +1,6 @@
 #include "DataRemovalWorker.hpp"
 
+#include "common/ExceptionUtils.hpp"
 #include "cvs/CvManagedFileStore.hpp"
 #include "cvs/CvRepository.hpp"
 #include "jobs/JobRepository.hpp"
@@ -15,20 +16,19 @@
 
 namespace {
 
-QString exceptionMessage(const std::exception_ptr& exception)
+DataRemovalBatchOutcome failedBatchOutcome(
+    const DataRemovalRequest& request,
+    const QString& message)
 {
-    try {
-        if (exception != nullptr) {
-            std::rethrow_exception(exception);
-        }
-    } catch (const std::exception& error) {
-        const auto message = QString::fromUtf8(error.what());
-        if (!message.isEmpty()) {
-            return message;
-        }
-    } catch (...) {
+    DataRemovalBatchOutcome outcome;
+    outcome.operationId_ = request.operationId_;
+    outcome.kind_ = request.kind_;
+    outcome.cancellation_ = request.cancellation_;
+    for (const auto& item : request.items_) {
+        outcome.result_.items_.append(
+            {item.id_, item.label_, DataRemovalItemStatus::Failed, {}, message});
     }
-    return QStringLiteral("An unexpected deletion worker error occurred.");
+    return outcome;
 }
 
 }
@@ -55,11 +55,11 @@ public:
                 request.items_,
                 request.cancellation_);
         } catch (...) {
-            const auto message = exceptionMessage(std::current_exception());
-            for (const auto& item : request.items_) {
-                outcome.result_.items_.append(
-                    {item.id_, item.label_, DataRemovalItemStatus::Failed, {}, message});
-            }
+            outcome = failedBatchOutcome(
+                request,
+                common::exceptionMessage(
+                    std::current_exception(),
+                    QStringLiteral("An unexpected deletion worker error occurred.")));
         }
         postOutcome(facade, std::move(outcome));
     }
@@ -119,9 +119,17 @@ private:
 
 DataRemovalWorker::DataRemovalWorker(QString dataDirectory, QObject* parent)
     : QObject{parent}
-    , dataDirectory_{std::move(dataDirectory)}
+    , runtime_{
+          QStringLiteral("DataRemovalWorkerThread"),
+          {
+              [dataDirectory = std::move(dataDirectory)]() -> QObject* {
+                  return new Executor{dataDirectory};
+              },
+              [](QObject& executor) {
+                  static_cast<Executor&>(executor).destroyContext();
+              },
+          }}
 {
-    workerThread_.setObjectName(QStringLiteral("DataRemovalWorkerThread"));
     qRegisterMetaType<DataRemovalBatchOutcome>();
 }
 
@@ -133,26 +141,30 @@ DataRemovalWorker::~DataRemovalWorker()
 void DataRemovalWorker::submit(DataRemovalRequest request)
 {
     Q_ASSERT(QThread::currentThread() == thread());
-    if (shuttingDown_ || busy_) {
+    SingleActiveWorkerAdmission admission;
+    try {
+        admission = runtime_.tryBeginOperation(
+            request.operationId_,
+            request.cancellation_);
+    }
+    catch (...) {
         queueUnavailableOutcome(
             request,
-            shuttingDown_
+            common::exceptionMessage(
+                std::current_exception(),
+                QStringLiteral("An unexpected deletion worker error occurred.")));
+        return;
+    }
+    if (admission != SingleActiveWorkerAdmission::Accepted) {
+        queueUnavailableOutcome(
+            request,
+            admission == SingleActiveWorkerAdmission::ShuttingDown
                 ? QStringLiteral("The deletion worker is shutting down.")
                 : QStringLiteral("Another deletion batch is already active."));
         return;
     }
 
-    if (executor_ == nullptr) {
-        executor_ = new Executor{dataDirectory_};
-        executor_->moveToThread(&workerThread_);
-        connect(&workerThread_, &QThread::finished, executor_, &QObject::deleteLater);
-        workerThread_.start();
-    }
-
-    activeOperationId_ = request.operationId_;
-    activeCancellation_ = request.cancellation_;
-    busy_ = true;
-    auto* const executor = executor_;
+    auto* const executor = static_cast<Executor*>(&runtime_.executor());
     QMetaObject::invokeMethod(
         executor,
         [executor, request = std::move(request), this]() mutable {
@@ -164,35 +176,16 @@ void DataRemovalWorker::submit(DataRemovalRequest request)
 void DataRemovalWorker::shutdown()
 {
     Q_ASSERT(QThread::currentThread() == thread());
-    if (shuttingDown_) {
-        return;
-    }
-    shuttingDown_ = true;
-    if (activeCancellation_ != nullptr) {
-        activeCancellation_->requestCancellation();
-    }
-    if (executor_ != nullptr) {
-        if (!workerThread_.isRunning()) {
-            workerThread_.start();
-        }
-        QMetaObject::invokeMethod(
-            executor_,
-            [executor = executor_]() { executor->destroyContext(); },
-            Qt::BlockingQueuedConnection);
-        workerThread_.quit();
-        workerThread_.wait();
-        executor_ = nullptr;
-    }
-    clearActiveRequest();
+    runtime_.shutdown();
 }
 
 void DataRemovalWorker::deliverOutcome(DataRemovalBatchOutcome outcome)
 {
     Q_ASSERT(QThread::currentThread() == thread());
-    if (shuttingDown_ || !isActiveOutcome(outcome.operationId_, outcome.cancellation_)) {
+    if (!runtime_.isActiveOutcome(outcome.operationId_, outcome.cancellation_)) {
         return;
     }
-    clearActiveRequest();
+    runtime_.completeOperation();
     emit removalCompleted(outcome);
 }
 
@@ -200,34 +193,11 @@ void DataRemovalWorker::queueUnavailableOutcome(
     const DataRemovalRequest& request,
     const QString& message)
 {
-    DataRemovalBatchOutcome outcome;
-    outcome.operationId_ = request.operationId_;
-    outcome.kind_ = request.kind_;
-    outcome.cancellation_ = request.cancellation_;
-    for (const auto& item : request.items_) {
-        outcome.result_.items_.append(
-            {item.id_, item.label_, DataRemovalItemStatus::Failed, {}, message});
-    }
+    auto outcome = failedBatchOutcome(request, message);
     QMetaObject::invokeMethod(
         this,
         [this, outcome = std::move(outcome)]() mutable {
             emit removalCompleted(outcome);
         },
         Qt::QueuedConnection);
-}
-
-bool DataRemovalWorker::isActiveOutcome(
-    quint64 operationId,
-    const std::shared_ptr<CancellationState>& cancellation) const
-{
-    return busy_
-        && activeOperationId_ == operationId
-        && activeCancellation_ == cancellation;
-}
-
-void DataRemovalWorker::clearActiveRequest()
-{
-    busy_ = false;
-    activeOperationId_ = 0;
-    activeCancellation_.reset();
 }

@@ -24,6 +24,7 @@ public:
 
     QString selectedId() const;
     int selectedRow() const;
+    int visibleRowCount() const;
     QModelIndex selectedSourceIndex() const;
 
     void selectRow(int proxyRow);
@@ -36,10 +37,9 @@ public:
 
 signals:
     void selectionChanged(bool selectedIdChanged, bool selectedRowChanged, bool selectedDataChanged);
+    void visibleRowCountChanged();
 
 private:
-    QString idAt(int proxyRow) const;
-    int rowForId(const QString& id) const;
     void requestReconcile(bool selectedDataChanged = false);
     void reconcile(bool selectedDataChanged = false);
     void applySelection(QString selectedId, int selectedRow, bool selectedDataChanged);
@@ -48,6 +48,7 @@ private:
     int idRole_;
     QString selectedId_;
     int selectedRow_ = -1;
+    int visibleRowCount_ = 0;
     int modelUpdateDepth_ = 0;
     bool reconcilePending_ = false;
     bool selectedDataChangePending_ = false;

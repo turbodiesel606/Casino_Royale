@@ -19,7 +19,7 @@ Read these files first:
 
 Read `For-Agent/Docs/qml-to-cpp-extraction.md` when the change adds or modifies QML JavaScript, mock data, validation, filtering, sorting, search, cross-screen state, or backend-facing contracts.
 
-If relevant research or review artifacts exist under `For-Agent/Research/` or `For-Agent/Review/`, read the most recent relevant artifact by timestamp before reviewing. Use artifacts as context only, not as proof. Verify every finding against `AGENTS.md`, `For-Agent/Docs/`, `git diff`, and the actual code.
+If relevant review artifacts exist under `For-Agent/Review/`, read the most recent relevant artifact by timestamp before reviewing. Use artifacts as context only, not as proof. Verify every finding against `AGENTS.md`, `For-Agent/Docs/`, `git diff`, and the actual code.
 
 ## Review Surfaces
 

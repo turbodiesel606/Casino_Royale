@@ -14,6 +14,7 @@ class StableIdSelectionTrackerTest final : public QObject
 private slots:
     void fallsBackAcrossFiltersAndEmptyResults();
     void reportsSourceMutationsPrecisely();
+    void visibleCountChangesAreCoalescedWithSelection();
     void bulkSelectionUsesVisibleStableIdsAndSurvivesSorting();
 };
 
@@ -117,6 +118,45 @@ void StableIdSelectionTrackerTest::reportsSourceMutationsPrecisely()
     QCOMPARE(selectionSpy.first().at(0).toBool(), true);
     QCOMPARE(selectionSpy.first().at(1).toBool(), true);
     QCOMPARE(selectionSpy.first().at(2).toBool(), false);
+}
+
+void StableIdSelectionTrackerTest::visibleCountChangesAreCoalescedWithSelection()
+{
+    testsupport::MutableRecordModel model;
+    model.addRow(QStringLiteral("a"), QStringLiteral("Alpha"), QStringLiteral("Engineering"), QStringLiteral("Email"), 1);
+    model.addRow(QStringLiteral("b"), QStringLiteral("Beta"), QStringLiteral("Engineering"), QStringLiteral("Email"), 2);
+    model.addRow(QStringLiteral("c"), QStringLiteral("Gamma"), QStringLiteral("Engineering"), QStringLiteral("Email"), 3);
+
+    RoleFilterProxyModel proxy;
+    proxy.setSearchRoles({testsupport::MutableRecordModel::NameRole});
+    proxy.setSourceModel(&model);
+    StableIdSelectionTracker tracker{proxy, testsupport::MutableRecordModel::IdRole};
+    QCOMPARE(tracker.visibleRowCount(), 3);
+
+    QSignalSpy selectionSpy{&tracker, &StableIdSelectionTracker::selectionChanged};
+    QSignalSpy countSpy{&tracker, &StableIdSelectionTracker::visibleRowCountChanged};
+    tracker.beginModelUpdate();
+    tracker.beginModelUpdate();
+    proxy.setSearchText(QStringLiteral("Gamma"));
+
+    QCOMPARE(selectionSpy.count(), 0);
+    QCOMPARE(countSpy.count(), 0);
+    QCOMPARE(tracker.visibleRowCount(), 3);
+
+    tracker.endModelUpdate();
+    QCOMPARE(selectionSpy.count(), 0);
+    QCOMPARE(countSpy.count(), 0);
+
+    tracker.endModelUpdate();
+    QCOMPARE(tracker.selectedId(), QStringLiteral("c"));
+    QCOMPARE(tracker.selectedRow(), 0);
+    QCOMPARE(tracker.visibleRowCount(), 1);
+    QCOMPARE(selectionSpy.count(), 1);
+    QCOMPARE(countSpy.count(), 1);
+
+    tracker.synchronize();
+    QCOMPARE(selectionSpy.count(), 1);
+    QCOMPARE(countSpy.count(), 1);
 }
 
 void StableIdSelectionTrackerTest::bulkSelectionUsesVisibleStableIdsAndSurvivesSorting()

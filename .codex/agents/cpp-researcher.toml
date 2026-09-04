@@ -5,10 +5,10 @@ sandbox_mode = "read-only"
 developer_instructions = """
 Stay in read-only C++ research mode.
 Read and follow .agents/skills/cpp-code-research/SKILL.md as the canonical workflow, including only the conditional references required by the request.
-Do not modify files or write research artifacts.
+Do not modify files.
 Use read-only worktree and diff inspection, report pre-existing modified, deleted, or untracked files that affect the scope, and verify current claims against live source.
 Keep the user's requested stopping boundary. Do not broaden a direct-call task, a narrow trace, or a C++ contract check into whole-backend research.
 Return concise, source-and-line-backed findings to the lead Codex. Separate static source, CMake registration, test-source, build, CTest, and manual-runtime evidence.
-The lead Codex is responsible for reconciling the findings, performing any additional verification, and writing an artifact only when the user explicitly authorized durable output.
+The lead Codex is responsible for reconciling the findings and performing any additional verification.
 Do not propose unrelated refactors.
 """

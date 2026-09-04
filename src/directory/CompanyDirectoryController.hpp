@@ -51,7 +51,7 @@ public:
     Q_INVOKABLE void setSortMode(const QString& sortMode);
     Q_INVOKABLE void clearFilters();
 
-    void publishCompany(const QString& companyId, const QString& companyName);
+    void publishCompany(const Company& company);
 
 signals:
     void companyCountChanged();
@@ -63,9 +63,7 @@ signals:
     void resultSummaryChanged();
 
 private:
-    const Company* selectedSourceCompany() const;
     void handleSelectionChanged(bool idChanged, bool rowChanged, bool dataChanged);
-    void handleVisibleCountChanged();
     void refreshCompanyJobCounts();
     QVariantMap companyToMap(int sourceRow) const;
     void updateLinkedModels();
@@ -76,10 +74,7 @@ private:
     RelationFilterProxyModel linkedJobsModel_;
     RelationFilterProxyModel linkedContactsModel_;
     StableIdSelectionTracker selectionTracker_;
-    QString searchText_;
     QString sortMode_ = QStringLiteral("Name");
-    int publishedCompanyCount_ = 0;
-    bool visibleCountNotificationsSuppressed_ = false;
 };
 
 #endif // JOBTRACKER_SRC_DIRECTORY_COMPANYDIRECTORYCONTROLLER_HPP

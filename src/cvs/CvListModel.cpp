@@ -1,6 +1,7 @@
 #include "CvListModel.hpp"
 
-#include <QLocale>
+#include "common/ModelPresentation.hpp"
+#include "common/ModelRoleUtils.hpp"
 
 #include <utility>
 
@@ -8,16 +9,10 @@ namespace {
 
 QString linkedApplicationCountLabel(int count)
 {
-    return count == 1 ? QStringLiteral("1 job") : QStringLiteral("%1 jobs").arg(count);
-}
-
-QString lastModifiedLabel(const QDateTime& updatedAt)
-{
-    return updatedAt.isValid()
-        ? QLocale::c().toString(
-            updatedAt.toLocalTime().date(),
-            QStringLiteral("MMM d, yyyy"))
-        : QString{};
+    return common::presentation::countLabel(
+        count,
+        QStringLiteral("job"),
+        QStringLiteral("jobs"));
 }
 
 QString fileSizeLabel(qint64 sizeBytes)
@@ -43,7 +38,7 @@ QVariant roleValue(const CvDocument& cv, int role)
     case CvListModel::LanguageAccentRole:
         return QStringLiteral("#65bf4c");
     case CvListModel::LastModifiedLabelRole:
-        return lastModifiedLabel(cv.updatedAt_);
+        return common::presentation::shortLocalDateLabel(cv.updatedAt_);
     case CvListModel::FileSizeLabelRole:
         return fileSizeLabel(cv.sizeBytes_);
     case CvListModel::DescriptionRole:
@@ -121,11 +116,14 @@ const CvDocument* CvListModel::cvAt(int row) const
     return row >= 0 && row < cvs_.size() ? &cvs_.at(row) : nullptr;
 }
 
-void CvListModel::setDocuments(QVector<CvDocument> documents)
+int CvListModel::rowForId(const QString& cvId) const
 {
-    beginResetModel();
-    cvs_ = std::move(documents);
-    endResetModel();
+    return common::model::rowForStringRoleValue(*this, IdRole, cvId);
+}
+
+const CvDocument* CvListModel::cvById(const QString& cvId) const
+{
+    return cvAt(rowForId(cvId));
 }
 
 void CvListModel::appendDocument(CvDocument document)
@@ -138,37 +136,34 @@ void CvListModel::appendDocument(CvDocument document)
 
 bool CvListModel::addLinkedApplication(const QString& cvId, const QString& applicationId)
 {
-    for (int row = 0; row < cvs_.size(); ++row) {
-        auto& document = cvs_[row];
-        if (document.id_ == cvId && !document.linkedApplicationIds_.contains(applicationId)) {
-            document.linkedApplicationIds_.append(applicationId);
-            const auto modelIndex = index(row, 0);
-            emit dataChanged(modelIndex, modelIndex, {LinkedApplicationCountRole, LinkedApplicationCountLabelRole});
-            return true;
-        }
+    const auto row = rowForId(cvId);
+    if (row < 0 || cvs_[row].linkedApplicationIds_.contains(applicationId)) {
+        return false;
     }
-    return false;
+    cvs_[row].linkedApplicationIds_.append(applicationId);
+    const auto modelIndex = index(row, 0);
+    emit dataChanged(
+        modelIndex,
+        modelIndex,
+        {LinkedApplicationCountRole, LinkedApplicationCountLabelRole});
+    return true;
 }
 
 bool CvListModel::removeLinkedApplication(
     const QString& cvId,
     const QString& applicationId)
 {
-    for (int row = 0; row < cvs_.size(); ++row) {
-        auto& document = cvs_[row];
-        if (document.id_ != cvId
-            || document.linkedApplicationIds_.removeAll(applicationId) <= 0) {
-            continue;
-        }
-
-        const auto modelIndex = index(row, 0);
-        emit dataChanged(
-            modelIndex,
-            modelIndex,
-            {LinkedApplicationCountRole, LinkedApplicationCountLabelRole});
-        return true;
+    const auto row = rowForId(cvId);
+    if (row < 0 || cvs_[row].linkedApplicationIds_.removeAll(applicationId) <= 0) {
+        return false;
     }
-    return false;
+
+    const auto modelIndex = index(row, 0);
+    emit dataChanged(
+        modelIndex,
+        modelIndex,
+        {LinkedApplicationCountRole, LinkedApplicationCountLabelRole});
+    return true;
 }
 
 void CvListModel::removeLinkedApplications(const QStringList& applicationIds)
@@ -197,19 +192,18 @@ bool CvListModel::setFavorite(
     bool isFavorite,
     const QDateTime& updatedAt)
 {
-    for (int row = 0; row < cvs_.size(); ++row) {
-        if (cvs_[row].id_ == cvId) {
-            cvs_[row].isFavorite_ = isFavorite;
-            cvs_[row].updatedAt_ = updatedAt;
-            const auto modelIndex = index(row, 0);
-            emit dataChanged(
-                modelIndex,
-                modelIndex,
-                {IsFavoriteRole, LastModifiedLabelRole, UpdatedAtRole});
-            return true;
-        }
+    const auto row = rowForId(cvId);
+    if (row < 0) {
+        return false;
     }
-    return false;
+    cvs_[row].isFavorite_ = isFavorite;
+    cvs_[row].updatedAt_ = updatedAt;
+    const auto modelIndex = index(row, 0);
+    emit dataChanged(
+        modelIndex,
+        modelIndex,
+        {IsFavoriteRole, LastModifiedLabelRole, UpdatedAtRole});
+    return true;
 }
 
 bool CvListModel::setArchiveState(
@@ -217,19 +211,17 @@ bool CvListModel::setArchiveState(
     const QDateTime& archivedAt,
     const QDateTime& updatedAt)
 {
-    for (int row = 0; row < cvs_.size(); ++row) {
-        if (cvs_[row].id_ == cvId) {
-            cvs_[row].archivedAt_ = archivedAt;
-            cvs_[row].updatedAt_ = updatedAt;
-            const auto modelIndex = index(row, 0);
-            emit dataChanged(
-                modelIndex,
-                modelIndex,
-                {IsArchivedRole, ArchivedAtRole, LastModifiedLabelRole, UpdatedAtRole});
-            return true;
-        }
+    const auto row = rowForId(cvId);
+    if (row < 0) {
+        return false;
     }
-    return false;
+    cvs_[row].applyArchiveState(archivedAt, updatedAt);
+    const auto modelIndex = index(row, 0);
+    emit dataChanged(
+        modelIndex,
+        modelIndex,
+        {IsArchivedRole, ArchivedAtRole, LastModifiedLabelRole, UpdatedAtRole});
+    return true;
 }
 
 int CvListModel::removeDocuments(const QStringList& cvIds)

@@ -17,6 +17,7 @@ Use this skill when moving durable behavior from QML into the JobTracker C++ bac
    - invokable commands or slots;
    - notify and result signals;
    - model roles for delegates.
+   Define this contract from product responsibilities. Do not expose internals, add commands or signals, or widen production APIs solely for tests.
 5. Move durable behavior into focused C++ backend classes:
    - models for repeated delegate data;
    - controllers or view models for QML-facing state and commands;
@@ -24,7 +25,7 @@ Use this skill when moving durable behavior from QML into the JobTracker C++ bac
 6. Keep QML as bindings, layout, navigation, presentation, and simple UI state.
 7. Keep `src/main.cpp` limited to bootstrap, QML engine setup, registration, dependency wiring, and startup logic.
 8. Update CMake file lists when adding C++ or QML files.
-9. Add or update tests for changed business logic, storage, parsing, algorithms, model roles, or signal behavior.
+9. Add or update tests for changed business logic, storage, parsing, algorithms, model roles, or signal behavior. Keep test support under `tests/` and make tests follow the production contract without reshaping it.
 
 ## Verification
 

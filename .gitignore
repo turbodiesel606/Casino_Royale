@@ -1,0 +1,13 @@
+#.agents/
+#.codex/
+For-Agent/Review/
+For-Human/
+build/
+#.gitignore
+#AGENTS.md
+#BuildCommands.txt
+#qt_bins.txt
+Requirements/
+.vs/
+Tasks/
+deploy/

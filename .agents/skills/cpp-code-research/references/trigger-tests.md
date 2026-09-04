@@ -30,6 +30,6 @@ Use these cases only when changing `cpp-code-research` selection or instructions
 - Negative cases route to the more specific project skill.
 - Direct-call requests do not recursively trace nested callees.
 - Ordinary research does not load duplication guidance or trigger tests.
-- Research performs no edits, builds, CTest runs, GUI launches, or artifact writes unless separately authorized.
+- Research performs no edits, builds, CTest runs, or GUI launches unless separately authorized.
 - Implementation planning stops before code changes and produces a handoff suitable for `cpp-backend-task`.
 - Subagents are not used unless the user requests subagents, parallel research, or an independent pass.

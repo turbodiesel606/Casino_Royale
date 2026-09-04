@@ -11,6 +11,9 @@
 
 namespace {
 
+const QString companySelectProjection = QStringLiteral(
+    "SELECT id, display_name, created_at, updated_at ");
+
 QString normalizedCompanyName(const QString& name)
 {
     return name.trimmed().toCaseFolded();
@@ -21,12 +24,12 @@ Company companyFromQuery(const QSqlQuery& query)
     Company company;
     company.id_ = query.value(QStringLiteral("id")).toString();
     company.name_ = query.value(QStringLiteral("display_name")).toString();
-    company.createdAt_ = QDateTime::fromString(
-        query.value(QStringLiteral("created_at")).toString(),
-        Qt::ISODate);
-    company.updatedAt_ = QDateTime::fromString(
-        query.value(QStringLiteral("updated_at")).toString(),
-        Qt::ISODate);
+    company.createdAt_ = storage::sql::readIsoDateTime(
+        query,
+        QStringLiteral("created_at"));
+    company.updatedAt_ = storage::sql::readIsoDateTime(
+        query,
+        QStringLiteral("updated_at"));
     return company;
 }
 
@@ -40,9 +43,9 @@ CompanyRepository::CompanyRepository(QSqlDatabase& database)
 QVector<Company> CompanyRepository::findAll() const
 {
     QSqlQuery query{database_};
-    if (!query.exec(QStringLiteral(
-            "SELECT id, display_name, created_at, updated_at "
-            "FROM companies ORDER BY normalized_name"))) {
+    if (!query.exec(
+            companySelectProjection
+            + QStringLiteral("FROM companies ORDER BY normalized_name"))) {
         storage::sql::throwQueryError(query, QStringLiteral("load companies"));
     }
 
@@ -62,15 +65,13 @@ Company CompanyRepository::findOrCreateByName(const QString& name) const
     }
 
     QSqlQuery findQuery{database_};
-    findQuery.prepare(QStringLiteral(
-        "SELECT id, display_name, created_at, updated_at "
-        "FROM companies WHERE normalized_name = ?"));
+    findQuery.prepare(
+        companySelectProjection
+        + QStringLiteral("FROM companies WHERE normalized_name = ?"));
     findQuery.addBindValue(normalizedName);
-    if (!findQuery.exec()) {
-        storage::sql::throwQueryError(
-            findQuery,
-            QStringLiteral("find a company by normalized name"));
-    }
+    storage::sql::execute(
+        findQuery,
+        QStringLiteral("find a company by normalized name"));
     if (findQuery.next()) {
         return companyFromQuery(findQuery);
     }
@@ -91,9 +92,7 @@ Company CompanyRepository::findOrCreateByName(const QString& name) const
     insertQuery.addBindValue(normalizedName);
     insertQuery.addBindValue(now.toString(Qt::ISODateWithMs));
     insertQuery.addBindValue(now.toString(Qt::ISODateWithMs));
-    if (!insertQuery.exec()) {
-        storage::sql::throwQueryError(insertQuery, QStringLiteral("insert a company"));
-    }
+    storage::sql::execute(insertQuery, QStringLiteral("insert a company"));
 
     return company;
 }

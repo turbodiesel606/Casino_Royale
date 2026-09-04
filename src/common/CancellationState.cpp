@@ -1,7 +1,7 @@
 #include "CancellationState.hpp"
 
 #include <mutex>
-
+// replace controlled variable with atomic in future
 void CancellationState::requestCancellation()
 {
     const std::scoped_lock lock{mutex_};
