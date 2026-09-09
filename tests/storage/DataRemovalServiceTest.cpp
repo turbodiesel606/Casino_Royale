@@ -4,6 +4,7 @@
 #include "maintenance/DataRemovalService.hpp"
 #include "maintenance/DataRemovalWorker.hpp"
 #include "maintenance/StorageMutationGate.hpp"
+#include "storage/SqlTransaction.hpp"
 
 #include <QDir>
 #include <QFile>
@@ -31,7 +32,11 @@ CvImportResult importCv(
     if (!preparation.succeeded()) {
         return {};
     }
-    return fixture.importer_.importPreparedDocument(preparation.preparation_);
+    auto lease = fixture.cvMutationQueue_.acquire(cancellation);
+    SqlTransaction transaction{fixture.database_.connection(), QStringLiteral("Seed removal CV")};
+    auto result = fixture.importer_.importPreparedDocument(preparation.preparation_, cancellation);
+    transaction.commit();
+    return result;
 }
 
 DataRemovalService removalService(testsupport::AddJobTestFixture& fixture)

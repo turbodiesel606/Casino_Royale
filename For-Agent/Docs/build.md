@@ -20,13 +20,19 @@ Keep normal configure, build, and deployment independent of tests. When `JOBTRAC
 
 ## Windows Build
 
-Configure:
+Configure when the build tree is missing or stale, or when CMake, presets, source registration, or build options changed:
 
 ```powershell
 cmake --preset windows-debug-local
 ```
 
-Build:
+Targeted production build for an ordinary bounded change:
+
+```powershell
+cmake --build --preset windows-debug-local --target JobTrackerApp
+```
+
+Full production preset build when the validation policy requires broader coverage:
 
 ```powershell
 cmake --build --preset windows-debug-local
@@ -34,19 +40,31 @@ cmake --build --preset windows-debug-local
 
 ## Windows Build With Tests
 
-Configure:
+Configure when the test build tree is missing or stale, or when CMake, presets, source registration, or build options changed:
 
 ```powershell
 cmake --preset windows-debug-tests-local
 ```
 
-Build:
+Build one directly associated test target:
+
+```powershell
+cmake --build --preset windows-debug-tests-local --target <test-target>
+```
+
+Run one directly associated CTest suite:
+
+```powershell
+ctest --preset windows-debug-tests-local -R "^<test-name>$"
+```
+
+Build the full test-enabled preset when the validation policy requires broader coverage:
 
 ```powershell
 cmake --build --preset windows-debug-tests-local
 ```
 
-Run tests:
+Run the full registered test set when the validation policy requires broader coverage:
 
 ```powershell
 ctest --preset windows-debug-tests-local
@@ -58,13 +76,19 @@ Not required yet, but will appear in the future.
 
 ## Validation Policy
 
-After code, QML, CMake, resource, storage, or runtime-behavior changes, run the normal Windows build unless impossible.
+Select verification scope from the final diff. For a bounded code, QML, resource, storage, or runtime-behavior change, use the targeted `JobTrackerApp` command above to build the smallest affected production target that provides meaningful compile and link confidence.
 
-Run the test preset and `ctest` when the change affects business logic, storage, parsing, algorithms, or high-risk behavior.
+Expand to the full production preset build when shared infrastructure, cross-target APIs, build-system changes, several affected modules, merge/release readiness, or a diagnosed failure requires broader coverage.
+
+When tests are required, use the targeted test commands above to build and run the directly associated test target or CTest suite by default.
+
+Use the full test-enabled build and registered test set when schema or migrations, storage semantics, worker/runtime or concurrency behavior, shared infrastructure, several subsystems, cross-module contracts, unexpected targeted-test failures, or merge/release readiness requires broader verification.
+
+Do not repeat an unchanged successful configure, build, or test run without a concrete reason. Reconfigure when the build tree is missing or stale, or when CMake, presets, source registration, or build options changed.
 
 For documentation-only, workflow-only, or instruction-only changes, do not run a C++ build unless the change affects build behavior.
 
-If a command fails, stop and report:
+If a command fails, capture these details and diagnose before retrying or expanding scope:
 
 - Exact command.
 - Exit code.

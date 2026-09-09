@@ -2,3 +2,6 @@ interface:
   display_name: "Detailed Review for Human"
   short_description: "Diagram-first, source-backed code walkthroughs"
   default_prompt: "Use $review-code-for-human to diagram and explain this code through its complete project call chain: [code or symbol]."
+
+policy:
+  allow_implicit_invocation: false

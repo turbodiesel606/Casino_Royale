@@ -32,4 +32,3 @@ Use these cases only when changing `cpp-code-research` selection or instructions
 - Ordinary research does not load duplication guidance or trigger tests.
 - Research performs no edits, builds, CTest runs, or GUI launches unless separately authorized.
 - Implementation planning stops before code changes and produces a handoff suitable for `cpp-backend-task`.
-- Subagents are not used unless the user requests subagents, parallel research, or an independent pass.

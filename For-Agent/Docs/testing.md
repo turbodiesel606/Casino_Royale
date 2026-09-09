@@ -27,21 +27,21 @@ Tests are consumers of the production architecture, never production dependencie
 
 Tests are enabled through the `JOBTRACKER_BUILD_TESTS` CMake option and the `windows-debug-tests-local` preset.
 
-Use:
-
-```powershell
-cmake --preset windows-debug-tests-local
-```
-
-```powershell
-cmake --build --preset windows-debug-tests-local
-```
-
-```powershell
-ctest --preset windows-debug-tests-local
-```
+Use only the configure, build, and CTest commands in
+`For-Agent/Docs/build.md`; that document is the canonical command catalog.
 
 If CTest reports that no tests were found, report that state clearly instead of treating it as a test failure.
+
+## Test Scope
+
+Choose test scope from the final diff. For an ordinary bounded change, build and run the test target or CTest suite directly associated with the changed subsystem. Use the targeted commands documented in `For-Agent/Docs/build.md`.
+
+Use the full relevant test preset when schema or migrations, storage semantics,
+worker/runtime or concurrency behavior, shared infrastructure, several
+subsystems, cross-module contracts, unexpected targeted-test failures, or
+merge/release readiness requires broader verification.
+
+Do not rerun the same successful test scope without a concrete reason. A later source change, a newly visible risk, a broader verification question, or diagnosis of an unexpected result is a concrete reason. Do not leave risky behavior unverified merely to reduce execution time or usage.
 
 ## Backend Test Patterns
 
@@ -81,18 +81,31 @@ Name tests by the behavior they cover, and keep them registered through the proj
   suite verifies multi-batch FIFO ordering, pending-state transitions,
   duplicate and failure isolation, database-lock recovery, cancel-all behavior,
   idempotent Add Job/CV publication, and worker SQL connection cleanup.
+  It also verifies restored archive roles before Add Job/replacement links,
+  removal of the old link before publishing existing/new replacements, same-ID
+  replacement restoration, standalone restoration, and continuation after a CV
+  insert failure with finalized-file cleanup.
 - `JobTrackerMigrationTests` covers schema initialization, supported upgrades,
   rollback, foreign keys, reopen, unsupported newer versions, and named-connection
   cleanup when `SqliteDatabase` construction fails.
 - `JobTrackerRepositoryTests` covers repository persistence plus shared SQL error and transaction infrastructure.
-- `JobTrackerCvImportTests` covers managed file preparation, exact
-  case-sensitive composite identity, cleanup, and recovery.
+- `JobTrackerCvImportTests` covers exact buffered bytes/hash/size with no early
+  managed names or files, staging the snapshot after source removal, exact
+  case-sensitive identity, duplicate no-file behavior, archived restoration,
+  structured failures, cancellation before and during staging, immediate `.part`
+  cleanup while preparation remains alive, and startup recovery.
+- `JobTrackerCvMutationQueueTests` covers FIFO contention, move-only lease
+  ownership/RAII release, and cancellation of a waiter while the active lease
+  remains held. A test-only timeout bounds synchronization regressions.
 - `JobTrackerAddJobTests` covers the canonical preflight contract used by Add
   Job, defensive service pre-staging validation, cancellation immediately before
-  a transaction, transaction behavior, and durable orchestration.
+  a transaction, archived restoration and its rollback, cleanup when CV/job
+  insertion fails, cancellation after final rename still committing, transaction
+  behavior, and durable orchestration.
 - `JobTrackerUpdateJobTests` covers in-place metadata and ordered-technology
   updates, company creation and normalized reuse, replacement-CV insertion,
-  active and archived duplicate reuse, old-CV preservation, rollback and file
+  active duplicate reuse, archived restoration including same-ID replacement,
+  metadata-only queue bypass, old-CV preservation, restoration rollback and file
   cleanup, missing targets, defensive invalid-input rejection, and cancellation
   before the update transaction.
 - `JobTrackerIntegrationTests` covers synchronous invalid-input rejection
@@ -102,9 +115,20 @@ Name tests by the behavior they cover, and keep them registered through the proj
   order; pending-count and saving transitions; CV and database-lock failure
   isolation; duplicate-CV cleanup; cooperative active and cancel-all behavior;
   GUI event-loop responsiveness; shutdown cleanup; and restart hydration.
+  Cross-worker cases concurrently import the same exact identity through Add
+  Job and Add CV in both submission orders: one inserts, one reuses, and one CV
+  row/file remains without `.part` files. Job rollback cases verify the other
+  worker can still import the identity without orphaned files or partial jobs.
 
 Storage-oriented suites reuse the temporary database and filesystem fixtures under `tests/support` so setup and cleanup rules remain consistent.
 
 ## Manual Checks
 
 When automated validation is unavailable or not applicable, list the manual checks needed for the user to confirm the change.
+
+For CV-import changes, manually exercise overlapping Add Job/Add CV requests,
+archived duplicate restoration (including same-ID replacement), and cancel/close
+with a large selected file. Real disk-full/permission failures, abrupt process
+termination, Linux runtime behavior, and other-process races need separate
+environment-specific verification. Full-file buffering intentionally increases
+peak memory; no new CV size limit or streaming fallback is introduced.

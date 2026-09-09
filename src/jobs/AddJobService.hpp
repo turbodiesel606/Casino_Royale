@@ -15,6 +15,7 @@
 #include <memory>
 
 class CompanyRepository;
+class CvLockWrapper;
 class JobRepository;
 class QSqlDatabase;
 class QThread;
@@ -53,7 +54,8 @@ public:
         QSqlDatabase& database,
         JobRepository& jobRepository,
         CompanyRepository& companyRepository,
-        CvImportService& cvImportService);
+        CvImportService& cvImportService,
+        CvLockWrapper& cvMutationQueue);
 
     AddJobPreparationResult prepare(
         const NormalizedJobApplicationDraft& draft,
@@ -73,6 +75,7 @@ private:
     JobRepository& jobRepository_;
     CompanyRepository& companyRepository_;
     CvImportService& cvImportService_;
+    CvLockWrapper& cvLock_;
     QThread* owningThread_ = nullptr;
 };
 

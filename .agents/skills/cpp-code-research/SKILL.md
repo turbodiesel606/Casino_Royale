@@ -16,19 +16,27 @@ Research the smallest relevant JobTracker C++ surface and return evidence-backed
 - Use `qml-code-research` for QML structure or visual ownership; inspect QML here only to verify a C++ contract boundary.
 - When changing this skill's routing or description, read [references/trigger-tests.md](references/trigger-tests.md) and exercise its cases. Do not load that file for ordinary backend research.
 
-## Required Context
+## Context Selection
 
-Read these files first:
+1. Apply `AGENTS.md`, then classify the affected backend subsystem from the
+   request and smallest relevant source entry point.
+2. Read only the matching domain documents under
+   `For-Agent/Docs/architecture/`. Use the architecture overview only when the
+   correct documents are unclear or the request explicitly needs a system-wide
+   architecture map.
+3. Read `For-Agent/Docs/coding-style.md` only for implementation planning,
+   convention analysis, maintainability, or duplication research.
+4. Read `For-Agent/Docs/testing.md` only when test strategy, concrete coverage,
+   test registration, or a high-risk contract is part of the research.
+5. Read `For-Agent/Docs/qml-to-cpp-extraction.md` only when the research involves
+   QML-facing controllers, models, or durable behavior being moved out of QML.
+6. Read `For-Agent/Docs/build.md` only when the user requests current build or
+   test verification or the research concerns build configuration.
 
-1. `AGENTS.md`
-2. `For-Agent/Docs/architecture.md`
-3. `For-Agent/Docs/coding-style.md`
-4. `For-Agent/Docs/testing.md`
-
-Also read:
-
-- `For-Agent/Docs/qml-to-cpp-extraction.md` when the research involves QML-facing controllers, models, or durable behavior being moved out of QML.
-- `For-Agent/Docs/build.md` when the user requests current build or test verification.
+Expand context when a traced call, ownership edge, thread boundary, storage
+operation, QML contract, test dependency, or build registration crosses the
+current boundary. Open only the document for that evidence and do not preload the
+other architecture domains.
 
 ## Scope Gate
 
@@ -42,6 +50,24 @@ Before broad searching:
 2. State the included boundary and intentional omissions. Honor a direct-call-only request without recursively tracing nested callees.
 3. Run `git status --short --untracked-files=all`. Inspect focused diffs for in-scope files and account for pre-existing modified, deleted, or untracked work.
 4. Start from the smallest relevant entry point. Do not inventory the whole repository unless the requested scope requires it.
+
+## Search And Stopping Policy
+
+- Prefer exact symbol, type, signal, property, model-role, SQL, test-name, and
+  CMake-registration searches over directory-wide reading.
+- Inspect the target first, then its direct callers and callees. Follow only the
+  dependency edges needed to answer the requested question or resolve a concrete
+  ownership, lifetime, threading, storage, QML-contract, build, or test risk.
+- Stop when the material conclusion is supported by current source and the
+  relevant direct contracts. Do not continue exploring solely to narrate routine
+  facts or attach lines to context already established in the active task.
+- Do not repeat discovery already completed by the lead. A second pass over the
+  same scope is appropriate only when independent research was requested or a
+  disputed or high-risk claim materially needs it.
+- If prior research or review artifacts may help, inventory names and metadata
+  first. Read only the newest artifact whose scope overlaps the question, plus a
+  newer narrow artifact when it materially updates that scope. Artifacts are
+  context aids; verify conclusions against live source.
 
 ## Entry Points
 
@@ -114,6 +140,10 @@ Always return:
 - Suggested implementation direction without changing code.
 - Verification matrix separating static inspection, build, CTest, and manual runtime evidence.
 
+Keep findings compact. Quote or reproduce only the smallest source fragments
+needed to make a conclusion understandable; use file, symbol, and line references
+instead of copying large implementation bodies.
+
 Add only the sections required by the selected mode:
 
 - For architecture or duplication research, include the deliverable defined in `references/duplication-analysis.md`.
@@ -126,8 +156,6 @@ Add only the sections required by the selected mode:
   - ordered steps, risks, dependencies, and intentional omissions.
 
 Stop before edits after an implementation-planning request. Hand the verified research to `cpp-backend-task` only when the user authorizes implementation.
-
-If a read-only subagent is used at the user's request, treat its output as research input. The lead Codex remains responsible for checking the live source and compiling the final findings.
 
 ## Boundaries
 

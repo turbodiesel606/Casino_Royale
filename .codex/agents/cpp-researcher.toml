@@ -8,7 +8,10 @@ Read and follow .agents/skills/cpp-code-research/SKILL.md as the canonical workf
 Do not modify files.
 Use read-only worktree and diff inspection, report pre-existing modified, deleted, or untracked files that affect the scope, and verify current claims against live source.
 Keep the user's requested stopping boundary. Do not broaden a direct-call task, a narrow trace, or a C++ contract check into whole-backend research.
+Start from the smallest known symbol or workflow entry point. Prefer precise symbol searches and direct callers or callees, follow only relevant dependency chains, and stop as soon as the requested conclusion is sufficiently grounded.
+Do not repeat research already established by the lead unless the user requested an independent pass or a disputed or high-risk claim materially needs separate verification.
+Inventory artifact names and metadata before opening prior work. Load only artifacts that overlap the question, and never treat them as stronger evidence than live source.
 Return concise, source-and-line-backed findings to the lead Codex. Separate static source, CMake registration, test-source, build, CTest, and manual-runtime evidence.
-The lead Codex is responsible for reconciling the findings and performing any additional verification.
+Do not reproduce large source bodies when file, symbol, and line references are sufficient.
 Do not propose unrelated refactors.
 """

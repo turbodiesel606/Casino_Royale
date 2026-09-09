@@ -23,7 +23,7 @@ namespace {
 
 struct JobSaveExecutor::PipelineContext final
 {
-	explicit PipelineContext(const QString& dataDirectory)
+	PipelineContext(const QString& dataDirectory, CvLockWrapper& cvMutationQueue)
 		//Resolve worker - local storage paths
 		: storagePaths_{ dataDirectory }
 		// Create a worker - thread SQLite connection.
@@ -38,12 +38,12 @@ struct JobSaveExecutor::PipelineContext final
 			database_.connection(),
 			jobRepository_,
 			companyRepository_,
-			cvImportService_ }
+			cvImportService_, cvMutationQueue }
 			, updateJobService_{
 				database_.connection(),
 				jobRepository_,
 				companyRepository_,
-				cvImportService_ }
+				cvImportService_, cvMutationQueue }
 	{
 	}
 
@@ -58,8 +58,9 @@ struct JobSaveExecutor::PipelineContext final
 	UpdateJobService updateJobService_;
 };
 
-JobSaveExecutor::JobSaveExecutor(QString dataDirectory)
+JobSaveExecutor::JobSaveExecutor(QString dataDirectory, CvLockWrapper& cvLock)
 	: dataDirectory_{ std::move(dataDirectory) }
+	, cvLock_{ cvLock }
 {
 }
 
@@ -153,13 +154,16 @@ UpdateJobSaveOutcome JobSaveExecutor::process(UpdateJobRequest request)
 
 	UpdateJobResult result;
 	try {
-		auto preparation = context->updateJobService_.prepare(
-			request.applicationId_,
-			request.draft_,
-			request.replacementCvUrl_,
-			request.cancellation_);
+		/* Result of prepareValidated(...) should be prvalue for optimisation
+		 because of AddJobPreparationResult.
+		Do not try to store the result in a temporary variable.
+		*/
 		result = context->updateJobService_.complete(
-			std::move(preparation),
+			context->updateJobService_.prepareValidated(
+				request.applicationId_,
+				request.draft_,
+				request.replacementCvUrl_,
+				request.cancellation_),
 			request.cancellation_);
 	}
 	catch (...) {
@@ -180,7 +184,7 @@ void JobSaveExecutor::destroyContext()
 JobSaveExecutor::PipelineContext& JobSaveExecutor::ensureContext()
 {
 	if (context_ == nullptr)
-		context_ = std::make_unique<PipelineContext>(dataDirectory_);
+		context_ = std::make_unique<PipelineContext>(dataDirectory_, cvLock_);
 
 	return *context_;
 }

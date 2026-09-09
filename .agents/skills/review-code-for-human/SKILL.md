@@ -7,6 +7,15 @@ description: Produce an exhaustive, source-backed human review of a JobTracker c
 
 Explain the complete relevant execution model for a reader who already understands C++, Qt, QML, and standard-library syntax. Optimize for understanding entities, responsibilities, interactions, state changes, ownership, threads, errors, and design trade-offs.
 
+## Invocation Boundary
+
+Use this skill only when the user explicitly names `review-code-for-human`.
+Do not select it for an ordinary request to explain one function, review a diff,
+walk through code, or teach a subsystem. Once explicitly selected, preserve the
+exhaustive workflow for the requested scenario and complete project-defined call
+chain; do not weaken that mode, but do not expand into unrelated scenarios or
+the whole repository.
+
 Treat "complete relevant code" as:
 
 - the full body of every project-defined function, method, QML handler, or JavaScript function that participates in the traced scenario;
@@ -19,7 +28,7 @@ Do not dump unrelated files or unrelated methods merely to increase coverage. Co
 ## Review Workflow
 
 1. Identify the exact target and scenario. Resolve ambiguity from the repository when possible; ask only when different interpretations would produce materially different reviews.
-2. Read `AGENTS.md` and the directly relevant `For-Agent/Docs/` guidance. Check recent review artifacts only when they overlap the scope, and verify every current fact against live source.
+2. Read `AGENTS.md` and only the directly relevant `For-Agent/Docs/` guidance. Go directly to the matching architecture domain documents; consult `For-Agent/Docs/architecture/overview.md` only when the correct documents are unclear or the user requests a system-wide architecture map. If prior review artifacts may overlap, inventory filenames and metadata first, read only the newest relevant artifact plus a newer narrow update when needed, and do not reread it without a concrete reason. Verify every current fact against live source.
 3. Inspect the target, its real callers, every relevant project-defined nested call, connected QML or C++ contracts, state publication, and focused tests.
 4. Build an internal entity inventory before writing. Include every QML component or handler, C++ class, struct, enum, request/result type, controller, worker, service, repository, storage helper, model, and signal that materially participates in the scenario.
 5. For every inventoried entity, record its definition location, responsibility, owned state, owner and lifetime, thread affinity, inputs, outputs, callers, callees, and observable side effects. Mark genuinely inapplicable fields rather than silently skipping them.

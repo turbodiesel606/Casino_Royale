@@ -165,24 +165,21 @@ CvLibraryController::~CvLibraryController()
 void CvLibraryController::recordCvUse(
 	const CvDocument& document,
 	const QString& applicationId,
-	CvImportDisposition)
+	CvImportDisposition disposition)
 {
-	publishCvDocument(document, applicationId);
+	publishCvDocument(document, disposition, applicationId);
 }
 
 void CvLibraryController::recordCvReplacement(
 	const QString& previousCvId,
 	const CvDocument& document,
 	const QString& applicationId,
-	CvImportDisposition)
+	CvImportDisposition disposition)
 {
 	if (applicationId.isEmpty() || document.id_.isEmpty()) {
 		return;
 	}
-	if (!previousCvId.isEmpty() && previousCvId != document.id_) {
-		cvModel_.removeLinkedApplication(previousCvId, applicationId);
-	}
-	publishCvDocument(document, applicationId);
+	publishCvDocument(document, disposition, applicationId, previousCvId);
 }
 
 void CvLibraryController::recordApplicationsDeleted(const QStringList& applicationIds)
@@ -707,10 +704,21 @@ QVariantMap CvLibraryController::cvToMap(int sourceRow) const
 
 void CvLibraryController::publishCvDocument(
 	const CvDocument& document,
-	const QString& applicationId)
+	CvImportDisposition disposition,
+	const QString& applicationId,
+	const QString& previousCvId)
 {
 	if (document.id_.isEmpty()) {
 		return;
+	}
+
+	if (disposition == CvImportDisposition::RestoredArchived) {
+		cvModel_.setArchiveState(document.id_, {}, document.updatedAt_);
+	}
+
+	// Publish restored archive roles before changing either side of a job link.
+	if (!previousCvId.isEmpty() && previousCvId != document.id_) {
+		cvModel_.removeLinkedApplication(previousCvId, applicationId);
 	}
 
 	if (cvModel_.cvById(document.id_) == nullptr) {
@@ -794,14 +802,7 @@ void CvLibraryController::handleCvImport(const CvImportSaveOutcome& outcome)
 	}
 
 	if (outcome.success_) {
-		if (outcome.disposition_ == CvImportDisposition::RestoredArchived) {
-			cvModel_.setArchiveState(
-				outcome.document_.id_,
-				{},
-				outcome.document_.updatedAt_);
-		} else {
-			publishCvDocument(outcome.document_);
-		}
+		publishCvDocument(outcome.document_, outcome.disposition_);
 	}
 
 	if (!importQueue_.completionSuppressed()) {

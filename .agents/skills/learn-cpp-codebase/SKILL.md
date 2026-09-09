@@ -7,14 +7,22 @@ description: Teach the JobTracker C++ codebase progressively from scratch and sa
 
 Teach the codebase as a connected system. Build the learner's mental model progressively instead of producing an alphabetical file summary.
 
-## Required Context
+## Context Selection
 
-Read these files before teaching:
+1. Apply `AGENTS.md`.
+2. For a complete tour, read `For-Agent/Docs/architecture/overview.md` first and
+   load each domain document only when its phase begins. Do not preload the whole
+   architecture directory before Phase 1.
+3. For a narrower lesson, go directly to the matching architecture domain
+   document and omit unrelated phase documents.
+4. Read `For-Agent/Docs/coding-style.md` when teaching implementation
+   conventions or interpreting a style-dependent design choice.
+5. Read `For-Agent/Docs/testing.md` when the lesson reaches tests or Phase 8.
+6. Read `For-Agent/Docs/build.md` only when the user requests current build or
+   test verification.
 
-1. `AGENTS.md`
-2. `For-Agent/Docs/architecture.md`
-3. `For-Agent/Docs/coding-style.md`
-4. `For-Agent/Docs/testing.md`
+Do not reread an architecture document already established in the current
+learning run unless later live-source evidence invalidates it.
 
 ## Teaching Rules
 
@@ -167,13 +175,37 @@ Treat the saved artifact as part of each phase's definition of done, not as an o
    - `cpp-Architecture-YYYY-MM-DD-HHMM-phase-07-storage-schema.md`
    - `cpp-Architecture-YYYY-MM-DD-HHMM-phase-08-tests-synthesis.md`
 3. At the start of Phase 1, establish one learning-run timestamp from the local Asia/Baku time and use it as `YYYY-MM-DD-HHMM` in every phase filename for that run. Reuse the same timestamp through Phase 8. Put the artifact's actual creation time in `Created: YYYY-MM-DD HH:MM local time (Asia/Baku)` immediately after its title.
-4. Before starting a phase, read all completed earlier-phase artifacts from the same learning run. Use them to preserve terminology, diagrams, explanations, and established cross-phase relationships, but verify current facts against the live source. Phase 1 has no prior phase artifacts.
-5. When resuming an unfinished phase, read its existing artifact first, then read the completed earlier-phase artifacts from the same learning run. Update the existing current-phase artifact instead of creating a duplicate.
-6. Do not mix artifacts from separate learning runs unless the user explicitly requests it. Never overwrite an artifact from a separate completed learning run.
-7. Include the phase status, inspected scope, learner-oriented explanation, architecture or data-flow relationships, exact source anchors, recap, recommended reading, comprehension questions, and unverified areas.
-8. Save the artifact before reporting the phase as complete. Link the saved file in the phase response.
-9. During Phase 4, create the phase artifact after the first completed domain lesson, update the same file after every remaining domain lesson, and mark it complete only after all listed domains are covered.
-10. Use `For-Human/Architecture/` for this skill's learning outputs.
+4. Maintain one compact cumulative index for the run named
+   `cpp-Architecture-YYYY-MM-DD-HHMM-learning-index.md`. It is a routing summary,
+   not proof, and must point to the detailed phase artifacts rather than replace
+   them.
+5. Before starting or resuming a phase:
+   - inventory same-run filenames plus their `Created:` and `Status:` metadata;
+   - read the current phase artifact first when it already exists;
+   - read the cumulative index;
+   - open only the prior detailed phase sections linked by the index and relevant
+     to the current lesson, changed source, unresolved question, or terminology
+     that must remain consistent;
+   - verify current facts against live source.
+   Phase 1 has no prior detailed artifact to load.
+6. After every phase or Phase 4 domain lesson, update the cumulative index with:
+   - phase status and a link to the detailed artifact;
+   - established architecture and dependency direction;
+   - important contracts;
+   - the subsystem and file map;
+   - ownership and lifetime rules;
+   - threading and queued-delivery rules;
+   - unresolved questions and stale assumptions;
+   - pointers to the detailed sections needed for follow-up.
+7. Do not reread every earlier phase by default. Reread a detailed artifact only
+   when the index identifies it as relevant or new live-source evidence creates a
+   concrete need. Do not reread the same artifact again in one phase without a
+   changed assumption or unresolved question.
+8. Do not mix artifacts from separate learning runs unless the user explicitly requests it. Never overwrite an artifact from a separate completed learning run.
+9. Include the phase status, inspected scope, learner-oriented explanation, architecture or data-flow relationships, exact source anchors, recap, recommended reading, comprehension questions, and unverified areas.
+10. Save the phase artifact and updated cumulative index before reporting the phase as complete. Link both files in the phase response.
+11. During Phase 4, create the phase artifact after the first completed domain lesson, update the same file after every remaining domain lesson, and mark it complete only after all listed domains are covered.
+12. Use `For-Human/Architecture/` for this skill's learning outputs.
 
 ## Delivery Modes
 
@@ -195,5 +227,7 @@ Finish only when the learner has received:
 - A storage and schema walkthrough.
 - A test-to-subsystem map and final reading path.
 - Eight saved phase artifacts under `For-Human/Architecture/`, with Phase 4 updated across all domain lessons.
+- One same-run cumulative learning index updated through the final completed
+  phase.
 
 State clearly which facts were not verified or which areas were intentionally deferred.

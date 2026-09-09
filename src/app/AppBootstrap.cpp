@@ -49,8 +49,8 @@ AppBootstrap::AppBootstrap(QCoreApplication& app)
 	, cvFileAccessService_{ storagePaths_ }
 	, companyRepository_{ database_.connection() }
 	, jobRepository_{ database_.connection() }
-	, jobSaveWorker_{ storagePaths_.dataDirectory() }
-	, cvImportWorker_{ storagePaths_.dataDirectory() }
+	, jobSaveWorker_{ storagePaths_.dataDirectory(), cvLock_ }
+	, cvImportWorker_{ storagePaths_.dataDirectory(), cvLock_ }
 	, storageMutationGate_{}
 	, dataRemovalWorker_{ storagePaths_.dataDirectory() }
 	, jobApplicationsController_{

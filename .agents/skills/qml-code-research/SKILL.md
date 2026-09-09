@@ -16,18 +16,27 @@ Research the smallest relevant JobTracker QML surface and return evidence-backed
 - Use `cmake-build-debug` when the primary task is QML module configuration, compilation, deployment, CTest, or build-failure diagnosis.
 - When changing this skill's routing or description, read [references/trigger-tests.md](references/trigger-tests.md) and exercise its cases. Do not load that file for ordinary QML research.
 
-## Required Context
+## Context Selection
 
-Read these files first:
+1. Apply `AGENTS.md`, then identify the affected screen, component, navigation
+   surface, or QML-facing backend contract.
+2. Read `For-Agent/Docs/qml-style.md` for QML/UI guidance.
+3. Read only the matching documents under `For-Agent/Docs/architecture/` when
+   the research reaches a QML/backend contract or another architecture boundary.
+   Start with `qml-contracts.md` for model/property/signal contracts and add a
+   domain document only when the traced behavior enters that domain. Use the
+   overview only when the correct document is unclear.
+4. Read `For-Agent/Docs/qml-to-cpp-extraction.md` only when the research involves
+   mock data, validation, filtering, sorting, search, grouping, parsing, storage,
+   cross-screen state, or other durable behavior in QML.
+5. Read `For-Agent/Docs/testing.md` only when test strategy, concrete coverage,
+   test registration, or a high-risk backend contract is part of the research.
+6. Read `For-Agent/Docs/build.md` only when the user requests current build or
+   runtime verification or the research concerns QML/CMake registration.
 
-1. `AGENTS.md`
-2. `For-Agent/Docs/architecture.md`
-3. `For-Agent/Docs/qml-style.md`
-
-Also read:
-
-- `For-Agent/Docs/qml-to-cpp-extraction.md` when the research involves mock data, validation, filtering, sorting, search, grouping, parsing, storage, cross-screen state, or other durable behavior in QML.
-- `For-Agent/Docs/build.md` when the user requests current build or runtime verification.
+Expand context only when the inspected binding, handler, model role, C++ contract,
+registration, or runtime concern crosses the current boundary. Do not preload the
+complete architecture, build, and testing documentation.
 
 ## Scope Gate
 
@@ -42,6 +51,25 @@ Before broad searching:
 2. State the included boundary and intentional omissions. Preserve a narrow screen, component, or direct-contract boundary without turning it into a whole-QML audit.
 3. Run `git status --short --untracked-files=all`. Inspect focused diffs for in-scope files and account for pre-existing modified, deleted, or untracked work.
 4. Start from the smallest relevant entry point. Inventory the complete QML surface only when the requested scope requires it.
+
+## Search And Stopping Policy
+
+- Prefer exact component, property, signal, handler, model-role, context-property,
+  import, and QML-registration searches over directory-wide reading.
+- Inspect the target component first, then its direct instantiators, handlers,
+  bindings, and exposed backend contract. Follow only the edges needed to answer
+  the request or resolve a concrete navigation, ownership, reachability,
+  durable-state, backend-contract, build, or test risk.
+- Stop when the material conclusion is grounded in current QML and the relevant
+  direct contracts. Do not continue exploring solely to narrate routine facts or
+  attach lines to context already established in the active task.
+- Do not repeat discovery already completed by the lead. A second pass over the
+  same scope is appropriate only when independent research was requested or a
+  disputed or high-risk claim materially needs it.
+- If prior research or review artifacts may help, inventory names and metadata
+  first. Read only the newest artifact whose scope overlaps the question, plus a
+  newer narrow artifact when it materially updates that scope. Artifacts are
+  context aids; verify conclusions against live source.
 
 ## Entry Points
 
@@ -105,6 +133,10 @@ Always return:
 - Suggested implementation direction without changing code.
 - A verification matrix separating static source, diff, registration, reachability, test-source, build, and manual-runtime evidence.
 
+Keep findings compact. Quote or reproduce only the smallest QML or C++ fragments
+needed to make a conclusion understandable; use file, symbol, and line references
+instead of copying large implementation bodies.
+
 Add only the sections required by the selected mode:
 
 - For architecture or decomposition research, include the deliverable defined in `references/decomposition-analysis.md`.
@@ -119,8 +151,6 @@ Add only the sections required by the selected mode:
 
 Stop before edits after an implementation-planning request. Hand the verified research to `qt-qml-ui-task` or `qml-to-cpp-extraction` only when the user authorizes implementation.
 
-If a read-only subagent is used at the user's request, treat its output as research input. The lead Codex remains responsible for checking the live source and compiling the final findings.
-
 ## Boundaries
 
 - Do not edit QML, C++, CMake, tests, or documentation during research.
@@ -128,4 +158,3 @@ If a read-only subagent is used at the user's request, treat its output as resea
 - Do not treat presentation-only behavior as a backend migration candidate.
 - Do not propose a split or new component from line count alone; inspect responsibilities, ownership, APIs, repetition, and existing reusable components first.
 - Do not run builds, CTest, or the GUI unless the user requests verification or the research genuinely depends on current execution state.
-- Do not use subagents unless the user requests subagents, parallel research, or an independent pass.

@@ -60,6 +60,9 @@ private slots:
     void resolvesNewCompanyAndReusesNormalizedCompany();
     void importsReplacementAndPreservesPreviousCv();
     void reusesActiveAndArchivedReplacementDuplicates();
+    void restoresSameIdReplacement();
+    void rollsBackArchivedRestorationOnUpdateFailure();
+    void metadataOnlyUpdateBypassesCvQueue();
     void rollsBackDatabaseAndFileOnUpdateFailure();
     void rejectsMissingAndInvalidApplicationsWithoutMutation();
     void cancelsPreparedReplacementBeforeTransaction();
@@ -212,12 +215,74 @@ void UpdateJobServiceTest::reusesActiveAndArchivedReplacementDuplicates()
             QStringLiteral("original.pdf"),
             QByteArrayLiteral("%PDF original CV"))));
     QVERIFY2(archivedReuse.success_, qPrintable(archivedReuse.message_));
-    QCOMPARE(archivedReuse.cvImportDisposition_, CvImportDisposition::ReusedArchived);
+    QCOMPARE(archivedReuse.cvImportDisposition_, CvImportDisposition::RestoredArchived);
     QCOMPARE(archivedReuse.application_.cvId_, original.cvDocument_.id_);
     const auto archived = fixture.cvRepository_.findById(original.cvDocument_.id_);
     QVERIFY(archived.has_value());
-    QVERIFY(archived->archivedAt_.isValid());
+    QVERIFY(!archived->archivedAt_.isValid());
     QCOMPARE(fixture.cvRepository_.findAll().size(), 2);
+}
+
+void UpdateJobServiceTest::restoresSameIdReplacement()
+{
+    testsupport::AddJobTestFixture fixture;
+    const auto original = createInitialJob(fixture);
+    QVERIFY(original.success_);
+    QVERIFY(fixture.cvRepository_.updateArchived(original.cvDocument_.id_, true).has_value());
+    const auto result = updateJob(
+        fixture, original.application_.id_, testsupport::validJobDraft(),
+        QUrl::fromLocalFile(fixture.storage_.createFile(
+            QStringLiteral("original.pdf"), QByteArrayLiteral("%PDF original CV"))));
+
+    QVERIFY2(result.success_, qPrintable(result.message_));
+    QVERIFY(result.replacementCvDocument_.has_value());
+    QCOMPARE(result.cvImportDisposition_, CvImportDisposition::RestoredArchived);
+    QCOMPARE(result.previousCvId_, result.application_.cvId_);
+    QVERIFY(!result.replacementCvDocument_->archivedAt_.isValid());
+    QCOMPARE(fixture.cvRepository_.findAll().size(), 1);
+    QCOMPARE(QDir{fixture.storage_.paths().resumesDirectory()}.entryList(QDir::Files).size(), 1);
+}
+
+void UpdateJobServiceTest::rollsBackArchivedRestorationOnUpdateFailure()
+{
+    testsupport::AddJobTestFixture fixture;
+    const auto original = createInitialJob(fixture);
+    QVERIFY(original.success_);
+    QVERIFY(fixture.cvRepository_.updateArchived(original.cvDocument_.id_, true).has_value());
+    const auto archived = *fixture.cvRepository_.findById(original.cvDocument_.id_);
+    QSqlQuery trigger{fixture.database_.connection()};
+    QVERIFY(trigger.exec(QStringLiteral(
+        "CREATE TRIGGER reject_update BEFORE UPDATE ON jobs "
+        "BEGIN SELECT RAISE(FAIL, 'forced update failure'); END")));
+    auto draft = testsupport::validJobDraft();
+    draft.companyName_ = QStringLiteral("Rolled Back Company");
+    const auto result = updateJob(
+        fixture, original.application_.id_, draft,
+        QUrl::fromLocalFile(fixture.storage_.createFile(
+            QStringLiteral("original.pdf"), QByteArrayLiteral("%PDF original CV"))));
+
+    QVERIFY(!result.success_);
+    const auto stored = *fixture.cvRepository_.findById(archived.id_);
+    QCOMPARE(stored.archivedAt_, archived.archivedAt_);
+    QCOMPARE(stored.updatedAt_, archived.updatedAt_);
+    QCOMPARE(fixture.companyRepository_.findAll().size(), 1);
+    QCOMPARE(fixture.jobRepository_.findById(original.application_.id_)->companyId_,
+        original.application_.companyId_);
+    QCOMPARE(QDir{fixture.storage_.paths().resumesDirectory()}.entryList(QDir::Files).size(), 1);
+}
+
+void UpdateJobServiceTest::metadataOnlyUpdateBypassesCvQueue()
+{
+    testsupport::AddJobTestFixture fixture;
+    const auto original = createInitialJob(fixture);
+    QVERIFY(original.success_);
+    auto lease = fixture.cvLock_.acquire({});
+    auto draft = testsupport::validJobDraft();
+    draft.jobTitle_ = QStringLiteral("Metadata Only");
+    const auto result = updateJob(fixture, original.application_.id_, draft);
+    QVERIFY2(result.success_, qPrintable(result.message_));
+    QVERIFY(!result.replacementCvDocument_.has_value());
+    QCOMPARE(result.application_.cvId_, original.application_.cvId_);
 }
 
 void UpdateJobServiceTest::rollsBackDatabaseAndFileOnUpdateFailure()

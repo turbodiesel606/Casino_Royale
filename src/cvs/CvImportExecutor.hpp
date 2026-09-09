@@ -11,12 +11,14 @@
 #include <memory>
 #include <variant>
 
+class CvLockWrapper;
+
 class CvImportExecutor final : public QObject
 {
 public:
 	using Outcome = std::variant<CvImportSaveOutcome>;
 
-	explicit CvImportExecutor(QString dataDirectory);
+	CvImportExecutor(QString dataDirectory, CvLockWrapper& cvMutationQueue);
 	~CvImportExecutor() override;
 
 	CvImportSaveOutcome process(CvImportRequest request);
@@ -35,6 +37,7 @@ private:
 		QString message);
 
 	QString dataDirectory_;
+	CvLockWrapper& cvLock_;
 	std::unique_ptr<PipelineContext> context_;
 };
 

@@ -2,6 +2,8 @@
 #include "directory/ContactListModel.hpp"
 #include "jobs/JobApplicationListModel.hpp"
 #include "jobs/JobApplicationsController.hpp"
+#include "jobs/JobApplicationValidator.hpp"
+#include "cvs/CvImportWorker.hpp"
 
 #include "../support/AddJobTestFixture.hpp"
 
@@ -53,6 +55,8 @@ private slots:
     void invalidRequestFailsSynchronouslyWithoutMutationAndContinues();
     void failedRequestDoesNotBlockLaterQueuedRequest();
     void duplicateCvReuseLeavesNoStagedFiles();
+    void concurrentJobAndCvImports_data();
+    void concurrentJobAndCvImports();
     void workerInitializationFailureCleansConnectionAndRetries();
     void databaseLockFailureDoesNotBlockLaterRequest();
     void largeCvProcessingKeepsGuiEventLoopResponsive();
@@ -80,7 +84,8 @@ void EndToEndIntegrationTest::persistsAndHydratesJobAcrossDatabaseReopen()
         JobRepository jobs{database.connection()};
         CvManagedFileStore fileStore{storage.paths()};
         CvImportService importer{fileStore, cvs};
-        AddJobService service{database.connection(), jobs, companies, importer};
+        CvMutationQueue cvMutationQueue;
+        AddJobService service{database.connection(), jobs, companies, importer, cvMutationQueue};
         const auto result = service.create(
             testsupport::validJobDraft(),
             QUrl::fromLocalFile(sourcePath));
@@ -429,6 +434,76 @@ void EndToEndIntegrationTest::duplicateCvReuseLeavesNoStagedFiles()
     QVERIFY(stagedFileNames(fixture).isEmpty());
 }
 
+void EndToEndIntegrationTest::concurrentJobAndCvImports_data()
+{
+    QTest::addColumn<bool>("cvFirst");
+    QTest::addColumn<bool>("rejectJob");
+    QTest::newRow("job-first") << false << false;
+    QTest::newRow("cv-first") << true << false;
+    QTest::newRow("job-rollback") << false << true;
+    QTest::newRow("cv-first-job-rollback") << true << true;
+}
+
+void EndToEndIntegrationTest::concurrentJobAndCvImports()
+{
+    QFETCH(bool, cvFirst);
+    QFETCH(bool, rejectJob);
+    testsupport::AddJobWorkerTestFixture fixture;
+    CvImportWorker importer{fixture.storage_.paths().dataDirectory(), fixture.cvMutationQueue_};
+    if (rejectJob) {
+        QSqlQuery trigger{fixture.database_.connection()};
+        QVERIFY(trigger.exec(QStringLiteral(
+            "CREATE TRIGGER reject_job BEFORE INSERT ON jobs "
+            "BEGIN SELECT RAISE(FAIL, 'forced concurrent job failure'); END")));
+    }
+    const auto source = QUrl::fromLocalFile(fixture.storage_.createFile(
+        QStringLiteral("shared.pdf"), QByteArray(16 * 1024 * 1024, 's')));
+    const auto draft = JobApplicationValidator::preflight(testsupport::validJobDraft(), true);
+    QVERIFY(draft.isValid());
+    QSignalSpy jobCompleted{&fixture.worker_, &JobSaveWorker::saveCompleted};
+    QSignalSpy cvCompleted{&importer, &CvImportWorker::importCompleted};
+    auto held = fixture.cvMutationQueue_.acquire({});
+    const auto submitJob = [&] {
+        fixture.worker_.submit(AddJobRequest{
+            1, draft.draft_, source, std::make_shared<CancellationState>()});
+    };
+    const auto submitCv = [&] {
+        importer.submit(CvImportRequest{1, source, std::make_shared<CancellationState>()});
+    };
+    if (cvFirst) {
+        submitCv();
+        submitJob();
+    } else {
+        submitJob();
+        submitCv();
+    }
+    // Both worker requests are active while mutation admission is withheld.
+    QVERIFY(fixture.worker_.isRunning());
+    QVERIFY(importer.isRunning());
+    QVERIFY(QDir{fixture.storage_.paths().resumesDirectory()}.entryList(QDir::Files).isEmpty());
+    held = {};
+    QTRY_COMPARE_WITH_TIMEOUT(jobCompleted.count(), 1, 10000);
+    QTRY_COMPARE_WITH_TIMEOUT(cvCompleted.count(), 1, 10000);
+    const auto job = jobCompleted.first().first().value<AddJobSaveOutcome>().result_;
+    const auto cv = cvCompleted.first().first().value<CvImportSaveOutcome>();
+    QVERIFY2(cv.success_, qPrintable(cv.message_));
+    QCOMPARE(job.success_, !rejectJob);
+    if (!rejectJob) {
+        QCOMPARE(job.cvDocument_.id_, cv.document_.id_);
+        QVERIFY((job.cvImportDisposition_ == CvImportDisposition::Inserted
+                    && cv.disposition_ == CvImportDisposition::ExistingActive)
+            || (job.cvImportDisposition_ == CvImportDisposition::ExistingActive
+                    && cv.disposition_ == CvImportDisposition::Inserted));
+    } else {
+        QCOMPARE(cv.disposition_, CvImportDisposition::Inserted);
+    }
+    QCOMPARE(fixture.jobRepository_.findAll().size(), rejectJob ? 0 : 1);
+    QCOMPARE(fixture.companyRepository_.findAll().size(), rejectJob ? 0 : 1);
+    QCOMPARE(fixture.cvRepository_.findAll().size(), 1);
+    QCOMPARE(QDir{fixture.storage_.paths().resumesDirectory()}.entryList(QDir::Files).size(), 1);
+    QVERIFY(stagedFileNames(fixture).isEmpty());
+}
+
 void EndToEndIntegrationTest::workerInitializationFailureCleansConnectionAndRetries()
 {
     testsupport::TemporaryStorageFixture storage;
@@ -437,7 +512,8 @@ void EndToEndIntegrationTest::workerInitializationFailureCleansConnectionAndRetr
     QVERIFY(QDir{}.mkpath(databasePath));
     const auto initialConnectionCount = QSqlDatabase::connectionNames().size();
 
-    JobSaveWorker worker{storage.paths().dataDirectory()};
+    CvMutationQueue cvMutationQueue;
+    JobSaveWorker worker{storage.paths().dataDirectory(), cvMutationQueue};
     JobApplicationsController controller{{}, worker};
     QSignalSpy queuedSpy{&controller, &JobApplicationsController::applicationQueued};
     QSignalSpy failedSpy{&controller, &JobApplicationsController::saveFailed};

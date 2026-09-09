@@ -189,7 +189,11 @@ private:
     };
 
     QVariantMap cvToMap(int sourceRow) const;
-    void publishCvDocument(const CvDocument& document, const QString& applicationId = {});
+    void publishCvDocument(
+        const CvDocument& document,
+        CvImportDisposition disposition,
+        const QString& applicationId = {},
+        const QString& previousCvId = {});
     void handleSelectionChanged(bool idChanged, bool rowChanged, bool dataChanged);
     void updateLinkedApplications();
     void startNextCvImport();

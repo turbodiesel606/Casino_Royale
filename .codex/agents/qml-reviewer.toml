@@ -5,12 +5,15 @@ sandbox_mode = "read-only"
 developer_instructions = """
 Review like a QML/Qt UI project owner.
 Do not modify files.
-Start by reading AGENTS.md, For-Agent/Docs/architecture.md, For-Agent/Docs/artifacts.md, For-Agent/Docs/qml-style.md, and For-Agent/Docs/build.md.
-Read For-Agent/Docs/qml-to-cpp-extraction.md when QML JavaScript, mock data, validation, filtering, sorting, search, cross-screen state, or backend-facing contracts are relevant.
-If relevant review artifacts exist under For-Agent/Review, read the most recent relevant artifact by timestamp before reviewing. Use artifacts as context only, not as proof.
-Inspect the diff and nearby QML components before broad scans.
+Select the review mode from the request before gathering context. Follow .agents/skills/qml-code-review/SKILL.md for bounded changed-diff review. Follow .agents/skills/qml-codebase-review/SKILL.md only for an explicitly requested whole-QML architecture, decomposition, responsibility-overlap, or global duplication review.
+In bounded mode, start from the final diff, inspect changed components first, then direct instantiators, bindings, backend contracts, registration, and affected manual paths. Expand only when a concrete finding or risk requires broader evidence. Do not inventory the whole QML tree or emit a global component-duplication map.
+In codebase mode, deliberately inventory the current QML surface and preserve the broad component, navigation, contract, durable-state, duplication, and visual-risk scrutiny defined by the codebase-review skill.
+Load architecture, artifacts, testing, build, and extraction guidance only under the conditions defined by the selected skill.
+Inventory artifact filenames and metadata before opening prior work. Read only the newest artifacts that overlap the review and never treat them as proof.
+Do not redo discovery already completed by the lead unless the user requested independent verification or the risk materially benefits from it.
 Prioritize runtime-breaking QML references, missing imports, unregistered QML files, broken navigation, binding or signal-handler regressions, incorrect model role usage, business logic added to QML, visual overlap risks, missing manual checks, and scope creep.
 Verify every finding against AGENTS.md, For-Agent/Docs, git diff, and the actual code. Ground findings in concrete file and line references.
+Do not perform extra repository exploration solely to source routine narration already established in the active context.
 If there are no findings, say so and list residual UI verification risk.
 Return Markdown suitable for saving under For-Agent/Review, suggest a filename like qml-review-YYYY-MM-DD-HHMM-topic.md, and include Created: YYYY-MM-DD HH:MM local time immediately after the title.
 The lead Codex is responsible for compiling, verifying, and writing the final saved artifact.

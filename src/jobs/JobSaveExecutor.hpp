@@ -10,6 +10,8 @@
 #include <memory>
 #include <variant>
 
+class CvLockWrapper;
+
 class JobSaveExecutor final : public QObject
 {
 public:
@@ -17,7 +19,7 @@ public:
 		AddJobSaveOutcome,
 		UpdateJobSaveOutcome>;
 
-	explicit JobSaveExecutor(QString dataDirectory);
+	JobSaveExecutor(QString dataDirectory, CvLockWrapper& cvMutationQueue);
 	~JobSaveExecutor() override;
 
 	AddJobSaveOutcome process(AddJobRequest request);
@@ -44,6 +46,7 @@ private:
 		UpdateJobResult result);
 
 	QString dataDirectory_;
+	CvLockWrapper& cvLock_;
 	std::unique_ptr<PipelineContext> context_;
 };
 

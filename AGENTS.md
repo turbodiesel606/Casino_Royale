@@ -17,19 +17,46 @@ Prioritize correctness, maintainability, readability, and cross-platform behavio
 - C++ entry point: `src/main.cpp`.
 - QML entry point: `qml/Main.qml`.
 
-## Instruction Layers
+## Selective Context Loading
 
-Use this file as the stable root instruction layer.
+Use this file as the stable root instruction layer. For every task:
 
-Read the relevant detailed layer before acting:
+1. Read the applicable instructions in `AGENTS.md`.
+2. Identify the affected subsystem from the request, target files, and focused
+   diff before opening detailed documentation.
+3. Read only the documents that govern that subsystem and the requested work.
+4. Expand context only when inspected evidence exposes another dependency,
+   contract, boundary, build concern, or test concern. Open the specific document
+   for that evidence; do not load a general documentation bundle.
+5. Do not reread a document already established in the current task unless a
+   later requirement, source discovery, or edit invalidates that understanding.
 
-- Build and verification: `For-Agent/Docs/build.md`.
-- Architecture: `For-Agent/Docs/architecture.md`.
-- Artifact creation and reuse: `For-Agent/Docs/artifacts.md`.
-- C++ style: `For-Agent/Docs/coding-style.md`.
-- QML/UI style: `For-Agent/Docs/qml-style.md`.
-- Testing policy: `For-Agent/Docs/testing.md`.
-- QML-to-C++ extraction: `For-Agent/Docs/qml-to-cpp-extraction.md`.
+Expand context on evidence, not preemptively. A bounded task must not scan the
+whole `For-Agent/Docs/` tree or read every architecture document by default.
+
+Use these detailed layers selectively:
+
+- Architecture: go directly to the affected domain document under
+  `For-Agent/Docs/architecture/`: `application.md` for startup/wiring,
+  `boundaries.md` for cross-layer rules, `jobs.md`, `cvs.md`, `storage.md`,
+  `threading.md`, `removal.md`, or `qml-contracts.md`. Use
+  `For-Agent/Docs/architecture/overview.md` only when the correct domain
+  document is unclear or the task explicitly needs a system-wide map.
+- C++ style: `For-Agent/Docs/coding-style.md` for C++ implementation or
+  C++-specific review concerns.
+- QML/UI style: `For-Agent/Docs/qml-style.md` for QML implementation or visual
+  review concerns.
+- QML-to-C++ extraction: `For-Agent/Docs/qml-to-cpp-extraction.md` when moving or
+  classifying durable QML behavior.
+- Testing policy: `For-Agent/Docs/testing.md` when test strategy, test
+  registration, changed business logic, or a high-risk contract makes tests
+  relevant.
+- Build and verification: `For-Agent/Docs/build.md` when the task changes or
+  depends on CMake/build behavior, build commands or presets are needed, or final
+  verification requires those commands.
+- Artifact creation and reuse: `For-Agent/Docs/artifacts.md` only when creating a
+  durable workflow artifact, checking overlapping prior work, or using a compact
+  artifact index.
 
 Use `For-Agent/` as the Codex-facing project knowledge area:
 
@@ -40,8 +67,6 @@ Use `For-Agent/` as the Codex-facing project knowledge area:
 
 Project skills live under `.agents/skills/`.
 
-A bounded implementation task does not require a separate research phase. Use a research skill only when ownership, flow, or scope is unclear.
-
 Choose the narrowest matching workflow:
 
 | Task | Skill | Start And Boundary |
@@ -51,22 +76,40 @@ Choose the narrowest matching workflow:
 | Move durable QML behavior to C++ | `qml-to-cpp-extraction` | Start from the target QML behavior and its exposed C++ contract; preserve the UI behavior while moving durable logic. |
 | C++ research or implementation planning | `cpp-code-research` | Keep the investigation read-only, start from the smallest relevant backend entry point, and stop before edits. |
 | QML research or implementation planning | `qml-code-research` | Keep the investigation read-only, start from the target screen, component, or binding, and stop before edits. |
-| C++ code review | `cpp-code-review` | Inspect the requested diff and nearby C++ contracts without fixing the reviewed code unless implementation is requested. |
-| QML/UI code review | `qml-code-review` | Inspect the requested diff, affected component boundaries, backend contracts, registration, and manual UI risks. |
+| Bounded C++ diff review | `cpp-code-review` | Start from the final diff and expand only through directly affected C++ contracts or concrete risks. |
+| Bounded QML/UI diff review | `qml-code-review` | Start from the final diff and expand only through affected components, backend contracts, registration, or concrete UI risks. |
+| Whole-backend architecture review | `cpp-codebase-review` | Deliberately inventory the C++ codebase to assess architecture drift, responsibility overlap, and cross-module duplication. |
+| Whole-QML architecture review | `qml-codebase-review` | Deliberately inventory the QML surface to assess component boundaries, durable-logic leakage, and broad duplication. |
 | Configure, build, test, or diagnose CMake | `cmake-build-debug` | Read `For-Agent/Docs/build.md` and use only its documented commands. |
 | Teach the complete backend progressively | `learn-cpp-codebase` | Use the phased read-only learning workflow rather than ordinary task research. |
-| Final implementation validation | `test-and-review` | Inspect the focused final diff, verification evidence, documentation impact, manual checks, and residual risks. |
+| Incremental final implementation validation | `test-and-review` | Start from the focused final diff, reuse established context, and expand only for a concrete new dependency, changed assumption, result, or risk. |
 
 Use `.agents/skills/review-code-for-human/SKILL.md` only when the user explicitly requests `review-code-for-human` by name. Do not invoke it implicitly for a code review, explanation, walkthrough, or teaching request.
 
-Use project subagents from `.codex/agents/` only when the user requests subagents, parallel review, project research, or an independent review pass. Subagents are read-only and return findings; the lead Codex compiles and verifies final results.
+## Delegation Policy
 
-Project subagents are split by task and code area:
+Bounded implementation tasks normally stay with the lead agent. Prefer direct inspection when the relevant files and contracts are already known, and do not create subagents merely because they are available. Use a researcher only when repository discovery is genuinely necessary and a reviewer only when independent verification materially improves confidence. Do not invoke both by default; combine them only for sufficiently complex or high-risk work. Never duplicate work between the lead and a subagent without a concrete independent-verification reason. Subagents are read-only and return findings; the lead reconciles and verifies final results.
 
-- `cpp_researcher`: read-only C++ backend research.
-- `cpp_reviewer`: read-only C++ backend review.
-- `qml_researcher`: read-only QML/UI research.
-- `qml_reviewer`: read-only QML/UI review.
+Available specialists: `cpp_researcher` and `qml_researcher` for research;
+`cpp_reviewer` and `qml_reviewer` for either bounded or explicitly requested
+codebase review. `cpp_reviewer` remains the strongest high-reasoning reviewer.
+Select its bounded or codebase skill from the requested scope before gathering
+context.
+
+## Implementation And Final Verification Workflow
+
+For an ordinary bounded implementation, use one continuous workflow:
+
+1. Apply the applicable instructions and read only the relevant documentation.
+2. Inspect the smallest relevant source surface and implement the change.
+3. Inspect the final diff and changed files.
+4. Build the smallest affected production target that provides meaningful compile and link confidence.
+5. Run the tests directly associated with the changed subsystem when tests are required.
+6. Perform one documentation-impact and consistency check after the implementation is stable.
+
+Final verification is incremental. Start from the final diff and the context already established during implementation. Do not begin a fresh research phase merely because implementation ended, reread architecture documentation that is still current for the task, or retrace dependencies already understood. Expand context or verification only when the final diff introduces a new dependency, an assumption changed, an unexpected build or test result occurs, a new risk becomes visible, or a concrete verification question requires broader evidence.
+
+Do not invoke a full independent reviewer merely because implementation completed. Use one when concurrency or synchronization, worker/runtime behavior, ownership or lifetime, storage or transaction semantics, architecture boundaries, shared infrastructure, broad multi-subsystem behavior, significant public or internal contracts, a complex refactor, merge/release readiness, or an explicit user request makes independent review materially useful.
 
 ## Review Artifacts
 
@@ -74,7 +117,20 @@ Save durable review artifacts under `For-Agent/Review/`.
 
 When creating a durable review artifact, include the creation date and time in the filename using `YYYY-MM-DD-HHMM`, and put a `Created: YYYY-MM-DD HH:MM local time` line at the beginning of the file immediately after the title.
 
-Before repeating a broad review, check `For-Agent/Review/`. Use the most recent relevant artifact by timestamp as context, then verify current facts against the actual source, instructions, and diff. Determine recency from the filename timestamp first; for legacy date-only artifacts, inspect the beginning of the file for a `Created:` timestamp, and if no time exists, treat the artifact as the earliest one for that date.
+Before repeating a broad review, inventory `For-Agent/Review/` by filename and
+metadata rather than opening every artifact. Read only the newest artifacts whose
+scope overlaps the current review, starting with the newest broad artifact and
+then any newer narrow artifact. Use them as context, never as proof, and verify
+current facts against the actual source, instructions, and diff. Do not reread an
+artifact in the same task unless a changed assumption or concrete finding makes
+it necessary. Determine recency from the filename timestamp first; for legacy
+date-only artifacts, inspect the beginning of the file for a `Created:`
+timestamp, and if no time exists, treat the artifact as the earliest one for
+that date.
+
+Learning runs under `For-Human/Architecture/` use a compact cumulative index.
+Read the current phase, that index, and only the prior detailed phase artifacts
+relevant to the current lesson; live source remains authoritative.
 
 ## Core Rules
 
@@ -160,7 +216,9 @@ Avoid god classes, god files, and monolithic QML files. Decompose the codebase i
 
 ## Build And Verification
 
-Use only the commands documented in `For-Agent/Docs/build.md` or `.agents/skills/cmake-build-debug/SKILL.md`.
+Use only the commands documented in `For-Agent/Docs/build.md`. Apply
+`.agents/skills/cmake-build-debug/SKILL.md` for build, test, and CMake execution
+or diagnosis.
 
 Always run project commands from `D:\Project_CV\Root` in PowerShell.
 
@@ -172,15 +230,15 @@ Wait for each build process to finish and return its final exit code before cont
 
 Do not delete build directories, caches, generated files, or artifacts without explicit user approval.
 
-After code, QML, CMake, resource, storage, or runtime-behavior changes, run the applicable build unless impossible.
+After code, QML, CMake, resource, storage, or runtime-behavior changes, build the smallest affected production target that gives meaningful compile and link confidence unless verification is impossible. Expand to a broader build when shared infrastructure, cross-target APIs, build-system behavior, several modules, merge/release readiness, or a failure indicates broader impact. Do not repeat the same successful build without a concrete reason.
 
-Run tests when the change affects business logic, storage, parsing, algorithms, or risky behavior.
+Run the tests directly associated with the changed subsystem when the change affects business logic, storage, parsing, algorithms, or risky behavior. Use the broader relevant test preset when schema or migrations, storage semantics, worker/runtime or concurrency behavior, shared infrastructure, several subsystems, cross-module contracts, unexpected targeted-test failures, or merge/release readiness requires it. Do not leave risky behavior unverified merely to reduce execution time or usage.
 
 Do not claim that code works unless it was verified.
 
 ## Documentation Synchronization
 
-After changes to architecture, code, build configuration, testing workflow, or runtime behavior, review `For-Agent/Docs/` and update only the documentation files affected by the change. Do not make unrelated documentation edits. If no documentation is affected, state that the review was completed and no update was required.
+After the implementation is stable, inspect the final diff and perform one documentation-impact check for changes to architecture, code, build configuration, testing workflow, or runtime behavior. Inspect only the documentation directly governing the final changed behavior and contracts; do not scan the whole `For-Agent/Docs/` tree for an ordinary implementation task. Update only affected documents and do not repeat the check unless a later edit changes the impact. If no documentation is affected, state that the focused check found no required update.
 
 ## Definition Of Done
 

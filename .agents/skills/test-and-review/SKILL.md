@@ -5,23 +5,32 @@ description: Review and validate JobTracker changes before final response. Use w
 
 # Test And Review
 
-Use this skill for the final review and validation pass.
+Use this skill as the integrated incremental final review and validation pass.
+
+## Incremental Final Verification
+
+Start from the final diff, changed files, and verification evidence. Reuse the instructions, architecture context, source relationships, and contracts already established during implementation. Do not restart repository research, reread unchanged documentation, or retrace understood dependencies merely because implementation ended.
+
+Expand only when the final diff introduces a new dependency, an implementation assumption changed, an unexpected build or test result occurs, a new risk becomes visible, or a concrete verification question requires broader evidence.
 
 ## Review Checklist
 
-1. Confirm the change stays within the user's scope.
-2. Inspect the final diff and confirm that no unrelated files, comments, or behavior changed.
-3. Check whether `AGENTS.md`, docs, skills, or subagent instructions changed the expected workflow.
-4. Check `For-Agent/Docs/artifacts.md` when review artifacts were created or reused.
-5. Verify affected C++ changes follow the dependency, ownership, error, threading, storage, and Qt model rules in `For-Agent/Docs/architecture.md`.
-6. Verify the test dependency remains strictly `tests -> production`: no production source, target, API, normal build path, or deployment step may depend on test code, Qt Test, fixtures, mocks, test-only settings, or test targets, and production must not be reshaped solely for tests.
-7. Verify affected QML-facing properties, commands, signals, and model roles remain compatible with their consumers.
-8. Confirm added, removed, or renamed C++, QML, and test files are registered correctly in `CMakeLists.txt`.
-9. Check that changed logic and high-risk contracts have suitable tests under `For-Agent/Docs/testing.md`.
-10. Confirm affected `For-Agent/Docs/` guidance was updated, or record that documentation review found no required update.
-11. Determine applicable build and test verification from `For-Agent/Docs/build.md`; use `cmake-build-debug` for the documented commands.
-12. Report verification results without claiming unverified behavior works.
-13. List modified files, required manual checks, residual risks, limitations, and unverified areas.
+1. Inspect the final diff and changed files. Confirm the change stays within the user's scope and that no unrelated files, comments, or behavior changed.
+2. Check whether `AGENTS.md`, docs, skills, or subagent instructions changed the expected workflow only when those files are part of the final diff or the implementation exposed a workflow conflict.
+3. Check `For-Agent/Docs/artifacts.md` only when review artifacts were created or reused.
+4. Verify the final diff against the applicable architecture documents already established for the task. Open another document, or reread one, only when the incremental expansion rules require it; use the overview only when routing is unclear or the review is explicitly system-wide.
+5. Verify the test dependency remains strictly `tests -> production`: no production source, target, API, normal build path, or deployment step may depend on test code, Qt Test, fixtures, mocks, test-only settings, or test targets, and production must not be reshaped solely for tests.
+6. Verify affected QML-facing properties, commands, signals, and model roles remain compatible with their consumers.
+7. Confirm added, removed, or renamed C++, QML, and test files are registered correctly in `CMakeLists.txt`.
+8. When testing is relevant, use `For-Agent/Docs/testing.md` to choose the directly associated test target or suite. Broaden to the full relevant test preset only under the risk gates in `AGENTS.md` or when targeted results expose broader impact.
+9. After the implementation is stable, perform one documentation-impact check from the final changed behavior and contracts. Inspect only directly affected guidance, update it or record that no update is required, and do not repeat the check unless a later edit changes the impact.
+10. Read `For-Agent/Docs/build.md` only when build/test commands are needed or build behavior changed. Use `cmake-build-debug` for the smallest meaningful affected production target and applicable tests; do not repeat an unchanged successful run without a concrete reason.
+11. Report verification results without claiming unverified behavior works.
+12. List modified files, required manual checks, residual risks, limitations, and unverified areas.
+
+## Full Independent Review
+
+Completion alone is not a reason to invoke a full independent reviewer. Apply the canonical independent-review risk gates in `AGENTS.md` and use a reviewer only when one of those gates or an explicit user request applies.
 
 ## Review Stance
 

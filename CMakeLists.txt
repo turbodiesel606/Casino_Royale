@@ -11,7 +11,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(JOBTRACKER_BUILD_TESTS "Build JobTracker tests" OFF)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Quick Sql Test)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Quick Sql)
 
 qt_standard_project_setup(REQUIRES 6.5)
 
@@ -80,6 +80,7 @@ set(JOBTRACKER_CV_PERSISTENCE_SOURCES
     src/cvs/CvImportWorkerTypes.hpp
     src/cvs/CvManagedFileStore.cpp
     src/cvs/CvManagedFileStore.hpp
+    src/cvs/CvLockWrapper.hpp
     src/cvs/CvManagedPathResolver.cpp
     src/cvs/CvManagedPathResolver.hpp
     src/cvs/CvRepository.cpp
@@ -293,6 +294,7 @@ if(UNIX AND NOT APPLE)
 endif()
 
 if(JOBTRACKER_BUILD_TESTS)
+    find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
     enable_testing()
 
     function(jobtracker_deploy_test_runtime target_name)
@@ -474,6 +476,13 @@ if(JOBTRACKER_BUILD_TESTS)
         ${JOBTRACKER_CV_PERSISTENCE_SOURCES}
         ${JOBTRACKER_STORAGE_SOURCES}
     )
+
+    jobtracker_add_backend_test(
+        JobTrackerCvMutationQueueTests
+        tests/cvs/CvMutationQueueTest.cpp
+        src/cvs/CvLockWrapper.hpp
+    )
+    set_tests_properties(JobTrackerCvMutationQueueTests PROPERTIES TIMEOUT 15)
 
     jobtracker_add_backend_test(
         JobTrackerAddJobTests

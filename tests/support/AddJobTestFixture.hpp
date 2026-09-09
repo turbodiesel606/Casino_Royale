@@ -5,6 +5,7 @@
 
 #include "cvs/CvImportService.hpp"
 #include "cvs/CvManagedFileStore.hpp"
+#include "cvs/CvMutationQueue.hpp"
 #include "cvs/CvRepository.hpp"
 #include "directory/CompanyRepository.hpp"
 #include "jobs/AddJobService.hpp"
@@ -58,12 +59,12 @@ public:
               database_.connection(),
               jobRepository_,
               companyRepository_,
-              importer_}
+              importer_, cvLock_}
         , updateService_{
               database_.connection(),
               jobRepository_,
               companyRepository_,
-              importer_}
+              importer_, cvLock_}
     {
     }
 
@@ -79,6 +80,7 @@ public:
     JobRepository jobRepository_;
     CvManagedFileStore fileStore_;
     CvImportService importer_;
+    CvMutationQueue cvLock_;
     AddJobService service_;
     UpdateJobService updateService_;
 };
@@ -97,8 +99,8 @@ public:
               database_.connection(),
               jobRepository_,
               companyRepository_,
-              importer_}
-        , worker_{storage_.paths().dataDirectory()}
+              importer_, cvLock_}
+        , worker_{storage_.paths().dataDirectory(), cvLock_}
     {
     }
 
@@ -114,6 +116,7 @@ public:
     JobRepository jobRepository_;
     CvManagedFileStore fileStore_;
     CvImportService importer_;
+    CvMutationQueue cvLock_;
     AddJobService service_;
     JobSaveWorker worker_;
 };

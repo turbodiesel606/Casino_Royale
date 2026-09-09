@@ -5,6 +5,7 @@
 #include "cvs/CvImportWorker.hpp"
 #include "cvs/CvLibraryController.hpp"
 #include "cvs/CvManagedFileStore.hpp"
+#include "cvs/CvLockWrapper.hpp"
 #include "cvs/CvRepository.hpp"
 #include "dashboard/DashboardController.hpp"
 #include "directory/CompanyDirectoryController.hpp"
@@ -48,6 +49,7 @@ private:
     CvFileAccessService cvFileAccessService_; 
     CompanyRepository companyRepository_;
     JobRepository jobRepository_;
+    CvLockWrapper cvLock_;
     JobSaveWorker jobSaveWorker_;
     CvImportWorker cvImportWorker_;
     StorageMutationGate storageMutationGate_;

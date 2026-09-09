@@ -7,10 +7,13 @@
 
 CvImportWorker::CvImportWorker(
 	QString dataDirectory,
+	CvLockWrapper& cvMutationQueue,
 	QObject* parent)
 	: Base{
 		QStringLiteral("CvImportWorkerThread"),
-		std::move(dataDirectory),
+		[dataDirectory = std::move(dataDirectory), &cvMutationQueue] {
+			return new CvImportExecutor{dataDirectory, cvMutationQueue};
+		},
 		parent }
 {
 	qRegisterMetaType<CvImportSaveOutcome>();

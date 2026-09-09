@@ -20,7 +20,9 @@ QML should send user intent to C++ through explicit signals, slots, or invokable
 
 ## Navigation And Structure
 
-For UI tasks, start from `qml/Main.qml`, then inspect the relevant page or component.
+For UI tasks, start from the target page or component. Inspect `qml/Main.qml`
+only when the task affects the application shell, navigation, global actions,
+page creation, or reachability.
 
 Preserve the current shell structure unless the task asks for navigation changes:
 
@@ -85,7 +87,9 @@ accent outline or selection bar around selected data items.
 
 ## Verification
 
-After QML changes, run the normal build unless impossible.
+After QML changes, build the smallest affected production target that provides
+meaningful compile and link confidence. Broaden verification only under the
+risk gates in `AGENTS.md` and use the commands in `For-Agent/Docs/build.md`.
 
 If visual verification is not possible, list concrete manual checks:
 

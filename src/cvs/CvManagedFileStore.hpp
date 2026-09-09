@@ -5,6 +5,7 @@
 #include "CvManagedPathResolver.hpp"
 #include "common/CancellationState.hpp"
 
+#include <QByteArray>
 #include <QString>
 #include <QStringList>
 #include <QUrl>
@@ -14,7 +15,7 @@
 
 class StoragePaths;
 
-// Holds a staged CV file and removes unfinished data on destruction.
+// Owns the source snapshot and removes any unfinished stage on destruction.
 
 struct CvManagedFilePreparation final
 {
@@ -23,11 +24,12 @@ struct CvManagedFilePreparation final
     CvManagedFilePreparation& operator=(const CvManagedFilePreparation&) = delete;
     ~CvManagedFilePreparation();
 
+    QByteArray bytes_;
     QString originalFileName_;
     QString storedFileName_;
     QString relativePath_;
     QString stagedFilePath_;
-    QString finalFilePath_;
+    QString finalFilePath_; // Set only after a successful final rename.
     QString sha256_;
     qint64 sizeBytes_ = 0;
 };
@@ -72,6 +74,14 @@ struct CvManagedFileRemovalPreparationResult final
     bool succeeded() const;
 };
 
+struct CvManagedFileStageResult final
+{
+    QString message_;
+    bool cancelled_ = false;
+
+    bool succeeded() const;
+};
+
 // Manages CV files on disk and directly performs filesystem operations.
 
 class CvManagedFileStore final
@@ -82,7 +92,9 @@ public:
     CvManagedFilePreparationResult prepare(
         const QUrl& sourceUrl,
         const std::shared_ptr<CancellationState>& cancellation) const;
-    QString finalize(CvManagedFilePreparation& preparation) const;
+    CvManagedFileStageResult stageAndFinalize(
+        CvManagedFilePreparation& preparation,
+        const std::shared_ptr<CancellationState>& cancellation) const;
     bool removeCompletedFile(const QString& completedFilePath) const;
     CvManagedFileRemovalPreparationResult prepareRemoval(const CvDocument& document) const;
     bool finalizeRemoval(CvManagedFileRemovalPreparation& preparation) const;

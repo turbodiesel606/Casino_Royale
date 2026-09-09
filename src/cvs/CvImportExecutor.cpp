@@ -2,9 +2,11 @@
 
 #include "CvImportService.hpp"
 #include "CvManagedFileStore.hpp"
+#include "cvs/CvLockWrapper.hpp"
 #include "CvRepository.hpp"
 #include "common/ExceptionUtils.hpp"
 #include "storage/SqliteDatabase.hpp"
+#include "storage/SqlTransaction.hpp"
 #include "storage/StoragePaths.hpp"
 
 #include <QFileInfo>
@@ -31,8 +33,9 @@ struct CvImportExecutor::PipelineContext final
 	CvImportService importService_;
 };
 
-CvImportExecutor::CvImportExecutor(QString dataDirectory)
+CvImportExecutor::CvImportExecutor(QString dataDirectory, CvLockWrapper& cvMutationQueue)
 	: dataDirectory_{ std::move(dataDirectory) }
+	, cvLock_{ cvMutationQueue }
 {
 }
 
@@ -94,12 +97,22 @@ CvImportSaveOutcome CvImportExecutor::process(CvImportRequest request)
 			QStringLiteral("CV import was canceled."));
 	}
 
+	std::unique_lock<std::mutex> cvLock{ cvLock_.getMutex() };
 	try {
+		if (request.cancellation_ != nullptr && request.cancellation_->isCancellationRequested()) {
+			preparation.preparation_.reset();
+			return failureOutcome(request, QStringLiteral("CV import was canceled."));
+		}
+
+		SqlTransaction transaction{
+			context->database_.connection(), QStringLiteral("CV import persistence") };
 		auto result = context->importService_.importPreparedDocument(
 			preparation.preparation_,
-			CvArchivedDuplicatePolicy::RestoreArchived);
-		preparation.preparation_.reset();
+			request.cancellation_);
 
+		if (!result.success_)
+			return failureOutcome(request, result.message_);
+		
 		CvImportSaveOutcome outcome;
 		outcome.operationId_ = request.operationId_;
 		outcome.cancellation_ = request.cancellation_;
@@ -108,13 +121,17 @@ CvImportSaveOutcome CvImportExecutor::process(CvImportRequest request)
 		outcome.success_ = true;
 		outcome.disposition_ = result.disposition_;
 		outcome.message_ = cvImportSuccessMessage(result.disposition_);
+		transaction.commit();
 		return outcome;
 	}
 	catch (...) {
-		preparation.preparation_.reset();
-		return failureOutcome(
-			request,
-			importExceptionMessage(std::current_exception()));
+		auto message = importExceptionMessage(std::current_exception());
+		// The transaction has rolled back, but no later CV ticket can run yet.
+		if (!context->importService_.removeCompletedFile(preparation.preparation_->finalFilePath_)) {
+			message.append(QStringLiteral(
+				" The managed CV file could not be cleaned up and will be quarantined on restart."));
+		}
+		return failureOutcome(request, std::move(message));
 	}
 }
 

@@ -536,8 +536,7 @@ void JobApplicationsController::handleUpdateJobSave(const UpdateJobSaveOutcome& 
 		success = applicationsModel_.updateApplication(result.application_);
 		if (success) {
 			emit companyResolved(result.company_);
-			if (result.replacementCvDocument_.has_value()
-				&& result.previousCvId_ != result.replacementCvDocument_->id_) {
+			if (result.replacementCvDocument_.has_value()) {
 				emit cvReplaced(
 					result.previousCvId_,
 					*result.replacementCvDocument_,

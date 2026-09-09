@@ -3,15 +3,19 @@
 #include "cvs/CvImportWorker.hpp"
 #include "cvs/CvLibraryController.hpp"
 #include "cvs/CvManagedFileStore.hpp"
+#include "cvs/CvMutationQueue.hpp"
 #include "cvs/CvRepository.hpp"
 #include "jobs/JobApplicationListModel.hpp"
 #include "jobs/JobRepository.hpp"
 #include "maintenance/DataRemovalWorker.hpp"
 #include "maintenance/StorageMutationGate.hpp"
 #include "storage/SqliteDatabase.hpp"
+#include "storage/SqlTransaction.hpp"
 #include "storage/StoragePaths.hpp"
 
 #include "../support/JobApplicationTestData.hpp"
+#include "../support/AddJobTestFixture.hpp"
+#include "jobs/JobApplicationsController.hpp"
 
 #include <QDir>
 #include <QFile>
@@ -44,7 +48,7 @@ public:
         , database_(paths_.databasePath())
         , repository_(database_.connection())
         , fileAccessService_(paths_)
-        , importWorker_(paths_.dataDirectory())
+        , importWorker_{paths_.dataDirectory(), cvMutationQueue_}
     {
     }
 
@@ -76,6 +80,7 @@ public:
     SqliteDatabase database_;
     CvRepository repository_;
     CvFileAccessService fileAccessService_;
+    CvMutationQueue cvMutationQueue_;
     CvImportWorker importWorker_;
 };
 
@@ -146,7 +151,12 @@ private slots:
     void databaseLockFailureDoesNotBlockLaterImport();
     void cancelAllDropsQueuedImports();
     void cvPublicationIsIdempotent();
+    void cvReplacementMovesApplicationLink_data();
     void cvReplacementMovesApplicationLink();
+    void committedJobImportsRestoreArchiveRoles_data();
+    void committedJobImportsRestoreArchiveRoles();
+    void standaloneImportPublishesRestoredArchiveRoles();
+    void failedCvInsertRollsBackAndContinuesFifo();
     void workerConnectionClosesOnShutdown();
     void permanentDeletionRetainsSkippedLinkedSelection();
     void mutationGateRejectsCvImportAdmission();
@@ -771,8 +781,16 @@ void CvLibraryControllerTest::cvPublicationIsIdempotent()
         QStringList({QStringLiteral("job-1"), QStringLiteral("job-2")}));
 }
 
+void CvLibraryControllerTest::cvReplacementMovesApplicationLink_data()
+{
+    QTest::addColumn<bool>("existingReplacement");
+    QTest::newRow("existing-cv") << true;
+    QTest::newRow("inserted-cv") << false;
+}
+
 void CvLibraryControllerTest::cvReplacementMovesApplicationLink()
 {
+    QFETCH(bool, existingReplacement);
     CvTestStorage storage;
     JobApplicationListModel applicationsModel;
     auto documents = makeCvDocuments();
@@ -782,6 +800,10 @@ void CvLibraryControllerTest::cvReplacementMovesApplicationLink()
     documents[1].linkedApplicationIds_.clear();
     const auto previousCvId = documents[0].id_;
     const auto replacementCvId = documents[1].id_;
+    const auto replacementDocument = documents[1];
+    if (!existingReplacement) {
+        documents.removeLast();
+    }
     CvLibraryController controller{
         applicationsModel,
         documents,
@@ -789,12 +811,25 @@ void CvLibraryControllerTest::cvReplacementMovesApplicationLink()
         storage.fileAccessService_,
         storage.importWorker_};
 
+    QStringList publicationOrder;
+    connect(&controller.cvListModel(), &QAbstractItemModel::dataChanged, &controller,
+        [&](const QModelIndex& first, const QModelIndex&, const QList<int>& roles) {
+            if (roles.contains(CvListModel::LinkedApplicationCountRole)) {
+                publicationOrder.append(controller.cvListModel().cvAt(first.row())->id_);
+            }
+        });
+    connect(&controller.cvListModel(), &QAbstractItemModel::rowsInserted, &controller,
+        [&](const QModelIndex&, int first, int) {
+            publicationOrder.append(controller.cvListModel().cvAt(first)->id_);
+        });
+
     controller.recordCvReplacement(
         previousCvId,
-        documents[1],
+        replacementDocument,
         applicationId,
-        CvImportDisposition::ExistingActive);
+        existingReplacement ? CvImportDisposition::ExistingActive : CvImportDisposition::Inserted);
 
+    QCOMPARE(publicationOrder, QStringList({previousCvId, replacementCvId}));
     const CvDocument* previous = nullptr;
     const CvDocument* replacement = nullptr;
     for (int row = 0; row < controller.cvListModel().rowCount(); ++row) {
@@ -808,6 +843,118 @@ void CvLibraryControllerTest::cvReplacementMovesApplicationLink()
     QVERIFY(replacement != nullptr);
     QVERIFY(!previous->linkedApplicationIds_.contains(applicationId));
     QVERIFY(replacement->linkedApplicationIds_.contains(applicationId));
+}
+
+void CvLibraryControllerTest::committedJobImportsRestoreArchiveRoles_data()
+{
+    QTest::addColumn<int>("operation");
+    QTest::newRow("add-job") << 0;
+    QTest::newRow("replace-different-id") << 1;
+    QTest::newRow("replace-same-id") << 2;
+}
+
+void CvLibraryControllerTest::committedJobImportsRestoreArchiveRoles()
+{
+    QFETCH(int, operation);
+    testsupport::AddJobWorkerTestFixture fixture;
+    const auto source = QUrl::fromLocalFile(fixture.storage_.createFile());
+    const auto original = fixture.service_.create(testsupport::validJobDraft(), source);
+    QVERIFY(original.success_);
+    auto target = original;
+    if (operation == 1) {
+        target = fixture.service_.create(testsupport::validJobDraft(),
+            QUrl::fromLocalFile(fixture.storage_.createFile(QStringLiteral("previous.pdf"))));
+        QVERIFY(target.success_);
+    }
+    QVERIFY(fixture.cvRepository_.updateArchived(original.cvDocument_.id_, true).has_value());
+    JobApplicationsController jobs{fixture.jobRepository_.findAll(), fixture.worker_};
+    CvFileAccessService access{fixture.storage_.paths()};
+    CvImportWorker importWorker{fixture.storage_.paths().dataDirectory(), fixture.cvMutationQueue_};
+    CvLibraryController cvs{jobs.jobApplicationListModel(), fixture.cvRepository_.findAll(),
+        fixture.cvRepository_, access, importWorker};
+    connect(&jobs, &JobApplicationsController::cvUsed, &cvs, &CvLibraryController::recordCvUse);
+    connect(&jobs, &JobApplicationsController::cvReplaced, &cvs, &CvLibraryController::recordCvReplacement);
+    QSignalSpy added{&jobs, &JobApplicationsController::applicationSaveCompleted};
+    QSignalSpy updated{&jobs, &JobApplicationsController::applicationUpdateCompleted};
+    QSignalSpy changed{&cvs.cvListModel(), &QAbstractItemModel::dataChanged};
+    const auto visibleBefore = cvs.cvModel()->rowCount();
+    QString applicationId;
+    if (operation == 0) {
+        jobs.createApplication(testsupport::validJobFormValues(), source);
+        QTRY_COMPARE_WITH_TIMEOUT(added.count(), 1, 10000);
+        QVERIFY(added.first().at(2).toBool());
+        const auto persisted = fixture.jobRepository_.findAll();
+        for (const auto& application : persisted) {
+            if (application.id_ != original.application_.id_) {
+                applicationId = application.id_;
+            }
+        }
+    } else {
+        applicationId = target.application_.id_;
+        jobs.updateApplication(applicationId, testsupport::validJobFormValues(), source);
+        QTRY_COMPARE_WITH_TIMEOUT(updated.count(), 1, 10000);
+        QVERIFY(updated.first().at(3).toBool());
+    }
+    QVERIFY(!applicationId.isEmpty());
+    const auto* published = cvs.cvListModel().cvById(original.cvDocument_.id_);
+    QVERIFY(published != nullptr);
+    QVERIFY(!published->archivedAt_.isValid());
+    QVERIFY(published->linkedApplicationIds_.contains(applicationId));
+    QCOMPARE(published->linkedApplicationIds_.count(applicationId), 1);
+    QCOMPARE(cvs.cvModel()->rowCount(), visibleBefore + 1);
+    QVERIFY(!changed.isEmpty());
+    QVERIFY(changed.first().at(2).value<QList<int>>().contains(CvListModel::IsArchivedRole));
+    if (operation == 1) {
+        QVERIFY(!cvs.cvListModel().cvById(target.cvDocument_.id_)->linkedApplicationIds_.contains(applicationId));
+    }
+}
+
+void CvLibraryControllerTest::standaloneImportPublishesRestoredArchiveRoles()
+{
+    CvTestStorage storage;
+    JobApplicationListModel applications;
+    CvLibraryController controller{applications, {}, storage.repository_,
+        storage.fileAccessService_, storage.importWorker_};
+    QSignalSpy completed{&controller, &CvLibraryController::cvImportCompleted};
+    const auto source = QUrl::fromLocalFile(storage.createSourceFile(QStringLiteral("restore.pdf")));
+    controller.addCvs({source});
+    QTRY_COMPARE_WITH_TIMEOUT(completed.count(), 1, 10000);
+    const auto document = storage.repository_.findAll().first();
+    const auto archivedAt = storage.repository_.updateArchived(document.id_, true);
+    QVERIFY(archivedAt.has_value());
+    controller.cvListModel().setArchiveState(document.id_, *archivedAt, *archivedAt);
+    QCOMPARE(controller.cvModel()->rowCount(), 0);
+
+    controller.addCvs({source});
+    QTRY_COMPARE_WITH_TIMEOUT(completed.count(), 2, 10000);
+    QCOMPARE(completed.last().at(3).toString(), QStringLiteral("restored-archived"));
+    QCOMPARE(controller.cvModel()->rowCount(), 1);
+    QVERIFY(!controller.cvListModel().cvById(document.id_)->archivedAt_.isValid());
+    QCOMPARE(QDir{storage.paths_.resumesDirectory()}.entryList(QDir::Files).size(), 1);
+}
+
+void CvLibraryControllerTest::failedCvInsertRollsBackAndContinuesFifo()
+{
+    CvTestStorage storage;
+    QSqlQuery trigger{storage.database_.connection()};
+    QVERIFY(trigger.exec(QStringLiteral(
+        "CREATE TRIGGER reject_one_cv BEFORE INSERT ON cvs "
+        "WHEN NEW.original_file_name = 'reject.pdf' "
+        "BEGIN SELECT RAISE(FAIL, 'forced CV insert failure'); END")));
+    JobApplicationListModel applications;
+    CvLibraryController controller{applications, {}, storage.repository_,
+        storage.fileAccessService_, storage.importWorker_};
+    QSignalSpy completed{&controller, &CvLibraryController::cvImportCompleted};
+    controller.addCvs({
+        QUrl::fromLocalFile(storage.createSourceFile(QStringLiteral("reject.pdf"))),
+        QUrl::fromLocalFile(storage.createSourceFile(QStringLiteral("keep.pdf")))});
+    QTRY_COMPARE_WITH_TIMEOUT(completed.count(), 2, 10000);
+    QVERIFY(!completed.first().at(2).toBool());
+    QVERIFY(completed.last().at(2).toBool());
+    QCOMPARE(storage.repository_.findAll().size(), 1);
+    QCOMPARE(controller.cvListModel().rowCount(), 1);
+    QCOMPARE(QDir{storage.paths_.resumesDirectory()}.entryList(QDir::Files).size(), 1);
+    QVERIFY(QDir{storage.paths_.resumesDirectory()}.entryList({QStringLiteral("*.part")}, QDir::Files).isEmpty());
 }
 
 void CvLibraryControllerTest::workerConnectionClosesOnShutdown()
@@ -848,10 +995,14 @@ void CvLibraryControllerTest::permanentDeletionRetainsSkippedLinkedSelection()
         QByteArrayLiteral("%PDF unlinked"));
     auto preparation = importer.prepareDocument(QUrl::fromLocalFile(linkedSource), cancellation);
     QVERIFY(preparation.succeeded());
-    const auto linked = importer.importPreparedDocument(preparation.preparation_);
+    auto lease = storage.cvMutationQueue_.acquire(cancellation);
+    SqlTransaction transaction{storage.database_.connection(), QStringLiteral("Seed archived CVs")};
+    const auto linked = importer.importPreparedDocument(preparation.preparation_, cancellation);
     preparation = importer.prepareDocument(QUrl::fromLocalFile(unlinkedSource), cancellation);
     QVERIFY(preparation.succeeded());
-    const auto unlinked = importer.importPreparedDocument(preparation.preparation_);
+    const auto unlinked = importer.importPreparedDocument(preparation.preparation_, cancellation);
+    transaction.commit();
+    lease = {};
 
     const auto timestamp = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
     QSqlQuery insert{storage.database_.connection()};

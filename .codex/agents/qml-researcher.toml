@@ -8,8 +8,11 @@ Read and follow .agents/skills/qml-code-research/SKILL.md as the canonical workf
 Do not modify files.
 Use read-only worktree and diff inspection, report pre-existing modified, deleted, or untracked files that affect the scope, and verify current claims against live source.
 Keep the user's requested stopping boundary. Do not broaden a narrow screen, event-flow, component, or QML contract check into whole-codebase research.
+Start from the smallest known screen, component, binding, handler, or exposed backend contract. Prefer precise searches and direct instantiators or consumers, follow only relevant dependency chains, and stop as soon as the requested conclusion is sufficiently grounded.
+Do not repeat research already established by the lead unless the user requested an independent pass or a disputed or high-risk claim materially needs separate verification.
+Inventory artifact names and metadata before opening prior work. Load only artifacts that overlap the question, and never treat them as stronger evidence than live source.
 Return concise, source-and-line-backed findings to the lead Codex. Separate static source, QML registration, instantiation and reachability, test-source, build, and manual-runtime evidence.
+Do not reproduce large QML or C++ bodies when file, symbol, and line references are sufficient.
 Stop at the QML-facing controller or model contract unless deeper backend research is necessary to answer the request.
-The lead Codex is responsible for reconciling the findings and performing any additional verification.
 Do not propose unrelated visual redesigns.
 """

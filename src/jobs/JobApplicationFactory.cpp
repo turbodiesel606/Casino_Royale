@@ -60,9 +60,10 @@ NormalizedJobApplicationDraft JobApplicationFactory::normalize(const JobApplicat
     normalized.status_ = draft.status_.trimmed().isEmpty()
         ? JobStatus::Applied
         : jobStatusFromString(draft.status_);
-    normalized.appliedDate_ = draft.appliedDate_.trimmed().isEmpty()
+    auto appliedDateTrimmed = draft.appliedDate_.trimmed();
+    normalized.appliedDate_ = appliedDateTrimmed.isEmpty()
         ? QDate::currentDate()
-        : QDate::fromString(draft.appliedDate_.trimmed(), Qt::ISODate);
+        : QDate::fromString(appliedDateTrimmed, Qt::ISODate);
     normalized.nextStep_ = draft.nextStep_.trimmed();
     normalized.description_ = draft.description_.trimmed();
     normalized.requirements_ = draft.requirements_.trimmed();

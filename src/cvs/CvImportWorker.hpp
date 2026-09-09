@@ -58,6 +58,7 @@ class CvImportWorker final
 public:
 	explicit CvImportWorker(
 		QString dataDirectory,
+		CvLockWrapper& cvMutationQueue,
 		QObject* parent = nullptr);
 
 signals:

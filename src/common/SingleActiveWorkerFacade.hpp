@@ -68,17 +68,31 @@ class SingleActiveWorkerFacade : public QObject
 public:
 	using Outcome = typename Executor::Outcome;
 	using OutcomeHandler = std::function<void(Outcome)>;
+	using ExecutorFactory = std::function<Executor*()>;
 
 	explicit SingleActiveWorkerFacade(
 		QString threadName,
 		QString dataDirectory,
 		QObject* parent = nullptr)
+		: SingleActiveWorkerFacade{
+			std::move(threadName),
+			[dataDirectory = std::move(dataDirectory)]() { return new Executor{dataDirectory}; },
+			parent}
+	{
+	}
+
+	// The factory retains dependencies until lazy creation and must return a
+	// non-null, unparented executor or throw. Dependency owners outlive the facade.
+	explicit SingleActiveWorkerFacade(
+		QString threadName,
+		ExecutorFactory executorFactory,
+		QObject* parent = nullptr)
 		: QObject{ parent }
 		, runtime_{
 			std::move(threadName),
 			SingleActiveWorkerExecutorLifecycle{
-				[this, dataDirectory = std::move(dataDirectory)]() -> QObject* {
-					executor_ = new Executor{ dataDirectory };
+				[this, factory = std::move(executorFactory)]() -> QObject* {
+					executor_ = factory();
 					return executor_;
 				},
 				[this](QObject&){

@@ -74,6 +74,7 @@ class JobSaveWorker final
 public:
 	explicit JobSaveWorker(
 		QString dataDirectory,
+		CvLockWrapper& cvLock,
 		QObject* parent = nullptr);
 
 signals:

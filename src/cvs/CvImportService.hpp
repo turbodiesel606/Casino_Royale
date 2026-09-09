@@ -11,18 +11,11 @@
 
 class CvRepository;
 
-enum class CvArchivedDuplicatePolicy
-{
-    PreserveArchived,
-    RestoreArchived
-};
-
 enum class CvImportDisposition
 {
     Inserted,
     ExistingActive,
-    RestoredArchived,
-    ReusedArchived
+    RestoredArchived
 };
 
 QString cvImportDispositionName(CvImportDisposition disposition);
@@ -33,6 +26,9 @@ struct CvImportResult final
     CvDocument document_;
     QString completedFilePath_;
     CvImportDisposition disposition_ = CvImportDisposition::ExistingActive;
+    bool success_ = false;
+    bool cancelled_ = false;
+    QString message_;
 };
 
 // Coordinates CV file preparation with persistence. Reuses an existing CV by
@@ -46,9 +42,11 @@ public:
     CvManagedFilePreparationResult prepareDocument(
         const QUrl& sourceUrl,
         const std::shared_ptr<CancellationState>& cancellation) const;
+    // Caller holds the shared CV lease and transaction. SQL failures propagate;
+    // after rollback, finalFilePath_ identifies any file requiring compensation.
     CvImportResult importPreparedDocument(
         const std::shared_ptr<CvManagedFilePreparation>& preparation,
-        CvArchivedDuplicatePolicy archivedDuplicatePolicy = CvArchivedDuplicatePolicy::PreserveArchived) const;
+        const std::shared_ptr<CancellationState>& cancellation) const;
     bool removeCompletedFile(const QString& completedFilePath) const;
 
 private:

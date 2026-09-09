@@ -8,10 +8,13 @@
 
 JobSaveWorker::JobSaveWorker(
 	QString dataDirectory,
+	CvLockWrapper& cvLock,
 	QObject* parent)
 	: Base{
 		QStringLiteral("JobSaveWorkerThread"),
-		std::move(dataDirectory),
+		[dataDirectory = std::move(dataDirectory), &cvLock] {
+			return new JobSaveExecutor{dataDirectory, cvLock};
+		},
 		parent }
 {
 	qRegisterMetaType<AddJobSaveOutcome>();

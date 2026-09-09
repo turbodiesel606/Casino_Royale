@@ -9,15 +9,19 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QRegularExpression>
+#include <QScopeGuard>
 #include <QSet>
 #include <QUuid>
 
+#include <algorithm>
+#include <limits>
 #include <stdexcept>
+#include <utility>
 
 namespace {
 
 	constexpr qint64 copyBufferSize = 1024 * 1024;
-	
+
 	bool isCancelled(const std::shared_ptr<CancellationState>& cancellation)
 	{
 		return cancellation != nullptr
@@ -26,6 +30,7 @@ namespace {
 
 	QString managedStoredName(const QFileInfo& sourceInfo)
 	{
+		// Create file name with originalFileName_, creation time, sha256, extension
 		auto baseName = sourceInfo.completeBaseName();
 		baseName.replace(
 			QRegularExpression(QStringLiteral("[^A-Za-z0-9_-]+")),
@@ -36,9 +41,9 @@ namespace {
 
 		return QStringLiteral("%1_%2_%3.%4")
 			.arg(
+				baseName,
 				QDateTime::currentDateTimeUtc().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss")),
 				QUuid::createUuid().toString(QUuid::WithoutBraces),
-				baseName,
 				sourceInfo.suffix().toLower());
 	}
 
@@ -68,7 +73,7 @@ namespace {
 CvManagedFilePreparation::~CvManagedFilePreparation()
 {
 	// An unfinalized .part file is removed when preparation ownership ends.
-	if (!stagedFilePath_.isEmpty()) 
+	if (!stagedFilePath_.isEmpty())
 		QFile::remove(stagedFilePath_);
 }
 
@@ -97,89 +102,66 @@ CvManagedFileStore::CvManagedFileStore(const StoragePaths& paths)
 	, pathResolver_{ paths }
 {
 }
-#include <iostream>
+bool CvManagedFileStageResult::succeeded() const
+{
+	return message_.isEmpty() && !cancelled_;
+}
 
 CvManagedFilePreparationResult CvManagedFileStore::prepare(
 	const QUrl& sourceUrl,
 	const std::shared_ptr<CancellationState>& cancellation) const
 {
-	CvManagedFilePreparationResult result;
-
-	// Cancellation before touching the source file.
-	if (isCancelled(cancellation)) {
-		result.cancelled_ = true;
-		result.message_ = QStringLiteral("Job creation was canceled.");
-		return result;
-	}
+	// Reject cancellation before inspecting the source.
+	if (isCancelled(cancellation))
+		return { {}, QStringLiteral("CV import was canceled."), true };
 
 	// Only local files can enter managed storage.
-	if (!sourceUrl.isLocalFile()) {
-		result.message_ = QStringLiteral("Select a local CV file.");
-		return result;
-	}
+	if (!sourceUrl.isLocalFile())
+		return { {}, QStringLiteral("Select a local CV file.") };
 
-	// convert into a native filesystem path 
+	// convert into a native filesystem path
 	const QFileInfo sourceInfo{ sourceUrl.toLocalFile() };
+
 	// extract the extension without dot and convert it to lowercase. 
 	// E.g. PDF will become pdf, etc
 	// See also check for extension below
 	const auto extension = sourceInfo.suffix().toLower();
 
 	// Source must exist, be a regular file, and be readable
-	if (!sourceInfo.exists() || !sourceInfo.isFile() || !sourceInfo.isReadable()) {
-		result.message_ = QStringLiteral("The selected CV file is not readable.");
-		return result;
-	}
+	if (!sourceInfo.exists() || !sourceInfo.isFile())
+		return { {}, QStringLiteral("The selected CV file is not readable.") };
 
 	// Allow only supported CV document formats.
+	/* Add the required file formats in the future. */
 	if (extension != QStringLiteral("pdf")
 		&& extension != QStringLiteral("doc")
 		&& extension != QStringLiteral("docx")) {
-		result.message_ = QStringLiteral("The CV must be a PDF, DOC, or DOCX file.");
-		return result;
+		return { {}, QStringLiteral("The CV must be a PDF, DOC, or DOCX file.") };
 	}
-
-	/* File verification completed at this point*/
-
-	// Build final and temporary managed file metadata.
-	auto preparation = std::make_shared<CvManagedFilePreparation>();
-	preparation->originalFileName_ = sourceInfo.fileName();
-	preparation->storedFileName_ = managedStoredName(sourceInfo);
-	preparation->relativePath_ = QDir::fromNativeSeparators(
-		QStringLiteral("Resumes/%1").arg(preparation->storedFileName_));
-	preparation->finalFilePath_ = QDir(paths_.resumesDirectory())
-		.filePath(preparation->storedFileName_);
-	preparation->stagedFilePath_ = preparation->finalFilePath_ + QStringLiteral(".part");
-
-	result.preparation_ = preparation;
-
 	// Open the user-selected CV for streaming reads.
 	QFile source{ sourceInfo.absoluteFilePath() };
-	if (!source.open(QIODevice::ReadOnly)) {
-		result.message_ = QStringLiteral("The selected CV file could not be opened.");
-		return result;
-	}
 
-	// Create a unique .part staging file insead of overwriting existing file.
-	QFile staged{ preparation->stagedFilePath_ };
-	if (!staged.open(QIODevice::WriteOnly | QIODevice::NewOnly)) {
-		result.message_ = QStringLiteral("The CV could not be staged in JobTracker storage.");
-		return result;
-	}
+	if (!source.open(QIODevice::ReadOnly))
+		return { {}, QStringLiteral("The selected CV file could not be opened.") };
 
-	//Initialize streaming SHA - 256 and a 1 MB buffer.
+	auto preparation = std::make_shared<CvManagedFilePreparation>();
+	preparation->originalFileName_ = sourceInfo.fileName();
+	auto& bytes = preparation->bytes_;
 
 	QCryptographicHash hash{ QCryptographicHash::Sha256 };
-	QByteArray buffer;
-	buffer.resize(copyBufferSize);
 
-	// Stream source bytes into the .part file while hashing.
-	while (true) {
-		if (isCancelled(cancellation)) {
-			result.cancelled_ = true;
-			result.message_ = QStringLiteral("Job creation was canceled.");
-			return result;
-		}
+	for (;;) {
+		// Observe cooperative cancellation between read chunks.
+		if (isCancelled(cancellation))
+			return { {}, QStringLiteral("CV import was canceled."), true };
+
+		const auto offset = bytes.size();
+
+		// Prevent arithmetic overflow before extending buffer.
+		if (offset > std::numeric_limits<qsizetype>::max() - copyBufferSize)
+			return { {}, QStringLiteral("The selected CV file cannot fit in memory.") };
+
+		bytes.resize(offset + copyBufferSize);
 
 		/*
 			Read 1 MB data at a time from source File.
@@ -189,87 +171,128 @@ CvManagedFilePreparationResult CvManagedFileStore::prepare(
 			case < 0: Read error;
 			case > 0: Number of valid bytes placed into the buffer;
 			case 0:	  No more data, end-of-file;
-		
-			Note: 
-			Each iteration overwrites the previous contents of the buffer. 
-			That is safe because the previous chunk has already been hashed and written before the next read occurs.
 		*/
-		
-		const auto bytesRead = source.read(buffer.data(), buffer.size());
-	
-		if (bytesRead < 0) {
-			result.message_ = QStringLiteral("The selected CV file could not be read.");
-			return result;
-		}
+
+		// Read directly into the newly appended region.
+		const auto bytesRead = source.read(bytes.data() + offset, copyBufferSize);
+
+		if (bytesRead < 0)
+			return { {}, QStringLiteral("The selected CV file could not be read.") };
+
+		bytes.resize(offset + bytesRead);
 
 		if (bytesRead == 0)
 			break;
+		// Dont try to move adding bytes outside the looop.
+		// Adding data by chunks is more efficient than onetime record.
+		hash.addData(QByteArrayView{ bytes.constData() + offset, bytesRead });
+	}
 
-		/* 
-			update the current SHA - 256 state.
-			dont try to replace bytesRead with buffer.size()!
-		*/
-		hash.addData(QByteArrayView{ buffer.constData(), bytesRead });
+	if (isCancelled(cancellation))
+		return { {}, QStringLiteral("CV import was canceled."), true };
 
-		qint64 written = 0;
-		while (written < bytesRead) {
-			/*
+	// Identity and size describe the exact snapshot later written to storage.
+	// No managed name or filesystem destination exists until an identity miss.
+	preparation->sizeBytes_ = bytes.size();
+	preparation->sha256_ = QString::fromLatin1(hash.result().toHex());
+	return { std::move(preparation), {}, false };
+}
+
+CvManagedFileStageResult CvManagedFileStore::stageAndFinalize(
+	CvManagedFilePreparation& preparation,
+	// cancellation is stub, delete later
+	const std::shared_ptr<CancellationState>& cancellation) const
+{
+	/*	Cancellation checks were turned off intentionally in this method!	*/
+
+#if 0
+	if (isCancelled(cancellation)) 
+		return { QStringLiteral("CV import was canceled."), true };
+#endif // 0
+
+	// maybe this is unnecessary check...
+	if (!preparation.stagedFilePath_.isEmpty() || !preparation.finalFilePath_.isEmpty())
+		return { QStringLiteral("The prepared CV has already been staged.") };
+	
+	preparation.storedFileName_ = managedStoredName(QFileInfo{ preparation.originalFileName_ });
+	preparation.relativePath_ = QStringLiteral("Resumes/%1").arg(preparation.storedFileName_);
+
+	// obtain absolute filepath
+	const auto finalPath = QDir{ paths_.resumesDirectory() }.filePath(preparation.storedFileName_);
+	const auto stagedPath = finalPath + QStringLiteral(".part");
+
+	QFile staged{ stagedPath };
+	// create and open file
+	if (!staged.open(QIODevice::WriteOnly | QIODevice::NewOnly)) 
+		return { QStringLiteral("The CV could not be staged in JobTracker storage.") };
+	
+	preparation.stagedFilePath_ = stagedPath;
+
+	// if we return early, delete unfinished .part file
+	const auto cleanup = qScopeGuard([&] {
+		staged.close();
+		if (!preparation.stagedFilePath_.isEmpty()
+			&& QFile::remove(preparation.stagedFilePath_)) {
+			preparation.stagedFilePath_.clear();
+		}
+		});
+
+
+	// file write logic starts
+	
+	qint64 written = 0;
+	const auto& bytes = preparation.bytes_;
+	// write from buffer to file
+	while (written < bytes.size()) {
+
+#if 0
+		if (isCancelled(cancellation)) 
+			return { QStringLiteral("CV import was canceled."), true };
+#endif // 0
+
+		/*
 				********WARNING********
 				QIODevice::write() is not guaranteed to write the specified number of bytes.
 				So the checks are required!
-			
-				Example: 
+
+				Example:
 				bytesRead is 1000, but in the first iter write() writes only 400.
 				600 are left, so we write them in the next iteration
 			*/
-			
-			const auto bytesWritten = staged.write(buffer.constData() + written, bytesRead - written);
+		// successful write may be partial; advance only by its actual count.
 
-			if (bytesWritten <= 0) {
-				result.message_ = QStringLiteral("The CV could not be staged in JobTracker storage.");
-				return result;
-			}
+		// Bound the next write to the remaining data and chunk size.
 
-			written += bytesWritten;
-		}
-		preparation->sizeBytes_ += bytesRead;
+		const auto count = std::min(copyBufferSize, static_cast<qint64>(bytes.size()) - written);
+
+		const auto bytesWritten = staged.write(bytes.constData() + written, count);
+		if (bytesWritten <= 0) 
+			return { QStringLiteral("The CV could not be staged in JobTracker storage.") };
+		
+		written += bytesWritten;
 	}
 
-	// Ensure buffered data reaches the filesystem.
-	if (!staged.flush()) {
-		result.message_ = QStringLiteral("The CV could not be staged in JobTracker storage.");
-		return result;
-	}
-
-	// close files before cancellation decision!
+	// Ensure buffered data reaches filesystem.
+	if (!staged.flush()) 
+		return { QStringLiteral("The CV could not be staged in JobTracker storage.") };
+	
 	staged.close();
-	source.close();
 
-	// Final cancellation point after copying but before persistence.
-	if (isCancelled(cancellation)) {
-		result.cancelled_ = true;
-		result.message_ = QStringLiteral("Job creation was canceled.");
-		return result;
-	}
+#if 0
+	if (isCancelled(cancellation)) 
+		return { QStringLiteral("CV import was canceled."), true };
+#endif // 0
+	
+	if (QFileInfo::exists(finalPath) || !QFile::rename(stagedPath, finalPath))
+		return { QStringLiteral("The staged CV could not be finalized in JobTracker storage.") };
+	
 
-	//Store the lowercase hexadecimal SHA - 256 identity.
-	preparation->sha256_ = QString::fromLatin1(hash.result().toHex());
-	return result;
-}
-
-QString CvManagedFileStore::finalize(CvManagedFilePreparation& preparation) const
-{
-	if (preparation.stagedFilePath_.isEmpty()
-		|| !QFileInfo::exists(preparation.stagedFilePath_)
-		|| QFileInfo::exists(preparation.finalFilePath_)
-		|| !QFile::rename(preparation.stagedFilePath_, preparation.finalFilePath_)) {
-		throw std::runtime_error("The staged CV could not be finalized in JobTracker storage.");
-	}
-
+	// Final rename is the cancellation boundary. The caller must now commit
+	// or roll back SQL and compensate this file before releasing its lease.
+	preparation.finalFilePath_ = finalPath;
 	preparation.stagedFilePath_.clear();
-	return preparation.finalFilePath_;
+	return {};
 }
-
 bool CvManagedFileStore::removeCompletedFile(const QString& completedFilePath) const
 {
 	return completedFilePath.isEmpty()

@@ -1,27 +1,54 @@
 ---
 name: cpp-code-review
-description: Review JobTracker C++ backend changes or whole-codebase architecture for correctness, regressions, duplication, overlapping responsibilities, architecture boundaries, Qt model/controller behavior, tests, CMake registration, and verification gaps.
+description: Review a bounded JobTracker C++ backend diff for correctness, regressions, ownership, lifetime, threading, data integrity, architecture boundaries touched by the change, tests, CMake registration, and verification gaps. Do not use for whole-codebase architecture or global duplication review.
 ---
 
 # C++ Code Review
 
-Use this skill for C++ backend review.
+Use this skill for bounded C++ backend change review. Use
+`cpp-codebase-review` only when the user explicitly requests a whole-backend
+architecture, responsibility-overlap, or global duplication review.
 
-## Required Context
+## Context Selection
 
-Read these files first:
+1. Apply `AGENTS.md`, inspect the focused diff, and identify the affected
+   backend subsystem before opening detailed documentation.
+2. Read only the matching domain documents under
+   `For-Agent/Docs/architecture/`. Use the overview only when the correct domain
+   documents are unclear.
+3. Read `For-Agent/Docs/coding-style.md` for C++ implementation concerns.
+4. Read `For-Agent/Docs/artifacts.md` only when relevant prior review artifacts
+   may overlap the scope or a durable review artifact will be created.
+5. Read `For-Agent/Docs/testing.md` when changed logic, test coverage, test
+   registration, or a high-risk contract is relevant.
+6. Read `For-Agent/Docs/build.md` only when the review includes build/test
+   execution, changes build configuration, or needs its verification commands.
 
-1. `AGENTS.md`
-2. `For-Agent/Docs/architecture.md`
-3. `For-Agent/Docs/artifacts.md`
-4. `For-Agent/Docs/coding-style.md`
-5. `For-Agent/Docs/testing.md`
-6. `For-Agent/Docs/build.md`
+Expand to another architecture document only when the diff or a directly traced
+dependency crosses that boundary. Do not preload the complete architecture,
+testing, build, and artifact bundle for a bounded review.
+
+## Scope Gate
+
+1. Start from the final diff and changed C++ or CMake files.
+2. Inspect the changed code first, then direct callers, callees, owners,
+   consumers, tests, and directly affected public or QML contracts.
+3. Expand beyond that boundary only when a concrete finding or risk requires
+   broader evidence. State each material expansion and why it is necessary.
+4. Do not inventory every module, build a whole-codebase duplication map, or
+   reopen unrelated architecture areas during bounded review.
+5. If prior review artifacts may overlap, inventory filenames and metadata
+   first. Read only the newest broad artifact relevant to the changed subsystem
+   and any newer narrow artifact that materially updates it. Do not reread an
+   artifact in the same review without a concrete reason.
+
+Artifacts are context only. Current source and the final diff are authoritative.
+Use file and line evidence for material findings, architecture claims, ownership
+or lifetime claims, concurrency claims, and recommendations that require code
+changes. Do not expand repository exploration solely to attach lines to routine
+narration already established in the active context.
 
 ## Review Surfaces
-
-For a change review, inspect the changed C++ files and nearby code before broad scans. 
-For a whole-codebase architecture review, inventory every current C++ module, test translation unit, QML-facing contract, and CMake target before evaluating cross-module duplication.
 
 Inspect the changed C++ files and nearby code before broad scans:
 
@@ -49,9 +76,11 @@ Lead with findings ordered by severity:
 
 Keep style-only comments out unless they hide a real maintainability or behavior risk.
 
-## Duplication Review
+## In-Scope Duplication Review
 
-Review duplication as an architecture concern, not merely a style concern.
+Report duplication only when it is encountered inside the changed code or its
+direct dependencies and is materially relevant to the change. Do not search the
+whole codebase for duplication in this mode.
 
 For every duplication finding:
 
@@ -88,9 +117,10 @@ Use file and line references for findings. Include:
 - Verification performed or still needed.
 - Residual risk.
 - Final recommendation: accept, revise, or block.
-- Duplication map grouped by canonical responsibility.
-- Justified duplication that should remain unchanged.
-- Consolidation recommendations ordered by maintenance risk and expected benefit.
+
+For an in-scope duplication finding, include its classification, canonical
+responsibility, concrete drift risk, and recommended outcome. Do not emit a
+global duplication map.
 
 When saving a durable review artifact, write the final review under `For-Agent/Review/` with a clear name such as `cpp-review-YYYY-MM-DD-HHMM-topic.md`. Put a `Created: YYYY-MM-DD HH:MM local time` line at the beginning of the file immediately after the title.
 
@@ -104,11 +134,11 @@ Use this artifact shape:
 - Residual risks.
 - Final recommendation.
 
-If a read-only subagent is used, treat the subagent output as review input. The lead Codex should compile, verify, and save the final review artifact.
-
 ## Boundaries
 
 Do not fix reviewed code unless the user explicitly asks for implementation.
 Do not run destructive git commands.
 Run build or tests only when requested or when the review task explicitly includes verification.
 Do not recommend deduplication when the resulting abstraction would combine unrelated responsibilities, hide ownership, weaken domain types, cross thread boundaries, or create broader coupling than the duplication it removes.
+Route an explicitly requested whole-backend architecture or global duplication
+review to `cpp-codebase-review`.

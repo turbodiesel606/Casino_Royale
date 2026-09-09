@@ -1,6 +1,7 @@
 #include "../support/AddJobTestFixture.hpp"
 #include "common/CancellationState.hpp"
 #include "jobs/JobApplicationValidator.hpp"
+#include "storage/SqlTransaction.hpp"
 
 #include <QDir>
 #include <QFileInfo>
@@ -9,6 +10,9 @@
 #include <QtTest/QtTest>
 
 #include <memory>
+#include <future>
+#include <thread>
+#include <stdexcept>
 #include <utility>
 
 class AddJobServiceTest final : public QObject
@@ -17,13 +21,16 @@ class AddJobServiceTest final : public QObject
 
 private slots:
     void createsJobAndCopiesCv();
-    void reusesArchivedCvWithoutRestoringIt();
+    void restoresArchivedCv();
+    void rollsBackArchivedRestorationWhenJobInsertFails();
+    void removesFinalizedCvWhenCvInsertFails();
     void reusesNormalizedCompanyIdentity();
     void removesCopiedCvWhenJobInsertFails();
     void rejectsInvalidInputWithoutWriting();
     void preflightNormalizesAndReturnsAllValidationErrors();
     void prepareDefensivelyRejectsInvalidDraftWithoutStaging();
     void cancelsPreparedJobBeforeTransaction();
+    void cancellationAfterFinalRenameStillCommits();
 };
 
 void AddJobServiceTest::createsJobAndCopiesCv()
@@ -71,7 +78,7 @@ void AddJobServiceTest::createsJobAndCopiesCv()
     QVERIFY(!invalidCompany.exec());
 }
 
-void AddJobServiceTest::reusesArchivedCvWithoutRestoringIt()
+void AddJobServiceTest::restoresArchivedCv()
 {
     testsupport::AddJobTestFixture fixture;
     QVERIFY(fixture.isValid());
@@ -87,12 +94,59 @@ void AddJobServiceTest::reusesArchivedCvWithoutRestoringIt()
     const auto second = fixture.service_.create(secondDraft, QUrl::fromLocalFile(sourcePath));
 
     QVERIFY2(second.success_, qPrintable(second.message_));
-    QCOMPARE(second.cvImportDisposition_, CvImportDisposition::ReusedArchived);
+    QCOMPARE(second.cvImportDisposition_, CvImportDisposition::RestoredArchived);
     QCOMPARE(second.cvDocument_.id_, first.cvDocument_.id_);
     QCOMPARE(fixture.cvRepository_.findAll().size(), 1);
-    QVERIFY(fixture.cvRepository_.findById(first.cvDocument_.id_)->archivedAt_.isValid());
+    QVERIFY(!fixture.cvRepository_.findById(first.cvDocument_.id_)->archivedAt_.isValid());
     QCOMPARE(fixture.jobRepository_.findAll().size(), 2);
     QCOMPARE(QDir{fixture.storage_.paths().resumesDirectory()}.entryList(QDir::Files).size(), 1);
+}
+
+void AddJobServiceTest::rollsBackArchivedRestorationWhenJobInsertFails()
+{
+    testsupport::AddJobTestFixture fixture;
+    const auto source = QUrl::fromLocalFile(fixture.storage_.createFile());
+    const auto first = fixture.service_.create(testsupport::validJobDraft(), source);
+    QVERIFY(first.success_);
+    QVERIFY(fixture.cvRepository_.updateArchived(first.cvDocument_.id_, true).has_value());
+    const auto archived = *fixture.cvRepository_.findById(first.cvDocument_.id_);
+    QSqlQuery trigger{fixture.database_.connection()};
+    QVERIFY(trigger.exec(QStringLiteral(
+        "CREATE TRIGGER reject_job BEFORE INSERT ON jobs "
+        "BEGIN SELECT RAISE(FAIL, 'forced job failure'); END")));
+
+    auto draft = testsupport::validJobDraft();
+    draft.companyName_ = QStringLiteral("Rolled Back Company");
+    const auto failed = fixture.service_.create(draft, source);
+    QVERIFY(!failed.success_);
+    const auto stored = *fixture.cvRepository_.findById(archived.id_);
+    QCOMPARE(stored.archivedAt_, archived.archivedAt_);
+    QCOMPARE(stored.updatedAt_, archived.updatedAt_);
+    QCOMPARE(fixture.companyRepository_.findAll().size(), 1);
+    QCOMPARE(fixture.jobRepository_.findAll().size(), 1);
+    QCOMPARE(QDir{fixture.storage_.paths().resumesDirectory()}.entryList(QDir::Files).size(), 1);
+
+    QVERIFY(trigger.exec(QStringLiteral("DROP TRIGGER reject_job")));
+    const auto retry = fixture.service_.create(draft, source);
+    QVERIFY2(retry.success_, qPrintable(retry.message_));
+    QCOMPARE(retry.cvImportDisposition_, CvImportDisposition::RestoredArchived);
+}
+
+void AddJobServiceTest::removesFinalizedCvWhenCvInsertFails()
+{
+    testsupport::AddJobTestFixture fixture;
+    QSqlQuery trigger{fixture.database_.connection()};
+    QVERIFY(trigger.exec(QStringLiteral(
+        "CREATE TRIGGER reject_cv BEFORE INSERT ON cvs "
+        "BEGIN SELECT RAISE(FAIL, 'forced CV failure'); END")));
+    const auto result = fixture.service_.create(
+        testsupport::validJobDraft(), QUrl::fromLocalFile(fixture.storage_.createFile()));
+    QVERIFY(!result.success_);
+    QVERIFY(result.message_.contains(QStringLiteral("forced CV failure")));
+    QVERIFY(fixture.cvRepository_.findAll().isEmpty());
+    QVERIFY(fixture.companyRepository_.findAll().isEmpty());
+    QVERIFY(fixture.jobRepository_.findAll().isEmpty());
+    QVERIFY(QDir{fixture.storage_.paths().resumesDirectory()}.entryList(QDir::Files).isEmpty());
 }
 
 void AddJobServiceTest::reusesNormalizedCompanyIdentity()
@@ -250,6 +304,57 @@ void AddJobServiceTest::cancelsPreparedJobBeforeTransaction()
     QVERIFY(fixture.companyRepository_.findAll().isEmpty());
     QVERIFY(fixture.cvRepository_.findAll().isEmpty());
     QVERIFY(QDir{fixture.storage_.paths().resumesDirectory()}.entryList(QDir::Files).isEmpty());
+}
+
+void AddJobServiceTest::cancellationAfterFinalRenameStillCommits()
+{
+    testsupport::AddJobTestFixture fixture;
+    const auto source = QUrl::fromLocalFile(fixture.storage_.createFile());
+    const auto cancellation = std::make_shared<CancellationState>();
+    const auto draft = JobApplicationValidator::preflight(testsupport::validJobDraft(), true);
+    auto preparation = fixture.service_.prepare(draft.draft_, source, cancellation);
+    QVERIFY(preparation.success_);
+
+    std::promise<void> readerReady;
+    auto ready = readerReady.get_future();
+    const auto databasePath = fixture.storage_.paths().databasePath();
+    const auto directory = fixture.storage_.paths().resumesDirectory();
+    bool sawFinalFile = false;
+    std::jthread reader{[&](std::stop_token stop) {
+        try {
+            SqliteDatabase database{databasePath};
+            SqlTransaction transaction{database.connection(), QStringLiteral("Hold commit for cancellation")};
+            QSqlQuery query{database.connection()};
+            if (!query.exec(QStringLiteral("SELECT COUNT(*) FROM cvs")) || !query.next()) {
+                throw std::runtime_error("Could not establish the reader lock.");
+            }
+            readerReady.set_value();
+            while (!stop.stop_requested()) {
+                const auto files = QDir{directory}.entryList({QStringLiteral("*.pdf")}, QDir::Files);
+                if (!files.isEmpty()) {
+                    sawFinalFile = true;
+                    cancellation->requestCancellation();
+                    break;
+                }
+                std::this_thread::yield();
+            }
+            query.finish();
+            transaction.commit();
+        } catch (...) {
+            try { readerReady.set_exception(std::current_exception()); } catch (...) {}
+        }
+    }};
+    ready.get();
+    const auto result = fixture.service_.complete(std::move(preparation), cancellation);
+    reader.request_stop();
+    reader.join();
+
+    QVERIFY(sawFinalFile);
+    QVERIFY(cancellation->isCancellationRequested());
+    QVERIFY2(result.success_, qPrintable(result.message_));
+    QCOMPARE(fixture.jobRepository_.findAll().size(), 1);
+    QCOMPARE(fixture.cvRepository_.findAll().size(), 1);
+    QCOMPARE(QDir{directory}.entryList(QDir::Files).size(), 1);
 }
 
 QTEST_GUILESS_MAIN(AddJobServiceTest)

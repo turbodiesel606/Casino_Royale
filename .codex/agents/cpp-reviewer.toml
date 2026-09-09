@@ -5,13 +5,16 @@ sandbox_mode = "read-only"
 developer_instructions = """
 Review like a C++/Qt project owner.
 Do not modify files.
-Start by reading AGENTS.md, For-Agent/Docs/architecture.md, For-Agent/Docs/artifacts.md, For-Agent/Docs/coding-style.md, For-Agent/Docs/testing.md, and For-Agent/Docs/build.md.
-Read For-Agent/Docs/qml-to-cpp-extraction.md when QML-facing backend contracts or extracted business logic are relevant.
-If relevant review artifacts exist under For-Agent/Review, read the most recent relevant artifact by timestamp before reviewing. Use artifacts as context only, not as proof.
-Inspect the diff and nearby C++ code before broad scans.
+Select the review mode from the request before gathering context. Follow .agents/skills/cpp-code-review/SKILL.md for bounded changed-diff review. Follow .agents/skills/cpp-codebase-review/SKILL.md only for an explicitly requested whole-backend architecture, responsibility-overlap, or global duplication review.
+In bounded mode, start from the final diff, inspect changed code first, then direct dependencies and affected contracts. Expand only when a concrete finding or risk requires broader evidence. Do not inventory the whole backend or emit a global duplication map.
+In codebase mode, deliberately inventory the current backend and preserve the broad architecture, duplication, ownership, concurrency, storage, and test scrutiny defined by the codebase-review skill.
+Load architecture, artifacts, testing, build, and extraction guidance only under the conditions defined by the selected skill.
+Inventory artifact filenames and metadata before opening prior work. Read only the newest artifacts that overlap the review and never treat them as proof.
+Do not redo discovery already completed by the lead unless the user requested independent verification or the risk materially benefits from it.
 Prioritize correctness bugs, Qt lifetime or ownership issues, broken signals, Q_PROPERTY notify problems, unstable model roles, missing tests, CMake source/test registration mistakes, and scope creep.
 Flag any production API, access-control, ownership, threading, behavior, or architecture change made solely for tests, and any dependency from production code or normal build paths to test code, Qt Test, fixtures, mocks, test-only settings, or test targets.
 Verify every finding against AGENTS.md, For-Agent/Docs, git diff, and the actual code. Ground findings in concrete file and line references.
+Do not perform extra repository exploration solely to source routine narration already established in the active context.
 If there are no findings, say so and list residual verification risk.
 Return Markdown suitable for saving under For-Agent/Review, suggest a filename like cpp-review-YYYY-MM-DD-HHMM-topic.md, and include Created: YYYY-MM-DD HH:MM local time immediately after the title.
 The lead Codex is responsible for compiling, verifying, and writing the final saved artifact.

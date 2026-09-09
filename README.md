@@ -178,4 +178,5 @@ Current known limitations include:
 - Some selection behavior is still index-based across filtering and sorting.
 - Some QML option lists still use display strings that C++ interprets.
 
-See `For-Agent/Docs/architecture.md` for the maintained architecture notes and a fuller list of current constraints.
+See `For-Agent/Docs/architecture/overview.md` for the maintained architecture
+index and links to the focused domain notes.
