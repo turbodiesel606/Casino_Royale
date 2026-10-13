@@ -15,6 +15,12 @@ Use `#ifndef` / `#define` include guards instead of `#pragma once` in C++ header
 
 Use the `.hpp` extension for all C++ header files.
 
+Always place template definitions, including function templates, class templates, and members of class templates, in `.hpp` headers. Do not place template definitions in `.cpp` files.
+
+## Compile-Time Computation
+
+Perform computations at compile time whenever possible; use `constexpr`, `consteval`, and `if constexpr` as appropriate while preserving correctness and Windows/Linux portability.
+
 ## Naming
 
 Use trailing underscores for user-defined class and struct fields:
@@ -48,7 +54,7 @@ Do not hide ownership transfer. Prefer explicit ownership through Qt parentage o
 
 Keep large classes, models, services, controllers, and helpers in focused file pairs when that improves maintainability.
 
-Use `.hpp` / implementation file pairs for C++ code instead of `.h`-based pairs.
+Use `.hpp` / implementation file pairs for non-template C++ code instead of `.h`-based pairs. Keep template definitions in `.hpp` headers as required above.
 
 Prefer small cohesive files over god files and god classes.
 

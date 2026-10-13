@@ -73,6 +73,9 @@ AppBootstrap::AppBootstrap(QCoreApplication& app)
 		contactModel_)
 	, contactDirectoryController_(contactModel_)
 {
+	QObject::connect(
+		&app_, &QCoreApplication::aboutToQuit,
+		&storageMutationGate_, &StorageMutationGate::beginShutdown);
 	// When a job is created or its CV is replaced, the controller publishes the
 	// committed CV relationship so the library can refresh its linked-job counts.
 	QObject::connect(
@@ -104,6 +107,16 @@ AppBootstrap::AppBootstrap(QCoreApplication& app)
 		&CompanyDirectoryController::publishCompany);
 }
 
+AppBootstrap::~AppBootstrap()
+{
+	// Join persistence work while its gate and controllers still exist. Controller
+	// teardown can then release outstanding reservations without exposing a gap.
+	storageMutationGate_.beginShutdown();
+	jobSaveWorker_.shutdown();
+	cvImportWorker_.shutdown();
+	dataRemovalWorker_.shutdown();
+}
+
 int AppBootstrap::run()
 {
 	connectEngineFailureHandler();
@@ -130,6 +143,7 @@ void AppBootstrap::configureContextProperties()
 	engine_.rootContext()->setContextProperty(QStringLiteral("dashboardController"), &dashboardController_);
 	engine_.rootContext()->setContextProperty(QStringLiteral("companyDirectoryController"), &companyDirectoryController_);
 	engine_.rootContext()->setContextProperty(QStringLiteral("contactDirectoryController"), &contactDirectoryController_);
+	engine_.rootContext()->setContextProperty(QStringLiteral("storageMutationGate"), &storageMutationGate_);
 }
 
 void AppBootstrap::loadMainQml()

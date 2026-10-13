@@ -239,7 +239,13 @@ bool JobRepository::update(const JobApplication& application) const
 bool JobRepository::remove(const QString& applicationId) const
 {
     QSqlQuery query{database_};
-    query.prepare(QStringLiteral("DELETE FROM jobs WHERE id = :id"));
+
+    if (!query.prepare(QStringLiteral("DELETE FROM jobs WHERE id = :id"))) {
+        storage::sql::throwQueryError(
+            query,
+            QStringLiteral("prepare job application deletion"));
+    }
+    
     query.bindValue(QStringLiteral(":id"), applicationId);
     storage::sql::execute(query, QStringLiteral("delete a job application"));
     return query.numRowsAffected() == 1;

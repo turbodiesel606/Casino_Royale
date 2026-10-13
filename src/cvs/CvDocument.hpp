@@ -7,8 +7,12 @@
 
 struct CvDocument
 {
-    void applyArchiveState(const QDateTime& archivedAt, const QDateTime& updatedAt)
+    void applyArchiveState(
+        bool isArchived,
+        const QDateTime& archivedAt,
+        const QDateTime& updatedAt)
     {
+        isArchived_ = isArchived;
         archivedAt_ = archivedAt;
         updatedAt_ = updatedAt;
     }
@@ -25,6 +29,8 @@ struct CvDocument
     QString description_;
     QStringList linkedApplicationIds_;
     bool isFavorite_ = false;
+    // The SQL archive marker is independent of timestamp parsing success.
+    bool isArchived_ = false;
     QDateTime createdAt_;
     QDateTime updatedAt_;
     QDateTime archivedAt_;

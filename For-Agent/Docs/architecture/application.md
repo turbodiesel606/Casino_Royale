@@ -39,6 +39,12 @@ The current bootstrap dependency order is:
 16. `ContactListModel`
 17. `CompanyDirectoryController`
 18. `ContactDirectoryController`
+19. `QQmlApplicationEngine`
+
+The engine is constructed after the exposed graph and destroyed before it.
+Bootstrap closes mutation admission and joins the job-save, CV-import, and
+removal workers before member teardown, keeping the gate and controllers alive
+until persistence cleanup has stopped. `aboutToQuit` also closes admission.
 
 Read [threading.md](threading.md) when changing the workers, shared CV lock,
 controller queues, mutation gate, or shutdown implications of this construction
@@ -54,6 +60,7 @@ Current QML context properties are:
 - `dashboardController`
 - `companyDirectoryController`
 - `contactDirectoryController`
+- `storageMutationGate`
 
 `qml/Main.qml` owns the main `ApplicationWindow`, sidebar shell, page index state,
 Add Job form visibility, and `StackLayout` navigation.
@@ -90,6 +97,8 @@ for the current file inventory.
   bulk selection, explicit role projection, presentation, timestamp, and error
   helpers, value-level serial queues, and single-active-worker lifecycle
   infrastructure.
+- `src/fixed_str`: header-only C++20 compile-time string composition and Qt
+  adapters, currently used by `CvRepository` for static SQL text.
 - `src/jobs`: typed job value/draft types, canonical factory and validator, job
   list model, QML controller, repository, shared save worker, and create/update
   services.
@@ -102,7 +111,8 @@ for the current file inventory.
 - `src/directory`: company/contact value types, durable company repository,
   directory list models and controllers, and linked read models. Contacts remain
   in-memory only.
-- `tests`: common, jobs, CVs, dashboard, directory, and storage test suites.
+- `tests`: common, jobs, CVs, dashboard, directory, maintenance, and storage
+  test suites.
 
 ## Known Architecture Gaps
 
@@ -110,8 +120,3 @@ Treat these as current constraints when planning implementation:
 
 - Company editing and all contact persistence/mutation workflows are still
   unavailable.
-- `QQmlApplicationEngine` is declared before the backend graph in
-  `AppBootstrap`, so reverse member destruction currently destroys exposed
-  controllers and models before the engine. The intended lifetime rule in
-  [boundaries.md](boundaries.md) is therefore not yet guaranteed during engine
-  teardown.

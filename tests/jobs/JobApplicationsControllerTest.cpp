@@ -49,6 +49,7 @@ private slots:
     void controllerRetainsModelWhenUpdateFails();
     void createAndUpdateShareOneFifo();
     void asyncDeletionRemovesModelAndPreservesCvAndCompany();
+    void typedDeletionIgnoresStaleAndForeignCompletions();
     void mutationGateRejectsAddAndDeletionAdmission();
 
 private:
@@ -684,6 +685,57 @@ void JobApplicationsControllerTest::asyncDeletionRemovesModelAndPreservesCvAndCo
     QVERIFY(!mutationGate.removalActive());
 }
 
+void JobApplicationsControllerTest::typedDeletionIgnoresStaleAndForeignCompletions()
+{
+    testsupport::AddJobWorkerTestFixture fixture;
+    QVERIFY(fixture.isValid());
+    const auto source = QUrl::fromLocalFile(fixture.storage_.createFile());
+    QVERIFY(fixture.service_.create(testsupport::validJobDraft(), source).success_);
+    QVERIFY(fixture.service_.create(testsupport::validJobDraft(), source).success_);
+    StorageMutationGate gate;
+    DataRemovalWorker removal{fixture.storage_.paths().dataDirectory()};
+    JobApplicationsController controller{
+        fixture.jobRepository_.findAll(), fixture.worker_, removal, gate};
+    QSignalSpy completed{&controller, &JobApplicationsController::applicationDeletionCompleted};
+    QSignalSpy outcomes{&removal, &DataRemovalWorker::jobsDeletionCompleted};
+    bool publicationProtected = true;
+    connect(&controller, &JobApplicationsController::applicationDeletionCompleted, &controller, [&] {
+        publicationProtected = publicationProtected && gate.removalActive() && controller.deletingApplications();
+    });
+
+    controller.toggleApplicationChecked(0);
+    controller.deleteCheckedApplications();
+    QTRY_COMPARE_WITH_TIMEOUT(completed.count(), 1, 10000);
+    QCOMPARE(controller.applicationCount(), 1);
+    QCOMPARE(outcomes.count(), 1);
+    auto stale = qvariant_cast<DeleteJobsOutcome>(outcomes.first().at(0));
+
+    controller.setAllVisibleApplicationsChecked(true);
+    stale.result_.items_.first().id_ = controller.checkedApplicationIds().first();
+    controller.deleteCheckedApplications();
+    emit removal.jobsDeletionCompleted(stale);
+    emit removal.activeCvsRemovalCompleted(RemoveActiveCvsOutcome{
+        stale.operationId_, stale.cancellation_, stale.result_});
+    QCOMPARE(completed.count(), 1);
+    QCOMPARE(controller.applicationCount(), 1);
+    QCOMPARE(controller.checkedApplicationCount(), 1);
+    QVERIFY(controller.deletingApplications());
+    QVERIFY(gate.removalActive());
+
+    QTRY_COMPARE_WITH_TIMEOUT(completed.count(), 2, 10000);
+    QCOMPARE(controller.applicationCount(), 0);
+    QVERIFY(!controller.deletingApplications());
+    QVERIFY(!gate.removalActive());
+    QVERIFY(publicationProtected);
+    QCOMPARE(fixture.cvRepository_.findAll().size(), 1);
+    QCOMPARE(fixture.companyRepository_.findAll().size(), 1);
+
+    emit removal.jobsDeletionCompleted(DeleteJobsOutcome{});
+    emit removal.jobsDeletionCompleted(stale);
+    QCOMPARE(completed.count(), 2);
+    QVERIFY(gate.canBeginRemoval());
+}
+
 void JobApplicationsControllerTest::mutationGateRejectsAddAndDeletionAdmission()
 {
     testsupport::AddJobWorkerTestFixture fixture;
@@ -700,12 +752,18 @@ void JobApplicationsControllerTest::mutationGateRejectsAddAndDeletionAdmission()
     QSignalSpy updateRejectedSpy{&controller, &JobApplicationsController::applicationUpdateRejected};
     QSignalSpy updateQueuedSpy{&controller, &JobApplicationsController::applicationUpdateQueued};
     QSignalSpy deletionSpy{&controller, &JobApplicationsController::applicationDeletionCompleted};
+    QSignalSpy blockedSpy{&mutationGate, &StorageMutationGate::operationBlocked};
+    QSignalSpy updateBlockedSpy{&controller, &JobApplicationsController::applicationUpdateBlocked};
 
     QVERIFY(mutationGate.beginRemoval());
+    controller.createApplication({}, {});
+    QCOMPARE(failedSpy.count(), 1);
+    QCOMPARE(blockedSpy.count(), 0);
     controller.createApplication(
         testsupport::validJobFormValues(QStringLiteral("Blocked Add")),
         QUrl::fromLocalFile(fixture.storage_.createFile(QStringLiteral("blocked.pdf"))));
     QCOMPARE(failedSpy.count(), 1);
+    QCOMPARE(blockedSpy.count(), 1);
     QCOMPARE(queuedSpy.count(), 0);
     QCOMPARE(controller.pendingSaveCount(), 0);
     auto updateValues = testsupport::validJobFormValues(QStringLiteral("Blocked Update"));
@@ -714,20 +772,23 @@ void JobApplicationsControllerTest::mutationGateRejectsAddAndDeletionAdmission()
         controller.selectedApplicationId(),
         updateValues,
         {});
-    QCOMPARE(updateRejectedSpy.count(), 1);
+    QCOMPARE(updateRejectedSpy.count(), 0);
+    QCOMPARE(updateBlockedSpy.count(), 1);
+    QCOMPARE(blockedSpy.count(), 2);
     QCOMPARE(updateQueuedSpy.count(), 0);
     QCOMPARE(controller.pendingSaveCount(), 0);
     mutationGate.endRemoval();
 
-    QVERIFY(mutationGate.reserveCvImports(1));
+    QVERIFY(mutationGate.reserveImportOrUpdate(1));
     controller.setAllVisibleApplicationsChecked(true);
     QVERIFY(!controller.canDeleteApplications());
     controller.deleteCheckedApplications();
-    QCOMPARE(deletionSpy.count(), 1);
-    QCOMPARE(deletionSpy.first().at(0).toInt(), 0);
-    QCOMPARE(deletionSpy.first().at(1).toInt(), controller.applicationCount());
+    controller.deleteCheckedApplications();
+    QCOMPARE(deletionSpy.count(), 0);
+    QCOMPARE(blockedSpy.count(), 4);
     QCOMPARE(controller.checkedApplicationCount(), controller.applicationCount());
-    mutationGate.releaseCvImports(1);
+    mutationGate.releaseImportOrUpdate(1);
+    QVERIFY(mutationGate.retryNoticeVisible());
 }
 
 QTEST_GUILESS_MAIN(JobApplicationsControllerTest)

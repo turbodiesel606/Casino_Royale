@@ -5,7 +5,7 @@
 
 #include "cvs/CvImportService.hpp"
 #include "cvs/CvManagedFileStore.hpp"
-#include "cvs/CvMutationQueue.hpp"
+#include "cvs/CvLockWrapper.hpp"
 #include "cvs/CvRepository.hpp"
 #include "directory/CompanyRepository.hpp"
 #include "jobs/AddJobService.hpp"
@@ -80,7 +80,7 @@ public:
     JobRepository jobRepository_;
     CvManagedFileStore fileStore_;
     CvImportService importer_;
-    CvMutationQueue cvLock_;
+    CvLockWrapper cvLock_;
     AddJobService service_;
     UpdateJobService updateService_;
 };
@@ -116,7 +116,7 @@ public:
     JobRepository jobRepository_;
     CvManagedFileStore fileStore_;
     CvImportService importer_;
-    CvMutationQueue cvLock_;
+    CvLockWrapper cvLock_;
     AddJobService service_;
     JobSaveWorker worker_;
 };

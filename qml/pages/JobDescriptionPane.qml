@@ -167,7 +167,6 @@ Item {
         fieldErrors = ({})
         saveError = ""
         submittedOperationId = 0
-        saveInProgress = true
         jobApplicationsController.updateApplication(
             editingApplicationId,
             draftFormValues(),
@@ -207,6 +206,14 @@ Item {
             page.saveInProgress = false
             page.fieldErrors = errors || ({})
             page.saveError = message || "The changes could not be saved."
+            page.updateFailed()
+        }
+
+        function onApplicationUpdateBlocked(applicationId) {
+            if (applicationId !== page.editingApplicationId)
+                return
+            page.submittedOperationId = 0
+            page.saveInProgress = false
             page.updateFailed()
         }
 

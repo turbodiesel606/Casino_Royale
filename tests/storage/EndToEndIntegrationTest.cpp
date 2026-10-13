@@ -4,6 +4,10 @@
 #include "jobs/JobApplicationsController.hpp"
 #include "jobs/JobApplicationValidator.hpp"
 #include "cvs/CvImportWorker.hpp"
+#include "cvs/CvLibraryController.hpp"
+#include "cvs/CvFileAccessService.hpp"
+#include "maintenance/DataRemovalWorker.hpp"
+#include "maintenance/StorageMutationGate.hpp"
 
 #include "../support/AddJobTestFixture.hpp"
 
@@ -17,6 +21,8 @@
 #include <QUrl>
 #include <QVariantMap>
 #include <QtTest/QtTest>
+
+#include <mutex>
 
 namespace {
 
@@ -63,6 +69,9 @@ private slots:
     void activeCancellationContinuesWithNextQueuedRequest();
     void cancelAllRemovesQueuedWorkAndCleansActiveRequest();
     void controllerShutdownLeavesNoPartialState();
+    void mutationGateCoversBothQueuesAndCompletionPublication();
+    void cancelledQueuesKeepAdmissionUntilActiveOutcomes();
+    void metadataUpdateWaitsForSharedCvLock();
 };
 
 void EndToEndIntegrationTest::initTestCase()
@@ -84,8 +93,8 @@ void EndToEndIntegrationTest::persistsAndHydratesJobAcrossDatabaseReopen()
         JobRepository jobs{database.connection()};
         CvManagedFileStore fileStore{storage.paths()};
         CvImportService importer{fileStore, cvs};
-        CvMutationQueue cvMutationQueue;
-        AddJobService service{database.connection(), jobs, companies, importer, cvMutationQueue};
+        CvLockWrapper cvLock;
+        AddJobService service{database.connection(), jobs, companies, importer, cvLock};
         const auto result = service.create(
             testsupport::validJobDraft(),
             QUrl::fromLocalFile(sourcePath));
@@ -449,7 +458,7 @@ void EndToEndIntegrationTest::concurrentJobAndCvImports()
     QFETCH(bool, cvFirst);
     QFETCH(bool, rejectJob);
     testsupport::AddJobWorkerTestFixture fixture;
-    CvImportWorker importer{fixture.storage_.paths().dataDirectory(), fixture.cvMutationQueue_};
+    CvImportWorker importer{fixture.storage_.paths().dataDirectory(), fixture.cvLock_};
     if (rejectJob) {
         QSqlQuery trigger{fixture.database_.connection()};
         QVERIFY(trigger.exec(QStringLiteral(
@@ -462,7 +471,7 @@ void EndToEndIntegrationTest::concurrentJobAndCvImports()
     QVERIFY(draft.isValid());
     QSignalSpy jobCompleted{&fixture.worker_, &JobSaveWorker::saveCompleted};
     QSignalSpy cvCompleted{&importer, &CvImportWorker::importCompleted};
-    auto held = fixture.cvMutationQueue_.acquire({});
+    std::unique_lock held{fixture.cvLock_.getMutex()};
     const auto submitJob = [&] {
         fixture.worker_.submit(AddJobRequest{
             1, draft.draft_, source, std::make_shared<CancellationState>()});
@@ -481,7 +490,7 @@ void EndToEndIntegrationTest::concurrentJobAndCvImports()
     QVERIFY(fixture.worker_.isRunning());
     QVERIFY(importer.isRunning());
     QVERIFY(QDir{fixture.storage_.paths().resumesDirectory()}.entryList(QDir::Files).isEmpty());
-    held = {};
+    held.unlock();
     QTRY_COMPARE_WITH_TIMEOUT(jobCompleted.count(), 1, 10000);
     QTRY_COMPARE_WITH_TIMEOUT(cvCompleted.count(), 1, 10000);
     const auto job = jobCompleted.first().first().value<AddJobSaveOutcome>().result_;
@@ -512,8 +521,8 @@ void EndToEndIntegrationTest::workerInitializationFailureCleansConnectionAndRetr
     QVERIFY(QDir{}.mkpath(databasePath));
     const auto initialConnectionCount = QSqlDatabase::connectionNames().size();
 
-    CvMutationQueue cvMutationQueue;
-    JobSaveWorker worker{storage.paths().dataDirectory(), cvMutationQueue};
+    CvLockWrapper cvLock;
+    JobSaveWorker worker{storage.paths().dataDirectory(), cvLock};
     JobApplicationsController controller{{}, worker};
     QSignalSpy queuedSpy{&controller, &JobApplicationsController::applicationQueued};
     QSignalSpy failedSpy{&controller, &JobApplicationsController::saveFailed};
@@ -801,6 +810,118 @@ void EndToEndIntegrationTest::controllerShutdownLeavesNoPartialState()
         QDir{fixture.storage_.paths().resumesDirectory()}.entryList(
             QDir::Files | QDir::NoDotAndDotDot).size(),
         0);
+}
+
+void EndToEndIntegrationTest::mutationGateCoversBothQueuesAndCompletionPublication()
+{
+    testsupport::AddJobWorkerTestFixture fixture;
+    StorageMutationGate gate;
+    DataRemovalWorker removal{fixture.storage_.paths().dataDirectory()};
+    CvImportWorker importer{fixture.storage_.paths().dataDirectory(), fixture.cvLock_};
+    CvFileAccessService access{fixture.storage_.paths()};
+    JobApplicationsController jobs{{}, fixture.worker_, removal, gate};
+    CvLibraryController cvs{jobs.jobApplicationListModel(), {}, fixture.cvRepository_,
+        access, importer, removal, gate};
+    connect(&jobs, &JobApplicationsController::cvUsed, &cvs, &CvLibraryController::recordCvUse);
+    connect(&jobs, &JobApplicationsController::applicationsDeleted,
+        &cvs, &CvLibraryController::recordApplicationsDeleted);
+    QSignalSpy saved{&jobs, &JobApplicationsController::applicationSaveCompleted};
+    QSignalSpy imported{&cvs, &CvLibraryController::cvImportCompleted};
+    QSignalSpy deleted{&jobs, &JobApplicationsController::applicationDeletionCompleted};
+    bool publicationProtected = true;
+    connect(&jobs, &JobApplicationsController::applicationSaveCompleted, &jobs, [&] {
+        publicationProtected = !gate.canBeginRemoval() && publicationProtected;
+        jobs.setAllVisibleApplicationsChecked(true);
+        jobs.deleteCheckedApplications();
+    });
+    connect(&cvs, &CvLibraryController::cvImportCompleted, &cvs, [&] {
+        publicationProtected = !gate.beginRemoval() && publicationProtected;
+    });
+    connect(&jobs, &JobApplicationsController::applicationDeletionCompleted, &jobs, [&] {
+        publicationProtected = !gate.reserveImportOrUpdate() && publicationProtected;
+    });
+    const auto source = QUrl::fromLocalFile(fixture.storage_.createFile());
+    std::unique_lock held{fixture.cvLock_.getMutex()};
+    jobs.createApplication(testsupport::validJobFormValues(QStringLiteral("First")), source);
+    jobs.createApplication(testsupport::validJobFormValues(QStringLiteral("Second")), source);
+    // A failed queued import must release its reservation and let later work run.
+    QVERIFY(cvs.addCvs({QUrl::fromLocalFile(QStringLiteral("missing-cv.pdf")), source}));
+    QCOMPARE(jobs.pendingSaveCount(), 2);
+    QCOMPARE(cvs.pendingImportCount(), 2);
+    QVERIFY(!gate.beginRemoval());
+    QVERIFY(!gate.retryNoticeVisible());
+    held.unlock();
+    QTRY_COMPARE_WITH_TIMEOUT(saved.count(), 2, 10000);
+    QTRY_COMPARE_WITH_TIMEOUT(imported.count(), 2, 10000);
+    QCOMPARE(deleted.count(), 0);
+    QVERIFY(publicationProtected);
+    QVERIFY(gate.canBeginRemoval());
+    QVERIFY(gate.retryNoticeVisible());
+    QCOMPARE(fixture.jobRepository_.findAll().size(), 2);
+    QCOMPARE(fixture.cvRepository_.findAll().size(), 1);
+
+    jobs.deleteCheckedApplications();
+    QTRY_COMPARE_WITH_TIMEOUT(deleted.count(), 1, 10000);
+    QVERIFY(publicationProtected);
+    QVERIFY(gate.canBeginImportOrUpdate());
+    QVERIFY(gate.retryNoticeVisible());
+    QVERIFY(fixture.jobRepository_.findAll().isEmpty());
+    QCOMPARE(fixture.cvRepository_.findAll().size(), 1);
+}
+
+void EndToEndIntegrationTest::cancelledQueuesKeepAdmissionUntilActiveOutcomes()
+{
+    testsupport::AddJobWorkerTestFixture fixture;
+    StorageMutationGate gate;
+    DataRemovalWorker removal{fixture.storage_.paths().dataDirectory()};
+    CvImportWorker importer{fixture.storage_.paths().dataDirectory(), fixture.cvLock_};
+    CvFileAccessService access{fixture.storage_.paths()};
+    JobApplicationsController jobs{{}, fixture.worker_, removal, gate};
+    CvLibraryController cvs{jobs.jobApplicationListModel(), {}, fixture.cvRepository_,
+        access, importer, removal, gate};
+    const auto source = QUrl::fromLocalFile(fixture.storage_.createFile());
+    std::unique_lock held{fixture.cvLock_.getMutex()};
+    jobs.createApplication(testsupport::validJobFormValues(), source);
+    jobs.createApplication(testsupport::validJobFormValues(), source);
+    QVERIFY(cvs.addCvs({source, source}));
+    jobs.cancelAllJobSaves();
+    cvs.cancelAllCvImports();
+    QCOMPARE(jobs.pendingSaveCount(), 1);
+    QCOMPARE(cvs.pendingImportCount(), 1);
+    QVERIFY(!gate.beginRemoval());
+    QVERIFY(!gate.retryNoticeVisible());
+    held.unlock();
+    QTRY_COMPARE_WITH_TIMEOUT(jobs.pendingSaveCount(), 0, 10000);
+    QTRY_COMPARE_WITH_TIMEOUT(cvs.pendingImportCount(), 0, 10000);
+    QVERIFY(gate.canBeginRemoval());
+    QVERIFY(gate.retryNoticeVisible());
+    QVERIFY(fixture.jobRepository_.findAll().isEmpty());
+    QVERIFY(fixture.cvRepository_.findAll().isEmpty());
+    QVERIFY(stagedFileNames(fixture).isEmpty());
+}
+
+void EndToEndIntegrationTest::metadataUpdateWaitsForSharedCvLock()
+{
+    testsupport::AddJobWorkerTestFixture fixture;
+    const auto initial = fixture.service_.create(testsupport::validJobDraft(),
+        QUrl::fromLocalFile(fixture.storage_.createFile()));
+    QVERIFY2(initial.success_, qPrintable(initial.message_));
+    StorageMutationGate gate;
+    DataRemovalWorker removal{fixture.storage_.paths().dataDirectory()};
+    JobApplicationsController jobs{fixture.jobRepository_.findAll(), fixture.worker_, removal, gate};
+    QSignalSpy updated{&jobs, &JobApplicationsController::applicationUpdateCompleted};
+    std::unique_lock held{fixture.cvLock_.getMutex()};
+    jobs.updateApplication(initial.application_.id_,
+        testsupport::validJobFormValues(QStringLiteral("Updated")), {});
+    QTest::qWait(100);
+    QCOMPARE(updated.count(), 0);
+    QCOMPARE(jobs.pendingSaveCount(), 1);
+    QVERIFY(!gate.beginRemoval());
+    held.unlock();
+    QTRY_COMPARE_WITH_TIMEOUT(updated.count(), 1, 10000);
+    QVERIFY(updated.first().at(3).toBool());
+    QCOMPARE(fixture.jobRepository_.findById(initial.application_.id_)->jobTitle_, QStringLiteral("Updated"));
+    QVERIFY(gate.canBeginRemoval());
 }
 
 QTEST_GUILESS_MAIN(EndToEndIntegrationTest)

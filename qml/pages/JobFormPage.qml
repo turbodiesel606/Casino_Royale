@@ -166,8 +166,6 @@ Item {
                     cornerRadius: 6
                     labelPixelSize: 15
                     labelFontWeight: Font.Normal
-                    enabled: jobApplicationsController.pendingDeletionCount === 0
-                        && cvLibraryController.pendingDeletionCount === 0
                     onClicked: page.submit()
                 }
             }

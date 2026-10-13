@@ -106,7 +106,7 @@ JobApplicationsController::JobApplicationsController(
 	mutationGate_ = &mutationGate;
 	connect(
 		removalWorker_,
-		&DataRemovalWorker::removalCompleted,
+		&DataRemovalWorker::jobsDeletionCompleted,
 		this,
 		&JobApplicationsController::handleRemovalCompleted);
 	connect(
@@ -121,7 +121,7 @@ JobApplicationsController::~JobApplicationsController()
 	shuttingDown_ = true;
 	if (mutationGate_ != nullptr) {
 		for (int index = 0; index < saveQueue_.pendingCount(); ++index) {
-			mutationGate_->releaseJobSave();
+			mutationGate_->releaseImportOrUpdate();
 		}
 	}
 	saveQueue_.clearWaiting();
@@ -338,10 +338,7 @@ void JobApplicationsController::createApplication(
 
 	// Cross - operation admission guard.
 	// A job save cannot begin while destructive storage work is active.
-	if (mutationGate_ != nullptr && !mutationGate_->reserveJobSave()) {
-		emit saveFailed(
-			{},
-			QStringLiteral("Wait for the active deletion to finish before adding a job."));
+	if (mutationGate_ != nullptr && !mutationGate_->reserveImportOrUpdate()) {
 		return;
 	}
 
@@ -404,12 +401,8 @@ void JobApplicationsController::updateApplication(
 			preflight.message_);
 		return;
 	}
-	if (mutationGate_ != nullptr && !mutationGate_->reserveJobSave()) {
-		emit applicationUpdateRejected(
-			0,
-			normalizedId,
-			{},
-			QStringLiteral("Wait for the active deletion to finish before updating a job."));
+	if (mutationGate_ != nullptr && !mutationGate_->reserveImportOrUpdate()) {
+		emit applicationUpdateBlocked(normalizedId);
 		return;
 	}
 
@@ -473,11 +466,6 @@ void JobApplicationsController::cancelAllJobSaves()
 {
 	const auto previousCount = pendingSaveCount();
 	const auto clearedCount = saveQueue_.clearWaiting();
-	if (mutationGate_ != nullptr) {
-		for (int index = 0; index < clearedCount; ++index) {
-			mutationGate_->releaseJobSave();
-		}
-	}
 	const auto* const active = saveQueue_.active();
 	const bool activeUpdate = active != nullptr
 		&& std::holds_alternative<QueuedUpdateApplication>(active->payload_);
@@ -486,6 +474,9 @@ void JobApplicationsController::cancelAllJobSaves()
 	}
 	saveQueue_.requestActiveCancellation();
 	publishPendingSaveStateChange(previousCount);
+	if (mutationGate_ != nullptr) {
+		mutationGate_->releaseImportOrUpdate(clearedCount);
+	}
 }
 
 void JobApplicationsController::handleAddJobSave(const AddJobSaveOutcome& outcome)
@@ -588,14 +579,14 @@ void JobApplicationsController::releaseActiveJobSave()
 	const bool wasUpdate = active != nullptr
 		&& std::holds_alternative<QueuedUpdateApplication>(active->payload_);
 	saveQueue_.finishActive();
-	if (mutationGate_ != nullptr) {
-		mutationGate_->releaseJobSave();
-	}
 	if (wasUpdate) {
 		clearPendingUpdate();
 	}
 	publishPendingSaveStateChange(previousCount);
 	startNextJobSave();
+	if (mutationGate_ != nullptr) {
+		mutationGate_->releaseImportOrUpdate();
+	}
 }
 
 void JobApplicationsController::clearPendingUpdate()
@@ -620,14 +611,21 @@ void JobApplicationsController::setAllVisibleApplicationsChecked(bool checked)
 
 void JobApplicationsController::deleteCheckedApplications()
 {
-	if (!canDeleteApplications() || !mutationGate_->beginRemoval()) {
-		emit applicationDeletionCompleted(
-			0,
-			checkedApplicationCount(),
-			false,
-			QStringLiteral("Wait for pending save or CV import work before deleting jobs."));
+	if (shuttingDown_)
+		return;
+	
+	if (removalWorker_ == nullptr || mutationGate_ == nullptr) {
+		emit applicationDeletionRejected(QStringLiteral("Job deletion is unavailable."));
 		return;
 	}
+
+	if (checkedApplicationCount() == 0) {
+		emit applicationDeletionRejected(QStringLiteral("Select at least one job application."));
+		return;
+	}
+
+	if (!mutationGate_->beginRemoval())
+		return;
 
 	QVector<DataRemovalItemRequest> items;
 	for (const auto& id : checkedApplicationIds()) {
@@ -641,9 +639,8 @@ void JobApplicationsController::deleteCheckedApplications()
 	emit deletingApplicationsChanged();
 	emit pendingDeletionCountChanged();
 	emit deletionAvailabilityChanged();
-	removalWorker_->submit({
+	removalWorker_->submit(DataRemovalRequest<DataRemovalKind::DeleteJobs>{
 		activeDeletionOperationId_,
-		DataRemovalKind::DeleteJobs,
 		std::move(items),
 		activeDeletionCancellation_ });
 }
@@ -656,10 +653,10 @@ void JobApplicationsController::cancelApplicationDeletion()
 }
 
 void JobApplicationsController::handleRemovalCompleted(
-	const DataRemovalBatchOutcome& outcome)
+	const DeleteJobsOutcome& outcome)
 {
 	if (shuttingDown_
-		|| outcome.kind_ != DataRemovalKind::DeleteJobs
+		|| activeDeletionCancellation_ == nullptr
 		|| outcome.operationId_ != activeDeletionOperationId_
 		|| outcome.cancellation_ != activeDeletionCancellation_) {
 		return;
@@ -690,24 +687,24 @@ void JobApplicationsController::handleRemovalCompleted(
 		message.append(QStringLiteral(" Remaining items were canceled."));
 	}
 	const auto failedCount = failureDetails.size();
-	releaseApplicationDeletion();
 	emit applicationDeletionCompleted(
 		deletedIds.size(),
 		failedCount,
 		outcome.result_.cancelled_,
 		message);
+	releaseApplicationDeletion();
 }
 
 void JobApplicationsController::releaseApplicationDeletion()
 {
 	activeDeletionCancellation_.reset();
 	activeDeletionOperationId_ = 0;
-	if (mutationGate_ != nullptr) {
-		mutationGate_->endRemoval();
-	}
 	emit deletingApplicationsChanged();
 	emit pendingDeletionCountChanged();
 	emit deletionAvailabilityChanged();
+	if (mutationGate_ != nullptr) {
+		mutationGate_->endRemoval();
+	}
 }
 
 void JobApplicationsController::publishPendingSaveStateChange(int previousCount)

@@ -29,6 +29,7 @@ class AppBootstrap final
 {
 public:
     explicit AppBootstrap(QCoreApplication& app);
+    ~AppBootstrap();
 
     int run();
 
@@ -41,7 +42,6 @@ private:
 private:
 
     QCoreApplication& app_;
-    QQmlApplicationEngine engine_;
     StoragePaths storagePaths_;
     SqliteDatabase database_; 
     CvRepository cvRepository_; 
@@ -60,6 +60,8 @@ private:
     ContactListModel contactModel_; 
     CompanyDirectoryController companyDirectoryController_; 
     ContactDirectoryController contactDirectoryController_; 
+    // Destroy QML bindings before the controllers and gate they reference.
+    QQmlApplicationEngine engine_;
 };
 
 #endif // JOBTRACKER_SRC_APP_APPBOOTSTRAP_HPP

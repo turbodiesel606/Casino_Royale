@@ -48,6 +48,7 @@ public:
     bool setFavorite(const QString& cvId, bool isFavorite, const QDateTime& updatedAt);
     bool setArchiveState(
         const QString& cvId,
+        bool isArchived,
         const QDateTime& archivedAt,
         const QDateTime& updatedAt);
     int removeDocuments(const QStringList& cvIds);

@@ -14,7 +14,6 @@
         "JOBTRACKER_BUILD_TESTS": "OFF"
       }
     },
-
     {
       "name": "linux-base",
       "hidden": true,
@@ -47,6 +46,9 @@
       "name": "windows-base",
       "hidden": true,
       "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "D:/Qt_install/6.10.3/msvc2022_64"
+      },
       "generator": "Visual Studio 17 2022",
       "architecture": {
         "value": "x64",
@@ -61,16 +63,12 @@
     {
       "name": "windows-debug",
       "inherits": "windows-base",
-      "binaryDir": "${sourceDir}/build/windows-debug",
-      "cacheVariables": {
-        "CMAKE_PREFIX_PATH": "D:/Qt_install/6.9.1/msvc2022_64"
-      }
-
+      "binaryDir": "${sourceDir}/build/qt-6.10.3/windows-debug"
     },
     {
       "name": "windows-debug-tests",
       "inherits": "windows-base",
-      "binaryDir": "${sourceDir}/build/windows-debug-tests",
+      "binaryDir": "${sourceDir}/build/qt-6.10.3/windows-debug-tests",
       "cacheVariables": {
         "JOBTRACKER_BUILD_TESTS": "ON"
       }

@@ -1,55 +1,49 @@
 #ifndef JOBTRACKER_SRC_MAINTENANCE_DATAREMOVALWORKER_HPP
 #define JOBTRACKER_SRC_MAINTENANCE_DATAREMOVALWORKER_HPP
 
-#include "DataRemovalService.hpp"
-#include "common/CancellationState.hpp"
-#include "common/SingleActiveWorkerRuntime.hpp"
+#include "DataRemovalExecutor.hpp"
+#include "DataRemovalTypes.hpp"
+#include "common/SingleActiveWorkerFacade.hpp"
 
-#include <QMetaType>
+#include <QLatin1StringView>
 #include <QObject>
+#include <QString>
 
-#include <memory>
-
-struct DataRemovalRequest final
+template<DataRemovalKind Kind>
+    requires SupportedDataRemovalKind<Kind>
+struct SingleActiveWorkerRequestTraits<DataRemovalRequest<Kind>>
 {
-    quint64 operationId_ = 0;
-    DataRemovalKind kind_ = DataRemovalKind::DeleteJobs;
-    QVector<DataRemovalItemRequest> items_;
-    std::shared_ptr<CancellationState> cancellation_;
-};
+    static constexpr auto errorMessage =
+        QLatin1StringView{"An unexpected deletion worker error occurred."};
+    static constexpr auto shuttingDownMessage =
+        QLatin1StringView{"The deletion worker is shutting down."};
+    static constexpr auto busyMessage =
+        QLatin1StringView{"Another deletion batch is already active."};
 
-struct DataRemovalBatchOutcome final
-{
-    quint64 operationId_ = 0;
-    DataRemovalKind kind_ = DataRemovalKind::DeleteJobs;
-    std::shared_ptr<CancellationState> cancellation_;
-    DataRemovalBatchResult result_;
+    static DataRemovalBatchOutcome<Kind> unavailableOutcome(
+        const DataRemovalRequest<Kind>& request,
+        const QString& message)
+    {
+        return maintenance::detail::failedBatchOutcome(request, message);
+    }
 };
-
-Q_DECLARE_METATYPE(DataRemovalBatchOutcome)
 
 // GUI-thread facade for one reusable best-effort data-removal worker.
-class DataRemovalWorker final : public QObject
+class DataRemovalWorker final
+    : public SingleActiveWorkerFacade<DataRemovalExecutor>
 {
     Q_OBJECT
 
+    using Base = SingleActiveWorkerFacade<DataRemovalExecutor>;
+
 public:
     explicit DataRemovalWorker(QString dataDirectory, QObject* parent = nullptr);
-    ~DataRemovalWorker() override;
-
-    void submit(DataRemovalRequest request);
-    void shutdown();
 
 signals:
-    void removalCompleted(const DataRemovalBatchOutcome& outcome);
-
-private:
-    class Executor;
-
-    void deliverOutcome(DataRemovalBatchOutcome outcome);
-    void queueUnavailableOutcome(const DataRemovalRequest& request, const QString& message);
-
-    SingleActiveWorkerRuntime runtime_;
+    void jobsDeletionCompleted(const DeleteJobsOutcome& outcome);
+    void activeCvsRemovalCompleted(const RemoveActiveCvsOutcome& outcome);
+    void archivedCvsRestorationCompleted(const RestoreArchivedCvsOutcome& outcome);
+    void archivedCvsDeletionCompleted(const DeleteArchivedCvsOutcome& outcome);
 };
 
 #endif // JOBTRACKER_SRC_MAINTENANCE_DATAREMOVALWORKER_HPP

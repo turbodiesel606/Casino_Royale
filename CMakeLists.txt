@@ -19,6 +19,15 @@ if(QT_KNOWN_POLICY_QTP0004)
     qt_policy(SET QTP0004 NEW)
 endif()
 
+set(JOBTRACKER_FIXED_STR_SOURCES
+    src/fixed_str/detail/FixedStringImpl.hpp
+    src/fixed_str/detail/FixedStringQtAdapter.hpp
+    src/fixed_str/detail/FixedStringQtDetail.hpp
+    src/fixed_str/FixedString.hpp
+    src/fixed_str/FixedStringQt.hpp
+
+)
+
 set(JOBTRACKER_COMMON_LEAF_SOURCES
     src/common/CancellationState.cpp
     src/common/CancellationState.hpp
@@ -34,7 +43,7 @@ set(JOBTRACKER_COMMON_LEAF_SOURCES
     src/common/SingleActiveWorkerRuntime.hpp
     src/common/TimeUtils.cpp
     src/common/TimeUtils.hpp
-    
+   
 )
 
 set(JOBTRACKER_COMMON_SOURCES
@@ -132,6 +141,9 @@ set(JOBTRACKER_PERSISTENCE_SOURCES
 )
 
 set(JOBTRACKER_MAINTENANCE_SOURCES
+    src/maintenance/DataRemovalExecutor.cpp
+    src/maintenance/DataRemovalExecutor.hpp
+    src/maintenance/DataRemovalTypes.hpp
     src/maintenance/DataRemovalService.cpp
     src/maintenance/DataRemovalService.hpp
     src/maintenance/DataRemovalWorker.cpp
@@ -185,6 +197,7 @@ qt_add_executable(JobTrackerApp
     ${JOBTRACKER_JOB_SOURCES}
     ${JOBTRACKER_MAINTENANCE_SOURCES}
     ${JOBTRACKER_PERSISTENCE_SOURCES}
+    ${JOBTRACKER_FIXED_STR_SOURCES}
     src/main.cpp
 )
 
@@ -201,6 +214,7 @@ qt_add_qml_module(JobTrackerApp
         qml/components/NeonCard.qml
         qml/components/DangerButton.qml
         qml/components/DestructiveConfirmationDialog.qml
+        qml/components/StorageMutationFeedback.qml
         qml/components/Panel.qml
         qml/components/PrimaryButton.qml
         qml/components/SelectionCheckBox.qml
@@ -326,7 +340,10 @@ if(JOBTRACKER_BUILD_TESTS)
             PRIVATE Qt6::Core Qt6::Sql Qt6::Test
         )
 
-        add_test(NAME ${target_name} COMMAND ${target_name})
+        # Retain Qt Test diagnostics even when a Windows host does not forward
+        # the test process's console output to CTest.
+        add_test(NAME ${target_name} COMMAND ${target_name}
+            -o "${CMAKE_CURRENT_BINARY_DIR}/${target_name}.txt,txt" -o -,txt -v1)
         jobtracker_deploy_test_runtime(${target_name})
     endfunction()
 
@@ -478,11 +495,11 @@ if(JOBTRACKER_BUILD_TESTS)
     )
 
     jobtracker_add_backend_test(
-        JobTrackerCvMutationQueueTests
-        tests/cvs/CvMutationQueueTest.cpp
+        JobTrackerCvLockTests
+        tests/cvs/CvLockWrapperTest.cpp
         src/cvs/CvLockWrapper.hpp
     )
-    set_tests_properties(JobTrackerCvMutationQueueTests PROPERTIES TIMEOUT 15)
+    set_tests_properties(JobTrackerCvLockTests PROPERTIES TIMEOUT 15)
 
     jobtracker_add_backend_test(
         JobTrackerAddJobTests
@@ -513,14 +530,57 @@ if(JOBTRACKER_BUILD_TESTS)
     )
 
     jobtracker_add_backend_test(
+        JobTrackerMutationGateTests
+        tests/maintenance/StorageMutationGateTest.cpp
+        src/maintenance/StorageMutationGate.cpp
+        src/maintenance/StorageMutationGate.hpp
+    )
+
+    jobtracker_add_backend_test(
+        JobTrackerMutationFeedbackTests
+        tests/maintenance/StorageMutationFeedbackTest.cpp
+        src/maintenance/StorageMutationGate.cpp
+        src/maintenance/StorageMutationGate.hpp
+    )
+    target_link_libraries(JobTrackerMutationFeedbackTests PRIVATE Qt6::Quick)
+    if(WIN32)
+        add_custom_command(TARGET JobTrackerMutationFeedbackTests POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:JobTrackerMutationFeedbackTests>/platforms"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:Qt6::QOffscreenIntegrationPlugin>"
+                "$<TARGET_FILE_DIR:JobTrackerMutationFeedbackTests>/platforms"
+            COMMENT "Deploying the offscreen platform for QML feedback tests"
+        )
+        if(WINDEPLOYQT_EXECUTABLE)
+            add_custom_command(TARGET JobTrackerMutationFeedbackTests POST_BUILD
+                COMMAND "${WINDEPLOYQT_EXECUTABLE}"
+                    --qmldir "${CMAKE_CURRENT_SOURCE_DIR}/qml/components"
+                    "$<TARGET_FILE:JobTrackerMutationFeedbackTests>"
+                COMMENT "Deploying Qt Quick dependencies for QML feedback tests"
+            )
+        endif()
+    endif()
+    set_tests_properties(JobTrackerMutationFeedbackTests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
+        TIMEOUT 30
+    )
+    if(WIN32)
+        set_property(TEST JobTrackerMutationFeedbackTests APPEND PROPERTY
+            ENVIRONMENT "QT_QPA_FONTDIR=$ENV{WINDIR}/Fonts")
+    endif()
+
+    jobtracker_add_backend_test(
         JobTrackerIntegrationTests
         tests/storage/EndToEndIntegrationTest.cpp
         ${JOBTRACKER_COMMON_SOURCES}
+        ${JOBTRACKER_CV_SOURCES}
         ${JOBTRACKER_DIRECTORY_SOURCES}
         ${JOBTRACKER_JOB_SOURCES}
         ${JOBTRACKER_MAINTENANCE_SOURCES}
         ${JOBTRACKER_PERSISTENCE_SOURCES}
     )
+    target_link_libraries(JobTrackerIntegrationTests PRIVATE Qt6::Gui)
 endif()
 
 include(GNUInstallDirs)

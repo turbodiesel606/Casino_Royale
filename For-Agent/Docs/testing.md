@@ -92,11 +92,34 @@ Name tests by the behavior they cover, and keep them registered through the proj
 - `JobTrackerCvImportTests` covers exact buffered bytes/hash/size with no early
   managed names or files, staging the snapshot after source removal, exact
   case-sensitive identity, duplicate no-file behavior, archived restoration,
-  structured failures, cancellation before and during staging, immediate `.part`
-  cleanup while preparation remains alive, and startup recovery.
-- `JobTrackerCvMutationQueueTests` covers FIFO contention, move-only lease
-  ownership/RAII release, and cancellation of a waiter while the active lease
-  remains held. A test-only timeout bounds synchronization regressions.
+  structured failures, cancellation before buffering, complete persistence with
+  a canceled token after buffering, final bytes without leftover `.part` files,
+  and startup recovery.
+- `JobTrackerCvLockTests` covers a canceled waiter remaining blocked until the
+  active mutex owner releases the lock. It makes no FIFO or cancellable-lock
+  guarantee. A test-only timeout bounds synchronization regressions.
+- `JobTrackerMutationGateTests` covers mixed counted batches, one exclusive
+  removal, every rejected attempt, non-reserving checks, live retry-notice
+  state, dismissal, fresh admission, and shutdown suppression.
+- `JobTrackerMutationFeedbackTests` runs the shared QML component offscreen at
+  the minimum window width, checks dialog reopening and live banner state, and
+  rejects QML runtime warnings. Its Qt Quick test dependency stays inside the
+  test-enabled configuration, including Windows deployment of the offscreen
+  platform plugin and QML dependencies.
+- `JobTrackerRemovalTests` covers job/CV deletion, archive/restore, linked-CV
+  protection, best-effort outcomes, managed paths/tombstones, and worker cleanup.
+  Compile-time checks cover supported request/outcome kinds, constant operation
+  identity, shared-facade request compatibility, typed executor return values,
+  and rejection of unsupported template arguments. Worker cases cover
+  all four typed signals and Qt metatype extraction, operation/token correlation,
+  empty and pre-canceled batches, item/context failures, shutdown rejection,
+  and repeated busy rejections without disturbing an accepted database operation.
+  They also cover completion-handler submission of the next batch, context
+  initialization retry, null cancellation tokens, lazy connection creation and
+  reuse, and suppression of pending accepted outcomes after idempotent shutdown.
+  The jobs and CV controller suites also verify typed routing, stale same-kind
+  and foreign completions, idle rejection, selection preservation, and admission
+  held through completion publication.
 - `JobTrackerAddJobTests` covers the canonical preflight contract used by Add
   Job, defensive service pre-staging validation, cancellation immediately before
   a transaction, archived restoration and its rollback, cleanup when CV/job
@@ -105,7 +128,7 @@ Name tests by the behavior they cover, and keep them registered through the proj
 - `JobTrackerUpdateJobTests` covers in-place metadata and ordered-technology
   updates, company creation and normalized reuse, replacement-CV insertion,
   active duplicate reuse, archived restoration including same-ID replacement,
-  metadata-only queue bypass, old-CV preservation, restoration rollback and file
+  metadata-only CV preservation, old-CV preservation, restoration rollback and file
   cleanup, missing targets, defensive invalid-input rejection, and cancellation
   before the update transaction.
 - `JobTrackerIntegrationTests` covers synchronous invalid-input rejection
@@ -119,12 +142,25 @@ Name tests by the behavior they cover, and keep them registered through the proj
   Job and Add CV in both submission orders: one inserts, one reuses, and one CV
   row/file remains without `.part` files. Job rollback cases verify the other
   worker can still import the identity without orphaned files or partial jobs.
+  Gate cases cover both controller queues, completion-handler attempts to start
+  conflicting work, failures, active cancellation, and metadata updates waiting
+  for the shared CV mutex.
 
 Storage-oriented suites reuse the temporary database and filesystem fixtures under `tests/support` so setup and cleanup rules remain consistent.
+
+Suites registered through `jobtracker_add_backend_test` retain verbose Qt Test
+diagnostics in `<build-directory>/<test-target>.txt` as well as requesting console
+output. Use that file when a Windows host supplies an empty CTest failure log.
 
 ## Manual Checks
 
 When automated validation is unavailable or not applicable, list the manual checks needed for the user to confirm the change.
+
+For admission/feedback changes, verify repeated blocked actions, rejection from
+the unsaved-changes Save flow, native multi-file picker selection restoration,
+confirmation-time rechecks and focus, long/two-category banner text beside
+ordinary notifications at 1180 x 720, and Wait/Interrupt-and-Exit with feedback
+visible. Offscreen component tests do not verify native picker behavior.
 
 For CV-import changes, manually exercise overlapping Add Job/Add CV requests,
 archived duplicate restoration (including same-ID replacement), and cancel/close

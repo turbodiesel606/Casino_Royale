@@ -54,7 +54,7 @@ QVariant roleValue(const CvDocument& cv, int role)
     case CvListModel::UpdatedAtRole:
         return cv.updatedAt_;
     case CvListModel::IsArchivedRole:
-        return cv.archivedAt_.isValid();
+        return cv.isArchived_;
     case CvListModel::ArchivedAtRole:
         return cv.archivedAt_;
     default:
@@ -208,6 +208,7 @@ bool CvListModel::setFavorite(
 
 bool CvListModel::setArchiveState(
     const QString& cvId,
+    bool isArchived,
     const QDateTime& archivedAt,
     const QDateTime& updatedAt)
 {
@@ -215,7 +216,7 @@ bool CvListModel::setArchiveState(
     if (row < 0) {
         return false;
     }
-    cvs_[row].applyArchiveState(archivedAt, updatedAt);
+    cvs_[row].applyArchiveState(isArchived, archivedAt, updatedAt);
     const auto modelIndex = index(row, 0);
     emit dataChanged(
         modelIndex,

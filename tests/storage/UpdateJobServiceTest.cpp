@@ -62,7 +62,7 @@ private slots:
     void reusesActiveAndArchivedReplacementDuplicates();
     void restoresSameIdReplacement();
     void rollsBackArchivedRestorationOnUpdateFailure();
-    void metadataOnlyUpdateBypassesCvQueue();
+    void metadataOnlyUpdatePreservesCv();
     void rollsBackDatabaseAndFileOnUpdateFailure();
     void rejectsMissingAndInvalidApplicationsWithoutMutation();
     void cancelsPreparedReplacementBeforeTransaction();
@@ -271,12 +271,11 @@ void UpdateJobServiceTest::rollsBackArchivedRestorationOnUpdateFailure()
     QCOMPARE(QDir{fixture.storage_.paths().resumesDirectory()}.entryList(QDir::Files).size(), 1);
 }
 
-void UpdateJobServiceTest::metadataOnlyUpdateBypassesCvQueue()
+void UpdateJobServiceTest::metadataOnlyUpdatePreservesCv()
 {
     testsupport::AddJobTestFixture fixture;
     const auto original = createInitialJob(fixture);
     QVERIFY(original.success_);
-    auto lease = fixture.cvLock_.acquire({});
     auto draft = testsupport::validJobDraft();
     draft.jobTitle_ = QStringLiteral("Metadata Only");
     const auto result = updateJob(fixture, original.application_.id_, draft);

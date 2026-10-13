@@ -33,8 +33,8 @@ Dialog {
             text: dialog.confirmText
             DialogButtonBox.buttonRole: DialogButtonBox.DestructiveRole
             onClicked: {
-                dialog.confirmed()
                 dialog.accept()
+                dialog.confirmed()
             }
         }
     }

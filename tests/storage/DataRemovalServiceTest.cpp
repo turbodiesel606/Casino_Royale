@@ -6,18 +6,52 @@
 #include "maintenance/StorageMutationGate.hpp"
 #include "storage/SqlTransaction.hpp"
 
+#include <QCoreApplication>
 #include <QDir>
+#include <QEvent>
 #include <QFile>
 #include <QFileInfo>
 #include <QSignalSpy>
 #include <QSqlDatabase>
 #include <QSqlQuery>
+#include <QThread>
 #include <QUrl>
 #include <QtTest/QtTest>
 
+#include <mutex>
+
 #include <memory>
+#include <concepts>
+#include <type_traits>
+#include <utility>
 
 namespace {
+
+template<DataRemovalKind Kind>
+concept HasTypedRemovalApi = requires(
+    const DataRemovalService& service,
+    DataRemovalExecutor& executor,
+    DataRemovalWorker& worker,
+    const QVector<DataRemovalItemRequest>& items,
+    const std::shared_ptr<CancellationState>& cancellation)
+{
+    typename DataRemovalRequest<Kind>;
+    typename DataRemovalBatchOutcome<Kind>;
+    requires DataRemovalRequest<Kind>::kind_ == Kind;
+    requires DataRemovalBatchOutcome<Kind>::kind_ == Kind;
+    requires SingleActiveWorkerRequestFor<DataRemovalRequest<Kind>, DataRemovalExecutor>;
+    { service.process<Kind>(items, cancellation) } -> std::same_as<DataRemovalBatchResult>;
+    { executor.process(DataRemovalRequest<Kind>{}) } -> std::same_as<DataRemovalBatchOutcome<Kind>>;
+    { worker.submit(DataRemovalRequest<Kind>{}) } -> std::same_as<void>;
+};
+
+static_assert(HasTypedRemovalApi<DataRemovalKind::DeleteJobs>);
+static_assert(HasTypedRemovalApi<DataRemovalKind::RemoveActiveCvs>);
+static_assert(HasTypedRemovalApi<DataRemovalKind::RestoreArchivedCvs>);
+static_assert(HasTypedRemovalApi<DataRemovalKind::DeleteArchivedCvs>);
+static_assert(!HasTypedRemovalApi<static_cast<DataRemovalKind>(-1)>);
+static_assert(!HasTypedRemovalApi<static_cast<DataRemovalKind>(4)>);
+static_assert(!std::is_member_object_pointer_v<decltype(&DeleteJobsOutcome::kind_)>);
 
 CvImportResult importCv(
     testsupport::AddJobTestFixture& fixture,
@@ -32,7 +66,7 @@ CvImportResult importCv(
     if (!preparation.succeeded()) {
         return {};
     }
-    auto lease = fixture.cvMutationQueue_.acquire(cancellation);
+    const std::unique_lock lock{fixture.cvLock_.getMutex()};
     SqlTransaction transaction{fixture.database_.connection(), QStringLiteral("Seed removal CV")};
     auto result = fixture.importer_.importPreparedDocument(preparation.preparation_, cancellation);
     transaction.commit();
@@ -51,6 +85,85 @@ DataRemovalService removalService(testsupport::AddJobTestFixture& fixture)
 QVector<DataRemovalItemRequest> requestFor(const QString& id, const QString& label = {})
 {
     return {{id, label.isEmpty() ? id : label}};
+}
+
+template<DataRemovalKind Kind>
+void verifyCorrelation(
+    const QVariant& value,
+    quint64 operationId,
+    const std::shared_ptr<CancellationState>& cancellation)
+{
+    using Outcome = DataRemovalBatchOutcome<Kind>;
+    QCOMPARE(value.metaType(), QMetaType::fromType<Outcome>());
+    const auto outcome = qvariant_cast<Outcome>(value);
+    QCOMPARE(outcome.operationId_, operationId);
+    QCOMPARE(outcome.cancellation_, cancellation);
+}
+
+template<DataRemovalKind Kind, typename Signal>
+void verifyWorkerBoundaryOutcomes(Signal signal)
+{
+    testsupport::TemporaryStorageFixture storage;
+    QVERIFY(storage.isValid());
+    const auto initialConnections = QSqlDatabase::connectionNames().size();
+    DataRemovalWorker worker{storage.paths().dataDirectory()};
+    QSignalSpy completed{&worker, signal};
+    QVERIFY(completed.isValid());
+    using Outcome = DataRemovalBatchOutcome<Kind>;
+
+    const auto emptyToken = std::make_shared<CancellationState>();
+    worker.submit(DataRemovalRequest<Kind>{1, {}, emptyToken});
+    QTRY_COMPARE_WITH_TIMEOUT(completed.count(), 1, 10000);
+    verifyCorrelation<Kind>(completed.at(0).at(0), 1, emptyToken);
+    const auto empty = qvariant_cast<Outcome>(completed.at(0).at(0));
+    QVERIFY(empty.result_.items_.isEmpty());
+    QVERIFY(!empty.result_.cancelled_);
+
+    const auto cancelledToken = std::make_shared<CancellationState>();
+    cancelledToken->requestCancellation();
+    worker.submit(DataRemovalRequest<Kind>{2, requestFor(QStringLiteral("missing")), cancelledToken});
+    QTRY_COMPARE_WITH_TIMEOUT(completed.count(), 2, 10000);
+    verifyCorrelation<Kind>(completed.at(1).at(0), 2, cancelledToken);
+    const auto cancelled = qvariant_cast<Outcome>(completed.at(1).at(0));
+    QVERIFY(cancelled.result_.cancelled_);
+    QVERIFY(cancelled.result_.items_.isEmpty());
+
+    const auto failedToken = std::make_shared<CancellationState>();
+    worker.submit(DataRemovalRequest<Kind>{3, requestFor(QStringLiteral("missing")), failedToken});
+    QTRY_COMPARE_WITH_TIMEOUT(completed.count(), 3, 10000);
+    verifyCorrelation<Kind>(completed.at(2).at(0), 3, failedToken);
+    const auto failed = qvariant_cast<Outcome>(completed.at(2).at(0));
+    QCOMPARE(failed.result_.items_.size(), 1);
+    QCOMPARE(failed.result_.items_.first().status_, DataRemovalItemStatus::Failed);
+    QVERIFY(!failed.result_.items_.first().message_.isEmpty());
+
+    worker.shutdown();
+    QCOMPARE(QSqlDatabase::connectionNames().size(), initialConnections);
+    const auto rejectedToken = std::make_shared<CancellationState>();
+    worker.submit(DataRemovalRequest<Kind>{4, requestFor(QStringLiteral("rejected")), rejectedToken});
+    QCOMPARE(completed.count(), 3);
+    QTRY_COMPARE_WITH_TIMEOUT(completed.count(), 4, 10000);
+    verifyCorrelation<Kind>(completed.at(3).at(0), 4, rejectedToken);
+    const auto rejected = qvariant_cast<Outcome>(completed.at(3).at(0));
+    QCOMPARE(rejected.result_.items_.size(), 1);
+    QCOMPARE(rejected.result_.items_.first().status_, DataRemovalItemStatus::Failed);
+    QCOMPARE(rejected.result_.items_.first().message_, QStringLiteral("The deletion worker is shutting down."));
+
+    // A file cannot serve as the worker's data directory: context creation fails.
+    const auto invalidDirectory = storage.createFile(QStringLiteral("not-a-directory.pdf"));
+    QVERIFY(!invalidDirectory.isEmpty());
+    DataRemovalWorker unavailable{invalidDirectory};
+    QSignalSpy unavailableSpy{&unavailable, signal};
+    const auto unavailableToken = std::make_shared<CancellationState>();
+    unavailable.submit(DataRemovalRequest<Kind>{5, requestFor(QStringLiteral("unavailable")), unavailableToken});
+    QTRY_COMPARE_WITH_TIMEOUT(unavailableSpy.count(), 1, 10000);
+    verifyCorrelation<Kind>(unavailableSpy.first().at(0), 5, unavailableToken);
+    const auto unavailableOutcome = qvariant_cast<Outcome>(unavailableSpy.first().at(0));
+    QCOMPARE(unavailableOutcome.result_.items_.size(), 1);
+    QCOMPARE(unavailableOutcome.result_.items_.first().status_, DataRemovalItemStatus::Failed);
+    QVERIFY(!unavailableOutcome.result_.items_.first().message_.isEmpty());
+    unavailable.shutdown();
+    QCOMPARE(QSqlDatabase::connectionNames().size(), initialConnections);
 }
 
 }
@@ -72,6 +185,13 @@ private slots:
     void rejectsSymlinkWhenSupported();
     void mutationGateSerializesAddAndRemovalWork();
     void workerShutdownCancelsActiveWorkAndClosesItsConnection();
+    void workerRoutesAllKindsAndKeepsCorrelation();
+    void workerBoundaryOutcomesPreserveTypes();
+    void busyRejectionsDoNotCompleteAcceptedWork();
+    void workerCompletionCanSubmitNextBatch();
+    void workerRetriesContextInitializationAfterFailure();
+    void workerAcceptsNullCancellationToken();
+    void workerReusesContextAndSuppressesPendingOutcomesAfterShutdown();
 };
 
 void DataRemovalServiceTest::deletingJobCascadesTechnologiesAndPreservesCompanyAndCv()
@@ -84,8 +204,7 @@ void DataRemovalServiceTest::deletingJobCascadesTechnologiesAndPreservesCompanyA
     QVERIFY2(created.success_, qPrintable(created.message_));
 
     auto service = removalService(fixture);
-    const auto result = service.process(
-        DataRemovalKind::DeleteJobs,
+    const auto result = service.process<DataRemovalKind::DeleteJobs>(
         requestFor(created.application_.id_, created.application_.jobTitle_),
         std::make_shared<CancellationState>());
 
@@ -112,8 +231,7 @@ void DataRemovalServiceTest::removingLinkedActiveCvArchivesWithoutRemovingFile()
         .filePath(created.cvDocument_.relativePath_);
 
     auto service = removalService(fixture);
-    const auto result = service.process(
-        DataRemovalKind::RemoveActiveCvs,
+    const auto result = service.process<DataRemovalKind::RemoveActiveCvs>(
         requestFor(created.cvDocument_.id_),
         std::make_shared<CancellationState>());
 
@@ -136,8 +254,7 @@ void DataRemovalServiceTest::removingUnlinkedActiveCvDeletesRecordAndFile()
     QVERIFY(QFileInfo::exists(imported.completedFilePath_));
 
     auto service = removalService(fixture);
-    const auto result = service.process(
-        DataRemovalKind::RemoveActiveCvs,
+    const auto result = service.process<DataRemovalKind::RemoveActiveCvs>(
         requestFor(imported.document_.id_),
         std::make_shared<CancellationState>());
 
@@ -165,8 +282,7 @@ void DataRemovalServiceTest::permanentDeletionSkipsLinkedArchivedCvAndDeletesEli
         {linked.cvDocument_.id_, QStringLiteral("linked.pdf")},
         {unlinked.document_.id_, QStringLiteral("unlinked.pdf")},
     };
-    const auto result = service.process(
-        DataRemovalKind::DeleteArchivedCvs,
+    const auto result = service.process<DataRemovalKind::DeleteArchivedCvs>(
         requests,
         std::make_shared<CancellationState>());
 
@@ -193,8 +309,7 @@ void DataRemovalServiceTest::restorePreservesIdentityMetadataFavoriteLinksAndFil
         .filePath(before->relativePath_);
 
     auto service = removalService(fixture);
-    const auto result = service.process(
-        DataRemovalKind::RestoreArchivedCvs,
+    const auto result = service.process<DataRemovalKind::RestoreArchivedCvs>(
         requestFor(before->id_),
         std::make_shared<CancellationState>());
 
@@ -227,8 +342,7 @@ void DataRemovalServiceTest::itemFailureDoesNotStopLaterItems()
         {QStringLiteral("missing-job"), QStringLiteral("Missing")},
         {created.application_.id_, created.application_.jobTitle_},
     };
-    const auto result = service.process(
-        DataRemovalKind::DeleteJobs,
+    const auto result = service.process<DataRemovalKind::DeleteJobs>(
         requests,
         std::make_shared<CancellationState>());
 
@@ -263,8 +377,7 @@ void DataRemovalServiceTest::rejectsUnsafePathsAndDeletesRowsForMissingFiles()
         {unsafe.id_, QStringLiteral("Unsafe")},
         {missing.document_.id_, QStringLiteral("Missing file")},
     };
-    const auto result = service.process(
-        DataRemovalKind::RemoveActiveCvs,
+    const auto result = service.process<DataRemovalKind::RemoveActiveCvs>(
         requests,
         std::make_shared<CancellationState>());
 
@@ -287,8 +400,7 @@ void DataRemovalServiceTest::restoresFileWhenDatabaseDeleteFails()
         "BEGIN SELECT RAISE(ABORT, 'test delete failure'); END")));
 
     auto service = removalService(fixture);
-    const auto result = service.process(
-        DataRemovalKind::RemoveActiveCvs,
+    const auto result = service.process<DataRemovalKind::RemoveActiveCvs>(
         requestFor(imported.document_.id_),
         std::make_shared<CancellationState>());
 
@@ -349,8 +461,7 @@ void DataRemovalServiceTest::rejectsSymlinkWhenSupported()
     fixture.cvRepository_.insert(linkedFile);
 
     auto service = removalService(fixture);
-    const auto result = service.process(
-        DataRemovalKind::RemoveActiveCvs,
+    const auto result = service.process<DataRemovalKind::RemoveActiveCvs>(
         requestFor(linkedFile.id_),
         std::make_shared<CancellationState>());
 
@@ -362,22 +473,22 @@ void DataRemovalServiceTest::rejectsSymlinkWhenSupported()
 void DataRemovalServiceTest::mutationGateSerializesAddAndRemovalWork()
 {
     StorageMutationGate gate;
-    QVERIFY(gate.reserveJobSave());
+    QVERIFY(gate.reserveImportOrUpdate());
     QVERIFY(!gate.beginRemoval());
-    gate.releaseJobSave();
+    gate.releaseImportOrUpdate();
 
-    QVERIFY(gate.reserveCvImports(2));
+    QVERIFY(gate.reserveImportOrUpdate(2));
     QVERIFY(!gate.beginRemoval());
-    gate.releaseCvImports(1);
+    gate.releaseImportOrUpdate(1);
     QVERIFY(!gate.beginRemoval());
-    gate.releaseCvImports(1);
+    gate.releaseImportOrUpdate(1);
 
     QVERIFY(gate.beginRemoval());
-    QVERIFY(!gate.reserveJobSave());
-    QVERIFY(!gate.reserveCvImports(1));
+    QVERIFY(!gate.reserveImportOrUpdate());
+    QVERIFY(!gate.reserveImportOrUpdate(1));
     gate.endRemoval();
-    QVERIFY(gate.reserveJobSave());
-    gate.releaseJobSave();
+    QVERIFY(gate.reserveImportOrUpdate());
+    gate.releaseImportOrUpdate();
 }
 
 void DataRemovalServiceTest::workerShutdownCancelsActiveWorkAndClosesItsConnection()
@@ -387,10 +498,9 @@ void DataRemovalServiceTest::workerShutdownCancelsActiveWorkAndClosesItsConnecti
     QVERIFY(storage.isValid());
 
     DataRemovalWorker worker{storage.paths().dataDirectory()};
-    QSignalSpy completedSpy{&worker, &DataRemovalWorker::removalCompleted};
-    worker.submit({
+    QSignalSpy completedSpy{&worker, &DataRemovalWorker::jobsDeletionCompleted};
+    worker.submit(DataRemovalRequest<DataRemovalKind::DeleteJobs>{
         1,
-        DataRemovalKind::DeleteJobs,
         {{QStringLiteral("missing-job"), QStringLiteral("Missing job")}},
         std::make_shared<CancellationState>()});
     QTRY_COMPARE_WITH_TIMEOUT(completedSpy.count(), 1, 10000);
@@ -403,10 +513,288 @@ void DataRemovalServiceTest::workerShutdownCancelsActiveWorkAndClosesItsConnecti
         items.append({id, id});
     }
     const auto cancellation = std::make_shared<CancellationState>();
-    worker.submit({2, DataRemovalKind::DeleteJobs, std::move(items), cancellation});
+    worker.submit(DataRemovalRequest<DataRemovalKind::DeleteJobs>{2, std::move(items), cancellation});
     worker.shutdown();
 
     QVERIFY(cancellation->isCancellationRequested());
+    QCOMPARE(QSqlDatabase::connectionNames().size(), initialConnectionCount);
+}
+
+void DataRemovalServiceTest::workerRoutesAllKindsAndKeepsCorrelation()
+{
+    testsupport::AddJobTestFixture fixture;
+    QVERIFY(fixture.isValid());
+    const auto created = fixture.service_.create(
+        testsupport::validJobDraft(), QUrl::fromLocalFile(fixture.storage_.createFile()));
+    QVERIFY(created.success_);
+    const auto archived = importCv(fixture, QStringLiteral("archived.pdf"));
+    QCOMPARE(archived.disposition_, CvImportDisposition::Inserted);
+    QVERIFY(fixture.cvRepository_.updateArchived(archived.document_.id_, true).has_value());
+
+    DataRemovalWorker worker{fixture.storage_.paths().dataDirectory()};
+    QSignalSpy jobs{&worker, &DataRemovalWorker::jobsDeletionCompleted};
+    QSignalSpy removed{&worker, &DataRemovalWorker::activeCvsRemovalCompleted};
+    QSignalSpy restored{&worker, &DataRemovalWorker::archivedCvsRestorationCompleted};
+    QSignalSpy deleted{&worker, &DataRemovalWorker::archivedCvsDeletionCompleted};
+    QVERIFY(jobs.isValid() && removed.isValid() && restored.isValid() && deleted.isValid());
+
+    const auto removeToken = std::make_shared<CancellationState>();
+    worker.submit(DataRemovalRequest<DataRemovalKind::RemoveActiveCvs>{
+        11, requestFor(created.cvDocument_.id_), removeToken});
+    QTRY_COMPARE_WITH_TIMEOUT(removed.count(), 1, 10000);
+    verifyCorrelation<DataRemovalKind::RemoveActiveCvs>(removed.first().at(0), 11, removeToken);
+    const auto removeOutcome = qvariant_cast<RemoveActiveCvsOutcome>(removed.first().at(0));
+    QCOMPARE(removeOutcome.result_.items_.size(), 1);
+    QCOMPARE(removeOutcome.result_.items_.first().status_, DataRemovalItemStatus::Archived);
+    QVERIFY(fixture.cvRepository_.findById(created.cvDocument_.id_)->archivedAt_.isValid());
+    QCOMPARE(jobs.count() + restored.count() + deleted.count(), 0);
+
+    const auto restoreToken = std::make_shared<CancellationState>();
+    worker.submit(DataRemovalRequest<DataRemovalKind::RestoreArchivedCvs>{
+        12, requestFor(created.cvDocument_.id_), restoreToken});
+    QTRY_COMPARE_WITH_TIMEOUT(restored.count(), 1, 10000);
+    verifyCorrelation<DataRemovalKind::RestoreArchivedCvs>(restored.first().at(0), 12, restoreToken);
+    const auto restoreOutcome = qvariant_cast<RestoreArchivedCvsOutcome>(restored.first().at(0));
+    QCOMPARE(restoreOutcome.result_.items_.size(), 1);
+    QCOMPARE(restoreOutcome.result_.items_.first().status_, DataRemovalItemStatus::Restored);
+    QVERIFY(!fixture.cvRepository_.findById(created.cvDocument_.id_)->archivedAt_.isValid());
+
+    const auto jobToken = std::make_shared<CancellationState>();
+    worker.submit(DataRemovalRequest<DataRemovalKind::DeleteJobs>{
+        13,
+        {{QStringLiteral("missing-job"), QStringLiteral("Missing")},
+         {created.application_.id_, created.application_.jobTitle_}},
+        jobToken});
+    QTRY_COMPARE_WITH_TIMEOUT(jobs.count(), 1, 10000);
+    verifyCorrelation<DataRemovalKind::DeleteJobs>(jobs.first().at(0), 13, jobToken);
+    const auto jobOutcome = qvariant_cast<DeleteJobsOutcome>(jobs.first().at(0));
+    QCOMPARE(jobOutcome.result_.items_.size(), 2);
+    QCOMPARE(jobOutcome.result_.items_.at(0).status_, DataRemovalItemStatus::Failed);
+    QCOMPARE(jobOutcome.result_.items_.at(1).status_, DataRemovalItemStatus::Deleted);
+    QVERIFY(fixture.jobRepository_.findAll().isEmpty());
+    QVERIFY(fixture.cvRepository_.findById(created.cvDocument_.id_).has_value());
+    QCOMPARE(fixture.companyRepository_.findAll().size(), 1);
+
+    const auto deleteToken = std::make_shared<CancellationState>();
+    worker.submit(DataRemovalRequest<DataRemovalKind::DeleteArchivedCvs>{
+        14, requestFor(archived.document_.id_), deleteToken});
+    QTRY_COMPARE_WITH_TIMEOUT(deleted.count(), 1, 10000);
+    verifyCorrelation<DataRemovalKind::DeleteArchivedCvs>(deleted.first().at(0), 14, deleteToken);
+    const auto deleteOutcome = qvariant_cast<DeleteArchivedCvsOutcome>(deleted.first().at(0));
+    QCOMPARE(deleteOutcome.result_.items_.size(), 1);
+    QCOMPARE(deleteOutcome.result_.items_.first().status_, DataRemovalItemStatus::Deleted);
+    QVERIFY(!fixture.cvRepository_.findById(archived.document_.id_).has_value());
+    QVERIFY(!QFileInfo::exists(archived.completedFilePath_));
+    QCOMPARE(jobs.count(), 1);
+    QCOMPARE(removed.count(), 1);
+    QCOMPARE(restored.count(), 1);
+}
+
+void DataRemovalServiceTest::workerBoundaryOutcomesPreserveTypes()
+{
+    verifyWorkerBoundaryOutcomes<DataRemovalKind::DeleteJobs>(
+        &DataRemovalWorker::jobsDeletionCompleted);
+    verifyWorkerBoundaryOutcomes<DataRemovalKind::RemoveActiveCvs>(
+        &DataRemovalWorker::activeCvsRemovalCompleted);
+    verifyWorkerBoundaryOutcomes<DataRemovalKind::RestoreArchivedCvs>(
+        &DataRemovalWorker::archivedCvsRestorationCompleted);
+    verifyWorkerBoundaryOutcomes<DataRemovalKind::DeleteArchivedCvs>(
+        &DataRemovalWorker::archivedCvsDeletionCompleted);
+}
+
+void DataRemovalServiceTest::busyRejectionsDoNotCompleteAcceptedWork()
+{
+    testsupport::AddJobTestFixture fixture;
+    QVERIFY(fixture.isValid());
+    const auto created = fixture.service_.create(
+        testsupport::validJobDraft(), QUrl::fromLocalFile(fixture.storage_.createFile()));
+    QVERIFY(created.success_);
+    DataRemovalWorker worker{fixture.storage_.paths().dataDirectory()};
+    QSignalSpy jobs{&worker, &DataRemovalWorker::jobsDeletionCompleted};
+    QSignalSpy removed{&worker, &DataRemovalWorker::activeCvsRemovalCompleted};
+    QSignalSpy restored{&worker, &DataRemovalWorker::archivedCvsRestorationCompleted};
+    QSignalSpy deleted{&worker, &DataRemovalWorker::archivedCvsDeletionCompleted};
+
+    // Open the worker's private connection before holding the database write lock.
+    worker.submit(DataRemovalRequest<DataRemovalKind::DeleteJobs>{
+        1, {}, std::make_shared<CancellationState>()});
+    QTRY_COMPARE_WITH_TIMEOUT(jobs.count(), 1, 10000);
+    SqlTransaction heldWrite{fixture.database_.connection(), QStringLiteral("Hold removal write")};
+    QSqlQuery write{fixture.database_.connection()};
+    QVERIFY(write.exec(QStringLiteral("UPDATE jobs SET notes = 'held write'")));
+    write.finish();
+    const auto acceptedToken = std::make_shared<CancellationState>();
+    worker.submit(DataRemovalRequest<DataRemovalKind::DeleteJobs>{
+        2, requestFor(created.application_.id_), acceptedToken});
+
+    quint64 rejectedId = 10;
+    const auto reject = [&]<DataRemovalKind Kind>(QSignalSpy& spy) {
+        const auto previousCount = spy.count();
+        const auto token = std::make_shared<CancellationState>();
+        const auto id = ++rejectedId;
+        worker.submit(DataRemovalRequest<Kind>{id, requestFor(QStringLiteral("rejected")), token});
+        QCOMPARE(spy.count(), previousCount);
+        QTRY_COMPARE_WITH_TIMEOUT(spy.count(), previousCount + 1, 2000);
+        verifyCorrelation<Kind>(spy.last().at(0), id, token);
+        const auto outcome = qvariant_cast<DataRemovalBatchOutcome<Kind>>(spy.last().at(0));
+        QCOMPARE(outcome.result_.items_.size(), 1);
+        QCOMPARE(outcome.result_.items_.first().status_, DataRemovalItemStatus::Failed);
+        QCOMPARE(outcome.result_.items_.first().message_, QStringLiteral("Another deletion batch is already active."));
+        QVERIFY(!acceptedToken->isCancellationRequested());
+    };
+    reject.template operator()<DataRemovalKind::DeleteJobs>(jobs);
+    reject.template operator()<DataRemovalKind::RemoveActiveCvs>(removed);
+    reject.template operator()<DataRemovalKind::RestoreArchivedCvs>(restored);
+    reject.template operator()<DataRemovalKind::DeleteArchivedCvs>(deleted);
+    QCOMPARE(jobs.count(), 2);
+    heldWrite.commit();
+
+    QTRY_COMPARE_WITH_TIMEOUT(jobs.count(), 3, 10000);
+    verifyCorrelation<DataRemovalKind::DeleteJobs>(jobs.last().at(0), 2, acceptedToken);
+    const auto accepted = qvariant_cast<DeleteJobsOutcome>(jobs.last().at(0));
+    QCOMPARE(accepted.result_.items_.size(), 1);
+    QCOMPARE(accepted.result_.items_.first().status_, DataRemovalItemStatus::Deleted);
+    QVERIFY(fixture.jobRepository_.findAll().isEmpty());
+}
+
+void DataRemovalServiceTest::workerCompletionCanSubmitNextBatch()
+{
+    testsupport::AddJobTestFixture fixture;
+    QVERIFY(fixture.isValid());
+    const auto created = fixture.service_.create(
+        testsupport::validJobDraft(), QUrl::fromLocalFile(fixture.storage_.createFile()));
+    QVERIFY(created.success_);
+
+    DataRemovalWorker worker{fixture.storage_.paths().dataDirectory()};
+    QSignalSpy jobs{&worker, &DataRemovalWorker::jobsDeletionCompleted};
+    QSignalSpy removed{&worker, &DataRemovalWorker::activeCvsRemovalCompleted};
+    const auto jobToken = std::make_shared<CancellationState>();
+    const auto cvToken = std::make_shared<CancellationState>();
+    bool completedOnFacadeThread = false;
+    QObject::connect(
+        &worker,
+        &DataRemovalWorker::jobsDeletionCompleted,
+        &worker,
+        [&](const DeleteJobsOutcome& outcome) {
+            if (outcome.operationId_ == 1) {
+                completedOnFacadeThread = QThread::currentThread() == worker.thread();
+                worker.submit(DataRemovalRequest<DataRemovalKind::RemoveActiveCvs>{
+                    2, requestFor(created.cvDocument_.id_), cvToken});
+            }
+        });
+
+    worker.submit(DataRemovalRequest<DataRemovalKind::DeleteJobs>{
+        1, requestFor(created.application_.id_), jobToken});
+    QTRY_COMPARE_WITH_TIMEOUT(removed.count(), 1, 10000);
+    QCOMPARE(jobs.count(), 1);
+    QVERIFY(completedOnFacadeThread);
+    verifyCorrelation<DataRemovalKind::DeleteJobs>(jobs.first().at(0), 1, jobToken);
+    verifyCorrelation<DataRemovalKind::RemoveActiveCvs>(removed.first().at(0), 2, cvToken);
+    const auto jobOutcome = qvariant_cast<DeleteJobsOutcome>(jobs.first().at(0));
+    const auto cvOutcome = qvariant_cast<RemoveActiveCvsOutcome>(removed.first().at(0));
+    QCOMPARE(jobOutcome.result_.items_.size(), 1);
+    QCOMPARE(cvOutcome.result_.items_.size(), 1);
+    QCOMPARE(jobOutcome.result_.items_.first().status_, DataRemovalItemStatus::Deleted);
+    QCOMPARE(cvOutcome.result_.items_.first().status_, DataRemovalItemStatus::Deleted);
+    QVERIFY(fixture.jobRepository_.findAll().isEmpty());
+    QVERIFY(!fixture.cvRepository_.findById(created.cvDocument_.id_).has_value());
+}
+
+void DataRemovalServiceTest::workerRetriesContextInitializationAfterFailure()
+{
+    testsupport::TemporaryStorageFixture storage;
+    QVERIFY(storage.isValid());
+    const auto initialConnectionCount = QSqlDatabase::connectionNames().size();
+    const auto dataDirectory = storage.createFile(QStringLiteral("worker-data"));
+    QVERIFY(!dataDirectory.isEmpty());
+    DataRemovalWorker worker{dataDirectory};
+    QSignalSpy completed{&worker, &DataRemovalWorker::jobsDeletionCompleted};
+
+    const auto failedToken = std::make_shared<CancellationState>();
+    worker.submit(DataRemovalRequest<DataRemovalKind::DeleteJobs>{
+        1, requestFor(QStringLiteral("missing")), failedToken});
+    QTRY_COMPARE_WITH_TIMEOUT(completed.count(), 1, 10000);
+    verifyCorrelation<DataRemovalKind::DeleteJobs>(completed.first().at(0), 1, failedToken);
+    const auto failed = qvariant_cast<DeleteJobsOutcome>(completed.first().at(0));
+    QCOMPARE(failed.result_.items_.size(), 1);
+    QCOMPARE(failed.result_.items_.first().status_, DataRemovalItemStatus::Failed);
+    QVERIFY(!failed.result_.items_.first().message_.isEmpty());
+    QCOMPARE(QSqlDatabase::connectionNames().size(), initialConnectionCount);
+
+    // Repair only the temporary fixture path, then retry with the same worker.
+    QVERIFY(QFile::remove(dataDirectory));
+    QVERIFY(QDir{}.mkpath(dataDirectory));
+    const auto retryToken = std::make_shared<CancellationState>();
+    worker.submit(DataRemovalRequest<DataRemovalKind::DeleteJobs>{2, {}, retryToken});
+    QTRY_COMPARE_WITH_TIMEOUT(completed.count(), 2, 10000);
+    verifyCorrelation<DataRemovalKind::DeleteJobs>(completed.last().at(0), 2, retryToken);
+    const auto recovered = qvariant_cast<DeleteJobsOutcome>(completed.last().at(0));
+    QVERIFY(recovered.result_.items_.isEmpty());
+    QVERIFY(!recovered.result_.cancelled_);
+    QCOMPARE(QSqlDatabase::connectionNames().size(), initialConnectionCount + 1);
+
+    worker.shutdown();
+    QCOMPARE(QSqlDatabase::connectionNames().size(), initialConnectionCount);
+}
+
+void DataRemovalServiceTest::workerAcceptsNullCancellationToken()
+{
+    testsupport::AddJobTestFixture fixture;
+    QVERIFY(fixture.isValid());
+    const auto created = fixture.service_.create(
+        testsupport::validJobDraft(), QUrl::fromLocalFile(fixture.storage_.createFile()));
+    QVERIFY(created.success_);
+
+    DataRemovalWorker worker{fixture.storage_.paths().dataDirectory()};
+    QSignalSpy completed{&worker, &DataRemovalWorker::jobsDeletionCompleted};
+    worker.submit(DataRemovalRequest<DataRemovalKind::DeleteJobs>{
+        1, requestFor(created.application_.id_), nullptr});
+    QTRY_COMPARE_WITH_TIMEOUT(completed.count(), 1, 10000);
+    verifyCorrelation<DataRemovalKind::DeleteJobs>(completed.first().at(0), 1, nullptr);
+    const auto outcome = qvariant_cast<DeleteJobsOutcome>(completed.first().at(0));
+    QVERIFY(!outcome.result_.cancelled_);
+    QCOMPARE(outcome.result_.items_.size(), 1);
+    QCOMPARE(outcome.result_.items_.first().status_, DataRemovalItemStatus::Deleted);
+    QVERIFY(fixture.jobRepository_.findAll().isEmpty());
+}
+
+void DataRemovalServiceTest::workerReusesContextAndSuppressesPendingOutcomesAfterShutdown()
+{
+    testsupport::TemporaryStorageFixture storage;
+    QVERIFY(storage.isValid());
+    const auto initialConnectionCount = QSqlDatabase::connectionNames().size();
+    DataRemovalWorker worker{storage.paths().dataDirectory()};
+    QSignalSpy completed{&worker, &DataRemovalWorker::jobsDeletionCompleted};
+    QVERIFY(!worker.isRunning());
+    QCOMPARE(QSqlDatabase::connectionNames().size(), initialConnectionCount);
+
+    worker.submit(DataRemovalRequest<DataRemovalKind::DeleteJobs>{
+        1, {}, std::make_shared<CancellationState>()});
+    QTRY_COMPARE_WITH_TIMEOUT(completed.count(), 1, 10000);
+    QVERIFY(worker.isRunning());
+    auto activeConnections = QSqlDatabase::connectionNames();
+    activeConnections.sort();
+    QCOMPARE(activeConnections.size(), initialConnectionCount + 1);
+
+    worker.submit(DataRemovalRequest<DataRemovalKind::DeleteJobs>{
+        2, {}, std::make_shared<CancellationState>()});
+    QTRY_COMPARE_WITH_TIMEOUT(completed.count(), 2, 10000);
+    auto reusedConnections = QSqlDatabase::connectionNames();
+    reusedConnections.sort();
+    QCOMPARE(reusedConnections, activeConnections);
+
+    const auto cancellation = std::make_shared<CancellationState>();
+    worker.submit(DataRemovalRequest<DataRemovalKind::DeleteJobs>{3, {}, cancellation});
+    // Joining the worker leaves its accepted outcome queued on this thread.
+    worker.shutdown();
+    QVERIFY(cancellation->isCancellationRequested());
+    QVERIFY(!worker.isRunning());
+    QCOMPARE(QSqlDatabase::connectionNames().size(), initialConnectionCount);
+    QCOMPARE(completed.count(), 2);
+    QCoreApplication::sendPostedEvents(&worker, QEvent::MetaCall);
+    QCOMPARE(completed.count(), 2);
+
+    worker.shutdown();
     QCOMPARE(QSqlDatabase::connectionNames().size(), initialConnectionCount);
 }
 

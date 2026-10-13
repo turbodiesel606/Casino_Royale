@@ -24,6 +24,7 @@ ApplicationWindow {
     property bool exitAfterPendingWorkDrained: false
     property var pendingProtectedAction: null
     property bool allowUnsavedCloseOnce: false
+    property var retainedCvSelection: []
 
     function performOpenJobForm() {
         window.previousPage = window.currentPage >= 0 ? window.currentPage : 0
@@ -52,7 +53,10 @@ ApplicationWindow {
         } else if (action.kind === "openJobForm") {
             window.performOpenJobForm()
         } else if (action.kind === "openCvPicker") {
-            cvFileDialog.open()
+            if (storageMutationGate.checkImportOrUpdateAllowed()) {
+                cvFileDialog.currentFiles = window.retainedCvSelection
+                cvFileDialog.open()
+            }
         } else if (action.kind === "showJobApplications") {
             jobsPage.showApplications()
         } else if (action.kind === "closeApplication") {
@@ -174,6 +178,7 @@ ApplicationWindow {
 
     function interruptPendingWorkAndExit() {
         exitAfterPendingWorkDrained = true
+        storageMutationGate.beginShutdown()
         discardNotifications()
         closeConfirmation.close()
         jobApplicationsController.cancelAllJobSaves()
@@ -226,6 +231,14 @@ ApplicationWindow {
                 message)
         }
 
+        function onApplicationUpdateBlocked(applicationId) {
+            window.pendingProtectedAction = null
+        }
+
+        function onApplicationDeletionRejected(message) {
+            window.enqueueNotification("Job deletion could not start", "error", message)
+        }
+
         function onApplicationUpdateCompleted(operationId, applicationId, jobTitle,
                                               success, errors, message) {
             window.enqueueNotification(
@@ -257,6 +270,10 @@ ApplicationWindow {
 
     Connections {
         target: cvLibraryController
+
+        function onOperationFailed(message) {
+            window.enqueueNotification("CV operation failed", "error", message)
+        }
 
         function onCvImportCompleted(operationId, fileName, success, disposition, message) {
             const added = disposition === "inserted"
@@ -294,7 +311,11 @@ ApplicationWindow {
         title: "Add CVs"
         fileMode: FileDialog.OpenFiles
         nameFilters: ["CV documents (*.pdf *.doc *.docx)"]
-        onAccepted: cvLibraryController.addCvs(selectedFiles)
+        onAccepted: {
+            window.retainedCvSelection = selectedFiles.slice()
+            if (cvLibraryController.addCvs(window.retainedCvSelection))
+                window.retainedCvSelection = []
+        }
     }
 
     Timer {
@@ -307,7 +328,7 @@ ApplicationWindow {
     Popup {
         id: notificationPopup
         x: window.width - width - 24
-        y: 24
+        y: mutationFeedback.height + 24
         width: Math.min(430, window.width - 48)
         padding: 18
         modal: false
@@ -462,16 +483,25 @@ ApplicationWindow {
         }
     }
 
+    StorageMutationFeedback {
+        id: mutationFeedback
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        gate: storageMutationGate
+    }
+
     RowLayout {
-        anchors.fill: parent
+        anchors.top: mutationFeedback.bottom
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
         spacing: 0
 
         Sidebar {
             Layout.fillHeight: true
             Layout.preferredWidth: 242
             currentIndex: window.jobFormVisible ? -1 : window.currentPage
-            actionsEnabled: jobApplicationsController.pendingDeletionCount === 0
-                && cvLibraryController.pendingDeletionCount === 0
             onNavigate: index => {
                 window.requestProtectedAction("navigate", { index: index })
             }

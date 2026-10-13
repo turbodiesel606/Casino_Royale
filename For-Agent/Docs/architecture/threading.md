@@ -15,10 +15,11 @@ queued value-outcome delivery, and infrastructure-failure translation.
 capture the same non-owning `CvLockWrapper&` supplied by bootstrap and pass it to
 their lazily created executors.
 
-`JobSaveWorker` and `CvImportWorker` derive from that facade;
-`DataRemovalWorker` composes the runtime directly for its best-effort batch
-executor. The concrete workers retain their domain requests, outcomes, signals,
-pipelines, and messages.
+`JobSaveWorker`, `CvImportWorker`, and `DataRemovalWorker` derive from that
+facade, using `JobSaveExecutor`, `CvImportExecutor`, and `DataRemovalExecutor`
+respectively. Executors return value outcomes; the shared facade owns request
+admission and queued request/result delivery. The concrete workers retain their
+domain requests, outcomes, signals, pipelines, and messages.
 
 `JobSaveWorker` is shared by job creation and job updates. On its first submitted
 request its runtime starts the dedicated thread. The GUI controller maps form
@@ -35,9 +36,25 @@ runtime reuses one dedicated thread, and its executor lazily constructs a privat
 and receives only value outcomes for GUI-thread model publication.
 
 `DataRemovalWorker` is the shared GUI-thread facade for job deletion and CV
-archive, restore, and permanent-deletion batches. Its reusable executor owns a
-private SQLite graph on its worker thread and returns value-only per-item
-outcomes.
+archive, restore, and permanent-deletion batches. Its reusable
+`DataRemovalExecutor` owns a private SQLite graph on its worker thread and
+returns value-only per-item outcomes. Its header-defined `process<Kind>()`
+obtains the lazily constructed service through `ensureService()`; the persistence
+context remains private to the executor implementation file.
+
+Removal requests and outcomes retain their `DataRemovalKind` template argument
+in their concrete types. The shared facade wraps a returned result in the
+executor's four-alternative `Outcome` variant for queued delivery to the GUI
+thread. The worker exposes four concrete typed completion signals and registers
+their outcome metatypes; its QObject class and signals remain non-templated.
+Its outcome handler uses `std::visit` and compile-time dispatch for both accepted
+and unavailable outcomes. Request traits and executor exception handling share
+the same correlated failed-batch builder. Accepted outcomes first pass runtime
+operation/token correlation and complete the active worker operation.
+Busy/shutdown rejection and executor-start failure outcomes are queued directly
+for publication and must never complete or replace another active operation.
+Controller correlation and GUI publication still precede release of removal
+admission.
 
 ## Cross-Worker Mutation Coordination
 
@@ -59,21 +76,37 @@ or rollback, and catch-path file cleanup. Bootstrap declares `CvLockWrapper`
 before both workers so it outlives them. This is process-local serialization;
 the SQL unique constraint still protects against other-process identity races.
 
-`StorageMutationGate` prevents a removal batch from overlapping queued job-save
-or Add CV work and rejects new job-save/Add CV admission while removal is active.
+`StorageMutationGate` admits imports/updates together and grants exclusive
+ownership to one deletion, manual archive, or manual restore batch. Its shared
+import/update count includes accepted job-save and Add CV queues plus scoped
+synchronous favorite writes. Controllers reserve before enqueueing or writing
+and release after persistence, compensation, GUI model/cross-controller
+publication, completion signals, and pending-state publication. Queue advancement
+cannot open a gap between accepted items. Removing waiting items releases only
+their reservations; active cancellation retains admission until its outcome.
+
+Every rejected attempt during normal operation emits a typed `operationBlocked`
+event. The gate retains only retry-notice interest, never a rejected payload or
+automatic retry. Pure availability queries do not report attempts; explicit
+checks before confirmation or the picker report conflicts but reserve nothing.
+Final commands check again. Once shutdown begins, admission closes and rejected
+attempts are silent. Bootstrap joins all workers before controller teardown
+releases outstanding reservations, and destroys QML before the exposed backend
+graph.
+
 `DataRemovalWorker` does not acquire `CvLockWrapper`; exclusion with removal is
-provided by this GUI-thread admission gate instead.
+provided by this GUI-thread admission gate instead. Automatic archived-CV
+restoration inside an admitted import remains part of that import.
 The domain-specific acquisition and release behavior is documented in
 [jobs.md](jobs.md), [cvs.md](cvs.md), and [removal.md](removal.md).
 
-## Current Test Integration Gap
+## Coordination Test Coverage
 
-Production and `CMakeLists.txt` register `CvLockWrapper.hpp`, but the current
-`CvMutationQueueTest.cpp` and several controller/storage tests still include the
-removed `cvs/CvMutationQueue.hpp` API and call its `acquire()`/`Lease` contract.
-The `JobTrackerCvMutationQueueTests` target name also retains the old name.
-Until those tests are migrated, the test-enabled source tree does not provide
-compile or behavior proof for the current mutex wrapper.
+The fixtures and registered `JobTrackerCvLockTests` use `CvLockWrapper` and
+`std::unique_lock`; they do not require FIFO lock acquisition or cancellation of
+a mutex wait. Gate and controller/integration tests cover repeated rejection,
+mixed queues, cancellation, publication ordering, and notice/shutdown state.
+The offscreen QML feedback suite covers dialog reopening and live banner state.
 
 ## Threading Rules
 

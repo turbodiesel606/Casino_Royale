@@ -12,10 +12,9 @@ QVariant roleValueAt(
     int row,
     int role)
 {
-    if (row < 0 || row >= model.rowCount()) {
+    if (row >= model.rowCount() || row < 0)
         return {};
-    }
-
+    
     const auto modelIndex = model.index(row, 0);
     return modelIndex.isValid() ? model.data(modelIndex, role) : QVariant{};
 }
@@ -33,14 +32,12 @@ int rowForStringRoleValue(
     int role,
     const QString& value)
 {
-    if (value.isEmpty()) {
+    if (value.isEmpty()) 
         return -1;
-    }
 
     for (int row = 0; row < model.rowCount(); ++row) {
-        if (stringRoleAt(model, row, role) == value) {
+        if (stringRoleAt(model, row, role) == value)
             return row;
-        }
     }
 
     return -1;

@@ -23,6 +23,13 @@ the worker. Invalid input emits `saveFailed(fieldErrors, message)` and returns
 before operation-ID allocation, queue mutation, pending-state publication, or
 worker startup.
 
+Validation takes precedence over an active removal conflict. Valid create and
+update requests use the shared import/update admission counter. A denied request
+produces the gate's global blocked dialog without allocating an operation ID or
+changing the current form. Updates additionally emit `applicationUpdateBlocked`
+to cancel a pending protected action and retain the editing session; validation
+and other update rejection still use `applicationUpdateRejected`.
+
 For valid input, the controller reserves job-save admission and enqueues the
 normalized create or update payload in its composed
 `SerialOperationQueue<QueuedJobSave>`. The value-level queue assigns a
@@ -65,6 +72,10 @@ reported through `applicationSaveCompleted`; updates use
 `applicationUpdateCompleted`. The controller retains the active slot until this
 final outcome, then releases it and advances the FIFO. It ignores stale outcomes
 unless both operation ID and cancellation identity match the active request.
+
+The gate reservation outlasts the FIFO slot until completion signals, related
+model publication, update-state changes, and pending/drained notifications have
+returned. Accepted waiters retain their own reservations across advancement.
 
 Only the GUI controller mutates Qt models or publishes cross-screen signals. On
 a successful final result it appends the job, refreshes sorting, and emits
@@ -136,6 +147,14 @@ items, and closes only after all pending counts reach zero. Already committed
 removals remain committed, and the current item finishes or compensates safely.
 If the work drains naturally while the confirmation is open, the confirmation
 closes and the app remains open.
+
+The shell hosts `StorageMutationFeedback` for the gate's repeated-attempt dialog
+and persistent availability banner. That banner bypasses the ordinary outcome
+queue, remains current if work starts again, and never retries an action.
+Interrupt and Exit closes admission and feedback before requesting cancellation.
+Opening Add Job and editing an unsaved draft remain available during removal;
+the validated Save command performs admission. The editor enters its saving
+state only on `applicationUpdateQueued`.
 
 ## Update Job Flow
 

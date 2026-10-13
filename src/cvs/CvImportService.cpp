@@ -98,14 +98,14 @@ CvImportResult CvImportService::importPreparedDocument(
 	
 	if (existing) {
 		// Every exact archived duplicate is now restored.
-		if (existing->archivedAt_.isValid()) {
+		if (existing->isArchived_) {
 			const auto updatedAt = repository_.updateArchived(existing->id_, false);
 
 			if (!updatedAt)
 				throw std::runtime_error("The archived CV could not be restored.");
 
 			// update archive and updated state after success, then return.
-			existing->applyArchiveState(QDateTime{}, *updatedAt);
+			existing->applyArchiveState(false, QDateTime{}, *updatedAt);
 			return { *existing, {}, CvImportDisposition::RestoredArchived, true };
 		}
 

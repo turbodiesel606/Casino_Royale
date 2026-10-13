@@ -113,11 +113,20 @@ Build:
 cmake --build --preset windows-debug-local
 ```
 
-The local Windows presets expect Qt to be available at:
+The Windows presets use Qt 6.10.3 with the MSVC 2022 x64 kit at:
 
 ```text
-D:/Qt_install/6.9.1/msvc2022_64
+D:/Qt_install/6.10.3/msvc2022_64
 ```
+
+The Windows debug executable and its deployed Qt runtime are written to:
+
+```text
+D:/Project_CV/Root/build/qt-6.10.3/windows-debug/Debug/JobTrackerApp.exe
+```
+
+The Windows test presets use the separate `build/qt-6.10.3/windows-debug-tests`
+directory. Linux local presets continue to select Qt 6.9.3.
 
 Shared non-local presets also exist in `CMakePresets.json`, including Windows and Linux debug presets.
 

@@ -1,7 +1,7 @@
 #include "cvs/CvImportService.hpp"
 #include "cvs/CvManagedFileStore.hpp"
 #include "cvs/CvRepository.hpp"
-#include "cvs/CvMutationQueue.hpp"
+#include "cvs/CvLockWrapper.hpp"
 #include "storage/SqlTransaction.hpp"
 #include "common/CancellationState.hpp"
 
@@ -14,10 +14,9 @@
 #include <QUrl>
 #include <QtTest/QtTest>
 
-#include <atomic>
-#include <latch>
+#include <mutex>
+
 #include <memory>
-#include <thread>
 
 class CvFileStoreImportTest final : public QObject
 {
@@ -28,8 +27,8 @@ private slots:
     void stagesSnapshotAfterSourceChanges();
     void reportsStageFailureAfterSuccessfulBuffering();
     void cancelsBeforeBuffering();
-    void cancelsBufferedImportBeforeStaging();
-    void cancelsDuringStagingAndRemovesPartImmediately();
+    void preparedImportFinishesWithCancelledToken();
+    void stagingFinishesWithCancelledToken();
     void reportsUnavailablePreparation();
     void reconcilesStaleStagesAndQuarantinesOrphans();
     void reusesCvWithSameIdentity();
@@ -128,7 +127,7 @@ void CvFileStoreImportTest::cancelsBeforeBuffering()
     QCOMPARE(QDir{storage.paths().resumesDirectory()}.entryList(QDir::Files).size(), 0);
 }
 
-void CvFileStoreImportTest::cancelsBufferedImportBeforeStaging()
+void CvFileStoreImportTest::preparedImportFinishesWithCancelledToken()
 {
     testsupport::TemporaryDatabaseFixture fixture;
     CvRepository repository{fixture.database().connection()};
@@ -141,60 +140,40 @@ void CvFileStoreImportTest::cancelsBufferedImportBeforeStaging()
     cancellation->requestCancellation();
 
     const auto result = importer.importPreparedDocument(buffered.preparation_, cancellation);
-    QVERIFY(!result.success_);
-    QVERIFY(result.cancelled_);
-    const auto staged = fileStore.stageAndFinalize(*buffered.preparation_, cancellation);
-    QVERIFY(staged.cancelled_);
-    QVERIFY(buffered.preparation_->storedFileName_.isEmpty());
-    QVERIFY(buffered.preparation_->finalFilePath_.isEmpty());
-    QVERIFY(repository.findAll().isEmpty());
-    QVERIFY(QDir{fixture.storage().paths().resumesDirectory()}.entryList(QDir::Files).isEmpty());
+    QVERIFY2(result.success_, qPrintable(result.message_));
+    QVERIFY(!result.cancelled_);
+    QCOMPARE(result.disposition_, CvImportDisposition::Inserted);
+    QCOMPARE(repository.findAll().size(), 1);
+    QFile finalFile{buffered.preparation_->finalFilePath_};
+    QVERIFY(finalFile.open(QIODevice::ReadOnly));
+    QCOMPARE(finalFile.readAll(), buffered.preparation_->bytes_);
+    QVERIFY(buffered.preparation_->stagedFilePath_.isEmpty());
+    QVERIFY(QDir{fixture.storage().paths().resumesDirectory()}
+        .entryList({QStringLiteral("*.part")}, QDir::Files).isEmpty());
 }
 
-void CvFileStoreImportTest::cancelsDuringStagingAndRemovesPartImmediately()
+void CvFileStoreImportTest::stagingFinishesWithCancelledToken()
 {
     testsupport::TemporaryStorageFixture storage;
     CvManagedFileStore fileStore{storage.paths()};
     const auto cancellation = std::make_shared<CancellationState>();
     const auto buffered = fileStore.prepare(QUrl::fromLocalFile(storage.createFile(
-        QStringLiteral("large.pdf"), QByteArray(128 * 1024 * 1024, 'c'))), cancellation);
+        QStringLiteral("large.pdf"), QByteArray(2 * 1024 * 1024, 'c'))), cancellation);
     QVERIFY(buffered.succeeded());
-
-    std::atomic_bool sawPartialWrite = false;
-    std::latch watcherReady{1};
+    // The worker checks cancellation before entering persistence. Once admitted,
+    // staging must finish even if the token has become canceled.
+    cancellation->requestCancellation();
     const auto directory = storage.paths().resumesDirectory();
-    std::jthread cancelWriter{[&](std::stop_token stop) {
-        watcherReady.count_down();
-        while (!stop.stop_requested()) {
-            const auto parts = QDir{directory}.entryInfoList({QStringLiteral("*.part")}, QDir::Files);
-            if (!parts.isEmpty()) {
-                // Inspect the open file: directory metadata can lag behind writes.
-                QFile part{parts.first().absoluteFilePath()};
-                if (part.open(QIODevice::ReadOnly)) {
-                    const auto written = part.size();
-                    part.close();
-                    if (written > 0 && written < buffered.preparation_->sizeBytes_) {
-                        sawPartialWrite = true;
-                        cancellation->requestCancellation();
-                        return;
-                    }
-                }
-            }
-            std::this_thread::yield();
-        }
-    }};
-    watcherReady.wait();
     const auto staged = fileStore.stageAndFinalize(*buffered.preparation_, cancellation);
-    cancelWriter.request_stop();
-    cancelWriter.join();
 
-    QVERIFY(sawPartialWrite.load());
-    QVERIFY(!staged.succeeded());
-    QVERIFY(staged.cancelled_);
-    // Keep the preparation alive: cleanup must happen before it is destroyed.
-    QVERIFY(buffered.preparation_->finalFilePath_.isEmpty());
+    QVERIFY2(staged.succeeded(), qPrintable(staged.message_));
+    QVERIFY(!staged.cancelled_);
+    QFile finalFile{buffered.preparation_->finalFilePath_};
+    QVERIFY(finalFile.open(QIODevice::ReadOnly));
+    QCOMPARE(finalFile.readAll(), buffered.preparation_->bytes_);
     QVERIFY(buffered.preparation_->stagedFilePath_.isEmpty());
-    QVERIFY(QDir{directory}.entryList(QDir::Files).isEmpty());
+    QCOMPARE(QDir{directory}.entryList(QDir::Files).size(), 1);
+    QVERIFY(QDir{directory}.entryList({QStringLiteral("*.part")}, QDir::Files).isEmpty());
 }
 
 void CvFileStoreImportTest::reportsUnavailablePreparation()
@@ -247,8 +226,8 @@ void CvFileStoreImportTest::reusesCvWithSameIdentity()
     CvRepository repository{fixture.database().connection()};
     CvManagedFileStore fileStore{fixture.storage().paths()};
     CvImportService importer{fileStore, repository};
-    CvMutationQueue queue;
-    auto lease = queue.acquire({});
+    CvLockWrapper queue;
+    const std::unique_lock lock{queue.getMutex()};
     SqlTransaction transaction{fixture.database().connection(), QStringLiteral("CV resolver test")};
     const auto sourcePath = fixture.storage().createFile();
     const auto cancellation = std::make_shared<CancellationState>();
@@ -283,8 +262,8 @@ void CvFileStoreImportTest::restoresArchivedExactDuplicate()
     CvRepository repository{fixture.database().connection()};
     CvManagedFileStore fileStore{fixture.storage().paths()};
     CvImportService importer{fileStore, repository};
-    CvMutationQueue queue;
-    auto lease = queue.acquire({});
+    CvLockWrapper queue;
+    const std::unique_lock lock{queue.getMutex()};
     SqlTransaction transaction{fixture.database().connection(), QStringLiteral("CV resolver test")};
     const auto sourcePath = fixture.storage().createFile(QStringLiteral("restore.pdf"));
     const auto cancellation = std::make_shared<CancellationState>();
@@ -320,8 +299,8 @@ void CvFileStoreImportTest::distinguishesSameContentWithDifferentNames()
     CvRepository repository{fixture.database().connection()};
     CvManagedFileStore fileStore{fixture.storage().paths()};
     CvImportService importer{fileStore, repository};
-    CvMutationQueue queue;
-    auto lease = queue.acquire({});
+    CvLockWrapper queue;
+    const std::unique_lock lock{queue.getMutex()};
     SqlTransaction transaction{fixture.database().connection(), QStringLiteral("CV resolver test")};
     const auto firstPath = fixture.storage().createFile(QStringLiteral("first.pdf"));
     const auto secondPath = fixture.storage().createFile(QStringLiteral("second.pdf"));
@@ -347,8 +326,8 @@ void CvFileStoreImportTest::distinguishesCaseOnlyFileNames()
     CvRepository repository{fixture.database().connection()};
     CvManagedFileStore fileStore{fixture.storage().paths()};
     CvImportService importer{fileStore, repository};
-    CvMutationQueue queue;
-    auto lease = queue.acquire({});
+    CvLockWrapper queue;
+    const std::unique_lock lock{queue.getMutex()};
     SqlTransaction transaction{fixture.database().connection(), QStringLiteral("CV resolver test")};
     const auto upperDirectory = QDir{fixture.storage().rootPath()}
         .filePath(QStringLiteral("upper"));
@@ -391,8 +370,8 @@ void CvFileStoreImportTest::distinguishesDifferentContentWithSameName()
     CvRepository repository{fixture.database().connection()};
     CvManagedFileStore fileStore{fixture.storage().paths()};
     CvImportService importer{fileStore, repository};
-    CvMutationQueue queue;
-    auto lease = queue.acquire({});
+    CvLockWrapper queue;
+    const std::unique_lock lock{queue.getMutex()};
     SqlTransaction transaction{fixture.database().connection(), QStringLiteral("CV resolver test")};
     const auto firstDirectory = QDir{fixture.storage().rootPath()}.filePath(QStringLiteral("first"));
     const auto secondDirectory = QDir{fixture.storage().rootPath()}.filePath(QStringLiteral("second"));

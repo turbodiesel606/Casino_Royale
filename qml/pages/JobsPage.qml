@@ -107,8 +107,11 @@ Item {
                     ? "Deleting..."
                     : "Delete Selected ("
                         + jobApplicationsController.checkedApplicationCount + ")"
-                enabled: jobApplicationsController.canDeleteApplications
-                onClicked: deleteConfirmation.open()
+                enabled: jobApplicationsController.checkedApplicationCount > 0
+                onClicked: {
+                    if (storageMutationGate.checkRemovalAllowed())
+                        deleteConfirmation.open()
+                }
             }
         }
 

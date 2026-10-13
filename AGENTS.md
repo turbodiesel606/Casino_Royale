@@ -197,8 +197,10 @@ Avoid god classes, god files, and monolithic QML files. Decompose the codebase i
 - Use existing C++ classes, functions, and methods when solving a problem. Reuse a fully suitable entity directly. If an entity is only partially suitable, extend it through an overload, template, or specialization when appropriate. Create a new entity only when the existing entities are not suitable for the responsibility.
 - Follow established modern C++ best practices for correctness, type safety, ownership, lifetime and resource management, exception safety, clarity, maintainability, portability, and testability.
 - Use modern C++20 where supported by the current compiler and where it does not reduce portability.
+- Perform computations at compile time whenever possible; use `constexpr`, `consteval`, and `if constexpr` as appropriate while preserving correctness and Windows/Linux portability.
 - Use `#ifndef` / `#define` include guards instead of `#pragma once` in C++ headers.
 - Use the `.hpp` extension for all C++ header files.
+- Always place template definitions, including function templates, class templates, and members of class templates, in `.hpp` headers. Do not place template definitions in `.cpp` files.
 - For user-defined class and struct fields, use the trailing underscore convention. (Example: field_)
 - Use references for required non-owning parameters when appropriate.
 - Use pointers when Qt ownership, QObject parent-child hierarchy, nullable dependencies, polymorphism, or signal/slot integration makes pointer semantics more correct.

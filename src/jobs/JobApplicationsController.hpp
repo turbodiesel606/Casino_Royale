@@ -10,6 +10,7 @@
 #include "cvs/CvDocument.hpp"
 #include "cvs/CvImportService.hpp"
 #include "directory/Company.hpp"
+#include "maintenance/DataRemovalTypes.hpp"
 
 #include <QObject>
 #include <QStringList>
@@ -121,6 +122,7 @@ signals:
         bool success,
         const QString& message);
     void applicationUpdateQueued(quint64 operationId, const QString& applicationId);
+    void applicationUpdateBlocked(const QString& applicationId);
     void applicationUpdateRejected(
         quint64 operationId,
         const QString& applicationId,
@@ -138,6 +140,7 @@ signals:
     void deletingApplicationsChanged();
     void pendingDeletionCountChanged();
     void deletionAvailabilityChanged();
+    void applicationDeletionRejected(const QString& message);
     void applicationDeletionCompleted(
         int deletedCount,
         int failedCount,
@@ -187,7 +190,7 @@ private:
         bool expectUpdate) const;
     void releaseActiveJobSave();
     void clearPendingUpdate();
-    void handleRemovalCompleted(const struct DataRemovalBatchOutcome& outcome);
+    void handleRemovalCompleted(const DeleteJobsOutcome& outcome);
     void releaseApplicationDeletion();
     QVariantMap applicationToMap(int sourceRow) const;
 

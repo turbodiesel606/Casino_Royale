@@ -31,7 +31,7 @@
         "Qt-Default"
       ],
       "cacheVariables": {
-        "CMAKE_PREFIX_PATH": "D:/Qt_install/6.9.1/msvc2022_64"
+        "CMAKE_PREFIX_PATH": "D:/Qt_install/6.10.3/msvc2022_64"
       }
     },
     {
@@ -41,7 +41,7 @@
         "Qt-Default"
       ],
       "cacheVariables": {
-        "CMAKE_PREFIX_PATH": "D:/Qt_install/6.9.1/msvc2022_64"
+        "CMAKE_PREFIX_PATH": "D:/Qt_install/6.10.3/msvc2022_64"
       }
     },
     {
@@ -112,7 +112,7 @@
   ],
   "vendor": {
     "qt-project.org/Presets": {
-      "checksum": "Ua52OIuqePRzeiSQlFufuTQ16Z8="
+      "checksum": "fwXzuhyTOUZ+CoDObsVgLeT2BDY="
     }
   }
 }

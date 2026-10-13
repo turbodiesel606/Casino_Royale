@@ -24,9 +24,13 @@ leave a completed orphan that startup recovery quarantines.
 
 ## Add CV Flow
 
-The sidebar Add CV action opens one `FileDialog` in multi-file mode. QML sends
-the ordered local URL list to `CvLibraryController::addCvs()` and stays on the
-current page. The dialog filters for PDF, DOC, and DOCX, while the managed-file
+The sidebar Add CV action checks admission before opening one `FileDialog` in
+multi-file mode. QML sends the ordered local URL list to
+`CvLibraryController::addCvs()` and stays on the current page. The command returns
+whether it admitted the batch and checks the gate again before enqueueing.
+Rejected URL selections remain transient QML input and prefill the next picker
+through `currentFiles`; they are not pending imports or automatic retries.
+The dialog filters for PDF, DOC, and DOCX, while the managed-file
 store remains the defensive validation boundary for local, readable, supported
 files.
 
@@ -64,3 +68,13 @@ token, but checks it after acquiring the mutex and returns before the
 transaction. Staging and import persistence currently ignore later cancellation
 and must complete or roll back and compensate. Worker shutdown destroys its SQL
 graph on the worker thread before quitting and waiting.
+
+## Favorite Updates And Feedback
+
+Favorite toggles remain synchronous GUI-thread repository writes. A scoped
+import/update reservation covers the write, error reporting, and model
+publication. An active removal blocks the toggle and produces the shared dialog
+without changing the favorite. Genuine access or persistence failures continue
+through `operationFailed`, which the application shell displays as an ordinary
+error notification. Import, deletion, archive, and restore conflicts use the
+gate's dedicated feedback instead of failure or completion notifications.

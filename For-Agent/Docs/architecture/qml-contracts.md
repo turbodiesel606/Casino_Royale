@@ -74,6 +74,34 @@ matching to the proxy. Selected-item maps project explicit public-role
 whitelists, so internal model roles are not exposed accidentally; QML continues
 to receive its existing string roles and selected-item map fields.
 
+## Mutation Admission And Feedback
+
+`storageMutationGate` exposes read-only `importOrUpdateAllowed`, `removalAllowed`,
+and `shuttingDown` state, plus retry-notice visibility/message and the current
+blocked-dialog title/message. During normal operation, its typed
+`operationBlocked` event is emitted for every rejected attempt, even when the
+blocking reason is unchanged. Attempts rejected after shutdown begins are
+silent. Availability checks used by the picker and deletion confirmations
+reserve nothing; commands always perform final backend admission. Form
+validation runs first.
+
+`StorageMutationFeedback` renders one modal dialog and a persistent banner. The
+gate tracks which categories were attempted, announces availability after their
+blocking work finishes, and keeps an announced notice current when work resumes.
+Dismissal or actual admission clears the corresponding interest; rejected
+payloads are never queued. The shell positions ordinary completion notifications
+below the banner. Repeated attempts reopen or focus the same dialog, and an open
+dialog updates when the blocker changes or finishes.
+
+Selection eligibility keeps deletion/restore buttons enabled during conflicts.
+Blocked commands preserve drafts, replacement CVs, and checkbox selections.
+`addCvs()` returns admission status so QML can retain a rejected picker selection.
+Updates use `applicationUpdateBlocked` for editor/navigation cleanup without a
+duplicate error toast. `applicationDeletionRejected` and CV `operationFailed`
+report genuine eligibility, access, or persistence errors; completion signals
+belong only to admitted operations. See [threading.md](threading.md) for lifetime
+and accounting and [removal.md](removal.md) for the exclusive operation category.
+
 ## Contract Rules
 
 - Keep model role IDs and names stable while QML consumes them.

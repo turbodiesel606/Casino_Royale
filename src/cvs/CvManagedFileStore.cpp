@@ -305,37 +305,44 @@ CvManagedFileRemovalPreparationResult CvManagedFileStore::prepareRemoval(
 {
 	CvManagedFileRemovalPreparationResult result;
 	const auto resolution = pathResolver_.resolve(document);
+
 	if (!resolution.valid_) {
 		result.message_ = resolution.message_;
 		return result;
 	}
 
-	auto preparation = std::make_shared<CvManagedFileRemovalPreparation>();
-	preparation->originalFilePath_ = resolution.absolutePath_;
-	result.preparation_ = preparation;
+	result.preparation_ = std::make_shared<CvManagedFileRemovalPreparation>();
+	result.preparation_->originalFilePath_ = resolution.absolutePath_;
+
 	if (!resolution.exists_) {
 		result.fileWasMissing_ = true;
 		return result;
 	}
 
-	preparation->tombstoneFilePath_ = resolution.absolutePath_ + QStringLiteral(".delete");
-	if (QFileInfo::exists(preparation->tombstoneFilePath_)
-		|| !QFile::rename(preparation->originalFilePath_, preparation->tombstoneFilePath_)) {
-		result.message_ = QStringLiteral("The managed CV file could not be prepared for deletion.");
-	}
+	result.preparation_->tombstoneFilePath_ =
+		resolution.absolutePath_ + QStringLiteral(".delete");
+
+	if (QFileInfo::exists(result.preparation_->tombstoneFilePath_)
+		|| !QFile::rename(
+			result.preparation_->originalFilePath_,
+			result.preparation_->tombstoneFilePath_))
+		result.message_ = QStringLiteral(
+			"The managed CV file could not be prepared for deletion. Renaming error");
+
 	return result;
 }
 
 bool CvManagedFileStore::finalizeRemoval(CvManagedFileRemovalPreparation& preparation) const
 {
 	preparation.databaseCommitted_ = true;
+
 	if (preparation.tombstoneFilePath_.isEmpty()
-		|| !QFileInfo::exists(preparation.tombstoneFilePath_)) {
+		|| !QFileInfo::exists(preparation.tombstoneFilePath_))
 		return true;
-	}
-	if (!QFile::remove(preparation.tombstoneFilePath_)) {
+
+	if (!QFile::remove(preparation.tombstoneFilePath_)) 
 		return false;
-	}
+	
 	preparation.tombstoneFilePath_.clear();
 	return true;
 }

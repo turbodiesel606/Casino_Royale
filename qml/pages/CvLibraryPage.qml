@@ -116,7 +116,7 @@ Item {
                     checkedUnlinkedCvCount: cvLibraryController.checkedUnlinkedCvCount
                     allVisibleCvsChecked: cvLibraryController.allVisibleCvsChecked
                     someVisibleCvsChecked: cvLibraryController.someVisibleCvsChecked
-                    mutationEnabled: cvLibraryController.canMutateCheckedCvs
+                    mutationEnabled: cvLibraryController.checkedCvCount > 0
                     mutationBusy: cvLibraryController.mutatingCvs
                     selectionSizeMultiplier: 1 / page.uiScale
                     selectedRow: cvLibraryController.selectedCvIndex
@@ -132,9 +132,15 @@ Item {
                     onSortModeRequested: mode => cvLibraryController.setSortMode(mode)
                     onRowCheckToggled: row => cvLibraryController.toggleCvChecked(row)
                     onAllVisibleCheckedRequested: checked => cvLibraryController.setAllVisibleCvsChecked(checked)
-                    onRemoveRequested: removeConfirmation.open()
+                    onRemoveRequested: {
+                        if (storageMutationGate.checkRemovalAllowed())
+                            removeConfirmation.open()
+                    }
                     onRestoreRequested: cvLibraryController.restoreCheckedCvs()
-                    onPermanentDeleteRequested: permanentDeleteConfirmation.open()
+                    onPermanentDeleteRequested: {
+                        if (storageMutationGate.checkRemovalAllowed())
+                            permanentDeleteConfirmation.open()
+                    }
                 }
 
                 CvLibraryPreviewPanel {

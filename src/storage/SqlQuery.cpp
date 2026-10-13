@@ -44,9 +44,8 @@ namespace storage::sql {
 
 	void execute(QSqlQuery& query, const QString& operationContext)
 	{
-		if (!query.exec()) {
+		if (!query.exec())
 			throwQueryError(query, operationContext);
-		}
 	}
 
 	QString nonNullText(const QString& value)

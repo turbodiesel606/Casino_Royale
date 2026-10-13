@@ -64,12 +64,27 @@ cascade and never removes the referenced company or CV. Its read query joins
 company and CV display roles remain unchanged. It then loads each job's
 technologies from `job_technologies` in `position` order.
 
+`CvRepository` uses the header-only `src/fixed_str` utility to assemble its
+shared joined `SELECT` and CV `INSERT` SQL text at compile time. The resulting
+`QString` uses static-backed text; runtime values such as a CV ID remain bound
+query parameters. Other repository and migration queries continue to use their
+existing query construction.
+
 Repositories translate the schema's existing ISO text representation into typed
 domain values. Job applied dates use `QDate`; job, CV, and company
 creation/update timestamps use `QDateTime`; job and company URLs use `QUrl`; and
 job status/work format use closed enum values. Writes serialize those values back
 to schema text columns. CV archival uses the same ISO timestamp representation in
 schema version 4.
+
+`CvDocument::isArchived_` records archive membership independently of timestamp
+parsing. Repository reads derive it from whether `archived_at` is SQL `NULL`:
+non-null values, including malformed or empty text, remain archived even when
+`archivedAt_` is invalid. Archive/restore operations and model publication pass
+the explicit state through `applyArchiveState()`; filters and eligibility checks
+use the flag. New inserts require the flag to agree with timestamp validity and
+reject inconsistent input instead of silently losing an archive marker. No
+separate Boolean database column is stored.
 
 Treat `SchemaMigrator`, the repository queries, and storage tests as the source
 of truth for the current persisted schema and relationships.

@@ -74,7 +74,7 @@ public:
 		QString threadName,
 		QString dataDirectory,
 		QObject* parent = nullptr)
-		: SingleActiveWorkerFacade{
+		: SingleActiveWorkerFacade{ // Delegating constructor
 			std::move(threadName),
 			[dataDirectory = std::move(dataDirectory)]() { return new Executor{dataDirectory}; },
 			parent}
@@ -142,7 +142,7 @@ private:
 		using RequestType = std::remove_cvref_t<Request>;
 		using Traits = SingleActiveWorkerRequestTraits<RequestType>;
 
-		// COMMENT: Admission and correlation state belong to the GUI facade thread.
+		// Admission and correlation state belong to the GUI facade thread.
 		Q_ASSERT(QThread::currentThread() == thread());
 
 		SingleActiveWorkerAdmission admission;
@@ -254,7 +254,6 @@ private:
 			std::invoke(outcomeHandler_, std::move(outcome));
 	}
 
-	//QString dataDirectory_; // maybe this field is not needed, cuz we std::move it to Executor
 	Executor* executor_ = nullptr;
 	SingleActiveWorkerRuntime runtime_;
 	OutcomeHandler outcomeHandler_;

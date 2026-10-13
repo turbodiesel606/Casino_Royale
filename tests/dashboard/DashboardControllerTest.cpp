@@ -192,7 +192,7 @@ void DashboardControllerTest::removalsRefreshMetricsAndArchivedCvsDisappear()
     QCOMPARE(controller.recentApplicationsModel()->rowCount(), 4);
 
     const auto updatedAt = QDateTime::currentDateTimeUtc();
-    QVERIFY(cvModel.setArchiveState(QStringLiteral("newer"), updatedAt, updatedAt));
+    QVERIFY(cvModel.setArchiveState(QStringLiteral("newer"), true, updatedAt, updatedAt));
     QCOMPARE(controller.recentCvsModel()->rowCount(), 1);
     QCOMPARE(idAt(*controller.recentCvsModel(), 0), QStringLiteral("older"));
 }
