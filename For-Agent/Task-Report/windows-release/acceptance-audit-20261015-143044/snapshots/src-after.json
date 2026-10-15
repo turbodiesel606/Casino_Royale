@@ -1,0 +1,1226 @@
+[
+  {
+    "Path": "src",
+    "Kind": "Directory",
+    "Length": null,
+    "SHA256": null,
+    "Attributes": "Directory",
+    "LastWriteUtc": null,
+    "Target": null
+  },
+  {
+    "Path": "src/app",
+    "Kind": "Directory",
+    "Length": null,
+    "SHA256": null,
+    "Attributes": "Directory",
+    "LastWriteUtc": null,
+    "Target": null
+  },
+  {
+    "Path": "src/app/App.cpp",
+    "Kind": "File",
+    "Length": 981,
+    "SHA256": "DB0D75BD429DF7036FC2FB2D43A93FAB173E606EECD537579262202DBC7AEF52",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2214586Z",
+    "Target": null
+  },
+  {
+    "Path": "src/app/App.hpp",
+    "Kind": "File",
+    "Length": 220,
+    "SHA256": "51C620CE6DC3846312A972D859E740BB88A1FA1E1B7150C57F144D81CD7E88EE",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:49.8070583Z",
+    "Target": null
+  },
+  {
+    "Path": "src/app/AppBootstrap.cpp",
+    "Kind": "File",
+    "Length": 5529,
+    "SHA256": "FE466C3EA1E161FC85E516E0BAA0C43DF73DABB9C3620EBDDFDF45255BB806E4",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-15T08:21:04.5044673Z",
+    "Target": null
+  },
+  {
+    "Path": "src/app/AppBootstrap.hpp",
+    "Kind": "File",
+    "Length": 2223,
+    "SHA256": "36B5E0F94D58D838960BFD10955E99E5B9593EF06392D94FA7D0F7C43D2C33D3",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-15T08:21:03.8048869Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common",
+    "Kind": "Directory",
+    "Length": null,
+    "SHA256": null,
+    "Attributes": "Directory",
+    "LastWriteUtc": null,
+    "Target": null
+  },
+  {
+    "Path": "src/common/BulkIdSelectionTracker.cpp",
+    "Kind": "File",
+    "Length": 4338,
+    "SHA256": "DE07C7E1796344DC5A8120922A69B12581695FA7B9591A7BB1FD8821D53CEC3C",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-25T21:53:19.2404119Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/BulkIdSelectionTracker.hpp",
+    "Kind": "File",
+    "Length": 1222,
+    "SHA256": "EB09AE0B087810E3618FD1C7BB232F7099CBBCC68CE9138BFCCE5458B78E3137",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-25T21:03:33.3639468Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/CancellationState.cpp",
+    "Kind": "File",
+    "Length": 382,
+    "SHA256": "3F590CECA0E5DC475D7DDF35B630E9E464E8C72EC00383509FFC5CDCF8503B16",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2254578Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/CancellationState.hpp",
+    "Kind": "File",
+    "Length": 566,
+    "SHA256": "8B2B06CF9BC07873B1B1F04980CFD7D70CDC3AC16174696196D93C5E0F957F00",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2264581Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/ExceptionUtils.cpp",
+    "Kind": "File",
+    "Length": 504,
+    "SHA256": "3DEDB03502F5E8A5319730C5B367EAEA75FB86E0A1A3C1C40075E74C7168B145",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2264581Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/ExceptionUtils.hpp",
+    "Kind": "File",
+    "Length": 509,
+    "SHA256": "84583C33834A4CA2C0E0220654B73D46520C914F0B91DABFDF9E811ACCCCE5A8",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2274579Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/FixedStringQt.hpp",
+    "Kind": "File",
+    "Length": 3439,
+    "SHA256": "99A8A274C9652EB15249EAAE9D965513876DDBDD181BB8E402F33C1B4CBC73CF",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-27T12:50:02.8556265Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/Header.hpp",
+    "Kind": "File",
+    "Length": 2758,
+    "SHA256": "6BD7190E78EC74A8C79D1040DDE34F02405BEB17677E15A640CC177E77FA1CCB",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-27T18:55:54.8595090Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/LimitedSortedProxyModel.cpp",
+    "Kind": "File",
+    "Length": 7309,
+    "SHA256": "40025B6B4C7F7EB6D45D9DD46CA12635D2F168585787890E173C8DE74E6E4CF2",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:49.1044729Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/LimitedSortedProxyModel.hpp",
+    "Kind": "File",
+    "Length": 2029,
+    "SHA256": "5DAF05019F8C601608D9387CFB36281C8B0208B1FBBA82DF4A774DC66E22CC2E",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:49.0929746Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/ModelPresentation.cpp",
+    "Kind": "File",
+    "Length": 1050,
+    "SHA256": "69676E0F9754CB2EB6A2CDA3345E79C990F318BCDF9BEEE08EB4F0A33F1CF1FB",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2274579Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/ModelPresentation.hpp",
+    "Kind": "File",
+    "Length": 937,
+    "SHA256": "8B6A9425B1B240DDFDBA24F3B6AA3B6F1D4903F3D4A398BD3808BCF409D21F79",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2284583Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/ModelRoleUtils.cpp",
+    "Kind": "File",
+    "Length": 1531,
+    "SHA256": "79ED7E6B1300FBE835D3C603DF77E4FF7A23D49B1D05B6901C358566E963A1F5",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-25T21:53:19.2223411Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/ModelRoleUtils.hpp",
+    "Kind": "File",
+    "Length": 922,
+    "SHA256": "755F6E5F1FED41710E21CD8292620EB613E63D936B0CF7DD14438DEEF56470A3",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2294580Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/RelationFilterProxyModel.cpp",
+    "Kind": "File",
+    "Length": 1091,
+    "SHA256": "38004DB1A1516933FF1DD96D76B3D55FB316EE56DE29971D179169AD4C23F3C1",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2304579Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/RelationFilterProxyModel.hpp",
+    "Kind": "File",
+    "Length": 836,
+    "SHA256": "1C8502210DF96A838A48CD7AED6ADB58CF2773EA27612DA56A38AA38EFBC15C3",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2324582Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/RoleFilterProxyModel.cpp",
+    "Kind": "File",
+    "Length": 5306,
+    "SHA256": "62E9BF6BC978C252962BE08969DF090CB3EC72658D56E3469217909D7B114995",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:49.1669694Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/RoleFilterProxyModel.hpp",
+    "Kind": "File",
+    "Length": 1356,
+    "SHA256": "94B43D2EF8CB2828573F35B8996EFAB6302C2F4F92FB9A81D362282DE3EC4ED2",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:49.2732816Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/SerialOperationQueue.hpp",
+    "Kind": "File",
+    "Length": 3986,
+    "SHA256": "203E5779A9EC3CF044E7956E4AC30CD69A40E27206F0D614412375CCC31E8BFF",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2324582Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/SingleActiveWorkerFacade.hpp",
+    "Kind": "File",
+    "Length": 7148,
+    "SHA256": "41B2E6BAA0526A2371822EA7C813B79CF734187FE91783742A93D8C6D439C76E",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-26T12:03:23.2912517Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/SingleActiveWorkerRuntime.cpp",
+    "Kind": "File",
+    "Length": 4922,
+    "SHA256": "E0629E84260125B325D489868D06AAFA6A29B0ED679AAD9DB888729A3431E6A0",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2334601Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/SingleActiveWorkerRuntime.hpp",
+    "Kind": "File",
+    "Length": 3121,
+    "SHA256": "101537A601BFA4C8A61500D52AE296EF9D22417568D2796981AE2CD3F1B85CE2",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2344595Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/StableIdSelectionTracker.cpp",
+    "Kind": "File",
+    "Length": 4400,
+    "SHA256": "68D864918CD2EA07D94E55E6F5C72A35DF1AEC15FB74444DE722C9E4CA136953",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2354592Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/StableIdSelectionTracker.hpp",
+    "Kind": "File",
+    "Length": 1784,
+    "SHA256": "A92E290D1C244195FC2A55B23490D4C985AEB4D42F5B6284FD93B850A6CACEE2",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2364578Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/TimeUtils.cpp",
+    "Kind": "File",
+    "Length": 289,
+    "SHA256": "50F37A245CF48D3E6B69B9953B0F53BC8D86919C9C48C41C7B17444B1E9FA006",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2364578Z",
+    "Target": null
+  },
+  {
+    "Path": "src/common/TimeUtils.hpp",
+    "Kind": "File",
+    "Length": 324,
+    "SHA256": "0256EF2DAEA40B897AA1E222921BCFE38E8A72EB9A1DAF0C15DEEEC0C35491E4",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2374579Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs",
+    "Kind": "Directory",
+    "Length": null,
+    "SHA256": null,
+    "Attributes": "Directory",
+    "LastWriteUtc": null,
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvDocument.hpp",
+    "Kind": "File",
+    "Length": 992,
+    "SHA256": "E6583837FCACB743ED5A51FD0255E7D6AD827F0C28E381E21B4B3133EE96B013",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-10-13T09:11:46.5272601Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvFileAccessService.cpp",
+    "Kind": "File",
+    "Length": 879,
+    "SHA256": "5E56322348D423563D8764745B0FAF1A86DB01C38F2DB8F1D7E5C70F25F7D8B0",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:49.9073360Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvFileAccessService.hpp",
+    "Kind": "File",
+    "Length": 648,
+    "SHA256": "83D93BF90FB92CA8E332548EDCB39AEBA2B1A5AC4C4FF6A0A32DEFC6A5D4A368",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:50.0388316Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvImportExecutor.cpp",
+    "Kind": "File",
+    "Length": 5195,
+    "SHA256": "4E5415216547F297BF09E74B1C42FF043812D4B7732C750BA3C52C8007C3D3DE",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-23T20:02:14.1345585Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvImportExecutor.hpp",
+    "Kind": "File",
+    "Length": 1061,
+    "SHA256": "A4CEAFD880C6A2DE9D41C6546C45587A6CB311774BD4275BA7350D86ECDA1944",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2394575Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvImportService.cpp",
+    "Kind": "File",
+    "Length": 4278,
+    "SHA256": "C2CAF3CCFA5EAE3A3016215B3B8A720777C5871983B59BFA3C42A770A16ED564",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-10-13T09:11:47.1945242Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvImportService.hpp",
+    "Kind": "File",
+    "Length": 1785,
+    "SHA256": "03798CA723BB5ADABF14DA0761B522AF9AE454627EA26D5D9896B5BC0BC8492C",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2404889Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvImportWorker.cpp",
+    "Kind": "File",
+    "Length": 634,
+    "SHA256": "2BC0B39FF13E73FB2C3A7DCDB2D767F2CA24BCEEAC85C10E4D81FE09574B90CE",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2404889Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvImportWorker.hpp",
+    "Kind": "File",
+    "Length": 1833,
+    "SHA256": "A6191FAFC678C751D28C8CE619E14884BB7D14899C323DB166BB779E4A0560E5",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2404889Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvImportWorkerTypes.hpp",
+    "Kind": "File",
+    "Length": 960,
+    "SHA256": "DEF1EBC3BA29CDC5883B66B3847529386A65F5E8496005AD012C189DB407F8AB",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2404889Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvLibraryController.cpp",
+    "Kind": "File",
+    "Length": 23905,
+    "SHA256": "B32C8C7C88739139912B7C490A9C2ABBA445CCEB8C61CCFE085B9B3C89C49050",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-10-13T09:13:10.0081526Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvLibraryController.hpp",
+    "Kind": "File",
+    "Length": 12498,
+    "SHA256": "BACC409DC9F9AF8B822A3C5E9FFA7350F84D2CE204FB1658103690F22A30DC71",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-10-13T09:11:49.0091653Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvListModel.cpp",
+    "Kind": "File",
+    "Length": 6990,
+    "SHA256": "01EF7841BDB1DF329419ED84981F3725AFB482D8ABD95FDD800D67FF8975F6F9",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-10-13T09:11:48.2963597Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvListModel.hpp",
+    "Kind": "File",
+    "Length": 1945,
+    "SHA256": "B5210B447419C6864CA65D42D7A4145827607A5749CEE525E39C7D0FB8F6D1EB",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-10-13T09:11:47.9238276Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvLockWrapper.hpp",
+    "Kind": "File",
+    "Length": 433,
+    "SHA256": "6F6424C2F742CE9A19853990EB0DFBE086970AC775467CCAC20ADF50FB4F8B9D",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2404889Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvManagedFileStore.cpp",
+    "Kind": "File",
+    "Length": 14187,
+    "SHA256": "081BA240CEBCD27E0A5EEFF4744108506794E234C5B998C1DB8D54A00A4E1BF0",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-10-12T23:24:49.3832429Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvManagedFileStore.hpp",
+    "Kind": "File",
+    "Length": 3268,
+    "SHA256": "22ED3C2D24AA3FCD81C52AFA7C2EEED0398F96B613C7E2D52A8887478FDAAF41",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2404889Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvManagedPathResolver.cpp",
+    "Kind": "File",
+    "Length": 3617,
+    "SHA256": "F2EBDE3AFF46B226CE7865860F437B89D807DF32DDC2B3D6374CF3F48AB4C00D",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-10-12T20:41:24.6093272Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvManagedPathResolver.hpp",
+    "Kind": "File",
+    "Length": 712,
+    "SHA256": "7E7B79D1DDA695D02BE6EE038EE3FEE131EAE5F7EE73C5C82CE48A2C7B40AAA6",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:49.9386647Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvRepository.cpp",
+    "Kind": "File",
+    "Length": 8099,
+    "SHA256": "2CE7FCDFA95AE3BE1061C3793E5A6357C4431202C3A02104738A46C228D55D34",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-10-13T09:11:46.8570443Z",
+    "Target": null
+  },
+  {
+    "Path": "src/cvs/CvRepository.hpp",
+    "Kind": "File",
+    "Length": 950,
+    "SHA256": "1411F26EE89726DCF897FC1B3D615B0877A580E4C78FA4A9BA28C27C8E944CD5",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:49.8983304Z",
+    "Target": null
+  },
+  {
+    "Path": "src/dashboard",
+    "Kind": "Directory",
+    "Length": null,
+    "SHA256": null,
+    "Attributes": "Directory",
+    "LastWriteUtc": null,
+    "Target": null
+  },
+  {
+    "Path": "src/dashboard/DashboardController.cpp",
+    "Kind": "File",
+    "Length": 6691,
+    "SHA256": "7773C08B4401227016A35F3D93084192FE36ABD5104FCCBABE2B54994555A696",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2404889Z",
+    "Target": null
+  },
+  {
+    "Path": "src/dashboard/DashboardController.hpp",
+    "Kind": "File",
+    "Length": 1483,
+    "SHA256": "28280ED2D520F2B4E1CC9557D4926F1165D9F82FBF71CCBE664EC9AFD54DAB6C",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:49.3820311Z",
+    "Target": null
+  },
+  {
+    "Path": "src/dashboard/DashboardMetric.hpp",
+    "Kind": "File",
+    "Length": 341,
+    "SHA256": "E5A14CE4DFAA1EFFE2A8D912F7E5368B5CECC68552036822327D3A75DCE8DA8F",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:49.4061629Z",
+    "Target": null
+  },
+  {
+    "Path": "src/dashboard/DashboardMetricListModel.cpp",
+    "Kind": "File",
+    "Length": 1394,
+    "SHA256": "7994F5D42E62A41215E1C84FE7B2C5AF3049AACC3C31DBB64B820BD4978F018C",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:49.4217929Z",
+    "Target": null
+  },
+  {
+    "Path": "src/dashboard/DashboardMetricListModel.hpp",
+    "Kind": "File",
+    "Length": 949,
+    "SHA256": "E714E53D80C0D0A4C1530F869C155C50AF783DF20B690F767CD33E1F5E88FFD0",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:49.4061629Z",
+    "Target": null
+  },
+  {
+    "Path": "src/directory",
+    "Kind": "Directory",
+    "Length": null,
+    "SHA256": null,
+    "Attributes": "Directory",
+    "LastWriteUtc": null,
+    "Target": null
+  },
+  {
+    "Path": "src/directory/Company.hpp",
+    "Kind": "File",
+    "Length": 529,
+    "SHA256": "C8287468CA6655E57D3B526C70E58318FFA60AB1243E001238A650F5F6BD62EC",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2404889Z",
+    "Target": null
+  },
+  {
+    "Path": "src/directory/CompanyDirectoryController.cpp",
+    "Kind": "File",
+    "Length": 8063,
+    "SHA256": "6CF562A2F366D8D40AABF4EBF341D9A4A905C3D681CAB1ED4EF1002323BA8CE4",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2404889Z",
+    "Target": null
+  },
+  {
+    "Path": "src/directory/CompanyDirectoryController.hpp",
+    "Kind": "File",
+    "Length": 3316,
+    "SHA256": "BF418C6A3F8523137D58B21242ADFD75E496ADE22207B242247AD47D4E8E0E2C",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2404889Z",
+    "Target": null
+  },
+  {
+    "Path": "src/directory/CompanyListModel.cpp",
+    "Kind": "File",
+    "Length": 4234,
+    "SHA256": "86A8DE7734D1DEBD95D75F22033D89BBF07E8277CCBF0D20ABB9B57369482F95",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2562510Z",
+    "Target": null
+  },
+  {
+    "Path": "src/directory/CompanyListModel.hpp",
+    "Kind": "File",
+    "Length": 1356,
+    "SHA256": "1DCBD4B1A787BE16AA66284A4E9FF0E028FE188F66BBC3204F1A9235C73547C3",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2572513Z",
+    "Target": null
+  },
+  {
+    "Path": "src/directory/CompanyRepository.cpp",
+    "Kind": "File",
+    "Length": 2994,
+    "SHA256": "754A0B25DE6F3D3D5C86BBC3F34477934826C269C4E3227076FED30D5DFA7F0C",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2582509Z",
+    "Target": null
+  },
+  {
+    "Path": "src/directory/CompanyRepository.hpp",
+    "Kind": "File",
+    "Length": 552,
+    "SHA256": "C0328E241233DEFA26F4CCA176CFD46DC7A75AD3C1BAC31828D084AE002637B5",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:50.1629885Z",
+    "Target": null
+  },
+  {
+    "Path": "src/directory/Contact.hpp",
+    "Kind": "File",
+    "Length": 728,
+    "SHA256": "19E82D1B6BE8C56641FF2D986072D51C38D8F26D4AE2A246DB8D8FE6755E1E38",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:50.2680224Z",
+    "Target": null
+  },
+  {
+    "Path": "src/directory/ContactDirectoryController.cpp",
+    "Kind": "File",
+    "Length": 7966,
+    "SHA256": "0A573326332048768D1626BF7E924B80936D3DE214A52AA9942E0BB0C08FCF56",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2592524Z",
+    "Target": null
+  },
+  {
+    "Path": "src/directory/ContactDirectoryController.hpp",
+    "Kind": "File",
+    "Length": 3244,
+    "SHA256": "675490522D2CB40D10E5D3AEA5468EFCCFF166CC19EE460EA428EEE16BC6755B",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2602517Z",
+    "Target": null
+  },
+  {
+    "Path": "src/directory/ContactInteractionListModel.cpp",
+    "Kind": "File",
+    "Length": 1314,
+    "SHA256": "EAF9202A49A317CD7A58706E2C5A3F7DC1EE3731C58ECB1506FD6C51A90D872E",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:50.2409086Z",
+    "Target": null
+  },
+  {
+    "Path": "src/directory/ContactInteractionListModel.hpp",
+    "Kind": "File",
+    "Length": 915,
+    "SHA256": "86EBD2DE8B341543231018184B0053E101BF66EF0E0B134765EA8CDA8C1ED5BD",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:50.2960744Z",
+    "Target": null
+  },
+  {
+    "Path": "src/directory/ContactListModel.cpp",
+    "Kind": "File",
+    "Length": 2709,
+    "SHA256": "275C9E8AE3239866FF3717BF0BBAA7EDCF7CF5B79194F7335C3D4FDAD1F248D4",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:50.1942320Z",
+    "Target": null
+  },
+  {
+    "Path": "src/directory/ContactListModel.hpp",
+    "Kind": "File",
+    "Length": 1166,
+    "SHA256": "1C69FFC978F418D5B40AF4527B0D5579133B1E8C4348A2C01B0FDF0802E80057",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:50.1317382Z",
+    "Target": null
+  },
+  {
+    "Path": "src/fixed_str",
+    "Kind": "Directory",
+    "Length": null,
+    "SHA256": null,
+    "Attributes": "Directory",
+    "LastWriteUtc": null,
+    "Target": null
+  },
+  {
+    "Path": "src/fixed_str/detail",
+    "Kind": "Directory",
+    "Length": null,
+    "SHA256": null,
+    "Attributes": "Directory",
+    "LastWriteUtc": null,
+    "Target": null
+  },
+  {
+    "Path": "src/fixed_str/detail/FixedStringImpl.hpp",
+    "Kind": "File",
+    "Length": 28858,
+    "SHA256": "694E66D115465383B7C58222B5DD3F7481EFA86C53F317A1F24371CC694B3094",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-10-05T01:18:24.1475825Z",
+    "Target": null
+  },
+  {
+    "Path": "src/fixed_str/detail/FixedStringQtAdapter.hpp",
+    "Kind": "File",
+    "Length": 5341,
+    "SHA256": "0CA473E117541AA76CF87959DCAE8495DC79049F571D5077E019A45F20CBB334",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-10-05T01:05:29.6126934Z",
+    "Target": null
+  },
+  {
+    "Path": "src/fixed_str/detail/FixedStringQtDetail.hpp",
+    "Kind": "File",
+    "Length": 2852,
+    "SHA256": "14906FA6D11F278DD1B92FC6B17725647508762DA8EFEA7F30BC2DDF95759361",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-10-05T01:05:45.5822426Z",
+    "Target": null
+  },
+  {
+    "Path": "src/fixed_str/FixedString.hpp",
+    "Kind": "File",
+    "Length": 390,
+    "SHA256": "98FC69A7E544830808B441CCC4810E829DBDB1FC6694961E5EECB1B723D8B6E5",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-10-05T01:11:30.1290855Z",
+    "Target": null
+  },
+  {
+    "Path": "src/fixed_str/FixedStringQt.hpp",
+    "Kind": "File",
+    "Length": 486,
+    "SHA256": "ACF4C5C19DFAB070033545C1592D797BAC4E347FDDEED1BF5B486D3C302D3754",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-10-05T01:06:38.0673523Z",
+    "Target": null
+  },
+  {
+    "Path": "src/fixed_str/macros",
+    "Kind": "Directory",
+    "Length": null,
+    "SHA256": null,
+    "Attributes": "Directory",
+    "LastWriteUtc": null,
+    "Target": null
+  },
+  {
+    "Path": "src/fixed_str/macros/FixedStringMacros.hpp",
+    "Kind": "File",
+    "Length": 471,
+    "SHA256": "9DCFCCA21CF5793582B82B772FA7452F8037A2FB8BFB218596BF7D8DB85DB754",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-10-05T01:18:04.6865676Z",
+    "Target": null
+  },
+  {
+    "Path": "src/fixed_str/macros/FixedStringQtMacros.hpp",
+    "Kind": "File",
+    "Length": 1625,
+    "SHA256": "124010CF9BF480D591D771F6AD3DAECDA786D106EA1D1B42ED832FA9AA384496",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-10-05T01:04:37.9575086Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs",
+    "Kind": "Directory",
+    "Length": null,
+    "SHA256": null,
+    "Attributes": "Directory",
+    "LastWriteUtc": null,
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/AddJobService.cpp",
+    "Kind": "File",
+    "Length": 5099,
+    "SHA256": "22190040A065A8A7E52A91CDF42063F7E1113CFF119DDE0B24B13B9BE06830DC",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-23T19:21:30.3211276Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/AddJobService.hpp",
+    "Kind": "File",
+    "Length": 2666,
+    "SHA256": "565E78CA09EEC69BB19063B0DA267FBF68670758F63F01F4831479BA9DD365A5",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2622504Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/JobApplication.cpp",
+    "Kind": "File",
+    "Length": 2175,
+    "SHA256": "C63DA2A9BC587AD46C162ADD3BC59D65A29BAFD209047F0D1A49CE91D7255A6D",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2632510Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/JobApplication.hpp",
+    "Kind": "File",
+    "Length": 1294,
+    "SHA256": "BE8DBBFCB5B6AA9B344BA27349A4897CF8BB0EBD44294F275EC81EE55F7E8D60",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:49.5376713Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/JobApplicationDraft.hpp",
+    "Kind": "File",
+    "Length": 1091,
+    "SHA256": "DBC04582536AA02DFFDDAB6B8512C191221BD2BFE93CDAF8B6489AFD7806B699",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:49.6535418Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/JobApplicationFactory.cpp",
+    "Kind": "File",
+    "Length": 3887,
+    "SHA256": "008155BB263DE075C9A60BF9E738C9D4F1394ED9677F377EC48D4A5F1C9F48E4",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2632510Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/JobApplicationFactory.hpp",
+    "Kind": "File",
+    "Length": 859,
+    "SHA256": "6C534C1673C53D242424C170956A2BC6853F0BD31EBA491AC307497E462A3481",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:49.6379179Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/JobApplicationListModel.cpp",
+    "Kind": "File",
+    "Length": 8182,
+    "SHA256": "12A2A6CCE06A93CE99A3A6644F9F926D7CDE0CE3D0C322236E3A8C0C9C044599",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2642500Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/JobApplicationListModel.hpp",
+    "Kind": "File",
+    "Length": 1949,
+    "SHA256": "E2847073F7CD41E7EB5EF0EA09FCDFD3345FBB381065678F0E34D8A679DD74CE",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2652498Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/JobApplicationsController.cpp",
+    "Kind": "File",
+    "Length": 23413,
+    "SHA256": "0F3DDBC2572B71FFB89B8159D5C100CD76A34777CF845E52104640FF5D5812A2",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-21T23:27:16.9964427Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/JobApplicationsController.hpp",
+    "Kind": "File",
+    "Length": 9384,
+    "SHA256": "964FE5DF6FE7EBEF62AD718A3148E750429D896435BEE53AE5662C3F992B0683",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-21T22:38:44.0926880Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/JobApplicationValidator.cpp",
+    "Kind": "File",
+    "Length": 3534,
+    "SHA256": "8B31D3B92A9B0EEA18C613D3DF42951A6E287A18196A0A4D007058B70D78C90B",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2662515Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/JobApplicationValidator.hpp",
+    "Kind": "File",
+    "Length": 1294,
+    "SHA256": "E9B2B9B21A7E5A781A71A1C1EB29D694735F566DD18EB956A084EEDD7304F137",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2672499Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/JobRepository.cpp",
+    "Kind": "File",
+    "Length": 10222,
+    "SHA256": "EB0DC736AB8403A6FD08F86290D05B4F8CF21BA4B9BD839008A99D1935953D87",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-10-11T16:05:24.1207418Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/JobRepository.hpp",
+    "Kind": "File",
+    "Length": 893,
+    "SHA256": "7F7D92351DD59340CDA8F7EA404F7493EE527C6092880823A1947A7F9BE09F1D",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:49.4842863Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/JobSaveExecutor.cpp",
+    "Kind": "File",
+    "Length": 6339,
+    "SHA256": "CA8858568E0C56CF241FE16646E1D5780DE4615DFD1E732807CAFF7245A1A949",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2702503Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/JobSaveExecutor.hpp",
+    "Kind": "File",
+    "Length": 1275,
+    "SHA256": "22FDA88EF5D6FA728BF80EF388B610427D2A11DCB1E56802FBC42E841FE42C35",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2712501Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/JobSaveWorker.cpp",
+    "Kind": "File",
+    "Length": 957,
+    "SHA256": "7631F318093A0A00075989CE7BD18F735C7F1876F3713291CE8C0BB8F988676F",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2722513Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/JobSaveWorker.hpp",
+    "Kind": "File",
+    "Length": 2081,
+    "SHA256": "977CF72A519A8EB493281D65C2BBA2B9991E50EF1F41F4E1C5769E58B485E29F",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2732508Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/JobSaveWorkerTypes.hpp",
+    "Kind": "File",
+    "Length": 1400,
+    "SHA256": "94260B1B5F09C9E7DFE65B086097A68047F1AC4E95E71EC30764C8617DE6F300",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2742511Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/UpdateJobService.cpp",
+    "Kind": "File",
+    "Length": 4331,
+    "SHA256": "925FCC30CC32088D2B7CD8ECB3BEB13500A7FF52D5110DAF39D74D13FAF03984",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2752521Z",
+    "Target": null
+  },
+  {
+    "Path": "src/jobs/UpdateJobService.hpp",
+    "Kind": "File",
+    "Length": 5486,
+    "SHA256": "A33C531CBE1A6C0B6DBB76EAB04F18A0B1A3723818328DBE282DD0DB4EE90B8A",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2762524Z",
+    "Target": null
+  },
+  {
+    "Path": "src/main.cpp",
+    "Kind": "File",
+    "Length": 96,
+    "SHA256": "15254B7BCAD224D6FB93CA553A527DC80C84B62C877114A74C9A9C8B1C6A7F82",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:48.9354717Z",
+    "Target": null
+  },
+  {
+    "Path": "src/maintenance",
+    "Kind": "Directory",
+    "Length": null,
+    "SHA256": null,
+    "Attributes": "Directory",
+    "LastWriteUtc": null,
+    "Target": null
+  },
+  {
+    "Path": "src/maintenance/DataRemovalExecutor.cpp",
+    "Kind": "File",
+    "Length": 1487,
+    "SHA256": "053B51EF4AF22F5308685B25DC162C395CED426D14AC0B38FB1D1B1908540E60",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-26T12:30:19.3540522Z",
+    "Target": null
+  },
+  {
+    "Path": "src/maintenance/DataRemovalExecutor.hpp",
+    "Kind": "File",
+    "Length": 2216,
+    "SHA256": "DD5E15C6813FFD4AB5DB114572E1A575258702E8D8A54C0C1ECAB9DB4D435798",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-26T12:28:26.9291736Z",
+    "Target": null
+  },
+  {
+    "Path": "src/maintenance/DataRemovalService.cpp",
+    "Kind": "File",
+    "Length": 4930,
+    "SHA256": "E5606B9A2B712B985A92F5A7D98323A40F5692D88A3AC603DEF2F7013334A5C7",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-10-13T09:11:47.5611899Z",
+    "Target": null
+  },
+  {
+    "Path": "src/maintenance/DataRemovalService.hpp",
+    "Kind": "File",
+    "Length": 2987,
+    "SHA256": "9839B65C4757526611630C133FE4D85D7C9DCDFF6FDCFCE35D79E7FCE34B9D01",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-10-12T19:01:06.9655508Z",
+    "Target": null
+  },
+  {
+    "Path": "src/maintenance/DataRemovalTypes.hpp",
+    "Kind": "File",
+    "Length": 3234,
+    "SHA256": "2940287D0049E5CA6AAC36BEB684256D2ACD5A38EF26BF07FD874F967974157A",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-22T12:14:14.9807177Z",
+    "Target": null
+  },
+  {
+    "Path": "src/maintenance/DataRemovalWorker.cpp",
+    "Kind": "File",
+    "Length": 1377,
+    "SHA256": "FE33AD612F6DFE4166BE1EDDA3569509D8979F3308F8B27B0A4C673F2C39832C",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-22T12:08:34.2686278Z",
+    "Target": null
+  },
+  {
+    "Path": "src/maintenance/DataRemovalWorker.hpp",
+    "Kind": "File",
+    "Length": 1727,
+    "SHA256": "494E58BAEE971B8BEFB14DF967E90E5931BA4F1CA897ED2B584341EB9CF7B3DA",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-22T12:08:33.6776817Z",
+    "Target": null
+  },
+  {
+    "Path": "src/maintenance/StorageMutationGate.cpp",
+    "Kind": "File",
+    "Length": 5645,
+    "SHA256": "35902D5215ECEE6078BEDDC5BDFA715E086448473E999ADB5ED25C8EF4C0A0EB",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-23T21:22:57.7944286Z",
+    "Target": null
+  },
+  {
+    "Path": "src/maintenance/StorageMutationGate.hpp",
+    "Kind": "File",
+    "Length": 4195,
+    "SHA256": "16BF3AF0421A692DAAE7B9C8A0992048754B65F8E704E6DE16C96A6F65DAFB22",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-23T20:59:50.3146799Z",
+    "Target": null
+  },
+  {
+    "Path": "src/storage",
+    "Kind": "Directory",
+    "Length": null,
+    "SHA256": null,
+    "Attributes": "Directory",
+    "LastWriteUtc": null,
+    "Target": null
+  },
+  {
+    "Path": "src/storage/SchemaInitializationV4.cpp",
+    "Kind": "File",
+    "Length": 2762,
+    "SHA256": "FD9D541DC47FEA7A6DA2278DFEB14005E35A11F954A3371E0F9CFC1ECB5D04DE",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:50.3667635Z",
+    "Target": null
+  },
+  {
+    "Path": "src/storage/SchemaMigrationSteps.hpp",
+    "Kind": "File",
+    "Length": 456,
+    "SHA256": "E0FF036C15E63487223498DA20BD0FEB0640479A65DD6ACD4C9DC15F1FA83612",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:50.4600381Z",
+    "Target": null
+  },
+  {
+    "Path": "src/storage/SchemaMigrationV1ToV2.cpp",
+    "Kind": "File",
+    "Length": 4240,
+    "SHA256": "354B182463896A8CCBD8115F051313BA3A822674B98E72D2791ED62C4F4DDF9B",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:50.5069552Z",
+    "Target": null
+  },
+  {
+    "Path": "src/storage/SchemaMigrationV2ToV3.cpp",
+    "Kind": "File",
+    "Length": 9061,
+    "SHA256": "01C66E377405C44FDE6770CAA1BFDE29BAD3BD58D5BA7C56535245A6A9706F3D",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:50.5247049Z",
+    "Target": null
+  },
+  {
+    "Path": "src/storage/SchemaMigrationV3ToV4.cpp",
+    "Kind": "File",
+    "Length": 523,
+    "SHA256": "210CA044C90CA98F0DC2F116B9123DDD51E36E60D243AC750F79FD372520CF39",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:50.3511288Z",
+    "Target": null
+  },
+  {
+    "Path": "src/storage/SchemaMigrator.cpp",
+    "Kind": "File",
+    "Length": 3112,
+    "SHA256": "23433857D5C499B974724C26291119AA74D916B0A33543AF3F5B2F061AEC1321",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:50.5090293Z",
+    "Target": null
+  },
+  {
+    "Path": "src/storage/SchemaMigrator.hpp",
+    "Kind": "File",
+    "Length": 270,
+    "SHA256": "C99996FB1B8187835455F9FDBD97523AF32AE8397194DB31AA0F500F3DD5DE58",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:50.3667635Z",
+    "Target": null
+  },
+  {
+    "Path": "src/storage/SqliteDatabase.cpp",
+    "Kind": "File",
+    "Length": 1805,
+    "SHA256": "E59FD3CCB2262DFC478EDA7D8282C246A691293F6DA9FBA0D5906853F0216EB9",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:50.3824510Z",
+    "Target": null
+  },
+  {
+    "Path": "src/storage/SqliteDatabase.hpp",
+    "Kind": "File",
+    "Length": 742,
+    "SHA256": "ECBDF2F07DDF1D9944558D3A8568E13093481DFD29D331A4CD185BD77316535B",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:50.4756937Z",
+    "Target": null
+  },
+  {
+    "Path": "src/storage/SqlQuery.cpp",
+    "Kind": "File",
+    "Length": 1436,
+    "SHA256": "F651FBA894383DABBF4978720DACE5A103E1D81E229647F071F92568EE98BCDF",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-10-11T12:15:47.3493048Z",
+    "Target": null
+  },
+  {
+    "Path": "src/storage/SqlQuery.hpp",
+    "Kind": "File",
+    "Length": 811,
+    "SHA256": "7281AE038E2D81A0877E9CE70BA9EB0C0235347F30103D86FF1E7267EC94BF89",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-09-09T00:39:33.2832519Z",
+    "Target": null
+  },
+  {
+    "Path": "src/storage/SqlTransaction.cpp",
+    "Kind": "File",
+    "Length": 1039,
+    "SHA256": "9B8830C42DCA5BB8994627FD493A50162B59B782DFE97874CE5CE24EC6FE7BF2",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:50.3392084Z",
+    "Target": null
+  },
+  {
+    "Path": "src/storage/SqlTransaction.hpp",
+    "Kind": "File",
+    "Length": 665,
+    "SHA256": "0C490D6F7C9DFC200A0179DE4179956BF500EE03D6522B5E4F96CCB6DB32AB21",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:50.4090808Z",
+    "Target": null
+  },
+  {
+    "Path": "src/storage/StoragePaths.cpp",
+    "Kind": "File",
+    "Length": 1250,
+    "SHA256": "A7DD324F3E77E57B0FA4118BEC06313CC8C5FCB824BE8C9586B3FE0352904E2E",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:50.4380183Z",
+    "Target": null
+  },
+  {
+    "Path": "src/storage/StoragePaths.hpp",
+    "Kind": "File",
+    "Length": 546,
+    "SHA256": "CA88536BD19D50C4F2A6B86DF4C15232D0E86898E44180865D7DCABB620C7EC3",
+    "Attributes": "Archive",
+    "LastWriteUtc": "2026-08-28T12:18:50.4090808Z",
+    "Target": null
+  }
+]

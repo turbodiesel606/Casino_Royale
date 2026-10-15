@@ -13,6 +13,38 @@ Do not add formal tests only for appearance-level QML changes when no suitable t
 
 Do not claim that code works unless it was verified.
 
+For documentation/instruction-only changes that do not affect build behavior,
+check links, command forms, preset/target/script contracts and evidence labels;
+do not rebuild unchanged C++ or rerun installer mutations only for prose edits.
+Commands remain in [build.md](build.md), behavior in
+[windows-release.md](windows-release.md), and dated PASS/FAIL/NOT_RUN results in
+[release reports](../Task-Report/windows-release/STATUS.md).
+
+## Windows Release Evidence Boundaries
+
+Treat source inspection, test harnesses, real scoped installation, interactive
+UI, clean-machine startup and redistribution approval as separate evidence.
+The [acceptance checklist](../../tests/deployment/Windows-Release-Checklist.md)
+defines the manual matrix. Stage 13's recorded local pass includes 18/18 backend
+CTest, staging 1/1, App-Local smoke, 19 archive, 54 policy twice, 21 manual-close,
+19 data, 25 Online and 15 runtime checks. These are prior executions, not a fresh
+test result when a guide is read or updated.
+
+Stage 12's policy/current-user sharing error 32 remains failed evidence even
+though stage 13 passed twice with unchanged installers. Its lock owner and cause
+are unknown; do not remove the manual-close gate or claim a fix. The public
+asset's stage-13 HTTP 404 verifies safe failure, not a successful public install.
+Actual application startup/graphics, interactive EN/RU, AllUsers/UAC/coexistence,
+missing-runtime execution/reboot, historical releases and clean Windows remain
+NOT_RUN. Use disposable accounts/VMs for acceptance involving application data.
+
+The [stage-14 redistribution hold](../../packaging/windows/REDISTRIBUTION.md)
+is independent of these tests. R1-R7 cover actual payload/license/source/privacy
+and entitlement gaps; no passing suite or DONE stage clears the hold. Internal
+audit JSON, generated includes and private resource evidence are not public
+assets. A changed payload or runtime lock needs new hashes, affected regressions
+and a refreshed exact-payload audit.
+
 ## Production And Test Isolation
 
 Tests are consumers of the production architecture, never production dependencies. Keep the dependency direction strictly one-way: `tests -> production`.
@@ -25,7 +57,36 @@ Tests are consumers of the production architecture, never production dependencie
 
 ## Current Test Setup
 
-Tests are enabled through the `JOBTRACKER_BUILD_TESTS` CMake option and the `windows-debug-tests-local` preset.
+Tests are enabled through the `JOBTRACKER_BUILD_TESTS` CMake option and the
+Windows Debug/Release test presets (`windows-debug-tests-local` and
+`windows-release-tests-local`). Both require Qt 6.10.3 and use separate build
+directories. Linux Debug test presets remain available with the same SDK pin.
+
+The Windows test runtime helper copies the configuration-matched Qt libraries
+and SQLite driver into each test output directory (`sqldrivers/qsqlite[d].dll`).
+QtSql loads SQLite dynamically; linking/copying QtSql alone does not supply the
+driver. This preparation remains inside `JOBTRACKER_BUILD_TESTS` and does not
+deploy the production application or create a Release staging directory.
+
+Windows Release staging has an additional standalone verification project in
+`tests/deployment/`. It is not included by the production CMake project or the
+ordinary backend test presets. Its CTest check inspects a clean installed
+payload, then runs a helper from a retained private copy with system-only PATH
+and no inherited Qt/QML overrides. The helper loads the Windows platform, the
+current application's Qt QML import families, SVG/JPEG plugins and in-memory
+SQLite; it never constructs the production App or accesses JobTracker data.
+The helper and its private copy are test artifacts, not release payload files.
+This check does not establish full application startup, rendering, native dialog
+interaction or clean-machine/MSVC runtime acceptance. Its canonical commands
+are in the Windows Release staging section of `build.md`.
+
+`tests/deployment/Test-ReleasePackage.ps1` separately tests the explicit Windows
+archive workflow. It exercises rejected build/staging inputs, Debug/x86 binaries,
+unsafe output placement, junctions, version mismatch, corrupted assets and
+incorrect file hashes, then verifies a valid local manifest. Fixtures and results
+are retained under a unique ignored `dist/package-tests-*` directory. It is not
+included in production CMake or ordinary backend CTest. Canonical packaging and
+test commands are in the Windows Release Archive section of `build.md`.
 
 Use only the configure, build, and CTest commands in
 `For-Agent/Docs/build.md`; that document is the canonical command catalog.
@@ -33,6 +94,133 @@ Use only the configure, build, and CTest commands in
 If CTest reports that no tests were found, report that state clearly instead of treating it as a test failure.
 
 ## Test Scope
+
+The standalone `tests/deployment/Test-LocalInstaller.ps1` consumes the real local
+installer; production CMake and packaging never depend on it. It uses fresh
+`dist/` fixtures, refuses existing scoped registrations/shortcuts, verifies
+installed hashes, registration, shortcuts, previous-directory reuse and a scope
+conflict, then checks that uninstall preserves synthetic outside/unknown files.
+It never launches JobTracker or inspects personal application data. CurrentUser
+must run without OS elevation, AllUsers with it. Both create real shell/registry
+entries, so use a disposable account/VM and uninstall only the recorded fixture.
+Exact commands and the current Windows verification limits are in the Windows
+Local-Payload Installer section of `build.md`. CurrentUser English/Russian
+checks passed in stage 07; actual dual-scope/UAC/GUI acceptance remains pending.
+
+`tests/deployment/Test-OnlineInstaller.ps1` is a separate stage-08 consumer of
+the native production download/extraction include and generated per-file hashes.
+It compiles the TEST ONLY `OnlinePayloadHarness.iss` with no real JobTracker
+registration or shortcuts, using fresh retained fixtures and a loopback server.
+Mock endpoint/hash inputs exist only in that harness. It verifies build-time
+trust-anchor rejection, successful native extraction/copy, redirects, corruption,
+truncation, HTTP/network errors, cancellation/retry, destination junctions and
+unsafe archive paths. The traversal case requires native extraction failure and
+checks the escape path before Setup cleans its private temporary directory.
+The optional public-download check uses the exact production HTTPS URL without
+credentials. Stage 08 passed 25 checks; the public asset returned 404, so safe
+failure is verified but successful public download is not. Interactive dialogs,
+AllUsers/UAC and clean-machine acceptance remain separate. Production CMake and
+packaging do not depend on these tests. Commands are in the Windows Version-Locked
+Online Installer section of `build.md`.
+
+`Test-MsvcRuntime.ps1` and `MsvcRuntimeHarness.iss` consume the stage-09 runtime
+includes and lock-derived input. They inspect payload/CRT import closure and
+exercise result/reboot policy, real host runtime detection, current-user DLL
+copies, destination guards, bad build inputs and native official Microsoft
+download/integrity/cancellation. The harness never executes the redistributable:
+system detection does not call the all-users prerequisite orchestration. These
+checks cannot prove installation on a missing/old-runtime host. Retained stage-09
+results contain 15 checks, including 30 policy assertions and 994 import entries
+across 96 PE files. No fixture is a release artifact.
+
+`Verify-Staging.ps1 -MsvcRuntimeDirectory` adds only the verified CRT files to its
+private test copy and asks the deployment probe to verify the actual loaded paths
+of `msvcp140.dll`, `vcruntime140.dll` and `vcruntime140_1.dll`. The common staging
+input must still contain no compiler runtime. This distinguishes App-Local loading
+from a successful run masked by an installed system CRT. The Local installer
+test additionally verifies CRT hashes/absence by scope, its current-user policy
+log, the runtime notice and uninstall removal. Actual clean-machine application
+startup and all-users prerequisite execution remain separate acceptance checks.
+
+`Test-InstallationPolicy.ps1` and `InstallationPolicyHarness.iss` consume the
+stage-10 production version, registry, path and concurrency policy. They use
+GUID-qualified HKCU test keys and retained `dist/` fixtures, test both scope rules,
+malformed/mismatched identities, unsigned numeric ordering, equal/nested/aliased
+paths, unavailable profiles and the shared installer/uninstaller lock. The
+optional non-elevated CurrentUser integration refuses existing registration,
+installs the real Local installer, supplies coherent synthetic older/newer
+PE/registry/marker identities in its own fixture, checks repair/path reuse and
+English/Russian shortcut cleanup, then uninstalls only that verified fixture.
+The test waits for each installer process tree before restoring fixture state.
+Real application data and migrations are never accessed. Read-only HKU and
+all-users audits exercise host registry discovery, not an actual system install.
+AllUsers dual-scope coexistence/uninstall, multiple sessions/ACLs, actual old
+releases and GUI/clean-machine behavior still need separate acceptance evidence.
+Production CMake and normal builds remain independent. Commands are in the
+Windows Installer Upgrade And Coexistence Policy section of `build.md`.
+
+`Test-ManualClose.ps1`, `ManualCloseHarness.iss` and
+`RunningApplicationFixture.cs` consume the stage-11 manual-close policy. The
+fixture is a real x64 mapped executable with the release version; it waits for
+a test-owned stop file and exits normally. It does not load Qt/JobTracker or
+read personal data. Tests check the exact file while running/closed, an unrelated
+same-name copy, unavailable write access, EN/RU silent cancellation with
+`/SUPPRESSMSGBOXES`, post-preflight starts, and rejection of automatic-close
+options. The per-file cancellation case requires exit 5, native acknowledgement,
+rollback logs, surviving process and unchanged protected files. Optional real
+CurrentUser integration verifies install/reinstall/uninstall and preserved
+sentinels, then removes its owned registration using the existing fixture helper.
+Silent native uninstall and late-copy cancellation also run without message-box
+suppression. Setup preparation failures require `/SUPPRESSMSGBOXES` to suppress
+Inno's own error summary. The installed executable is temporarily replaced by the coherent synthetic
+process fixture and restored before successful reinstall/uninstall checks.
+
+Rerunning after cooperative closure is not an interactive Retry-button test.
+The late-uninstall case directly invokes the production guard in a test Setup;
+real uninstall covers the early running/closed gates, not a delayed native
+uninstaller event. Cross-session/AllUsers, GUI/VM and concurrent-start races are
+unverified. Native rollback does not establish restoration of all previously
+overwritten upgrade binaries. Do not claim transactional upgrade rollback.
+Revalidate the cancellation sequence when upgrading Inno Setup: Check and
+BeforeInstall exceptions alone cannot abort its native file loop. Commands are
+in the Windows Installer Manual Closure section of `build.md`.
+
+`Test-PersonalData.ps1`, `PersonalDataHarness.iss` and
+`PersonalDataStateHarness.iss` consume the stage-12 production cleanup policy.
+Only fresh synthetic `dist/` trees are eligible for test deletion; production
+has no test path/consent override. Tests check native handle deletion, Unicode
+CV names, all-tree preflight on locks/read-only files, SID comparison, hardlinks,
+ancestor/root/child junctions, unsafe roots, and real helper-uninstaller complete
+and partial removal. The owner case compares a real fixture handle against an
+alternate valid SID; it does not change the file owner or emulate a real UAC
+account switch. The lifecycle cases exercise silent preservation and separately
+assert the residual-program gate; they do not redirect the production data path.
+
+Optional non-elevated CurrentUser integration uses the real installer and the
+existing owned fixture helper. It checks actual registration identity, another
+installation path being refused, presence-based shared-data protection, default
+uninstall and registration removal. It never resolves/reads the account's real
+JobTracker data. All real test installations must be uninstalled afterward.
+Test helper installations without registrations/shortcuts remain as retained
+fixtures. Commands are in the Windows Safe Uninstall And Personal Data section
+of `build.md`; production CMake/packaging do not depend on these tests.
+
+Interactive EN/RU consent/default No/cancellation, true AllUsers/UAC account
+mismatch, dual-scope uninstall, registry ACL denial, concurrent mutation and
+clean-VM behavior remain manual acceptance checks. Direct EN/RU calls of the
+cleanup core do not verify the prompt. AllUsers/elevated uninstall intentionally
+preserves data; optional deletion is limited to verified non-elevated CurrentUser.
+
+The reusable `tests/deployment/Windows-Release-Checklist.md` combines the
+standalone suites with explicit real-installer, UI and clean-machine matrices.
+Use the stage-13 commands in `build.md` for a newly staged/package-verified
+artifact. Record evidence levels separately: synthetic version identities test
+installer policy, not historical-binary migrations; a Qt staging probe does not
+start JobTracker; a public-asset 404 tests safe failure, not a successful public
+installation. Application startup and actual SQLite/CV preservation require a
+disposable account/VM. Keep failed attempts and intermittent sharing failures in
+the report even when a later unchanged installer passes. No production target
+depends on the checklist or standalone suites.
 
 Choose test scope from the final diff. For an ordinary bounded change, build and run the test target or CTest suite directly associated with the changed subsystem. Use the targeted commands documented in `For-Agent/Docs/build.md`.
 

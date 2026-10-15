@@ -1,0 +1,21 @@
+PASS: rejects output path guard
+PASS: rejects existing output
+PASS: rejects missing staged assets
+PASS: rejects output inside staging with trailing separator
+PASS: rejects stale generated identity
+PASS: rejects test-enabled build directory
+PASS: rejects Debug DLL under Release filename
+PASS: rejects x86 DLL
+PASS: rejects stale staged executable
+PASS: rejects absolute Qt prefix
+PASS: rejects unexpected secret/development file
+PASS: rejects junction in staging
+PASS: rejects wrong requested version
+PASS: rejects missing archive
+PASS: rejects corrupt archive with unchanged size
+PASS: rejects wrong checksum sidecar
+PASS: rejects manifest traversal path
+PASS: rejects incorrect extracted-file hash
+PASS: JobTracker-0.1.0-windows-x64.7z; 148 extracted files; SHA-256 da5785c57bd946af9e39a38625128343218e21303c3f918b67e180a6a62efa60
+Retained extraction: D:\Project_CV\Root\dist\package-tests-3080de2ed9a944138bb5c674a17695ad\assets\verify-00af2319d5b44765bac46866559f78ac
+PASS: 19 package checks; retained D:\Project_CV\Root\dist\package-tests-3080de2ed9a944138bb5c674a17695ad

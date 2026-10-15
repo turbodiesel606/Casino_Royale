@@ -28,6 +28,27 @@ Expand only when the final diff introduces a new dependency, an implementation a
 11. Report verification results without claiming unverified behavior works.
 12. List modified files, required manual checks, residual risks, limitations, and unverified areas.
 
+## Windows Release Verification
+
+When the changed surface is release documentation, packaging or installer policy,
+use `For-Agent/Docs/windows-release.md` for behavior, `build.md` for commands,
+`testing.md` for test selection and `tests/deployment/Windows-Release-Checklist.md`
+for acceptance cases. Reuse established context instead of reopening every stage.
+
+Check version/asset/URL/hash identity against the actual manifest and generated
+inputs. Keep production, test probes and installer harnesses separate. Treat
+native harness tests, real scoped installation, GUI/clean-machine checks and
+redistribution clearance as distinct evidence. A synthetic prior-version fixture
+does not verify historical application migrations; a 404 verifies safe rejection
+only; the staging probe does not launch JobTracker.
+
+Carry unresolved results and the `packaging/windows/REDISTRIBUTION.md` publication
+hold into the handoff. A later passing run does not erase earlier sharing failures
+or establish their cause. For documentation-only changes, validate commands,
+links and input preservation without repeating builds or real installations.
+For numbered tasks, save only the selected report, update STATUS afterward and
+stop; do not turn final validation into the next release stage.
+
 ## Full Independent Review
 
 Completion alone is not a reason to invoke a full independent reviewer. Apply the canonical independent-review risk gates in `AGENTS.md` and use a reviewer only when one of those gates or an explicit user request applies.

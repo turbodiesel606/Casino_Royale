@@ -1,0 +1,838 @@
+[
+  {
+    "Path": "CMakeLists.txt",
+    "Matches": true
+  },
+  {
+    "Path": "packaging/windows/Build-Installer.ps1",
+    "Matches": true
+  },
+  {
+    "Path": "packaging/windows/InstallationPolicy.iss",
+    "Matches": true
+  },
+  {
+    "Path": "packaging/windows/JobTracker.ico",
+    "Matches": true
+  },
+  {
+    "Path": "packaging/windows/JobTracker.iss",
+    "Matches": true
+  },
+  {
+    "Path": "packaging/windows/JobTracker.rc.in",
+    "Matches": true
+  },
+  {
+    "Path": "packaging/windows/JobTrackerIdentity.cmake.in",
+    "Matches": true
+  },
+  {
+    "Path": "packaging/windows/JobTrackerIdentity.iss.in",
+    "Matches": true
+  },
+  {
+    "Path": "packaging/windows/ManualClose.iss",
+    "Matches": true
+  },
+  {
+    "Path": "packaging/windows/MSVC-NOTICE.txt",
+    "Matches": true
+  },
+  {
+    "Path": "packaging/windows/MsvcRuntime.iss",
+    "Matches": true
+  },
+  {
+    "Path": "packaging/windows/MsvcRuntime.lock.json",
+    "Matches": true
+  },
+  {
+    "Path": "packaging/windows/OnlinePayload.iss",
+    "Matches": true
+  },
+  {
+    "Path": "packaging/windows/Package-Release.ps1",
+    "Matches": true
+  },
+  {
+    "Path": "packaging/windows/payload-files.txt",
+    "Matches": true
+  },
+  {
+    "Path": "packaging/windows/PersonalData.iss",
+    "Matches": true
+  },
+  {
+    "Path": "packaging/windows/Prepare-MsvcRuntime.ps1",
+    "Matches": true
+  },
+  {
+    "Path": "packaging/windows/README.md",
+    "Matches": false
+  },
+  {
+    "Path": "qml/components/DangerButton.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/components/DestructiveConfirmationDialog.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/components/NeonCard.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/components/Panel.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/components/PrimaryButton.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/components/SelectionCheckBox.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/components/Sidebar.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/components/SidebarButton.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/components/StatusChip.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/components/StorageMutationFeedback.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/Main.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/pages/CompaniesPage.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/pages/ContactsPage.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/pages/CvLibraryBrowserPane.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/pages/CvLibraryPage.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/pages/CvLibraryPreviewPanel.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/pages/CvSearchField.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/pages/DashboardActivityPanels.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/pages/DashboardPage.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/pages/DashboardRecentCvsPanel.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/pages/DashboardStatsRow.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/pages/JobDescriptionPane.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/pages/JobFormPage.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/pages/JobsApplicationsPane.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/pages/JobsPage.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/pages/MemoryPage.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/pages/ProfilePage.qml",
+    "Matches": true
+  },
+  {
+    "Path": "qml/pages/SettingsPage.qml",
+    "Matches": true
+  },
+  {
+    "Path": "src/app/App.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/app/App.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/app/AppBootstrap.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/app/AppBootstrap.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/BulkIdSelectionTracker.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/BulkIdSelectionTracker.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/CancellationState.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/CancellationState.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/ExceptionUtils.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/ExceptionUtils.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/FixedStringQt.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/Header.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/LimitedSortedProxyModel.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/LimitedSortedProxyModel.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/ModelPresentation.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/ModelPresentation.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/ModelRoleUtils.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/ModelRoleUtils.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/RelationFilterProxyModel.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/RelationFilterProxyModel.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/RoleFilterProxyModel.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/RoleFilterProxyModel.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/SerialOperationQueue.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/SingleActiveWorkerFacade.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/SingleActiveWorkerRuntime.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/SingleActiveWorkerRuntime.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/StableIdSelectionTracker.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/StableIdSelectionTracker.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/TimeUtils.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/common/TimeUtils.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvDocument.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvFileAccessService.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvFileAccessService.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvImportExecutor.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvImportExecutor.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvImportService.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvImportService.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvImportWorker.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvImportWorker.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvImportWorkerTypes.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvLibraryController.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvLibraryController.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvListModel.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvListModel.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvLockWrapper.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvManagedFileStore.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvManagedFileStore.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvManagedPathResolver.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvManagedPathResolver.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvRepository.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/cvs/CvRepository.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/dashboard/DashboardController.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/dashboard/DashboardController.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/dashboard/DashboardMetric.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/dashboard/DashboardMetricListModel.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/dashboard/DashboardMetricListModel.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/directory/Company.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/directory/CompanyDirectoryController.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/directory/CompanyDirectoryController.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/directory/CompanyListModel.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/directory/CompanyListModel.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/directory/CompanyRepository.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/directory/CompanyRepository.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/directory/Contact.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/directory/ContactDirectoryController.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/directory/ContactDirectoryController.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/directory/ContactInteractionListModel.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/directory/ContactInteractionListModel.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/directory/ContactListModel.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/directory/ContactListModel.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/fixed_str/detail/FixedStringImpl.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/fixed_str/detail/FixedStringQtAdapter.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/fixed_str/detail/FixedStringQtDetail.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/fixed_str/FixedString.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/fixed_str/FixedStringQt.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/fixed_str/macros/FixedStringMacros.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/fixed_str/macros/FixedStringQtMacros.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/AddJobService.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/AddJobService.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/JobApplication.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/JobApplication.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/JobApplicationDraft.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/JobApplicationFactory.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/JobApplicationFactory.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/JobApplicationListModel.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/JobApplicationListModel.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/JobApplicationsController.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/JobApplicationsController.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/JobApplicationValidator.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/JobApplicationValidator.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/JobRepository.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/JobRepository.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/JobSaveExecutor.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/JobSaveExecutor.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/JobSaveWorker.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/JobSaveWorker.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/JobSaveWorkerTypes.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/UpdateJobService.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/jobs/UpdateJobService.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/main.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/maintenance/DataRemovalExecutor.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/maintenance/DataRemovalExecutor.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/maintenance/DataRemovalService.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/maintenance/DataRemovalService.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/maintenance/DataRemovalTypes.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/maintenance/DataRemovalWorker.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/maintenance/DataRemovalWorker.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/maintenance/StorageMutationGate.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/maintenance/StorageMutationGate.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/storage/SchemaInitializationV4.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/storage/SchemaMigrationSteps.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/storage/SchemaMigrationV1ToV2.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/storage/SchemaMigrationV2ToV3.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/storage/SchemaMigrationV3ToV4.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/storage/SchemaMigrator.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/storage/SchemaMigrator.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/storage/SqliteDatabase.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/storage/SqliteDatabase.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/storage/SqlQuery.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/storage/SqlQuery.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/storage/SqlTransaction.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/storage/SqlTransaction.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/storage/StoragePaths.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "src/storage/StoragePaths.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/common/AsyncInfrastructureTest.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/common/FilterAndValidationTest.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/common/RelationFilterProxyModelTest.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/common/StableIdSelectionTrackerTest.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/cvs/CvLibraryControllerTest.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/cvs/CvLockWrapperTest.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/dashboard/DashboardControllerTest.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/deployment/CMakeLists.txt",
+    "Matches": true
+  },
+  {
+    "Path": "tests/deployment/DeploymentSmoke.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/deployment/InstallationPolicyHarness.iss",
+    "Matches": true
+  },
+  {
+    "Path": "tests/deployment/ManualCloseHarness.iss",
+    "Matches": true
+  },
+  {
+    "Path": "tests/deployment/MsvcRuntimeHarness.iss",
+    "Matches": true
+  },
+  {
+    "Path": "tests/deployment/OnlinePayloadHarness.iss",
+    "Matches": true
+  },
+  {
+    "Path": "tests/deployment/PersonalDataHarness.iss",
+    "Matches": true
+  },
+  {
+    "Path": "tests/deployment/PersonalDataStateHarness.iss",
+    "Matches": true
+  },
+  {
+    "Path": "tests/deployment/RunningApplicationFixture.cs",
+    "Matches": true
+  },
+  {
+    "Path": "tests/deployment/Test-InstallationPolicy.ps1",
+    "Matches": true
+  },
+  {
+    "Path": "tests/deployment/Test-LocalInstaller.ps1",
+    "Matches": true
+  },
+  {
+    "Path": "tests/deployment/Test-ManualClose.ps1",
+    "Matches": true
+  },
+  {
+    "Path": "tests/deployment/Test-MsvcRuntime.ps1",
+    "Matches": true
+  },
+  {
+    "Path": "tests/deployment/Test-OnlineInstaller.ps1",
+    "Matches": true
+  },
+  {
+    "Path": "tests/deployment/Test-PersonalData.ps1",
+    "Matches": true
+  },
+  {
+    "Path": "tests/deployment/Test-ReleasePackage.ps1",
+    "Matches": true
+  },
+  {
+    "Path": "tests/deployment/Verify-Staging.ps1",
+    "Matches": true
+  },
+  {
+    "Path": "tests/directory/DirectoryControllerTest.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/jobs/JobApplicationsControllerTest.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/maintenance/StorageMutationFeedbackTest.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/maintenance/StorageMutationGateTest.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/storage/AddJobServiceTest.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/storage/CvFileStoreImportTest.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/storage/DataRemovalServiceTest.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/storage/EndToEndIntegrationTest.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/storage/MigrationTest.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/storage/RepositoryTest.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/storage/UpdateJobServiceTest.cpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/support/AddJobTestFixture.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/support/JobApplicationTestData.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/support/MutableRecordModel.hpp",
+    "Matches": true
+  },
+  {
+    "Path": "tests/support/StorageTestFixtures.hpp",
+    "Matches": true
+  }
+]

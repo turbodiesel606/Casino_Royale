@@ -1,0 +1,39 @@
+{
+  "scope": "Installer components outside the 148-file archive; evidence is not complete source/license clearance",
+  "innoVersion": "6.7.1",
+  "compilerSha256": "eb6f4410c8db367a5f74127e8025ad2ccacc0afabbe783959d237df3050f97fb",
+  "licenseFile": "D:/Inno Setup 6/license.txt",
+  "licenseFileSha256": "2e5346868c2a18434489824e11d65c3031620f792fefc415d05f19cd441abf5c",
+  "embeddedDecoder": {
+    "compilerInput": "D:\\Inno Setup 6\\is7zxr.dll",
+    "version": "25.01",
+    "product": "7-Zip",
+    "copyright": "Igor Pavlov : Public domain",
+    "size": 212112,
+    "sha256": "728b368dc4f2831cc4d13291f46eeaf9f89b7e3a91356cf793c330e953b8e17b",
+    "signatureStatus": "Valid",
+    "actualInclusionEvidence": [
+      "dist/stage13-online/compile.log:249-250",
+      "dist/stage13-local/compile.log:249-250"
+    ],
+    "limit": "Current compiler input fingerprint plus compilation logs; no independent decoder extraction/source-level license closure"
+  },
+  "incorporatedComponents": [
+    {
+      "name": "Inno Setup loader/runtime/uninstaller",
+      "version": "6.7.1",
+      "license": "Installed Inno Setup License; preserve upstream copyrights and URLs"
+    },
+    {
+      "name": "Pascal Script runtime",
+      "version": "Not independently established",
+      "license": "Exact Inno 6.7.1 embedded source/license closure pending"
+    },
+    {
+      "name": "LZMA decompression",
+      "version": "Not independently established",
+      "license": "Exact embedded source/license closure pending"
+    }
+  ],
+  "nonPayloadFiles": "Compiler, IDE, compressor helper executables and Scintilla are build tools; not asserted as distributed"
+}

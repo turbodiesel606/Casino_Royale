@@ -1,0 +1,273 @@
+Start testing: Oct 15 14:40 Азербайджанское время (зима)
+----------------------------------------------------------
+1/18 Testing: JobTrackerCommonTests
+1/18 Test: JobTrackerCommonTests
+Command: "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/Release/JobTrackerCommonTests.exe"
+Directory: C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release
+"JobTrackerCommonTests" start time: Oct 15 14:40 Азербайджанское время (зима)
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.11 sec
+----------------------------------------------------------
+Test Passed.
+"JobTrackerCommonTests" end time: Oct 15 14:40 Азербайджанское время (зима)
+"JobTrackerCommonTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/18 Testing: JobTrackerRelationProxyTests
+2/18 Test: JobTrackerRelationProxyTests
+Command: "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/Release/JobTrackerRelationProxyTests.exe" "-o" "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/JobTrackerRelationProxyTests.txt,txt" "-o" "-,txt" "-v1"
+Directory: C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release
+"JobTrackerRelationProxyTests" start time: Oct 15 14:40 Азербайджанское время (зима)
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"JobTrackerRelationProxyTests" end time: Oct 15 14:40 Азербайджанское время (зима)
+"JobTrackerRelationProxyTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/18 Testing: JobTrackerSelectionTrackerTests
+3/18 Test: JobTrackerSelectionTrackerTests
+Command: "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/Release/JobTrackerSelectionTrackerTests.exe" "-o" "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/JobTrackerSelectionTrackerTests.txt,txt" "-o" "-,txt" "-v1"
+Directory: C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release
+"JobTrackerSelectionTrackerTests" start time: Oct 15 14:40 Азербайджанское время (зима)
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"JobTrackerSelectionTrackerTests" end time: Oct 15 14:40 Азербайджанское время (зима)
+"JobTrackerSelectionTrackerTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+4/18 Testing: JobTrackerAsyncInfrastructureTests
+4/18 Test: JobTrackerAsyncInfrastructureTests
+Command: "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/Release/JobTrackerAsyncInfrastructureTests.exe" "-o" "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/JobTrackerAsyncInfrastructureTests.txt,txt" "-o" "-,txt" "-v1"
+Directory: C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release
+"JobTrackerAsyncInfrastructureTests" start time: Oct 15 14:40 Азербайджанское время (зима)
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"JobTrackerAsyncInfrastructureTests" end time: Oct 15 14:40 Азербайджанское время (зима)
+"JobTrackerAsyncInfrastructureTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+5/18 Testing: JobTrackerJobsTests
+5/18 Test: JobTrackerJobsTests
+Command: "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/Release/JobTrackerJobsTests.exe"
+Directory: C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release
+"JobTrackerJobsTests" start time: Oct 15 14:40 Азербайджанское время (зима)
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.82 sec
+----------------------------------------------------------
+Test Passed.
+"JobTrackerJobsTests" end time: Oct 15 14:40 Азербайджанское время (зима)
+"JobTrackerJobsTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+6/18 Testing: JobTrackerCvTests
+6/18 Test: JobTrackerCvTests
+Command: "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/Release/JobTrackerCvTests.exe"
+Directory: C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release
+"JobTrackerCvTests" start time: Oct 15 14:40 Азербайджанское время (зима)
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   6.57 sec
+----------------------------------------------------------
+Test Passed.
+"JobTrackerCvTests" end time: Oct 15 14:40 Азербайджанское время (зима)
+"JobTrackerCvTests" time elapsed: 00:00:06
+----------------------------------------------------------
+
+7/18 Testing: JobTrackerDashboardTests
+7/18 Test: JobTrackerDashboardTests
+Command: "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/Release/JobTrackerDashboardTests.exe"
+Directory: C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release
+"JobTrackerDashboardTests" start time: Oct 15 14:40 Азербайджанское время (зима)
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"JobTrackerDashboardTests" end time: Oct 15 14:40 Азербайджанское время (зима)
+"JobTrackerDashboardTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+8/18 Testing: JobTrackerDirectoryTests
+8/18 Test: JobTrackerDirectoryTests
+Command: "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/Release/JobTrackerDirectoryTests.exe"
+Directory: C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release
+"JobTrackerDirectoryTests" start time: Oct 15 14:40 Азербайджанское время (зима)
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"JobTrackerDirectoryTests" end time: Oct 15 14:40 Азербайджанское время (зима)
+"JobTrackerDirectoryTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+9/18 Testing: JobTrackerMigrationTests
+9/18 Test: JobTrackerMigrationTests
+Command: "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/Release/JobTrackerMigrationTests.exe" "-o" "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/JobTrackerMigrationTests.txt,txt" "-o" "-,txt" "-v1"
+Directory: C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release
+"JobTrackerMigrationTests" start time: Oct 15 14:40 Азербайджанское время (зима)
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.38 sec
+----------------------------------------------------------
+Test Passed.
+"JobTrackerMigrationTests" end time: Oct 15 14:40 Азербайджанское время (зима)
+"JobTrackerMigrationTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+10/18 Testing: JobTrackerRepositoryTests
+10/18 Test: JobTrackerRepositoryTests
+Command: "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/Release/JobTrackerRepositoryTests.exe" "-o" "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/JobTrackerRepositoryTests.txt,txt" "-o" "-,txt" "-v1"
+Directory: C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release
+"JobTrackerRepositoryTests" start time: Oct 15 14:40 Азербайджанское время (зима)
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.18 sec
+----------------------------------------------------------
+Test Passed.
+"JobTrackerRepositoryTests" end time: Oct 15 14:40 Азербайджанское время (зима)
+"JobTrackerRepositoryTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+11/18 Testing: JobTrackerCvImportTests
+11/18 Test: JobTrackerCvImportTests
+Command: "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/Release/JobTrackerCvImportTests.exe" "-o" "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/JobTrackerCvImportTests.txt,txt" "-o" "-,txt" "-v1"
+Directory: C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release
+"JobTrackerCvImportTests" start time: Oct 15 14:40 Азербайджанское время (зима)
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.35 sec
+----------------------------------------------------------
+Test Passed.
+"JobTrackerCvImportTests" end time: Oct 15 14:40 Азербайджанское время (зима)
+"JobTrackerCvImportTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+12/18 Testing: JobTrackerCvLockTests
+12/18 Test: JobTrackerCvLockTests
+Command: "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/Release/JobTrackerCvLockTests.exe" "-o" "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/JobTrackerCvLockTests.txt,txt" "-o" "-,txt" "-v1"
+Directory: C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release
+"JobTrackerCvLockTests" start time: Oct 15 14:40 Азербайджанское время (зима)
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.08 sec
+----------------------------------------------------------
+Test Passed.
+"JobTrackerCvLockTests" end time: Oct 15 14:40 Азербайджанское время (зима)
+"JobTrackerCvLockTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+13/18 Testing: JobTrackerAddJobTests
+13/18 Test: JobTrackerAddJobTests
+Command: "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/Release/JobTrackerAddJobTests.exe" "-o" "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/JobTrackerAddJobTests.txt,txt" "-o" "-,txt" "-v1"
+Directory: C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release
+"JobTrackerAddJobTests" start time: Oct 15 14:40 Азербайджанское время (зима)
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.36 sec
+----------------------------------------------------------
+Test Passed.
+"JobTrackerAddJobTests" end time: Oct 15 14:40 Азербайджанское время (зима)
+"JobTrackerAddJobTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+14/18 Testing: JobTrackerUpdateJobTests
+14/18 Test: JobTrackerUpdateJobTests
+Command: "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/Release/JobTrackerUpdateJobTests.exe" "-o" "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/JobTrackerUpdateJobTests.txt,txt" "-o" "-,txt" "-v1"
+Directory: C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release
+"JobTrackerUpdateJobTests" start time: Oct 15 14:40 Азербайджанское время (зима)
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.44 sec
+----------------------------------------------------------
+Test Passed.
+"JobTrackerUpdateJobTests" end time: Oct 15 14:40 Азербайджанское время (зима)
+"JobTrackerUpdateJobTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+15/18 Testing: JobTrackerRemovalTests
+15/18 Test: JobTrackerRemovalTests
+Command: "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/Release/JobTrackerRemovalTests.exe" "-o" "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/JobTrackerRemovalTests.txt,txt" "-o" "-,txt" "-v1"
+Directory: C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release
+"JobTrackerRemovalTests" start time: Oct 15 14:40 Азербайджанское время (зима)
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   2.49 sec
+----------------------------------------------------------
+Test Passed.
+"JobTrackerRemovalTests" end time: Oct 15 14:40 Азербайджанское время (зима)
+"JobTrackerRemovalTests" time elapsed: 00:00:02
+----------------------------------------------------------
+
+16/18 Testing: JobTrackerMutationGateTests
+16/18 Test: JobTrackerMutationGateTests
+Command: "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/Release/JobTrackerMutationGateTests.exe" "-o" "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/JobTrackerMutationGateTests.txt,txt" "-o" "-,txt" "-v1"
+Directory: C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release
+"JobTrackerMutationGateTests" start time: Oct 15 14:40 Азербайджанское время (зима)
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"JobTrackerMutationGateTests" end time: Oct 15 14:40 Азербайджанское время (зима)
+"JobTrackerMutationGateTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+17/18 Testing: JobTrackerMutationFeedbackTests
+17/18 Test: JobTrackerMutationFeedbackTests
+Command: "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/Release/JobTrackerMutationFeedbackTests.exe" "-o" "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/JobTrackerMutationFeedbackTests.txt,txt" "-o" "-,txt" "-v1"
+Directory: C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release
+"JobTrackerMutationFeedbackTests" start time: Oct 15 14:40 Азербайджанское время (зима)
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.19 sec
+----------------------------------------------------------
+Test Passed.
+"JobTrackerMutationFeedbackTests" end time: Oct 15 14:40 Азербайджанское время (зима)
+"JobTrackerMutationFeedbackTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+18/18 Testing: JobTrackerIntegrationTests
+18/18 Test: JobTrackerIntegrationTests
+Command: "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/Release/JobTrackerIntegrationTests.exe" "-o" "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release/JobTrackerIntegrationTests.txt,txt" "-o" "-,txt" "-v1"
+Directory: C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/backend-release
+"JobTrackerIntegrationTests" start time: Oct 15 14:40 Азербайджанское время (зима)
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   8.13 sec
+----------------------------------------------------------
+Test Passed.
+"JobTrackerIntegrationTests" end time: Oct 15 14:40 Азербайджанское время (зима)
+"JobTrackerIntegrationTests" time elapsed: 00:00:08
+----------------------------------------------------------
+
+End testing: Oct 15 14:40 Азербайджанское время (зима)

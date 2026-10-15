@@ -1,0 +1,8 @@
+{
+  "TimeUtc": "2026-10-15T10:44:10.0193556Z",
+  "Method": "HEAD",
+  "Url": "https://github.com/turbodiesel606/Releases/releases/download/v0.1.0/JobTracker-0.1.0-windows-x64.7z",
+  "Status": null,
+  "Error": "Exception calling \"Send\" with \"1\" argument(s): \"Сделана попытка доступа к сокету методом, запрещенным правами доступа. (github.com:443)\"",
+  "Interpretation": "Network check NOT_RUN or failed; no inference about remote asset existence"
+}

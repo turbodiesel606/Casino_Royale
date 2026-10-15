@@ -1,0 +1,13 @@
+{
+  "executable": "dist/stage13-package/work/extracted/bin/JobTrackerApp.exe",
+  "executableSha256": "b7705655214a440a9c61f469d3625b8784932363a0e781543d0ab27e0347444f",
+  "resourceArrayBytes": 47180,
+  "embeddedInArchiveExe": true,
+  "exeOffset": 1529920,
+  "mainQmlCompressedRecordBytes": 3529,
+  "recoveredMainQmlBytes": 17835,
+  "recoveredSourceSha256": "100addaca44cbcce8434bf50f2411376123cd558290e5c4dd81ab34b1656c443",
+  "matchesCurrentMainQml": true,
+  "qrcFileCount": 28,
+  "privateSourceCriterion": "FAIL: recoverable Main.qml is embedded"
+}

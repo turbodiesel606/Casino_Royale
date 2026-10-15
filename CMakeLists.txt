@@ -11,9 +11,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(JOBTRACKER_BUILD_TESTS "Build JobTracker tests" OFF)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Quick Sql)
+set(JOBTRACKER_QT_VERSION 6.10.3)
+find_package(Qt6 ${JOBTRACKER_QT_VERSION} EXACT REQUIRED COMPONENTS Quick Sql)
 
-qt_standard_project_setup(REQUIRES 6.5)
+qt_standard_project_setup(REQUIRES ${JOBTRACKER_QT_VERSION})
 
 if(QT_KNOWN_POLICY_QTP0004)
     qt_policy(SET QTP0004 NEW)
@@ -205,6 +206,24 @@ target_include_directories(JobTrackerApp
     PRIVATE src
 )
 
+if(WIN32)
+    enable_language(RC)
+    set(JOBTRACKER_WINDOWS_ICON "${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/JobTracker.ico")
+    set(JOBTRACKER_WINDOWS_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}.0")
+    set(JOBTRACKER_WINDOWS_VERSION_TUPLE "${PROJECT_VERSION_MAJOR},${PROJECT_VERSION_MINOR},${PROJECT_VERSION_PATCH},0")
+    set(JOBTRACKER_IDENTITY_DIR "${CMAKE_CURRENT_BINARY_DIR}/packaging/windows")
+
+    # Generate per configuration so resource flags and target filenames stay accurate.
+    foreach(_identity_file IN ITEMS JobTracker.rc JobTrackerIdentity.cmake JobTrackerIdentity.iss)
+        configure_file("packaging/windows/${_identity_file}.in"
+            "${JOBTRACKER_IDENTITY_DIR}/${_identity_file}.in" @ONLY)
+        file(GENERATE OUTPUT "${JOBTRACKER_IDENTITY_DIR}/$<CONFIG>/${_identity_file}"
+            INPUT "${JOBTRACKER_IDENTITY_DIR}/${_identity_file}.in")
+    endforeach()
+    target_sources(JobTrackerApp PRIVATE
+        "${JOBTRACKER_IDENTITY_DIR}/$<CONFIG>/JobTracker.rc")
+endif()
+
 qt_add_qml_module(JobTrackerApp
     URI JobTracker
     VERSION 1.0
@@ -254,8 +273,8 @@ if(MSVC)
     )
 endif()
 
-# Windows deployment remains unchanged: windeployqt copies the runtime next to
-# the executable in the Windows build directory.
+# Prepare the local development runtime only when explicitly requested.
+# This target is not part of ALL and does not produce a release package.
 if(WIN32)
     if(TARGET Qt6::qmake)
         get_target_property(_qt6_qmake_executable Qt6::qmake IMPORTED_LOCATION)
@@ -265,54 +284,27 @@ if(WIN32)
     find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${_qt6_bin_dir}")
 
     if(WINDEPLOYQT_EXECUTABLE)
-        add_custom_command(TARGET JobTrackerApp POST_BUILD
+        add_custom_target(JobTrackerApp_dev_runtime
             COMMAND "${WINDEPLOYQT_EXECUTABLE}"
+                --no-compiler-runtime
                 --qmldir "${CMAKE_CURRENT_SOURCE_DIR}/qml"
                 "$<TARGET_FILE:JobTrackerApp>"
-            COMMENT "Deploying Qt runtime dependencies with windeployqt"
+            DEPENDS JobTrackerApp
+            COMMENT "Preparing Qt runtime dependencies for local development"
+            VERBATIM
         )
     else()
-        message(WARNING "windeployqt was not found; Qt runtime dependencies will not be deployed.")
+        message(WARNING "windeployqt was not found; JobTrackerApp_dev_runtime is unavailable.")
     endif()
 endif()
 
-# On Linux, a normal build also creates a self-contained deploy directory.
-# Usage stays exactly:
-#   cmake --preset linux-debug-local
-#   cmake --build --preset linux-debug-local
-# The second command produces ${CMAKE_SOURCE_DIR}/deploy automatically.
-if(UNIX AND NOT APPLE)
-    include(GNUInstallDirs)
-
-    install(TARGETS JobTrackerApp
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    )
-
-    qt_generate_deploy_qml_app_script(
-        TARGET JobTrackerApp
-        OUTPUT_SCRIPT JOBTRACKER_LINUX_DEPLOY_SCRIPT
-        NO_UNSUPPORTED_PLATFORM_ERROR
-    )
-
-    install(SCRIPT ${JOBTRACKER_LINUX_DEPLOY_SCRIPT})
-
-    add_custom_command(TARGET JobTrackerApp POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E rm -rf "${CMAKE_SOURCE_DIR}/deploy"
-        COMMAND ${CMAKE_COMMAND}
-            --install "${CMAKE_BINARY_DIR}"
-            --config "$<CONFIG>"
-            --prefix "${CMAKE_SOURCE_DIR}/deploy"
-        COMMENT "Deploying JobTracker and Qt runtime dependencies to ${CMAKE_SOURCE_DIR}/deploy"
-        VERBATIM
-    )
-endif()
-
 if(JOBTRACKER_BUILD_TESTS)
-    find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
+    find_package(Qt6 ${JOBTRACKER_QT_VERSION} EXACT REQUIRED COMPONENTS Test)
     enable_testing()
 
     function(jobtracker_deploy_test_runtime target_name)
         if(WIN32)
+            # SQLite is loaded as a plugin, so copying QtSql alone is insufficient.
             add_custom_command(TARGET ${target_name} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     "$<TARGET_FILE:Qt6::Core>"
@@ -320,7 +312,13 @@ if(JOBTRACKER_BUILD_TESTS)
                     "$<TARGET_FILE:Qt6::Sql>"
                     "$<TARGET_FILE:Qt6::Test>"
                     "$<TARGET_FILE_DIR:${target_name}>"
+                COMMAND ${CMAKE_COMMAND} -E make_directory
+                    "$<TARGET_FILE_DIR:${target_name}>/sqldrivers"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "$<TARGET_FILE:Qt6::QSQLiteDriverPlugin>"
+                    "$<TARGET_FILE_DIR:${target_name}>/sqldrivers"
                 COMMENT "Deploying Qt test runtime dependencies for ${target_name}"
+                VERBATIM
             )
         endif()
     endfunction()
@@ -589,3 +587,32 @@ install(TARGETS JobTrackerApp
     BUNDLE DESTINATION .
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+
+# The common Release payload excludes MSVC runtime policy (stage 09).
+# Keep deployment in the install lifecycle and leave Debug installs unchanged.
+if(WIN32)
+    qt_generate_deploy_qml_app_script(
+        TARGET JobTrackerApp
+        OUTPUT_SCRIPT JOBTRACKER_WINDOWS_DEPLOY_SCRIPT
+        NO_COMPILER_RUNTIME
+        EXCLUDE_PLUGIN_TYPES qmltooling designer qmllint qmlls platforminputcontexts
+        EXCLUDE_PLUGINS qsqlibase qsqlmimer qsqloci qsqlodbc qsqlpsql
+    )
+    install(CODE "
+        if(CMAKE_INSTALL_CONFIG_NAME MATCHES \"^([Rr][Ee][Ll][Ee][Aa][Ss][Ee])$\")
+            include(\"${JOBTRACKER_WINDOWS_DEPLOY_SCRIPT}\")
+        endif()
+    ")
+endif()
+
+# Retain Linux runtime installation as an explicit install operation.
+# Normal builds leave existing deployment trees untouched.
+if(UNIX AND NOT APPLE)
+    qt_generate_deploy_qml_app_script(
+        TARGET JobTrackerApp
+        OUTPUT_SCRIPT JOBTRACKER_LINUX_DEPLOY_SCRIPT
+        NO_UNSUPPORTED_PLATFORM_ERROR
+    )
+
+    install(SCRIPT ${JOBTRACKER_LINUX_DEPLOY_SCRIPT})
+endif()

@@ -23,12 +23,12 @@ Company and contact storage is not implemented yet. Their pages and controller c
 ## Tech Stack
 
 - C++20
-- Qt 6.5 or newer
+- Qt 6.10.3 (required exactly on Windows and Linux)
 - QML / Qt Quick
 - Qt SQL
 - SQLite
 - CMake 3.21 or newer
-- Qt Test
+- Qt Test (test-enabled builds only)
 
 The main executable target is `JobTrackerApp`.
 
@@ -93,64 +93,38 @@ The current schema stores:
 
 CV import is handled by the C++ backend. Imported CV files are hashed, deduplicated by SHA-256, copied into managed application storage, and linked to jobs when selected during Add Job.
 
-## Build
+## Build And Windows Release
 
-Run all project commands from the repository root:
+Start with [Building JobTracker](docs/BUILDING.md). The
+[canonical command catalog](For-Agent/Docs/build.md) covers Windows Debug,
+separate test builds, Release staging, packaging and the existing Linux Debug
+presets. Both platforms require exactly Qt 6.10.3; shared presets use `QTDIR`,
+and local presets can override `CMAKE_PREFIX_PATH`. Normal builds compile/link;
+development runtime preparation and Release deployment are explicit steps.
 
-```powershell
-cd D:\Project_CV\Root
-```
+[Windows release preparation](docs/WINDOWS-RELEASE.md) describes the archive,
+version and checksum workflow. [Windows installer behavior](docs/WINDOWS-INSTALLER.md)
+explains Online/Local payloads, current-user/all-users scopes, runtime deployment,
+upgrades and data preservation. Linux packaging is deferred; its Debug workflow
+remains available but was not executed in the Windows release stages.
 
-Configure the normal Windows debug build:
-
-```powershell
-cmake --preset windows-debug-local
-```
-
-Build:
-
-```powershell
-cmake --build --preset windows-debug-local
-```
-
-The Windows presets use Qt 6.10.3 with the MSVC 2022 x64 kit at:
-
-```text
-D:/Qt_install/6.10.3/msvc2022_64
-```
-
-The Windows debug executable and its deployed Qt runtime are written to:
-
-```text
-D:/Project_CV/Root/build/qt-6.10.3/windows-debug/Debug/JobTrackerApp.exe
-```
-
-The Windows test presets use the separate `build/qt-6.10.3/windows-debug-tests`
-directory. Linux local presets continue to select Qt 6.9.3.
-
-Shared non-local presets also exist in `CMakePresets.json`, including Windows and Linux debug presets.
+**Publication HOLD:** current candidates are unsigned and unapproved. The
+[stage-14 audit](packaging/windows/REDISTRIBUTION.md) records unresolved Lottie
+licensing, delivered notices/source/replacement material, external-binary
+provenance, recoverable private QML and owner entitlement. Passing local tests
+does not clear these findings or establish GUI/clean-machine acceptance.
+Use the [release status index](For-Agent/Task-Report/windows-release/STATUS.md)
+for dated evidence and remaining work. Nothing is uploaded automatically.
 
 ## Tests
 
 Tests are enabled with the `JOBTRACKER_BUILD_TESTS` CMake option through the test presets.
 
-Configure the Windows debug test build:
-
-```powershell
-cmake --preset windows-debug-tests-local
-```
-
-Build the tests:
-
-```powershell
-cmake --build --preset windows-debug-tests-local
-```
-
-Run the tests:
-
-```powershell
-ctest --preset windows-debug-tests-local
-```
+Use the [Windows test commands](For-Agent/Docs/build.md#windows-build-with-tests)
+and [testing policy](For-Agent/Docs/testing.md). Production builds do not depend
+on Qt Test, test sources or deployment probes. Standalone installer suites and
+the [acceptance checklist](tests/deployment/Windows-Release-Checklist.md) provide
+additional evidence without launching JobTracker against personal data.
 
 Current test areas include:
 

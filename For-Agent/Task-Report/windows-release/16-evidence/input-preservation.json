@@ -1,0 +1,34 @@
+{
+  "checkedAt": "2026-10-15T13:28:14.4584040+04:00",
+  "baselineFiles": 312,
+  "unchanged": 310,
+  "changed": [
+    "docs/WINDOWS-RELEASE.md",
+    "For-Agent/Task-Report/windows-release/STATUS.md"
+  ],
+  "unexpected": [],
+  "newFiles": [
+    "For-Agent/Task-Report/windows-release/16-evidence\\Verify-Handoff.ps1",
+    "For-Agent/Task-Report/windows-release/16-evidence\\public-asset-head.json",
+    "For-Agent/Task-Report/windows-release/16-evidence\\public-asset-head-sandbox.json",
+    "For-Agent/Task-Report/windows-release/16-evidence\\documentation-check.json",
+    "For-Agent/Task-Report/windows-release/16-evidence\\candidate-check.json",
+    "For-Agent/Task-Report/windows-release/16.md",
+    "For-Agent/Review/cpp-review-2026-10-15-1318-stage16-release-handoff.md"
+  ],
+  "whitespaceErrors": [],
+  "documents": {
+    "linksChecked": 20,
+    "linkErrors": [],
+    "requirementRows": 36,
+    "requirementErrors": [],
+    "canonicalCommands": 43,
+    "maintainedDocLinks": 77,
+    "result": "PASS"
+  },
+  "allSixteenStagesDone": true,
+  "noNextTask": true,
+  "publicationHoldPreserved": true,
+  "reportSavedBeforeStatus": true,
+  "result": "PASS"
+}

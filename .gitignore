@@ -3,11 +3,17 @@
 For-Agent/Review/
 For-Human/
 build/
+# Machine-local Qt kit overrides; this rule does not untrack an existing file.
+/CMakeUserPresets.json
 #.gitignore
 #AGENTS.md
 #BuildCommands.txt
 #qt_bins.txt
 Requirements/
 .vs/
-Tasks/
+/Tasks/*
+# Keep release tasks versionable; other Tasks content stays ignored.
+!/Tasks/Windows-Release/
 deploy/
+# Archives, Setup output, extracted payloads, logs and private test/audit evidence.
+/dist/

@@ -1,0 +1,186 @@
+[
+  {
+    "name": "production version/hash/input identity",
+    "result": "PASS",
+    "evidence": "https://github.com/turbodiesel606/Releases/releases/download/v0.1.0/JobTracker-0.1.0-windows-x64.7z"
+  },
+  {
+    "name": "public endpoint override",
+    "result": "PASS",
+    "evidence": "A parameter cannot be found that matches parameter name 'ReleaseUrl'."
+  },
+  {
+    "name": "public checksum override",
+    "result": "PASS",
+    "evidence": "A parameter cannot be found that matches parameter name 'ArchiveSha256'."
+  },
+  {
+    "name": "manifest version mismatch",
+    "result": "PASS",
+    "evidence": "Manifest identity/version mismatch."
+  },
+  {
+    "name": "missing archive",
+    "result": "PASS",
+    "evidence": "Cannot find path 'D:\\Project_CV\\Root\\dist\\acceptance-audit-20261015-143044\\online-tests\\invalid-assets\\JobTracker-0.1.0-windows-x64.7z' because it does not exist."
+  },
+  {
+    "name": "missing embedded checksum",
+    "result": "PASS",
+    "evidence": "Archive checksum/size mismatch."
+  },
+  {
+    "name": "mismatched embedded checksum",
+    "result": "PASS",
+    "evidence": "Archive checksum/size mismatch."
+  },
+  {
+    "name": "test-only native pipeline compilation",
+    "result": "PASS",
+    "evidence": "EDEDBB676A6C8D688B55C5D3B81EDDF186E2F960627566034D9F8D3480A0A0ED"
+  },
+  {
+    "name": "valid",
+    "result": "PASS",
+    "evidence": {
+      "exit": 0,
+      "log": "D:\\Project_CV\\Root\\dist\\acceptance-audit-20261015-143044\\online-tests\\valid\\setup.log",
+      "payloadFiles": 148
+    }
+  },
+  {
+    "name": "redirect",
+    "result": "PASS",
+    "evidence": {
+      "exit": 0,
+      "log": "D:\\Project_CV\\Root\\dist\\acceptance-audit-20261015-143044\\online-tests\\redirect\\setup.log",
+      "payloadFiles": 148
+    }
+  },
+  {
+    "name": "corrupt",
+    "result": "PASS",
+    "evidence": {
+      "exit": 7,
+      "log": "D:\\Project_CV\\Root\\dist\\acceptance-audit-20261015-143044\\online-tests\\corrupt\\setup.log",
+      "payloadFiles": 0
+    }
+  },
+  {
+    "name": "truncated",
+    "result": "PASS",
+    "evidence": {
+      "exit": 7,
+      "log": "D:\\Project_CV\\Root\\dist\\acceptance-audit-20261015-143044\\online-tests\\truncated\\setup.log",
+      "payloadFiles": 0
+    }
+  },
+  {
+    "name": "missing",
+    "result": "PASS",
+    "evidence": {
+      "exit": 7,
+      "log": "D:\\Project_CV\\Root\\dist\\acceptance-audit-20261015-143044\\online-tests\\missing\\setup.log",
+      "payloadFiles": 0
+    }
+  },
+  {
+    "name": "unavailable",
+    "result": "PASS",
+    "evidence": {
+      "exit": 7,
+      "log": "D:\\Project_CV\\Root\\dist\\acceptance-audit-20261015-143044\\online-tests\\unavailable\\setup.log",
+      "payloadFiles": 0
+    }
+  },
+  {
+    "name": "offline",
+    "result": "PASS",
+    "evidence": {
+      "exit": 7,
+      "log": "D:\\Project_CV\\Root\\dist\\acceptance-audit-20261015-143044\\online-tests\\offline\\setup.log",
+      "payloadFiles": 0
+    }
+  },
+  {
+    "name": "oversized",
+    "result": "PASS",
+    "evidence": {
+      "exit": 7,
+      "log": "D:\\Project_CV\\Root\\dist\\acceptance-audit-20261015-143044\\online-tests\\oversized\\setup.log",
+      "payloadFiles": 0
+    }
+  },
+  {
+    "name": "missing-russian",
+    "result": "PASS",
+    "evidence": {
+      "exit": 7,
+      "log": "D:\\Project_CV\\Root\\dist\\acceptance-audit-20261015-143044\\online-tests\\missing-russian\\setup.log",
+      "payloadFiles": 0
+    }
+  },
+  {
+    "name": "cancel-download",
+    "result": "PASS",
+    "evidence": {
+      "exit": 7,
+      "log": "D:\\Project_CV\\Root\\dist\\acceptance-audit-20261015-143044\\online-tests\\cancel-download\\setup.log",
+      "payloadFiles": 0
+    }
+  },
+  {
+    "name": "cancel-extract",
+    "result": "PASS",
+    "evidence": {
+      "exit": 7,
+      "log": "D:\\Project_CV\\Root\\dist\\acceptance-audit-20261015-143044\\online-tests\\cancel-extract\\setup.log",
+      "payloadFiles": 0
+    }
+  },
+  {
+    "name": "tampered-extracted",
+    "result": "PASS",
+    "evidence": {
+      "exit": 7,
+      "log": "D:\\Project_CV\\Root\\dist\\acceptance-audit-20261015-143044\\online-tests\\tampered-extracted\\setup.log",
+      "payloadFiles": 0
+    }
+  },
+  {
+    "name": "reparse-destination",
+    "result": "PASS",
+    "evidence": {
+      "exit": 7,
+      "log": "D:\\Project_CV\\Root\\dist\\acceptance-audit-20261015-143044\\online-tests\\reparse-destination\\setup.log",
+      "payloadFiles": 0
+    }
+  },
+  {
+    "name": "bad-archive",
+    "result": "PASS",
+    "evidence": {
+      "exit": 7,
+      "log": "D:\\Project_CV\\Root\\dist\\acceptance-audit-20261015-143044\\online-tests\\bad-archive\\setup.log",
+      "payloadFiles": 0
+    }
+  },
+  {
+    "name": "traversal",
+    "result": "PASS",
+    "evidence": {
+      "exit": 7,
+      "log": "D:\\Project_CV\\Root\\dist\\acceptance-audit-20261015-143044\\online-tests\\traversal\\setup.log",
+      "payloadFiles": 0
+    }
+  },
+  {
+    "name": "retry",
+    "result": "PASS",
+    "evidence": {
+      "exit": 0,
+      "log": "D:\\Project_CV\\Root\\dist\\acceptance-audit-20261015-143044\\online-tests\\retry\\setup.log",
+      "payloadFiles": 148
+    }
+  }
+]

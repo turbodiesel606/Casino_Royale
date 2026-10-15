@@ -67,6 +67,16 @@ Use `For-Agent/` as the Codex-facing project knowledge area:
 
 Project skills live under `.agents/skills/`.
 
+For Windows Release work, enter through `Tasks/Windows-Release/00_RUN_NEXT.md`
+and select exactly one stage using
+`For-Agent/Task-Report/windows-release/STATUS.md`. Save its report in
+`For-Agent/Task-Report/windows-release/`, update the status index, and stop.
+Apply `windows-release-packaging` for staging, archive, installer, or release
+handoff work. `For-Agent/Docs/build.md` owns executable commands;
+`For-Agent/Docs/windows-release.md` owns the implemented workflow and links to
+the redistribution hold. A completed stage or successful build does not approve
+publication; preserve the blockers in `packaging/windows/REDISTRIBUTION.md`.
+
 Choose the narrowest matching workflow:
 
 | Task | Skill | Start And Boundary |
@@ -81,6 +91,7 @@ Choose the narrowest matching workflow:
 | Whole-backend architecture review | `cpp-codebase-review` | Deliberately inventory the C++ codebase to assess architecture drift, responsibility overlap, and cross-module duplication. |
 | Whole-QML architecture review | `qml-codebase-review` | Deliberately inventory the QML surface to assess component boundaries, durable-logic leakage, and broad duplication. |
 | Configure, build, test, or diagnose CMake | `cmake-build-debug` | Read `For-Agent/Docs/build.md` and use only its documented commands. |
+| Windows staging, archive, installer, or release handoff | `windows-release-packaging` | Follow the selected release stage, `For-Agent/Docs/windows-release.md`, and the canonical commands in `build.md`; preserve the publication hold and evidence limits. |
 | Teach the complete backend progressively | `learn-cpp-codebase` | Use the phased read-only learning workflow rather than ordinary task research. |
 | Incremental final implementation validation | `test-and-review` | Start from the focused final diff, reuse established context, and expand only for a concrete new dependency, changed assumption, result, or risk. |
 

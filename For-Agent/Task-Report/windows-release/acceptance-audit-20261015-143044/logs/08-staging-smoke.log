@@ -1,0 +1,9 @@
+PASS: App-Local MSVC module "C:\\Users\\elmar\\AppData\\Local\\Temp\\JobTrackerAcceptance-20261015-143044\\smoke\\438911f3e6fb47ac86ae2e11befd2ce1\\payload\\bin\\MSVCP140.dll"
+PASS: App-Local MSVC module "C:\\Users\\elmar\\AppData\\Local\\Temp\\JobTrackerAcceptance-20261015-143044\\smoke\\438911f3e6fb47ac86ae2e11befd2ce1\\payload\\bin\\VCRUNTIME140.dll"
+PASS: App-Local MSVC module "C:\\Users\\elmar\\AppData\\Local\\Temp\\JobTrackerAcceptance-20261015-143044\\smoke\\438911f3e6fb47ac86ae2e11befd2ce1\\payload\\bin\\VCRUNTIME140_1.dll"
+PASS: Qt 6.10.3 windows platform; QML imports; SQLite SELECT; SVG/JPEG
+Plugin paths: QList("C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/smoke/438911f3e6fb47ac86ae2e11befd2ce1/payload/plugins", "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/smoke/438911f3e6fb47ac86ae2e11befd2ce1/payload/bin")
+QML paths: QList("C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/smoke/438911f3e6fb47ac86ae2e11befd2ce1/payload/bin", "qrc:/qt-project.org/imports", "qrc:/qt/qml", "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/smoke/438911f3e6fb47ac86ae2e11befd2ce1/payload/qml")
+
+Retained verification copy: C:\Users\elmar\AppData\Local\Temp\JobTrackerAcceptance-20261015-143044\smoke\438911f3e6fb47ac86ae2e11befd2ce1
+PASS: 148 common staged files; no SDK/debug/compiler-runtime contamination

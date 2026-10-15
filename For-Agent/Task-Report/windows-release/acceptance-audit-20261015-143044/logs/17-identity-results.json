@@ -1,0 +1,20 @@
+[
+  {
+    "File": "C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/staging/bin/JobTrackerApp.exe",
+    "StringVersion": "0.1.0",
+    "NumericVersion": "0.1.0.0",
+    "Debug": false,
+    "IconFrames": 7,
+    "IconBytesMatch": true,
+    "PackagingIdentityMatches": true
+  },
+  {
+    "File": "D:/Project_CV/Root/build/qt-6.10.3/windows-release-stage13/bin/JobTrackerApp.exe",
+    "StringVersion": "0.1.0",
+    "NumericVersion": "0.1.0.0",
+    "Debug": false,
+    "IconFrames": 7,
+    "IconBytesMatch": true,
+    "PackagingIdentityMatches": true
+  }
+]

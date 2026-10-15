@@ -1,0 +1,14 @@
+{
+  "TimeUtc": "2026-10-15T11:03:58.3871524Z",
+  "ProtectedEntries": 414,
+  "ChangedEntries": 0,
+  "SrcChangedEntries": 0,
+  "Changes": [],
+  "ExcludedRootDirectories": [
+    ".git",
+    ".vs",
+    "build",
+    "dist"
+  ],
+  "ExcludedAuditDirectory": "D:\\Project_CV\\Root\\For-Agent\\Task-Report\\windows-release\\acceptance-audit-20261015-143044"
+}

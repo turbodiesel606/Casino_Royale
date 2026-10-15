@@ -1,0 +1,158 @@
+Версия MSBuild 17.14.60+43b635718 для .NET Framework
+
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppBuild.targets(548,5): warning MSB8029: Промежуточный каталог или каталог выхода не может располагаться во временном каталоге, потому что это может стать причиной проблем с добавочной сборкой. [C:\Users\elmar\AppData\Local\Temp\JobTrackerAcceptance-20261015-143044\production\ZERO_CHECK.vcxproj]
+  1>Checking Build System
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppBuild.targets(548,5): warning MSB8029: Промежуточный каталог или каталог выхода не может располагаться во временном каталоге, потому что это может стать причиной проблем с добавочной сборкой. [C:\Users\elmar\AppData\Local\Temp\JobTrackerAcceptance-20261015-143044\production\JobTrackerApp_copy_qml.vcxproj]
+  Copying JobTrackerApp qml sources into build dir
+  Building Custom Rule D:/Project_CV/Root/CMakeLists.txt
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppBuild.targets(548,5): warning MSB8029: Промежуточный каталог или каталог выхода не может располагаться во временном каталоге, потому что это может стать причиной проблем с добавочной сборкой. [C:\Users\elmar\AppData\Local\Temp\JobTrackerAcceptance-20261015-143044\production\JobTrackerApp_copy_res.vcxproj]
+  Copying JobTrackerApp qml resources into build dir
+  Building Custom Rule D:/Project_CV/Root/CMakeLists.txt
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppBuild.targets(548,5): warning MSB8029: Промежуточный каталог или каталог выхода не может располагаться во временном каталоге, потому что это может стать причиной проблем с добавочной сборкой. [C:\Users\elmar\AppData\Local\Temp\JobTrackerAcceptance-20261015-143044\production\JobTrackerApp_qmlimportscan.vcxproj]
+  Running qmlimportscanner for JobTrackerApp
+  Building Custom Rule D:/Project_CV/Root/CMakeLists.txt
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppBuild.targets(548,5): warning MSB8029: Промежуточный каталог или каталог выхода не может располагаться во временном каталоге, потому что это может стать причиной проблем с добавочной сборкой. [C:\Users\elmar\AppData\Local\Temp\JobTrackerAcceptance-20261015-143044\production\generate_qmlls_build_ini_file.vcxproj]
+  Populating .qmlls.ini file at C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/production/.qt/.qmlls.build.ini
+  Building Custom Rule D:/Project_CV/Root/CMakeLists.txt
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppBuild.targets(548,5): warning MSB8029: Промежуточный каталог или каталог выхода не может располагаться во временном каталоге, потому что это может стать причиной проблем с добавочной сборкой. [C:\Users\elmar\AppData\Local\Temp\JobTrackerAcceptance-20261015-143044\production\JobTrackerApp_autogen.vcxproj]
+  1>Automatic MOC and UIC for target JobTrackerApp
+  Building Custom Rule D:/Project_CV/Root/CMakeLists.txt
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppBuild.targets(548,5): warning MSB8029: Промежуточный каталог или каталог выхода не может располагаться во временном каталоге, потому что это может стать причиной проблем с добавочной сборкой. [C:\Users\elmar\AppData\Local\Temp\JobTrackerAcceptance-20261015-143044\production\JobTrackerApp_automoc_json_extraction.vcxproj]
+  Running AUTOMOC file extraction for target JobTrackerApp
+  Building Custom Rule D:/Project_CV/Root/CMakeLists.txt
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppBuild.targets(548,5): warning MSB8029: Промежуточный каталог или каталог выхода не может располагаться во временном каталоге, потому что это может стать причиной проблем с добавочной сборкой. [C:\Users\elmar\AppData\Local\Temp\JobTrackerAcceptance-20261015-143044\production\JobTrackerApp.vcxproj]
+  Running moc --collect-json for target JobTrackerApp
+  Automatic QML type registration for target JobTrackerApp
+  Running rcc for resource qmake_JobTracker
+  Generating .rcc/qmlcache/JobTrackerApp_qmlcache_loader.cpp
+  Running rcc for resource JobTrackerApp_raw_qml_0
+  Running rcc for resource JobTrackerApp_raw_qml_0_extra_qmldirs
+  Building Custom Rule D:/Project_CV/Root/CMakeLists.txt
+  Generating .rcc/qmlcache/JobTrackerApp_qml/Main_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/Main_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/components/NeonCard_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/components/NeonCard_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/components/DangerButton_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/components/DangerButton_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/components/DestructiveConfirmationDialog_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/components/DestructiveConfirmationDialog_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/components/StorageMutationFeedback_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/components/StorageMutationFeedback_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/components/Panel_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/components/Panel_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/components/PrimaryButton_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/components/PrimaryButton_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/components/SelectionCheckBox_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/components/SelectionCheckBox_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/components/Sidebar_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/components/Sidebar_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/components/SidebarButton_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/components/SidebarButton_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/components/StatusChip_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/components/StatusChip_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/pages/CompaniesPage_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/pages/CompaniesPage_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/pages/ContactsPage_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/pages/ContactsPage_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/pages/CvLibraryBrowserPane_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/pages/CvLibraryBrowserPane_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/pages/CvLibraryPage_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/pages/CvLibraryPage_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/pages/CvLibraryPreviewPanel_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/pages/CvLibraryPreviewPanel_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/pages/CvSearchField_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/pages/CvSearchField_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/pages/DashboardActivityPanels_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/pages/DashboardActivityPanels_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/pages/DashboardPage_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/pages/DashboardPage_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/pages/DashboardRecentCvsPanel_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/pages/DashboardRecentCvsPanel_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/pages/DashboardStatsRow_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/pages/DashboardStatsRow_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/pages/JobDescriptionPane_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/pages/JobDescriptionPane_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/pages/JobFormPage_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/pages/JobFormPage_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/pages/JobsApplicationsPane_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/pages/JobsApplicationsPane_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/pages/JobsPage_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/pages/JobsPage_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/pages/MemoryPage_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/pages/MemoryPage_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/pages/ProfilePage_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/pages/ProfilePage_qml.cpp.aotstats
+  Generating .rcc/qmlcache/JobTrackerApp_qml/pages/SettingsPage_qml.cpp, .rcc/qmlcache/JobTrackerApp_qml/pages/SettingsPage_qml.cpp.aotstats
+  App.cpp
+  AppBootstrap.cpp
+  CancellationState.cpp
+  ExceptionUtils.cpp
+  ModelPresentation.cpp
+  ModelRoleUtils.cpp
+  SingleActiveWorkerRuntime.cpp
+  TimeUtils.cpp
+  BulkIdSelectionTracker.cpp
+  LimitedSortedProxyModel.cpp
+  RelationFilterProxyModel.cpp
+  RoleFilterProxyModel.cpp
+  StableIdSelectionTracker.cpp
+  CvFileAccessService.cpp
+  CvLibraryController.cpp
+  CvListModel.cpp
+  DashboardController.cpp
+  DashboardMetricListModel.cpp
+  CompanyDirectoryController.cpp
+  CompanyListModel.cpp
+  Создание кода...
+  Компиляция...
+  ContactDirectoryController.cpp
+  ContactInteractionListModel.cpp
+  ContactListModel.cpp
+  JobApplication.cpp
+  JobApplicationFactory.cpp
+  JobApplicationValidator.cpp
+  JobApplicationListModel.cpp
+  JobApplicationsController.cpp
+  DataRemovalExecutor.cpp
+  DataRemovalService.cpp
+  DataRemovalWorker.cpp
+  StorageMutationGate.cpp
+  CvImportService.cpp
+  CvImportExecutor.cpp
+  CvImportWorker.cpp
+  CvManagedFileStore.cpp
+  CvManagedPathResolver.cpp
+  CvRepository.cpp
+  CompanyRepository.cpp
+  AddJobService.cpp
+  Создание кода...
+D:\Project_CV\Root\src\maintenance\StorageMutationGate.hpp(93,1): warning C4715: StorageMutationGate::blockingReason: значение возвращается не при всех путях выполнения [C:\Users\elmar\AppData\Local\Temp\JobTrackerAcceptance-20261015-143044\production\JobTrackerApp.vcxproj]
+  Компиляция...
+  JobSaveExecutor.cpp
+  JobSaveWorker.cpp
+  JobRepository.cpp
+  UpdateJobService.cpp
+  SchemaInitializationV4.cpp
+  SchemaMigrationV1ToV2.cpp
+  SchemaMigrationV2ToV3.cpp
+  SchemaMigrationV3ToV4.cpp
+  SchemaMigrator.cpp
+  SqlQuery.cpp
+  SqlTransaction.cpp
+  SqliteDatabase.cpp
+  StoragePaths.cpp
+  main.cpp
+  qrc_qmake_JobTracker.cpp
+  JobTrackerApp_qmlcache_loader.cpp
+  Main_qml.cpp
+  NeonCard_qml.cpp
+  DangerButton_qml.cpp
+  DestructiveConfirmationDialog_qml.cpp
+  Создание кода...
+  Компиляция...
+  StorageMutationFeedback_qml.cpp
+  Panel_qml.cpp
+  PrimaryButton_qml.cpp
+  SelectionCheckBox_qml.cpp
+  Sidebar_qml.cpp
+  SidebarButton_qml.cpp
+  StatusChip_qml.cpp
+  CompaniesPage_qml.cpp
+  ContactsPage_qml.cpp
+  CvLibraryBrowserPane_qml.cpp
+  CvLibraryPage_qml.cpp
+  CvLibraryPreviewPanel_qml.cpp
+  CvSearchField_qml.cpp
+  DashboardActivityPanels_qml.cpp
+  DashboardPage_qml.cpp
+  DashboardRecentCvsPanel_qml.cpp
+  DashboardStatsRow_qml.cpp
+  JobDescriptionPane_qml.cpp
+  JobFormPage_qml.cpp
+  JobsApplicationsPane_qml.cpp
+  Создание кода...
+  Компиляция...
+  JobsPage_qml.cpp
+  MemoryPage_qml.cpp
+  ProfilePage_qml.cpp
+  SettingsPage_qml.cpp
+  qrc_JobTrackerApp_raw_qml_0.cpp
+  qrc_JobTrackerApp_raw_qml_0_extra_qmldirs.cpp
+  mocs_compilation_Release.cpp
+  Создание кода...
+  jobtrackerapp_qmltyperegistrations.cpp
+     Создается библиотека C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/production/Release/JobTrackerApp.lib и объект C:/Users/elmar/AppData/Local/Temp/JobTrackerAcceptance-20261015-143044/production/Release/JobTrackerApp.exp
+  JobTrackerApp.vcxproj -> C:\Users\elmar\AppData\Local\Temp\JobTrackerAcceptance-20261015-143044\production\Release\JobTrackerApp.exe

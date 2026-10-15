@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 3,
   "cmakeMinimumRequired": {
     "major": 3,
     "minor": 21,
@@ -11,6 +11,7 @@
       "hidden": true,
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "$env{QTDIR}",
         "JOBTRACKER_BUILD_TESTS": "OFF"
       }
     },
@@ -31,12 +32,12 @@
     {
       "name": "linux-debug",
       "inherits": "linux-base",
-      "binaryDir": "${sourceDir}/build/linux-debug"
+      "binaryDir": "${sourceDir}/build/qt-6.10.3/linux-debug"
     },
     {
       "name": "linux-debug-tests",
       "inherits": "linux-base",
-      "binaryDir": "${sourceDir}/build/linux-debug-tests",
+      "binaryDir": "${sourceDir}/build/qt-6.10.3/linux-debug-tests",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "JOBTRACKER_BUILD_TESTS": "ON"
@@ -46,9 +47,6 @@
       "name": "windows-base",
       "hidden": true,
       "inherits": "base",
-      "cacheVariables": {
-        "CMAKE_PREFIX_PATH": "D:/Qt_install/6.10.3/msvc2022_64"
-      },
       "generator": "Visual Studio 17 2022",
       "architecture": {
         "value": "x64",
@@ -74,15 +72,16 @@
       }
     },
     {
-      "hidden": true,
-      "name": "Qt",
+      "name": "windows-release",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/build/qt-6.10.3/windows-release"
+    },
+    {
+      "name": "windows-release-tests",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/build/qt-6.10.3/windows-release-tests",
       "cacheVariables": {
-        "CMAKE_PREFIX_PATH": "$env{QTDIR}"
-      },
-      "vendor": {
-        "qt-project.org/Qt": {
-          "checksum": "wVa86FgEkvdCTVp1/nxvrkaemJc="
-        }
+        "JOBTRACKER_BUILD_TESTS": "ON"
       }
     }
   ],
@@ -104,6 +103,16 @@
       "name": "windows-debug-tests",
       "configurePreset": "windows-debug-tests",
       "configuration": "Debug"
+    },
+    {
+      "name": "windows-release",
+      "configurePreset": "windows-release",
+      "configuration": "Release"
+    },
+    {
+      "name": "windows-release-tests",
+      "configurePreset": "windows-release-tests",
+      "configuration": "Release"
     }
   ],
   "testPresets": [
@@ -121,11 +130,14 @@
       "output": {
         "outputOnFailure": true
       }
+    },
+    {
+      "name": "windows-release-tests",
+      "configurePreset": "windows-release-tests",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      }
     }
-  ],
-  "vendor": {
-    "qt-project.org/Presets": {
-      "checksum": "K5khp45o/oZC3LRR0RK7R1dzaeo="
-    }
-  }
+  ]
 }
