@@ -35,19 +35,24 @@ use `For-Agent/Docs/windows-release.md` for behavior, `build.md` for commands,
 `testing.md` for test selection and `tests/deployment/Windows-Release-Checklist.md`
 for acceptance cases. Reuse established context instead of reopening every stage.
 
-Check version/asset/URL/hash identity against the actual manifest and generated
-inputs. Keep production, test probes and installer harnesses separate. Treat
-native harness tests, real scoped installation, GUI/clean-machine checks and
-redistribution clearance as distinct evidence. A synthetic prior-version fixture
-does not verify historical application migrations; a 404 verifies safe rejection
-only; the staging probe does not launch JobTracker.
+Check version/Setup/hash identity against direct staging, generated identity,
+the runtime lock and matching private `installer-build.json`. The only end-user
+artifact is `Installer/output/JobTracker-Setup-<version>.exe`; no application
+archive or remote manifest is required. Keep production, probes and installer
+harnesses separate. Native harnesses, real scoped installation, GUI/clean-machine
+checks and redistribution clearance are distinct evidence. Synthetic version
+fixtures do not verify application migrations; static absence of download code
+does not verify disconnected startup; the probe does not launch JobTracker.
 
 Carry unresolved results and the `packaging/windows/REDISTRIBUTION.md` publication
-hold into the handoff. A later passing run does not erase earlier sharing failures
+hold and `For-Agent/Task-Report/offline-installer/LICENSE_ISSUES.md` into the handoff.
+A later passing run does not erase earlier sharing failures
 or establish their cause. For documentation-only changes, validate commands,
 links and input preservation without repeating builds or real installations.
-For numbered tasks, save only the selected report, update STATUS afterward and
-stop; do not turn final validation into the next release stage.
+For numbered tasks, select through `Tasks/Offline-Installer/00_RUN_NEXT.md` and
+`Tasks/Offline-Installer/STATUS.md`, save only the selected stage report under
+`For-Agent/Task-Report/offline-installer/`, update STATUS last and stop.
+Do not turn final validation into the next stage.
 
 ## Full Independent Review
 

@@ -1,6 +1,6 @@
 #requires -Version 7.2
 <#
-Exercise the real local installer without launching JobTracker or reading its data.
+Exercise the real offline installer without launching JobTracker or reading its data.
 Each scope uses a fresh fixture below dist/. Only its own generated installation
 is uninstalled; logs, state and synthetic personal-data sentinels are retained.
 Run CurrentUser without elevation, AllUsers from an elevated PowerShell session.
@@ -36,8 +36,9 @@ if (($Scope -eq 'AllUsers') -ne $elevated) {
     throw 'AllUsers requires elevation; CurrentUser must run without elevation to verify its privilege contract.'
 }
 $installer = (Get-Item -LiteralPath $InstallerPath).FullName
-$manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
-$installerMetadata = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $installer) 'installer-build.json') -Raw | ConvertFrom-Json
+. (Join-Path $PSScriptRoot 'OfflineInstallerEvidence.ps1')
+$manifest = Get-OfflineInstallerEvidence -InstallerPath $installer -MetadataPath $ManifestPath
+$installerMetadata = $manifest
 $target = Join-Path $work 'application'
 $statePath = Join-Path $work 'fixture.json'
 $allUsers = $Scope -eq 'AllUsers'

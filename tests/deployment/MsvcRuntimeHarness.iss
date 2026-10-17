@@ -1,8 +1,11 @@
 ; TEST ONLY: consumes production functions, never executes the redistributable.
+#if Ver < EncodeVer(7, 0, 0)
+  #error Inno Setup 7 or newer is required to verify the native x64 installer ABI.
+#endif
 #include PipelineFile
 #define JobTrackerExecutableName "JobTrackerApp.exe"
-#include "..\..\packaging\windows\InstallationPolicy.iss"
-#include "..\..\packaging\windows\ManualClose.iss"
+#include "..\..\Installer\InstallationPolicy.iss"
+#include "..\..\Installer\ManualClose.iss"
 #include RuntimeInput
 #include RuntimeCode
 
@@ -13,6 +16,7 @@ DefaultDirName={tmp}\unused
 OutputDir={#TestOutput}
 OutputBaseFilename=msvc-runtime-test-only
 PrivilegesRequired=lowest
+SetupArchitecture=x64
 ArchitecturesAllowed=x64os
 ArchitecturesInstallIn64BitMode=x64os
 MinVersion=10.0
@@ -29,28 +33,11 @@ RestartApplications=no
 Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 
-[Files]
-Source: "{#RedistFile}"; DestName: "vc_redist.x64.exe"; Flags: dontcopy
-
 [Code]
 procedure RequireTest(const Condition: Boolean; const Message: String);
 begin
   if not Condition then RaiseException('TEST FAILURE: ' + Message);
   Log('TEST PASS: ' + Message);
-end;
-
-function CancelMsvcDownload(const Url, FileName: String; const Progress, ProgressMax: Int64): Boolean;
-begin
-  Result := MsvcDownloadProgress(Url, FileName, Progress, ProgressMax);
-  if Progress > 0 then
-    MsvcDownloadPage.AbortButton.OnClick(MsvcDownloadPage.AbortButton);
-end;
-
-procedure InitializeWizard;
-begin
-  InitializeMsvcRuntime;
-  if ExpandConstant('{param:Case}') = 'download-cancel' then
-    MsvcDownloadPage := CreateDownloadPage('TEST cancellation', '', @CancelMsvcDownload);
 end;
 
 procedure DeinitializeSetup;
@@ -79,7 +66,7 @@ end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
-  CaseName, PackagePath, Hash: String;
+  CaseName, PackagePath: String;
 begin
   Result := '';
   CaseName := ExpandConstant('{param:Case}');
@@ -100,9 +87,6 @@ begin
       CheckResult(True, 1603, True, 'MsvcFailed', False);
       RequireTest(not MsvcFileCompatible(ExpandConstant('{tmp}\missing.dll')), 'missing runtime file rejected');
       RequireTest(not MsvcFileCompatible(ExpandConstant('{srcexe}')), 'old version rejected');
-      RequireTest(MsvcDownloadProgress('', '', {#MsvcRedistSize}, {#MsvcRedistSize}), 'exact download size accepted');
-      RequireTest(not MsvcDownloadProgress('', '', {#MsvcRedistSize} + 1, 0), 'received-byte overflow rejected');
-      RequireTest(not MsvcDownloadProgress('', '', 0, {#MsvcRedistSize} + 1), 'declared-size overflow rejected');
       MsvcRestartPending := True;
       Result := PrepareMsvcRuntime(True, NeedsRestart);
       RequireTest(NeedsRestart and (Result = CustomMessage('MsvcRestart')), 'retry preserves reboot requirement');
@@ -126,26 +110,12 @@ begin
       VerifyPayloadFile(PackagePath, '{#MsvcRedistHash}', {#MsvcRedistSize});
       RequireTest(MsvcFileCompatible(PackagePath), 'verified official x64 package version');
       if CaseName = 'corrupt' then RaiseException('TEST FAILURE: corrupt package accepted');
-    end else if (CaseName = 'download') or (CaseName = 'download-cancel') or (CaseName = 'download-bad-hash') then begin
-      Hash := '{#MsvcRedistHash}';
-      if CaseName = 'download-bad-hash' then Hash := StringOfChar('0', 64);
-      MsvcDownloadPage.Add('{#MsvcRedistUrl}', 'vc_redist.x64.exe', Hash);
-      MsvcDownloadPage.Show;
-      try
-        MsvcDownloadPage.Download;
-        PackagePath := ExpandConstant('{tmp}\vc_redist.x64.exe');
-        VerifyPayloadFile(PackagePath, '{#MsvcRedistHash}', {#MsvcRedistSize});
-        RequireTest(MsvcFileCompatible(PackagePath), 'native official download verified without execution');
-      finally
-        MsvcDownloadPage.Hide;
-      end;
     end else RaiseException('TEST FAILURE: unknown case');
   except
     Result := GetExceptionMessage;
-    if MsvcDownloadPage.AbortedByUser then Result := CustomMessage('MsvcCancelled');
     Log(Result);
   end;
   CleanupMsvcRuntime;
   if FileExists(ExpandConstant('{tmp}\vc_redist.x64.exe')) then
-    RaiseException('TEST FAILURE: downloaded prerequisite remains');
+    RaiseException('TEST FAILURE: extracted prerequisite remains');
 end;

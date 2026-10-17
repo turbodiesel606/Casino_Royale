@@ -1,82 +1,81 @@
 # Windows Installer Behavior
 
-Both Online and Local Setup are implemented, unsigned candidates under the
-[publication hold](../packaging/windows/REDISTRIBUTION.md). Use
-[canonical build/test commands](../For-Agent/Docs/build.md) and the maintained
-[release workflow](../For-Agent/Docs/windows-release.md). The
-[packaging reference](../packaging/windows/README.md) documents detailed native
-contracts; this guide summarizes what a maintainer or tester should expect.
+JobTracker has one native x64 offline installer:
+`Installer/output/JobTracker-Setup-<version>.exe` for Windows 10/11 x64.
+It embeds the Release application, Qt/QML/plugins/SQLite, scope-specific MSVC
+inputs and runtime notice. Installation needs no Qt/Visual Studio/SDK, runtime
+download, GitHub asset or application archive. The candidate remains under the
+[publication hold](../packaging/windows/REDISTRIBUTION.md); disconnected
+clean-machine acceptance is still pending.
 
-## Payload And Installation Scope
+Use the [command guide](../For-Agent/Docs/build.md),
+[workflow reference](../For-Agent/Docs/windows-release.md) and
+[installer implementation reference](../Installer/README.md).
 
-Online is the default build and downloads one fixed versioned archive with an
-embedded SHA-256. Local embeds that same payload for integration work. These
-payload modes are independent of the installation scope: each offers both scopes.
-Local payload does not eliminate a possible AllUsers MSVC prerequisite download.
+## Installation Scope And Runtime
 
-| Scope | Defaults and registration | MSVC runtime |
+| Scope | Default and registration | MSVC runtime |
 |---|---|---|
-| Current user | `%LocalAppData%/Programs/JobTracker`, HKCU, `JobTracker.CurrentUser` | Ten pinned App-Local x64 Release DLLs; no system installer/elevation. |
-| All users | `%ProgramFiles%/JobTracker`, HKLM, `JobTracker.AllUsers`, explicit elevation | Validate system x64 runtime; download/verify/run the pinned official Microsoft package when needed. |
+| CurrentUser | `%LocalAppData%/Programs/JobTracker`; HKCU; `JobTracker.CurrentUser` | Ten pinned App-Local x64 Release DLLs; no system prerequisite or admin rights. |
+| AllUsers | `%ProgramFiles%/JobTracker`; HKLM; `JobTracker.AllUsers`; UAC | Check system runtime; extract and run the bundled verified official x64 redistributable only if needed. |
 
-Runtime identity/hashes come from `MsvcRuntime.lock.json`, currently version
-14.44.35211.0. Reboot-required results stop before app files change; restart and
-rerun Setup. The shared runtime remains installed after JobTracker uninstall or
-later installation failure.
+`Installer/MsvcRuntime.lock.json` pins version 14.44.35211.0 and exact inputs.
+Cancellation/failure stops before application copying. Restart-required results
+require reboot and a new Setup run. JobTracker uninstall and later installation
+failure do not remove the shared machine runtime.
 
-New destinations are editable. Start Menu shortcuts are always created; desktop
-shortcuts are unchecked by default. Each scope has distinct localized names.
-English and Russian are available with a language-selection dialog; Russian can
-be selected from the system UI language, with English as fallback. Executable,
-Setup, shortcuts and uninstall use the shared temporary icon.
+Fresh destinations are editable. Start Menu shortcuts are created; desktop
+shortcuts default to unchecked. English and Russian are available with a
+language-selection dialog; system UI language may select Russian, with English
+as fallback. The application, Setup and shortcuts share the current temporary icon.
 
-## Upgrades And Closure
+## Manual Updates And Closure
 
-Same-version repair and upgrades retain the validated previous directory and
-personal data. Downgrades, inconsistent registration/EXE/marker identity, unsafe
-paths and changing an existing scope's directory are rejected. Relocate by
-uninstalling while preserving data, then reinstalling.
+Run a newer offline Setup over the existing same-scope installation. Upgrade
+and same-version repair retain the validated directory, stable uninstall
+identity and personal data. Downgrade, missing/inconsistent registry/PE/marker
+versions, unsafe paths and relocation are rejected.
 
-Opposite scopes can coexist only at exactly equal release versions. AllUsers
-checks other profiles and blocks when their registration state cannot be read.
-To upgrade two copies, uninstall one while preserving data, upgrade the other,
-then install the matching new version in the first scope. Independent uninstall
-records do not create independent data stores or prove concurrent app use safe.
+An opposite-scope copy blocks installation at every version, including equal
+versions. Switch scope by manually uninstalling with data preserved, then
+reinstalling. Existing dual-scope layouts must remove the other copy first.
+AllUsers rejects unavailable profile/registry state without loading offline
+hives. Separate AppIds do not create independent data stores.
 
-Close the selected JobTracker copy manually before maintenance. Setup/Uninstall
-never force-close or restart it. Interactive Retry rechecks the file; silent
-runs must be rerun after closure. Unattended Setup needs `/VERYSILENT` and
-`/SUPPRESSMSGBOXES`; unsafe automatic-close and INF replay overrides are refused.
-Keep the copy closed until maintenance finishes. Late cancellation can briefly
-show progress; partial upgrades do not promise restoration of every old file.
+Close JobTracker manually before install/repair/upgrade/uninstall, and keep it
+closed until completion. Setup never force-closes or restarts it. Retry rechecks
+the selected file; unattended Setup needs both `/VERYSILENT` and
+`/SUPPRESSMSGBOXES`. Unsafe automatic-close/INF overrides are refused.
+A late failure can leave partial program-file changes; full rollback is not
+guaranteed. The earlier sharing error 32 has no established root-cause fix.
 
 ## Personal Data
 
-Both copies used by one account share the normal Windows
-`%LocalAppData%/JobTracker/Data` store, including `database.sqlite` and `Resumes/`.
-Setup does not launch JobTracker, open SQLite or run migrations.
+The usual per-account store is `%LocalAppData%/JobTracker/Data`, including
+`database.sqlite` and `Resumes/`, independent of install scope/directory.
+Setup never starts JobTracker, opens its database or runs migrations.
 
-Uninstall preserves personal data by default. Only a verified, non-elevated
-CurrentUser uninstall can offer cleanup after complete program removal. The
-EN/RU prompt defaults to No and shows the exact folder. Yes permanently removes
-the entire owned `%LocalAppData%/JobTracker` folder, including CVs and SQLite
-sidecars. There is no command-line deletion switch. Silent, elevated/AllUsers,
-shared, incomplete, inaccessible or unverifiable cases preserve data.
+Uninstall preserves personal data by default. Only verified non-elevated
+CurrentUser removal can offer an EN/RU default-No cleanup prompt after complete
+program removal. Explicit Yes permanently deletes the entire verified owned
+`%LocalAppData%/JobTracker` tree, including SQLite sidecars and CVs.
+There is no command-line data-delete switch.
 
-Cleanup validates scope, registration, SID ownership and paths/handles, rejecting
-links and unsafe or locked trees. It is irreversible and nontransactional;
-a late failure can leave a partially deleted tree. Unregistered copies cannot
-be discovered exhaustively; keep data if another copy may use it.
+Silent/unattended, elevated, AllUsers, incomplete, shared, inaccessible or
+ambiguous cases preserve data. AllUsers never deletes another profile's data.
+Cleanup checks scope/registration, SID ownership, ancestors, reparse points,
+hardlinks, access and handles. It is irreversible and nontransactional; a late
+failure may leave partial deletion. Unknown manually copied applications cannot
+be discovered exhaustively.
 
-## Evidence Limits
+## Verification Limits
 
-Stage 13 passed local native suites and real non-elevated CurrentUser lifecycle
-checks, including a Russian Unicode path. It did not launch the application.
-The earlier sharing error 32 did not recur, but no root-cause fix is established.
-The public archive returned 404; safe rejection does not prove public installation.
+[Stage 08](../For-Agent/Task-Report/offline-installer/08.md) records native suites,
+standalone Qt/QML/SQLite/App-Local smoke and actual owned CurrentUser
+install/repair/uninstall with synthetic sentinels. Those tests never launched
+JobTracker or inspected real application data.
 
-Interactive EN/RU prompts/Retry/icons, AllUsers/UAC, simultaneous scopes/sessions,
-actual missing-runtime/reboot paths, historical upgrades, graphics and clean
-Windows 10/11 remain acceptance work in a disposable account/VM. Follow the
-[matrix](../tests/deployment/Windows-Release-Checklist.md) and record new evidence
-separately from prior reports. Do not use actual personal data as a fixture.
+Interactive EN/RU/Retry/icons, AllUsers/UAC, real prerequisite skip/run/error/
+reboot, actual SQLite/CV/settings preservation, graphics and disconnected clean
+Windows 10/11 remain separate acceptance work. Use disposable accounts/VMs and
+the [checklist](../tests/deployment/Windows-Release-Checklist.md).

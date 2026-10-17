@@ -1,9 +1,0 @@
-{
-  "checkedAt": "2026-10-15T13:14:45.8924190+04:00",
-  "method": "HEAD",
-  "url": "https://github.com/turbodiesel606/Releases/releases/download/v0.1.0/JobTracker-0.1.0-windows-x64.7z",
-  "statusCode": 404,
-  "result": "HTTP_RESPONSE",
-  "endToEndInstallation": "NOT_RUN",
-  "bodyDownloaded": false
-}

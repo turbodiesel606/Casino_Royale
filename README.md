@@ -97,23 +97,28 @@ CV import is handled by the C++ backend. Imported CV files are hashed, deduplica
 
 Start with [Building JobTracker](docs/BUILDING.md). The
 [canonical command catalog](For-Agent/Docs/build.md) covers Windows Debug,
-separate test builds, Release staging, packaging and the existing Linux Debug
-presets. Both platforms require exactly Qt 6.10.3; shared presets use `QTDIR`,
+separate test builds, Release staging, offline Setup and Linux Debug/Release
+production/test presets. Both platforms require exactly Qt 6.10.3; shared presets use `QTDIR`,
 and local presets can override `CMAKE_PREFIX_PATH`. Normal builds compile/link;
 development runtime preparation and Release deployment are explicit steps.
 
-[Windows release preparation](docs/WINDOWS-RELEASE.md) describes the archive,
-version and checksum workflow. [Windows installer behavior](docs/WINDOWS-INSTALLER.md)
-explains Online/Local payloads, current-user/all-users scopes, runtime deployment,
-upgrades and data preservation. Linux packaging is deferred; its Debug workflow
-remains available but was not executed in the Windows release stages.
+[Windows release preparation](docs/WINDOWS-RELEASE.md) describes direct staging
+and one native x64 `Installer/output/JobTracker-Setup-<version>.exe`.
+[Windows installer behavior](docs/WINDOWS-INSTALLER.md) explains CurrentUser
+App-Local runtime, the bundled AllUsers prerequisite, same-scope manual upgrades
+and data preservation. No GitHub archive or installation-time download is needed.
+Switching scope requires manual uninstall with data preserved, then reinstall.
+Linux builds/tests remain available but were not executed on this Windows host;
+Linux packaging is out of scope.
 
 **Publication HOLD:** current candidates are unsigned and unapproved. The
-[stage-14 audit](packaging/windows/REDISTRIBUTION.md) records unresolved Lottie
-licensing, delivered notices/source/replacement material, external-binary
-provenance, recoverable private QML and owner entitlement. Passing local tests
+[current license issues](For-Agent/Task-Report/offline-installer/LICENSE_ISSUES.md)
+preserve the [redistribution hold](packaging/windows/REDISTRIBUTION.md), including
+Lottie licensing, notices/source/replacement material, external-binary provenance
+and owner entitlement. Embedded QML resources are explicitly allowed by the
+offline requirements. Passing local tests
 does not clear these findings or establish GUI/clean-machine acceptance.
-Use the [release status index](For-Agent/Task-Report/windows-release/STATUS.md)
+Use the [offline status index](Tasks/Offline-Installer/STATUS.md)
 for dated evidence and remaining work. Nothing is uploaded automatically.
 
 ## Tests

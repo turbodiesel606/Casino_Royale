@@ -3,8 +3,6 @@
 For-Agent/Review/
 For-Human/
 build/
-# Machine-local Qt kit overrides; this rule does not untrack an existing file.
-/CMakeUserPresets.json
 #.gitignore
 #AGENTS.md
 #BuildCommands.txt
@@ -12,8 +10,10 @@ build/
 Requirements/
 .vs/
 /Tasks/*
-# Keep release tasks versionable; other Tasks content stays ignored.
-!/Tasks/Windows-Release/
+# Keep only the active offline-installer plan versionable; other Tasks content stays ignored.
+!/Tasks/Offline-Installer/
 deploy/
 # Archives, Setup output, extracted payloads, logs and private test/audit evidence.
 /dist/
+# Only the versioned offline Setup is an end-user artifact; retain private build evidence separately.
+/Installer

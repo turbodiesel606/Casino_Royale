@@ -5,9 +5,9 @@ Windows and Linux. Production and test discovery use the same version pin.
 
 Use this file as the single executable command catalog. See [Building](../../docs/BUILDING.md),
 [Windows Release](windows-release.md), and the [testing policy](testing.md) for
-context; exact dated results remain in [stage reports](../Task-Report/windows-release/STATUS.md).
+context; exact dated results remain in [stage reports](../../Tasks/Offline-Installer/STATUS.md).
 
-**Publication HOLD:** [R1-R7](../../packaging/windows/REDISTRIBUTION.md) remain
+**Publication HOLD:** findings in [LICENSE_ISSUES.md](../Task-Report/offline-installer/LICENSE_ISSUES.md) remain
 unresolved. These commands can produce unapproved candidates; the hold is a
 maintainer requirement, not an automated packaging gate.
 
@@ -43,8 +43,10 @@ under `build/qt-6.10.3/`. Existing Debug preset names and directories are retain
 `QT_QML_DEBUG` and MSVC Just My Code remain Debug-only.
 
 CMakeUserPresets.json is already tracked in this checkout. The ignore rule
-prevents new additions but cannot untrack an existing file; the stage-03 report
-records the optional index-only operation for an explicitly authorized Git task.
+prevents new additions but cannot untrack an existing file. The
+[offline stage-02 report](../Task-Report/offline-installer/02.md) records the
+optional index-only operation for a separately authorized Git task; existing
+local preset values must be preserved.
 
 Configure when the build tree is missing or stale, or when CMake, presets, source registration, or build options changed:
 
@@ -127,28 +129,23 @@ ctest --preset windows-debug-tests-local
 
 ## Verification Provenance And Paths
 
-The commands below are implemented forms. Their recorded Windows executions are
-in [03.md](../Task-Report/windows-release/03.md) (Debug/Release and 18/18 tests
-in each configuration), [13.md](../Task-Report/windows-release/13.md) (full Release
-candidate/integration pass), and [14.md](../Task-Report/windows-release/14.md)
-(audit/security checks). Stage 15 checked documentation, inputs and retained
-evidence; it did not repeat builds or native suites. Targeted command variants
-are supported by the registered targets; no fresh execution is implied.
+These are current command forms, checked against the real presets, targets and
+script parameters in offline stage 09. Documentation validation does not execute
+a build or installer. [Stage 02](../Task-Report/offline-installer/02.md) records
+Windows Debug/Release production/test builds and 18/18 CTest in each;
+[stage 08](../Task-Report/offline-installer/08.md) records the offline candidate,
+native suites, standalone probe and owned CurrentUser lifecycle. Linux and
+disconnected clean-host acceptance remain NOT RUN.
 
-Release examples use the exact stage-13 paths that passed. Those paths already
-exist in this workspace. **For a new run, choose new staging, package, installer,
-smoke and test directories and propagate them through every dependent command.**
-Keep the configured production/test trees unless a fresh build is required.
-Do not replay a creation command into retained evidence. Packaging and Setup
-wrappers refuse existing output directories. Preserve failed runs.
-
-Current identity: `0.1.0`, Qt `6.10.3`, Windows x64. When the project version
-changes, regenerate identity and substitute the new version in all asset paths
-and `-ExpectedVersion`. Do not edit generated metadata or weaken checks.
+For a new deployment run, use the session variables below to create unique
+staging/probe/test paths. Keep the configured production/test trees. Never replay
+creation commands into prior evidence or delete failed outputs. Installer scripts
+require PowerShell 7.2+ and Inno Setup 7+; the verified native-x64 compiler was
+7.1.0. Inno 6 creates an I386 launcher and is rejected.
 
 ## Windows Release Build And Tests
 
-Normal Release builds compile/link. Stage/install, archive and Setup generation
+Normal Release builds compile/link. Staging and offline Setup generation
 are separate explicit steps. Production and tests use different directories.
 
 ```powershell
@@ -173,291 +170,349 @@ ctest --preset windows-release-tests-local
 
 ### Windows Release Staging
 
-After building, install into a fresh **absolute** prefix:
+After the production Release build, initialize these PowerShell session variables
+one command at a time. Run all subsequent offline sections in the same session.
+The compiler and redistributable paths below are verified local inputs on this
+host; select authorized local equivalents on another machine. The runtime lock
+requires 14.44.35211.0. No command downloads a dependency or refreshes that lock.
 
-```powershell
-cmake --install build/qt-6.10.3/windows-release --config Release --prefix D:/Project_CV/Root/build/qt-6.10.3/windows-release-stage13
-```
+~~~powershell
+$offlineRun = [Guid]::NewGuid().ToString('N')
+~~~
 
-Qt's install-time QML deployment writes `bin/`, `plugins/`, `qml/`,
-`translations/` and relative `bin/qt.conf`. It includes `qwindows.dll` and
-`qsqlite.dll`, excluding development/tooling/input plugins and other SQL drivers.
-`NO_COMPILER_RUNTIME` excludes MSVC CRTs; the installer supplies their scope
-policy. Do not add the development-runtime target to this workflow.
+~~~powershell
+$offlineBuild = (Resolve-Path -LiteralPath build/qt-6.10.3/windows-release).Path
+~~~
 
-Stage 04 verified `--config release` case-insensitively and compared three
-148-file installs; exact old commands remain in [04.md](../Task-Report/windows-release/04.md).
-Windows Debug installation still copies only the executable; it is not a release
-payload. Linux installation remains explicit and separate from normal builds.
+~~~powershell
+$offlineRoot = Join-Path (Get-Location).Path "build/qt-6.10.3/offline-$offlineRun"
+~~~
 
-The current kit also deploys `icuuc.dll`, `D3Dcompiler_47.dll` and
-`opengl32sw.dll`; their provenance/licensing remains subject to the release hold.
-Missing `dxcompiler.dll`/`dxil.dll` warnings are not clean-machine graphics
-acceptance. A development host can mask absent system dependencies.
+~~~powershell
+$offlineStage = Join-Path $offlineRoot 'stage'
+~~~
+
+~~~powershell
+$offlineFixtureRoot = Join-Path (Get-Location).Path "dist/offline-$offlineRun"
+~~~
+
+~~~powershell
+$offlineIscc = 'D:/Inno Setup 7/ISCC.exe'
+~~~
+
+~~~powershell
+$offlineRedist = (Resolve-Path -LiteralPath build/qt-6.10.3/stage09-evidence/vc_redist.x64.exe).Path
+~~~
+
+The redistributable path is retained local evidence from the older workflow;
+its directory name does not refer to this documentation stage. If absent, supply
+the authentic locally available package matching `Installer/MsvcRuntime.lock.json`.
+The build fails with actionable diagnostics for missing/mismatched inputs.
+
+~~~powershell
+cmake --install $offlineBuild --config Release --prefix $offlineStage
+~~~
+
+The absolute prefix is new. CMake's Qt QML deployment supplies `bin/`,
+`plugins/`, `qml/`, `translations/` and relative `bin/qt.conf`, including
+`qwindows.dll` and `qsqlite.dll`. `NO_COMPILER_RUNTIME` leaves MSVC CRT delivery
+to the installer. Do not use the development-runtime target for staging.
+
+The reviewed [inventory](../../Installer/payload-files.txt) currently has 148
+application/Qt files. Embedded QML resources are allowed; loose C++ sources,
+tests, PDBs and internal documentation are not. Validation checks identity,
+exact paths/hashes, x64 Release PEs, Qt version, reparse points and streams.
+The common stage alone is not a complete clean-machine distribution.
+DXC/DXIL warnings and ICU/Mesa/D3D provenance remain open acceptance/license
+items. Keep logs/probes outside the stage and `Installer/output/`.
 
 ### Windows Identity Verification
 
-`project(JobTracker VERSION ...)` owns the three-part version; Windows numeric
-versions append `.0`. The internal target/filename stay `JobTrackerApp` /
-`JobTrackerApp.exe`. The QML import version is unrelated.
+Root `project(JobTracker VERSION ...)` owns the application and Setup version.
+Windows numeric metadata adds `.0`. The binary stays `JobTrackerApp.exe`;
+QML module version is independent. Generated RC/CMake/Inno identity lives under
+`<build>/Installer/<configuration>/`. Reconfigure and rebuild after version/icon
+changes; never edit generated identity. `Installer/JobTracker.ico` is the current
+temporary seven-size icon; publisher is blank and builds are unsigned by default.
 
-The generated `<build>/packaging/windows/<configuration>/JobTracker.rc`,
-`JobTrackerIdentity.cmake` and `JobTrackerIdentity.iss` carry the shared identity.
-`packaging/windows/JobTracker.ico` is the replaceable seven-size temporary icon.
-Inspect PE icon/version metadata after a build; Explorer/taskbar/native dialog
-appearance needs manual checks. Publisher is blank and signing is not implemented.
-Generated identity inputs and the source ICO are not runtime assets.
+Use the built PE version to select the output filename:
 
-### Windows Release Archive
+~~~powershell
+$offlineVersion = (Get-Item -LiteralPath "$offlineBuild/Release/JobTrackerApp.exe").VersionInfo.ProductVersion.Trim()
+~~~
 
-Requires Windows, PowerShell 7.2+ and CMake 3.21+ on PATH; the recorded archive
-writer was CMake 4.0.2. Use the matching production Release build and staging.
-The exact reviewed allowlist is `packaging/windows/payload-files.txt`.
+~~~powershell
+$offlineSetup = Join-Path (Get-Location).Path "Installer/output/JobTracker-Setup-$offlineVersion.exe"
+~~~
 
-```powershell
-pwsh -NoProfile -File packaging/windows/Package-Release.ps1 -BuildDirectory build/qt-6.10.3/windows-release -StageDirectory build/qt-6.10.3/windows-release-stage13 -OutputDirectory dist/stage13-package
-```
+Visual icon/Explorer/taskbar acceptance remains manual. Signing is optional and
+does not clear the publication hold.
 
-```powershell
-pwsh -NoProfile -File packaging/windows/Package-Release.ps1 -ManifestPath dist/stage13-package/JobTracker-0.1.0-windows-x64.7z.manifest.json -ExpectedVersion 0.1.0
-```
+<a id="windows-offline-installer-stage-04"></a>
 
-Creation produces the versioned `.7z`, `.7z.sha256` and `.7z.manifest.json`.
-Verification checks archive size/hash, sidecar, exact paths and every extracted
-file. Outputs must be below ignored `dist/`. Repeated verification retains new
-`verify-*` directories. Never publish `work/`, extracted copies, logs or generated
-includes. Only approved release assets may be published after the hold is cleared.
+### Windows Offline Installer
 
-The common archive has no compiler runtime and is not a standalone clean-machine
-distribution. [Packaging contracts](../../packaging/windows/README.md) describe
-the manifest and same-input determinism limits.
+Build only after staging. Before rebuilding a version, preserve the existing
+same-name EXE outside customer output, verify its hash and resolved destination,
+and move only that exact owned file. Never overwrite it, delete evidence, or
+move a whole directory. The wrapper refuses an existing candidate.
 
-### Windows Version-Locked Online Installer
+~~~powershell
+pwsh -NoProfile -File Installer/Build-Installer.ps1 -BuildDirectory $offlineBuild -StageDirectory $offlineStage -IsccPath $offlineIscc -RedistributablePath $offlineRedist
+~~~
 
-Requires Inno Setup 6.7.1+ (recorded compiler: 6.7.1), PowerShell 7.2+, CMake,
-the selected Visual Studio installation and matching locked runtime inputs.
-Supply the actual compiler path. The wrapper verifies the local manifest and
-Release executable, prepares the pinned CRT inputs, then compiles Setup.
+The single output is `Installer/output/JobTracker-Setup-<version>.exe`, a native
+AMD64/PE32+ Setup. The wrapper validates the direct stage, snapshots exact local
+files, validates MSVC inputs, and compiles hashed explicit file entries. It does
+not configure/build the application, deploy Qt, install, publish or download.
+There is no archive prerequisite or Online/Local release-mode switch.
 
-```powershell
-pwsh -NoProfile -File packaging/windows/Build-Installer.ps1 -BuildDirectory build/qt-6.10.3/windows-release -ManifestPath dist/stage13-package/JobTracker-0.1.0-windows-x64.7z.manifest.json -OutputDirectory dist/stage13-online -IsccPath "D:/Inno Setup 6/ISCC.exe"
-```
+The command prints `Private build evidence: <directory>`. Enter that exact path
+below; do not select an arbitrary newest directory or substitute old metadata:
 
-Online is the default mode. The fixed URL is
-`https://github.com/turbodiesel606/Releases/releases/download/v<version>/JobTracker-<version>-windows-x64.7z`.
-The verified archive hash/size and per-file inventory are compiled into Setup.
-There is no `latest` lookup or production URL/hash override; downloaded checksum
-files cannot replace the compiled trust anchor. Builds do not download, install
-or publish. The public asset returned 404 in stage 13; a successful public
-installation remains NOT_RUN, not a fresh network finding from stage 15.
+~~~powershell
+$offlineEvidence = (Resolve-Path -LiteralPath (Read-Host 'Paste the Private build evidence path printed by this build')).Path
+~~~
 
-### Windows Local-Payload Installer
+~~~powershell
+$offlineMetadata = Join-Path $offlineEvidence 'installer-build.json'
+~~~
 
-Local embeds the verified common payload for local integration; both modes share
-the same scope/runtime/upgrade/uninstall policy.
-
-```powershell
-pwsh -NoProfile -File packaging/windows/Build-Installer.ps1 -BuildDirectory build/qt-6.10.3/windows-release -ManifestPath dist/stage13-package/JobTracker-0.1.0-windows-x64.7z.manifest.json -OutputDirectory dist/stage13-local -IsccPath "D:/Inno Setup 6/ISCC.exe" -Mode Local
-```
-
-Outputs are `JobTracker-<version>-windows-x64-online-setup.exe` or
-`JobTracker-<version>-windows-x64-local-setup.exe` plus internal
-`installer-build.json`, includes, runtime inputs and `compile.log`.
-Only a separately approved Setup EXE is a potential public asset.
+Private snapshots, logs, includes and JSON stay under
+`<build>/Installer/work/<id>/`. They are not customer artifacts. Every test below
+must use the matching Setup, metadata and source state; changed inputs need a
+new candidate and matching evidence.
 
 ### Windows Hybrid MSVC Runtime
 
-`MsvcRuntime.lock.json` pins version `14.44.35211.0`, ten x64 Release CRT DLLs
-and the official Microsoft package's URL, size and SHA-256. The wrapper discovers
-the Visual Studio instance from CMake and validates hashes, signatures, versions
-and architecture. Its optional `-RedistributablePath` selects a local input,
-not a URL/hash override. Use it when the SDK copy does not match the lock;
-the recorded retained input is `build/qt-6.10.3/stage09-evidence/vc_redist.x64.exe`.
-Never update the lock merely to silence an unexplained mismatch.
+CurrentUser receives ten verified App-Local x64 Release DLLs beside the EXE.
+AllUsers checks system x64 runtime registry/DLL identity and uses the embedded
+official redistributable only if insufficient. Failure/cancellation stops before
+application copying; restart-required results require reboot and rerunning Setup.
+The shared runtime is neither rolled back nor removed with JobTracker.
 
-CurrentUser copies the verified App-Local DLLs without a system prerequisite.
-AllUsers checks the machine x64 runtime, then downloads/verifies/executes the
-official package only if needed. Reboot-required results stop before application
-files change and require a fresh Setup run after restart. Neither scope removes
-the machine runtime. Detailed behavior and unresolved acceptance:
-[installer guide](../../docs/WINDOWS-INSTALLER.md).
+`Installer/Prepare-MsvcRuntime.ps1` checks pinned signatures, hashes, versions,
+sizes and x64 CRT identity against the selected Visual Studio kit. The lock URL
+is provenance, not a download route. The official x64 prerequisite's signed x86
+bootstrapper is distinct from the required native x64 JobTracker Setup.
+
+Optional standalone input preparation (fresh output, no Setup or prerequisite
+execution; the normal installer wrapper already performs these checks):
+
+~~~powershell
+pwsh -NoProfile -File Installer/Prepare-MsvcRuntime.ps1 -BuildDirectory $offlineBuild -RedistributablePath $offlineRedist -OutputDirectory "$offlineRoot/runtime-input-check"
+~~~
+
+<a id="offline-deployment-test-commands-stage-08"></a>
+<a id="windows-release-integration-verification"></a>
+
+### Offline Deployment Tests
+
+These independent consumers never become production CMake dependencies. Run
+one command at a time and retain each final exit code. `ManifestPath` is the
+legacy parameter name for private offline JSON, not an application archive.
+
+Direct payload rejection checks use copies and preserve the original stage:
+
+~~~powershell
+pwsh -NoProfile -File tests/deployment/Test-OfflinePayload.ps1 -BuildDirectory $offlineBuild -StageDirectory $offlineStage -WorkDirectory "$offlineRoot/payload-tests"
+~~~
+
+Static compiled-artifact, snapshot, identity and local-embedding checks:
+
+~~~powershell
+pwsh -NoProfile -File tests/deployment/Test-OfflineInstaller.ps1 -BuildDirectory $offlineBuild -InstallerPath $offlineSetup -MetadataPath $offlineMetadata -WorkDirectory "$offlineRoot/artifact-tests"
+~~~
+
+The native runtime harness extracts/verifies the embedded prerequisite without
+executing it; result/reboot assertions are policy tests:
+
+~~~powershell
+pwsh -NoProfile -File tests/deployment/Test-MsvcRuntime.ps1 -BuildDirectory $offlineBuild -InstallerDirectory $offlineEvidence -RedistributablePath $offlineRedist -WorkDirectory "$offlineRoot/runtime-tests" -IsccPath $offlineIscc
+~~~
+
+Default policy, process-closure and data suites use isolated synthetic fixtures.
+They need the non-elevated account's HKCU/shell-folder access. Host-tool permission
+is distinct from OS administrator elevation:
+
+~~~powershell
+pwsh -NoProfile -File tests/deployment/Test-InstallationPolicy.ps1 -InstallerPath $offlineSetup -ManifestPath $offlineMetadata -WorkDirectory "$offlineFixtureRoot/policy" -IsccPath $offlineIscc
+~~~
+
+~~~powershell
+pwsh -NoProfile -File tests/deployment/Test-ManualClose.ps1 -InstallerPath $offlineSetup -ManifestPath $offlineMetadata -WorkDirectory "$offlineFixtureRoot/manual-close" -IsccPath $offlineIscc
+~~~
+
+~~~powershell
+pwsh -NoProfile -File tests/deployment/Test-PersonalData.ps1 -InstallerPath $offlineSetup -ManifestPath $offlineMetadata -WorkDirectory "$offlineFixtureRoot/data" -IsccPath $offlineIscc
+~~~
 
 ### Isolated Staging Smoke Check
 
-This standalone project is never included by production CMake. It uses a retained
-private copy, system-only PATH and cleared Qt/QML overrides to check platform/QML
-imports, images and in-memory SQLite. It never starts JobTracker or accesses its
-personal storage. The helper must not enter the payload.
+The standalone project runs a helper from a private copy with system-only PATH
+and cleared Qt/QML overrides. It checks Windows platform/QML imports, SQLite
+and SVG/JPEG without constructing the production application or touching its
+data. A developer host can still mask system dependencies.
 
-```powershell
-cmake -S tests/deployment -B build/qt-6.10.3/windows-deployment-tests -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH=D:/Qt_install/6.10.3/msvc2022_64 -DJOBTRACKER_STAGE_DIR=D:/Project_CV/Root/build/qt-6.10.3/windows-release-stage13
-```
+~~~powershell
+cmake -S tests/deployment -B "$offlineRoot/deployment-tests" -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH=D:/Qt_install/6.10.3/msvc2022_64 "-DJOBTRACKER_STAGE_DIR=$offlineStage"
+~~~
 
-```powershell
-cmake --build build/qt-6.10.3/windows-deployment-tests --config Release
-```
+Adapt the Qt kit path on another host. This host's standalone Visual Studio
+configure previously needed host-tool access for MSBuild SDK lookup. Every
+CMake build needs elevated tool access from its first attempt:
 
-```powershell
-ctest --test-dir build/qt-6.10.3/windows-deployment-tests -C Release --output-on-failure
-```
+~~~powershell
+cmake --build "$offlineRoot/deployment-tests" --config Release
+~~~
 
-Verify extracted files with App-Local CRTs and check the actual loaded CRT paths:
+~~~powershell
+ctest --test-dir "$offlineRoot/deployment-tests" -C Release --output-on-failure
+~~~
 
-```powershell
-pwsh -NoProfile -File tests/deployment/Verify-Staging.ps1 -StageDir dist/stage13-package/work/extracted -Probe build/qt-6.10.3/windows-deployment-tests/Release/JobTrackerDeploymentSmoke.exe -WorkRoot build/qt-6.10.3/stage13-smoke -MsvcRuntimeDirectory dist/stage13-online/msvc-runtime
-```
+Separate App-Local loading check against this candidate's verified CRT inputs:
 
-Stage 13: staging CTest 1/1 and App-Local smoke passed. This does not establish
-application startup, GUI, D3D12 or clean-machine behavior.
+~~~powershell
+pwsh -NoProfile -File tests/deployment/Verify-Staging.ps1 -StageDir $offlineStage -Probe "$offlineRoot/deployment-tests/Release/JobTrackerDeploymentSmoke.exe" -WorkRoot "$offlineRoot/app-local-smoke" -MsvcRuntimeDirectory "$offlineEvidence/msvc-runtime"
+~~~
 
-### Windows Release Integration Verification
+<a id="windows-offline-installation-lifecycle-stage-06"></a>
+<a id="windows-installer-upgrade-and-coexistence-policy"></a>
+<a id="windows-installer-manual-closure"></a>
 
-Use [testing.md](testing.md) and the
-[acceptance checklist](../../tests/deployment/Windows-Release-Checklist.md).
-The following exact stage-13 invocations returned exit 0. All fixtures/logs are
-retained; select fresh work directories for a new run.
+### Windows Offline Installation Lifecycle
 
-Archive regression (19 checks; uses the Qt kit's Debug Core DLL as a negative
-fixture):
+Real owned CurrentUser integration is opt-in. Use a non-elevated token, no
+existing JobTracker registration/shortcuts, fresh repository-owned fixtures and
+the matching Setup/JSON. Do not start another real-install suite until the prior
+owned fixture is uninstalled. Never run these against a personal installation.
+The suites do not launch JobTracker; their sentinels and synthetic version
+identities do not establish real database/CV/settings compatibility.
 
-```powershell
-pwsh -NoProfile -File tests/deployment/Test-ReleasePackage.ps1 -BuildDirectory build/qt-6.10.3/windows-release -StageDirectory build/qt-6.10.3/windows-release-stage13 -ManifestPath dist/stage13-package/JobTracker-0.1.0-windows-x64.7z.manifest.json
-```
+~~~powershell
+pwsh -NoProfile -File tests/deployment/Test-InstallationPolicy.ps1 -InstallerPath $offlineSetup -ManifestPath $offlineMetadata -WorkDirectory "$offlineFixtureRoot/policy-integration" -IsccPath $offlineIscc -RunCurrentUserIntegration
+~~~
 
-Native Online pipeline (25 checks with public safe-failure check):
+~~~powershell
+pwsh -NoProfile -File tests/deployment/Test-ManualClose.ps1 -InstallerPath $offlineSetup -ManifestPath $offlineMetadata -WorkDirectory "$offlineFixtureRoot/manual-integration" -IsccPath $offlineIscc -RunCurrentUserIntegration
+~~~
 
-```powershell
-pwsh -NoProfile -File tests/deployment/Test-OnlineInstaller.ps1 -BuildDirectory build/qt-6.10.3/windows-release -InstallerDirectory dist/stage13-online -ManifestPath dist/stage13-package/JobTracker-0.1.0-windows-x64.7z.manifest.json -WorkDirectory dist/stage13-online-tests -IsccPath "D:/Inno Setup 6/ISCC.exe" -CheckPublicDownload
-```
+Opposite-scope installs reject all versions, including equal versions. Switch
+scope by manual uninstall with data preserved, then reinstall. Downgrade,
+inconsistent registry/PE/marker identity and unsafe relocation fail closed.
+Manual-close guards never terminate or restart JobTracker.
 
-MSVC policy/import/download suite (15 checks; never executes the redistributable):
-
-```powershell
-pwsh -NoProfile -File tests/deployment/Test-MsvcRuntime.ps1 -BuildDirectory build/qt-6.10.3/windows-release -InstallerDirectory dist/stage13-online -RedistributablePath build/qt-6.10.3/stage09-evidence/vc_redist.x64.exe -WorkDirectory dist/stage13-runtime-tests -IsccPath "D:/Inno Setup 6/ISCC.exe" -CheckOfficialDownload
-```
-
-Omit `-CheckPublicDownload` / `-CheckOfficialDownload` for local-only variants;
-stages 10-14 record those variants separately (24 Online / 12 runtime checks).
-Mock endpoint/hash inputs belong only to test harnesses. No real JobTracker
-registration, application launch or personal-data access occurs in these two
-harness suites.
-
-### Windows Installer Upgrade And Coexistence Policy
-
-Policy plus real CurrentUser integration (54 checks, twice in stage 13):
-
-```powershell
-pwsh -NoProfile -File tests/deployment/Test-InstallationPolicy.ps1 -InstallerPath dist/stage13-local/JobTracker-0.1.0-windows-x64-local-setup.exe -ManifestPath dist/stage13-package/JobTracker-0.1.0-windows-x64.7z.manifest.json -WorkDirectory dist/stage13-policy-tests -IsccPath "D:/Inno Setup 6/ISCC.exe" -RunCurrentUserIntegration
-```
-
-Same-version repair requires a valid identity; downgrade/unsafe relocation is
-refused. Opposite scopes require equal versions because they can share account
-data. Unloaded/unreadable profiles block AllUsers changes. Synthetic older/newer
-identities test policy, not historical application/database compatibility.
-
-### Windows Installer Manual Closure
-
-Manual-close suite (21 checks):
-
-```powershell
-pwsh -NoProfile -File tests/deployment/Test-ManualClose.ps1 -InstallerPath dist/stage13-local/JobTracker-0.1.0-windows-x64-local-setup.exe -ManifestPath dist/stage13-package/JobTracker-0.1.0-windows-x64.7z.manifest.json -WorkDirectory dist/stage13-manual-close-tests -IsccPath "D:/Inno Setup 6/ISCC.exe" -RunCurrentUserIntegration
-```
-
-The synthetic x64 process fixture uses the host Framework64 C# compiler and exits
-cooperatively; it does not run JobTracker. Never bypass the exact-file gate.
-Unattended Setup needs `/VERYSILENT` and `/SUPPRESSMSGBOXES`. Late native copy
-cancellation can briefly show progress. No full old-version rollback guarantee
-or interactive Retry/other-session acceptance follows from these checks.
+Earlier error-32 failures remain unresolved. If one recurs, retain the exact
+fixture/logs and diagnose file locks at that path; do not blindly retry,
+force-close processes, weaken guards or reuse a historical recovery script.
+A passing retry is not a root-cause fix or an atomic rollback guarantee.
 
 ### Windows Safe Uninstall And Personal Data
 
-Synthetic-data and CurrentUser suite (19 checks):
+Only fresh owned synthetic trees below `dist/` are eligible for test deletion.
+The native data harness exercises ownership/paths/links/ACL/handles; callback
+account/scope/dialog cases are simulated. Actual CurrentUser install/repair/
+silent uninstall can be enabled with a fresh fixture:
 
-```powershell
-pwsh -NoProfile -File tests/deployment/Test-PersonalData.ps1 -WorkDirectory dist/stage13-data-tests -IsccPath "D:/Inno Setup 6/ISCC.exe" -InstallerPath dist/stage13-local/JobTracker-0.1.0-windows-x64-local-setup.exe -ManifestPath dist/stage13-package/JobTracker-0.1.0-windows-x64.7z.manifest.json -RunCurrentUserIntegration
-```
+~~~powershell
+pwsh -NoProfile -File tests/deployment/Test-PersonalData.ps1 -InstallerPath $offlineSetup -ManifestPath $offlineMetadata -WorkDirectory "$offlineFixtureRoot/data-integration" -IsccPath $offlineIscc -RunCurrentUserIntegration
+~~~
 
-Only fresh synthetic data below `dist/` is eligible for test deletion. Production
-cleanup offers default-No consent only after verified non-elevated CurrentUser
-uninstall. Silent, elevated/AllUsers, shared, incomplete or unverifiable cases
-preserve data. There is no production command-line cleanup switch.
-
-All three `-RunCurrentUserIntegration` suites above need the actual non-elevated
-account's registry/shell-folder access. Host tool access is not Windows
-administrator elevation. They refuse existing registrations and uninstall only
-their verified fixture. Omit the integration switch for isolated checks.
-Never start a new real-install suite until the prior fixture is removed.
-The data suite can also omit `-InstallerPath`/`-ManifestPath` when integration is
-not selected.
-
-A stage-12 policy/repair sharing error 32 also occurred with the unchanged
-stage-11 installer. Stage 13 passed two 54-check runs with unchanged stage-12
-bytes; no lock owner or root-cause fix was established. Preserve that risk and
-the earlier failed evidence.
+Production defaults to preserving data. Only verified non-elevated CurrentUser
+uninstall can offer default-No consent after complete program removal; explicit
+Yes deletes the owned `%LocalAppData%/JobTracker` tree. Silent, elevated/AllUsers,
+incomplete, inaccessible or ambiguous cases preserve data. AllUsers never
+enumerates profiles for cleanup. There is no command-line data-delete switch.
 
 ### Local Installer Lifecycle And Language
 
-Stage 13 passed this Russian CurrentUser sequence with a custom Unicode path.
-Run each action separately, keeping installer, manifest, account and fixture
-constant. Choose a new fixture root on a repeat.
+`Test-LocalInstaller.ps1` is the retained owned-fixture helper name, not a Local
+release mode. Run each action separately with the same account, Setup, JSON and
+fixture. Optional Russian/Unicode-path coverage:
+
+~~~powershell
+pwsh -NoProfile -File tests/deployment/Test-LocalInstaller.ps1 -InstallerPath $offlineSetup -ManifestPath $offlineMetadata -WorkDirectory "$offlineFixtureRoot/Установка с пробелами" -Scope CurrentUser -Action Install -Language russian -WithDesktopShortcut
+~~~
+
+~~~powershell
+pwsh -NoProfile -File tests/deployment/Test-LocalInstaller.ps1 -InstallerPath $offlineSetup -ManifestPath $offlineMetadata -WorkDirectory "$offlineFixtureRoot/Установка с пробелами" -Scope CurrentUser -Action Reinstall -Language russian
+~~~
+
+~~~powershell
+pwsh -NoProfile -File tests/deployment/Test-LocalInstaller.ps1 -InstallerPath $offlineSetup -ManifestPath $offlineMetadata -WorkDirectory "$offlineFixtureRoot/Установка с пробелами" -Scope CurrentUser -Action Uninstall -Language russian
+~~~
+
+The helper also supports `Verify`, `ScopeConflict` and `AllUsers`. Actual AllUsers,
+UAC, missing/old/sufficient runtime, cancellation/reboot, interactive cleanup and
+real app/data acceptance require disposable Windows 10/11 x64 environments
+with networking disconnected and no Qt/VS. Follow the
+[acceptance checklist](../../tests/deployment/Windows-Release-Checklist.md) and
+[matrix](../../Tasks/Offline-Installer/00_ACCEPTANCE_MATRIX.md). These cases remain
+NOT RUN until executed; compilation, static network scans and sanitized PATH
+cannot establish them.
+
+### Optional Installer Signing
+
+Unsigned local builds require no signing tool or certificate. For a later
+owner-authorized signature, use the installed Windows SDK SignTool with an
+existing code-signing certificate in the current user's certificate store.
+Set these session variables to the intended values: `$JobTrackerSignTool`
+(full tool path), `$JobTrackerCertificateThumbprint` (certificate thumbprint),
+`$JobTrackerTimestampUrl` (the certificate provider's RFC 3161 endpoint), and
+`$JobTrackerSetup` (the finished canonical `Installer/output/JobTracker-Setup-<version>.exe`).
+No PFX, password, private key or secret belongs in the repository or commands.
+Preserve the unsigned EXE and its `installer-build.json` in private evidence
+first. Require exit code 0 after each command before proceeding:
 
 ```powershell
-pwsh -NoProfile -File tests/deployment/Test-LocalInstaller.ps1 -InstallerPath dist/stage13-local/JobTracker-0.1.0-windows-x64-local-setup.exe -ManifestPath dist/stage13-package/JobTracker-0.1.0-windows-x64.7z.manifest.json -WorkDirectory "dist/stage13-currentuser-ru/Установка с пробелами" -Scope CurrentUser -Action Install -Language russian -WithDesktopShortcut
+& $JobTrackerSignTool sign /sha1 $JobTrackerCertificateThumbprint /fd SHA256 /tr $JobTrackerTimestampUrl /td SHA256 $JobTrackerSetup
 ```
 
 ```powershell
-pwsh -NoProfile -File tests/deployment/Test-LocalInstaller.ps1 -InstallerPath dist/stage13-local/JobTracker-0.1.0-windows-x64-local-setup.exe -ManifestPath dist/stage13-package/JobTracker-0.1.0-windows-x64.7z.manifest.json -WorkDirectory "dist/stage13-currentuser-ru/Установка с пробелами" -Scope CurrentUser -Action Reinstall -Language russian
+& $JobTrackerSignTool verify /pa /all /tw /v $JobTrackerSetup
 ```
+
+Only after signing, timestamping and verification succeed, calculate the final
+digest and record it, final size, signer and timestamp in a separate private
+signed-artifact receipt. The original build receipt describes the unsigned
+bytes and must not be presented as the signed artifact's hash:
 
 ```powershell
-pwsh -NoProfile -File tests/deployment/Test-LocalInstaller.ps1 -InstallerPath dist/stage13-local/JobTracker-0.1.0-windows-x64-local-setup.exe -ManifestPath dist/stage13-package/JobTracker-0.1.0-windows-x64.7z.manifest.json -WorkDirectory "dist/stage13-currentuser-ru/Установка с пробелами" -Scope CurrentUser -Action Uninstall -Language russian
+Get-FileHash -LiteralPath $JobTrackerSetup -Algorithm SHA256
 ```
 
-The same helper supports `Verify` and `ScopeConflict` actions, English and
-`-Scope AllUsers`. These are separate fixture scenarios; AllUsers needs an
-elevated disposable account/VM and has not passed real-host acceptance. The
-helper never launches JobTracker. Application startup uses persistent account
-storage and must be checked in a disposable account/VM.
-
-### Windows Redistribution Audit
-
-Stage 14 executed these read-only-input collectors against the unchanged
-stage-13 candidates. Collection success does not clear the publication hold.
-The collector requires the recorded local kit, builds and artifacts and refuses
-an existing output directory. Choose a fresh output path for a rerun.
-
-```powershell
-pwsh -NoProfile -File For-Agent/Task-Report/windows-release/14-evidence/Collect-PayloadAudit.ps1 -OutputDirectory dist/stage14-audit-final
-```
-
-```powershell
-pwsh -NoProfile -File For-Agent/Task-Report/windows-release/14-evidence/Inspect-PrivateResources.ps1
-```
-
-The second command checks resource bytes in memory without launching the app
-or saving recovered source. Its exit 0 means inspection succeeded; the
-private-source criterion failed. Internal JSON contains private build paths.
-
-Stage-14 local security regression (24 checks):
-
-```powershell
-pwsh -NoProfile -File tests/deployment/Test-OnlineInstaller.ps1 -BuildDirectory build/qt-6.10.3/windows-release -InstallerDirectory dist/stage13-online -ManifestPath dist/stage13-package/JobTracker-0.1.0-windows-x64.7z.manifest.json -WorkDirectory dist/stage14-online-tests -IsccPath "D:/Inno Setup 6/ISCC.exe"
-```
-
-Use [REDISTRIBUTION.md](../../packaging/windows/REDISTRIBUTION.md) for R1-R7 and
-[14.md](../Task-Report/windows-release/14.md) for the dated audit.
+This signs only the finished Setup. Signing the application would have to occur
+before staging and input hashing; signing the outer Setup does not sign its
+embedded application or uninstaller. Timestamping contacts the selected service
+on the signing machine; it adds no installation-time network dependency.
+No signing or publication is performed by the normal build. Certificate-backed
+execution remains NOT RUN until an owner supplies and authorizes that identity.
+The [Microsoft SignTool reference](https://learn.microsoft.com/en-us/windows/win32/seccrypto/signtool)
+defines these options. Signing does not clear the redistribution hold.
 
 ## Linux Build
 
-Existing Linux Debug presets use Ninja, a Linux host condition and exactly Qt
-6.10.3. Shared presets use `QTDIR`; local presets currently name
-`/home/elmar/Qt/6.10.3/gcc_64`. Confirm/install that SDK on Linux and adapt the
-local path to that host. Versioned directories are
-`build/qt-6.10.3/linux-debug` and `build/qt-6.10.3/linux-debug-tests`.
+Linux Debug and Release presets use Ninja, a Linux host condition and exactly
+Qt 6.10.3. Use a C++20 compiler, CMake 3.21+, Ninja, PowerShell and the Linux
+Qt kit with Quick, Sql and (for tests) Test. Shared presets read `QTDIR`; local
+presets currently name `/home/elmar/Qt/6.10.3/gcc_64`. Confirm that SDK on the
+Linux host and adapt only the local path, or set `QTDIR` and use the matching
+shared preset name without `-local` in each command below.
 
-These existing commands are preserved from `BuildCommands.txt` and match the
-preset declarations. **NOT_RUN on Linux in the Windows release workflow.**
-Run from the Linux repository root in PowerShell, one at a time:
+Each configuration has its own directory under `build/qt-6.10.3/`:
+`linux-debug`, `linux-release`, `linux-debug-tests`, `linux-release-tests`.
+Single-config `CMAKE_BUILD_TYPE` resolves to Debug or Release to match the
+preset; test builds alone set `JOBTRACKER_BUILD_TESTS=ON`. Shared and local
+counterparts intentionally select the same corresponding directory; do not
+switch Qt kits in an existing cache.
+
+**NOT RUN on Linux during offline stage 02:** JSON/preset inspection on Windows
+does not verify Linux configuration, compilation or runtime. The following is
+the Linux verification recipe for stage 11. Run from the Linux repository root
+in PowerShell, one command at a time; retain each exit code and both CTest
+summaries. Use the required elevated tool access for each build.
+
+Debug production and tests:
 
 ```powershell
 cmake --preset linux-debug-local
@@ -479,6 +534,28 @@ cmake --build --preset linux-debug-tests-local
 ctest --preset linux-debug-tests-local
 ```
 
+Release production and tests:
+
+```powershell
+cmake --preset linux-release-local
+```
+
+```powershell
+cmake --build --preset linux-release-local
+```
+
+```powershell
+cmake --preset linux-release-tests-local
+```
+
+```powershell
+cmake --build --preset linux-release-tests-local
+```
+
+```powershell
+ctest --preset linux-release-tests-local
+```
+
 Normal Linux builds keep Qt build-tree lookup/embedded QML and do not install
 or clean `deploy/`. The existing runtime install script remains explicit.
 Linux packaging, startup and deployment acceptance are outside this Windows pass.
@@ -491,6 +568,10 @@ listed. Their presence in a list does not establish that they can run on Windows
 inspect the inherited Linux host condition in the JSON declarations.
 
 ```powershell
+cmake --list-presets
+```
+
+```powershell
 cmake --list-presets=all
 ```
 
@@ -500,16 +581,18 @@ ctest --list-presets
 
 ## Windows Release Workflow
 
-For a numbered stage, enter through [00_RUN_NEXT.md](../../Tasks/Windows-Release/00_RUN_NEXT.md),
-select the lowest non-DONE row in [STATUS.md](../Task-Report/windows-release/STATUS.md),
-complete only that stage, save its report, then update STATUS and stop.
-[Accepted requirements](windows-release-requirements.md) are distinct from
-[implemented behavior](windows-release.md) and dated acceptance evidence.
+Enter through [00_RUN_NEXT.md](../../Tasks/Offline-Installer/00_RUN_NEXT.md),
+select the lowest non-DONE row in [STATUS.md](../../Tasks/Offline-Installer/STATUS.md),
+complete only that stage, save its report under
+`For-Agent/Task-Report/offline-installer/`, update STATUS last and stop.
+[Binding requirements](../../Tasks/Offline-Installer/00_REQUIREMENTS.md) govern;
+[implemented behavior](windows-release.md) and dated evidence are separate.
 
-Add implemented commands here with actual evidence or an explicit NOT_RUN label.
-Do not duplicate executable command catalogs in skills or developer guides.
-CI/CD, Linux packaging, automatic updates and signing remain deferred. No stage
-completion authorizes Git writes or publication.
+Add current commands here with evidence or explicit NOT RUN labels. Do not
+duplicate catalogs in skills or developer guides. Retired historical commands
+are not part of the executable workflow. CI/CD, automatic updates, Linux
+packaging, Git writes and publication are outside this refactor. Signing remains
+optional and requires an authorized certificate; the normal build stays unsigned.
 
 ## Validation Policy
 

@@ -1,84 +1,56 @@
 # Preparing A Windows Release
 
-**Publication HOLD:** the current candidates must not be published. Read the
-[R1-R7 redistribution findings](../packaging/windows/REDISTRIBUTION.md) and
-[status index](../For-Agent/Task-Report/windows-release/STATUS.md) first.
-Local build/install test success does not establish legal, privacy or clean-machine
-acceptance. Scripts can still create unapproved candidates; no automatic gate or
-upload clears the hold.
+**Publication HOLD:** current candidates must not be published. The current
+[license issues](../For-Agent/Task-Report/offline-installer/LICENSE_ISSUES.md) and
+[redistribution hold](../packaging/windows/REDISTRIBUTION.md) remain separate
+from technical completion. A successful build or DONE stage is not approval.
 
-The maintained [workflow reference](../For-Agent/Docs/windows-release.md) describes
-toolchain, version identity, deployment, archive trust and limitations.
-[build.md](../For-Agent/Docs/build.md) is the only executable command catalog.
-Use [BUILDING](BUILDING.md) for SDK/preset setup and
-[WINDOWS-INSTALLER](WINDOWS-INSTALLER.md) for installation behavior.
+Use [build.md](../For-Agent/Docs/build.md) as the sole executable command guide,
+[BUILDING](BUILDING.md) for toolchain/presets, and
+[WINDOWS-INSTALLER](WINDOWS-INSTALLER.md) for lifecycle/data behavior.
+The [workflow reference](../For-Agent/Docs/windows-release.md) explains ownership
+and evidence boundaries.
 
-1. Build the production Windows x64 Release target with exactly Qt 6.10.3; use
-   the separate test tree for backend validation.
-2. Install into a new absolute staging prefix. Check Qt/QML/platform/SQLite
-   dependencies and the reviewed payload inventory. The common tree excludes CRTs.
-3. Create and verify the archive, `.sha256` sidecar and per-file manifest. Preserve
-   all old outputs. Canonical examples name retained successful stage-13 paths;
-   choose new paths consistently for another run.
-4. Compile Online and Local Setup from that exact manifest and matching generated
-   Release identity. Validate the locked Visual Studio runtime inputs.
-5. Apply the [acceptance checklist](../tests/deployment/Windows-Release-Checklist.md)
-   to these exact bytes and record PASS/FAIL/NOT_RUN by evidence level. Audit the
-   actual archive, installer CRTs and embedded installer engine.
+1. Build Windows x64 production Release with Qt 6.10.3; run applicable backend
+   tests in their separate test trees.
+2. Install into a fresh absolute staging prefix. Validate the reviewed Qt/QML,
+   platform and SQLite payload. The common stage excludes MSVC CRTs.
+3. Build `Installer/JobTracker.iss` through `Installer/Build-Installer.ps1` with
+   Inno Setup 7+ and authorized local Microsoft runtime inputs matching the lock.
+   The wrapper embeds the direct stage, App-Local CRTs, official redistributable
+   and MSVC notice. Missing or mismatched inputs fail; no dependency is downloaded.
+4. Record the single `Installer/output/JobTracker-Setup-<version>.exe` and its
+   matching private build JSON. Preserve an existing candidate before rebuilding;
+   the wrapper will not overwrite it.
+5. Apply the [offline checklist](../tests/deployment/Windows-Release-Checklist.md)
+   to those exact bytes. Keep static validation, native harnesses, actual scoped
+   installation, application/data checks and disconnected clean-host evidence
+   separate. Record PASS, FAIL and NOT RUN honestly.
 
-Version comes from root `project(JobTracker VERSION ...)`, currently `0.1.0`.
-Windows metadata, generated installer identity and asset names follow it; QML
-module version is independent. The temporary icon is
-`packaging/windows/JobTracker.ico`. Generated files are private build inputs.
+Root CMake `project(VERSION)` is the only application version source. Generated
+identity is private under `<build>/Installer/<configuration>/`; the temporary
+icon is `Installer/JobTracker.ico`. The internal binary remains
+`JobTrackerApp.exe`. Embedded QML resources are allowed by the approved
+requirements; loose C++/build/test/internal-document/PDB files must not ship.
 
-The archive assets use `JobTracker-<version>-windows-x64.7z`, with appended
-`.sha256` and `.manifest.json`. Online Setup embeds the verified digest and fixed
-GitHub `v<version>` asset URL documented in the workflow reference; it never uses
-`latest` or trusts a newly downloaded checksum. A new release needs a new Setup.
-The common archive alone is not a clean-machine distribution.
+The required distribution is one offline Setup EXE. It needs no GitHub release,
+application archive, sidecar checksum, remote payload or installer-time network.
+There is no Online/Local release-mode choice, updater or CI/CD pipeline.
+Linux Debug/Release builds and tests remain supported; Linux packaging is out
+of scope.
 
-Preserve private source, logs, `installer-build.json`, generated includes,
-`work/`/`verify-*`, resource inspections and audit metadata. The current executable
-contains recoverable QML despite having no loose project QML in the archive;
-the private-source requirement is unresolved. Only separately approved assets
-may be handed off for manual publication to the configured Releases repository.
-This guide authorizes no Git/GitHub writes.
+Private payload/runtime snapshots, generated includes, logs, audit JSON and
+`installer-build.json` stay outside customer output. Stage reports retain exact
+paths and hashes; their commands describe dated runs and must not be replayed
+into old evidence directories. No whole build/dist/work directory is a release
+asset.
 
-## Manual Publication After Clearance
+Unsigned local builds remain valid. Optional owner-authorized
+[SignTool steps](../For-Agent/Docs/build.md#optional-installer-signing) sign the
+finished Setup and record its digest afterward. Signing application bytes must
+precede staging/input hashes. Signing does not establish redistribution rights.
 
-The sequence below is a future owner-controlled handoff, not permission to
-publish the current candidates. Resolve R1-R7, confirm the private-source and
-third-party redistribution policy, and complete the required local/clean-machine
-acceptance first. Any payload, notice, resource, runtime or signature change
-requires fresh artifacts, hashes and applicable verification.
-
-1. Use the canonical commands to build the production Release and separate test
-   tree, run tests, stage into a fresh absolute prefix, then create and verify
-   the matching archive, SHA-256 sidecar and public manifest. Audit those exact
-   bytes and prepare reviewed customer legal/source materials.
-2. Obtain the owner's explicit approval of the exact asset names and hashes.
-   Manually publish the approved archive and accompanying approved materials to
-   [turbodiesel606/Releases](https://github.com/turbodiesel606/Releases) under
-   `v<version>`. Preserve the fixed asset basename; never substitute `latest`.
-   The common archive requires the installer's runtime policy and is not a
-   standalone clean-machine package.
-3. Retrieve the public archive and verify it against the locally approved
-   SHA-256. A missing asset, HTTP failure, or hash mismatch blocks the public
-   download/install check; do not replace the trusted digest with a remote one.
-4. Build the matching version-specific Online Setup from the same approved
-   local manifest and generated identity. It embeds that archive's expected
-   hash and fixed version URL. Earlier pre-publication Setup builds are local
-   candidates and do not establish public end-to-end success.
-5. Validate the actual Online Setup through the public URL in disposable Windows
-   acceptance environments, including required scope/runtime/UI/data cases.
-   Record its final hash and obtain owner approval for that exact installer;
-   then manually attach only the approved installer to the same release.
-
-Do not overwrite an approved versioned archive with different bytes after Setup
-has been validated. Keep build logs, generated includes, private metadata and
-audit evidence out of the release. Final staged evidence and remaining blockers
-are recorded in [stage 16](../For-Agent/Task-Report/windows-release/16.md).
-
-Code signing, automatic updates, CI/CD and Linux packaging remain deferred.
-Future signing changes bytes and must precede the corresponding final hashes;
-see the workflow reference for ordering. Stage completion is not release approval.
+The numbered workflow starts at [00_RUN_NEXT](../Tasks/Offline-Installer/00_RUN_NEXT.md)
+and [STATUS](../Tasks/Offline-Installer/STATUS.md). Resolve the separate legal
+findings and applicable acceptance gaps before any future, explicitly authorized
+publication. This guide does not authorize Git writes, uploads or publication.

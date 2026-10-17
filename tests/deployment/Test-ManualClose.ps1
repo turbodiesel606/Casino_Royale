@@ -29,14 +29,12 @@ while ($ancestor) {
     $ancestor = [IO.Path]::GetDirectoryName($ancestor)
 }
 $installer = (Get-Item -LiteralPath $InstallerPath).FullName
-$manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
-$metadata = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $installer) 'installer-build.json') -Raw | ConvertFrom-Json
+. (Join-Path $PSScriptRoot 'OfflineInstallerEvidence.ps1')
+$metadata = Get-OfflineInstallerEvidence -InstallerPath $installer -MetadataPath $ManifestPath
 $compiler = (Get-Item -LiteralPath $IsccPath).FullName
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $elevated = ([Security.Principal.WindowsPrincipal]::new($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if ($RunCurrentUserIntegration -and $elevated) { throw 'CurrentUser checks must run without OS elevation.' }
-if ($metadata.manualCloseSha256 -ine (Get-FileHash -LiteralPath "$repository/packaging/windows/ManualClose.iss").Hash -or
-    $metadata.sha256 -ine (Get-FileHash -LiteralPath $installer).Hash) { throw 'Rebuild installer: source/artifact hash mismatch.' }
 New-Item -ItemType Directory -Path $work | Out-Null
 $results = [Collections.Generic.List[object]]::new()
 $activeFixtures = [Collections.Generic.List[object]]::new()
@@ -102,7 +100,7 @@ function Snapshot-Tree([string]$Directory) {
 try {
     Test-Case 'compile-test-consumers' {
         $versionFile = Join-Path $work 'AssemblyVersion.cs'
-        '[assembly:System.Reflection.AssemblyFileVersion("' + $manifest.version + '.0")]' |
+        '[assembly:System.Reflection.AssemblyFileVersion("' + $metadata.version + '.0")]' |
             Set-Content -LiteralPath $versionFile -Encoding utf8
         $csc = Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
         $fixtureSource = Join-Path $PSScriptRoot 'RunningApplicationFixture.cs'
@@ -228,6 +226,9 @@ try {
                     $program = if ($operation -eq 'reinstall') { $installer } else { Join-Path $target 'unins000.exe' }
                     $code = Invoke-Setup $program @('/CURRENTUSER','/LANG=english') "real-$operation" -Unsuppressed:($operation -eq 'uninstall')
                     Assert-Test ($code -ne 0) 'Running-image operation succeeded unexpectedly.'
+                    $log = Get-Content -LiteralPath "$work/real-$operation.log" -Raw
+                    Assert-Test ($log -match ('Manual-close check blocked: ' + [regex]::Escape($exe) + ' \(Windows error (32|33|1224)\)') -and
+                        $log -match 'Operation cancelled: the installation files could not be confirmed available') 'Operation was not rejected by the exact-file manual-close gate.'
                     Assert-Test ((Snapshot-Tree $target) -ceq $before) 'Cancellation changed installed bytes.'
                     Assert-Test (-not $realRunning.process.HasExited) 'Installer/uninstaller closed the application.'
                     $key = Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\JobTracker.CurrentUser_is1'
@@ -252,7 +253,7 @@ try {
         } finally { Close-Fixture $otherRunning }
     }
     [ordered]@{ result='PASS'; checks=$results.Count; currentUserIntegration=[bool]$RunCurrentUserIntegration;
-        elevated=$elevated; installerSha256=$metadata.sha256; manualCloseSha256=$metadata.manualCloseSha256 } |
+        elevated=$elevated; installerSha256=$metadata.sha256; manualCloseSha256=$metadata.sourceHashes.'ManualClose.iss' } |
         ConvertTo-Json | Set-Content -LiteralPath "$work/summary.json" -Encoding utf8
     Write-Output "PASS: $($results.Count) manual-close checks."
 } finally {

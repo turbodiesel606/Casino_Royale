@@ -1,8 +1,0 @@
-# Generated packaging identity. Include this from later packaging scripts.
-# This is build metadata, not an installed runtime dependency.
-set(JOBTRACKER_PRODUCT_NAME "@PROJECT_NAME@")
-set(JOBTRACKER_RELEASE_VERSION "@PROJECT_VERSION@")
-set(JOBTRACKER_WINDOWS_VERSION "@JOBTRACKER_WINDOWS_VERSION@")
-set(JOBTRACKER_EXECUTABLE_NAME "$<TARGET_FILE_NAME:JobTrackerApp>")
-set(JOBTRACKER_ICON_FILE "@JOBTRACKER_WINDOWS_ICON@")
-set(JOBTRACKER_PUBLISHER "")

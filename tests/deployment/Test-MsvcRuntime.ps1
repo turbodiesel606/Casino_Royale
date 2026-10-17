@@ -1,5 +1,5 @@
 #requires -Version 7.2
-<# Standalone runtime policy/integrity/native-download checks. Never installs
+<# Standalone runtime policy/integrity/embedded-package checks. Never installs
 the system prerequisite, registers JobTracker, or launches the application. #>
 [CmdletBinding()]
 param(
@@ -7,15 +7,16 @@ param(
     [Parameter(Mandatory)][string]$InstallerDirectory,
     [Parameter(Mandatory)][string]$RedistributablePath,
     [Parameter(Mandatory)][string]$WorkDirectory,
-    [Parameter(Mandatory)][string]$IsccPath,
-    [switch]$CheckOfficialDownload
+    [Parameter(Mandatory)][string]$IsccPath
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+. (Join-Path $PSScriptRoot 'OfflineInstallerEvidence.ps1')
 $work = [IO.Path]::GetFullPath($WorkDirectory)
-if (-not $work.StartsWith((Join-Path $repository 'dist') + '\', [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'Runtime test fixtures must be below dist/.'
+$workRoots = @(((Join-Path $repository 'build') + '\'), ((Join-Path $repository 'dist') + '\'))
+if (-not @($workRoots | Where-Object { $work.StartsWith($_, [StringComparison]::OrdinalIgnoreCase) }).Count) {
+    throw 'Runtime test fixtures must be below this repository''s build/ or dist/ directory.'
 }
 if (Test-Path -LiteralPath $work) { throw 'Test output exists; choose a fresh directory.' }
 $ancestor = $work
@@ -29,6 +30,7 @@ while ($ancestor) {
 $installerDirectory = [IO.Path]::GetFullPath($InstallerDirectory)
 $redist = (Get-Item -LiteralPath $RedistributablePath).FullName
 $metadata = Get-Content -LiteralPath (Join-Path $installerDirectory 'installer-build.json') -Raw | ConvertFrom-Json
+$metadata = Get-OfflineInstallerEvidence -InstallerPath $metadata.installer -MetadataPath (Join-Path $installerDirectory 'installer-build.json')
 New-Item -ItemType Directory -Path $work | Out-Null
 $results = [Collections.Generic.List[object]]::new()
 function Assert-Check([bool]$Condition, [string]$Message) {
@@ -56,7 +58,7 @@ foreach ($file in $crtFiles) {
     }
     Assert-Check ($exports[$file.Name].Count -gt 0) "No exports parsed for $($file.Name)."
 }
-$binaries = @(Get-ChildItem -LiteralPath $metadata.verifiedPayloadDirectory -Recurse -File | Where-Object Extension -in '.exe','.dll') + $crtFiles
+$binaries = @(Get-ChildItem -LiteralPath $metadata.payloadDirectory -Recurse -File | Where-Object Extension -in '.exe','.dll') + $crtFiles
 $imports = [Collections.Generic.List[object]]::new()
 foreach ($binary in $binaries) {
     $lines = @(& $dumpbin /nologo /imports $binary.FullName)
@@ -80,9 +82,9 @@ $imports | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $work 'msvc-impo
 Record-Pass 'payload-and-crt-import-closure' ([ordered]@{binaries=$binaries.Count;imports=$imports.Count})
 
 $compileArguments = @(
-    "/DPipelineFile=$(Join-Path $repository 'packaging/windows/OnlinePayload.iss')"
+    "/DPipelineFile=$(Join-Path $repository 'Installer/PayloadSafety.iss')"
     "/DRuntimeInput=$(Join-Path $installerDirectory 'msvc-runtime/JobTrackerMsvcRuntime.iss')"
-    "/DRuntimeCode=$(Join-Path $repository 'packaging/windows/MsvcRuntime.iss')"
+    "/DRuntimeCode=$(Join-Path $repository 'Installer/MsvcRuntime.iss')"
     "/DTestOutput=$work"
     "/DRedistFile=$redist"
     (Join-Path $PSScriptRoot 'MsvcRuntimeHarness.iss')
@@ -142,7 +144,7 @@ Invoke-Case 'system-present' $true 'host has compatible x64 registry and system 
 Invoke-Case 'destination-conflict' $false 'contains App-Local MSVC'
 Invoke-Case 'reparse' $false 'symbolic link/junction'
 Invoke-Case 'integrity' $true 'verified official x64 package version'
-Invoke-Case 'corrupt' $false 'release files are invalid'
+Invoke-Case 'corrupt' $false 'installation files are invalid'
 
 foreach ($negative in 'missing', 'tampered', 'wrong-x86') {
     $path = Join-Path $work "$negative.exe"
@@ -156,16 +158,16 @@ foreach ($negative in 'missing', 'tampered', 'wrong-x86') {
         $instance = [regex]::Match($cache, '(?m)^CMAKE_GENERATOR_INSTANCE:INTERNAL=(.+?)\r?$').Groups[1].Value
         Copy-Item -LiteralPath (Join-Path $instance 'VC/Redist/MSVC/v143/vc_redist.x86.exe') -Destination $path
     }
-    $negativeOutput = @(& pwsh -NoProfile -File (Join-Path $repository 'packaging/windows/Prepare-MsvcRuntime.ps1') -BuildDirectory $BuildDirectory -RedistributablePath $path -OutputDirectory (Join-Path $work "rejected-$negative") 2>&1)
+    $negativeOutput = @(& pwsh -NoProfile -File (Join-Path $repository 'Installer/Prepare-MsvcRuntime.ps1') -BuildDirectory $BuildDirectory -RedistributablePath $path -OutputDirectory (Join-Path $work "rejected-$negative") 2>&1)
     $negativeExit = $LASTEXITCODE
     $negativeOutput | Set-Content -LiteralPath (Join-Path $work "$negative.log")
     Assert-Check ($negativeExit -ne 0) "Accepted $negative runtime input."
+    $diagnostic = $negativeOutput -join "`n"
+    Assert-Check ($diagnostic.Contains($path) -and $diagnostic.Contains($metadata.msvcRuntime.minimumVersion)) 'Input rejection must identify the required path and pinned version.'
+    if ($negative -eq 'missing') {
+        Assert-Check ($diagnostic.Contains('-RedistributablePath') -and $diagnostic.Contains('nothing will be downloaded')) 'Missing-input diagnostic must explain local recovery without downloading.'
+    }
     Assert-Check (-not (Test-Path -LiteralPath (Join-Path $work "rejected-$negative"))) 'Rejected input created a runtime bundle.'
     Record-Pass "reject-$negative" $negativeExit
-}
-if ($CheckOfficialDownload) {
-    Invoke-Case 'download' $true 'native official download verified without execution'
-    Invoke-Case 'download-cancel' $false 'setup was cancelled'
-    Invoke-Case 'download-bad-hash' $false 'Verification error: File hash is incorrect\.'
 }
 Write-Output "PASS: $($results.Count) runtime checks. Evidence: $work"

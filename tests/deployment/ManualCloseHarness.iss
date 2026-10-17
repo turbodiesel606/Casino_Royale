@@ -1,8 +1,11 @@
 ; TEST ONLY: no JobTracker registration/shortcuts, prerequisites or data access.
+#if Ver < EncodeVer(7, 0, 0)
+  #error Inno Setup 7 or newer is required to verify native x64 manual closure.
+#endif
 #define JobTrackerExecutableName "JobTrackerApp.exe"
-#include "..\..\packaging\windows\OnlinePayload.iss"
-#include "..\..\packaging\windows\InstallationPolicy.iss"
-#include "..\..\packaging\windows\ManualClose.iss"
+#include "..\..\Installer\PayloadSafety.iss"
+#include "..\..\Installer\InstallationPolicy.iss"
+#include "..\..\Installer\ManualClose.iss"
 
 [Setup]
 AppName=JobTracker manual close TEST ONLY
@@ -11,6 +14,7 @@ DefaultDirName={tmp}\unused
 OutputDir={#TestOutput}
 OutputBaseFilename=manual-close-test-only
 PrivilegesRequired=lowest
+SetupArchitecture=x64
 ArchitecturesAllowed=x64os
 ArchitecturesInstallIn64BitMode=x64os
 Uninstallable=no

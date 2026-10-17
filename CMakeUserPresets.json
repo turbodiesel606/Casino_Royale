@@ -16,6 +16,20 @@
       }
     },
     {
+      "name": "linux-release-local",
+      "inherits": "linux-release",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "/home/elmar/Qt/6.10.3/gcc_64"
+      }
+    },
+    {
+      "name": "linux-release-tests-local",
+      "inherits": "linux-release-tests",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "/home/elmar/Qt/6.10.3/gcc_64"
+      }
+    },
+    {
       "name": "windows-debug-local",
       "inherits": "windows-debug",
       "cacheVariables": {
@@ -54,6 +68,14 @@
       "configurePreset": "linux-debug-tests-local"
     },
     {
+      "name": "linux-release-local",
+      "configurePreset": "linux-release-local"
+    },
+    {
+      "name": "linux-release-tests-local",
+      "configurePreset": "linux-release-tests-local"
+    },
+    {
       "name": "windows-debug-local",
       "configurePreset": "windows-debug-local",
       "configuration": "Debug"
@@ -78,6 +100,13 @@
     {
       "name": "linux-debug-tests-local",
       "configurePreset": "linux-debug-tests-local",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-release-tests-local",
+      "configurePreset": "linux-release-tests-local",
       "output": {
         "outputOnFailure": true
       }

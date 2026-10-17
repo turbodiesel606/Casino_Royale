@@ -67,13 +67,17 @@ Use `For-Agent/` as the Codex-facing project knowledge area:
 
 Project skills live under `.agents/skills/`.
 
-For Windows Release work, enter through `Tasks/Windows-Release/00_RUN_NEXT.md`
-and select exactly one stage using
-`For-Agent/Task-Report/windows-release/STATUS.md`. Save its report in
-`For-Agent/Task-Report/windows-release/`, update the status index, and stop.
+For the Windows offline-installer refactor, enter through
+`Tasks/Offline-Installer/00_RUN_NEXT.md` and select exactly one stage using
+`Tasks/Offline-Installer/STATUS.md`. Save its report in
+`For-Agent/Task-Report/offline-installer/`, update that status index last, and stop.
+This 11-stage plan and its approved requirements are the authority for this
+refactor. The retired 16-stage working tasks and reports were removed in stage
+10; necessary evidence and unresolved findings remain under
+`For-Agent/Task-Report/offline-installer/`. Git preserves the older history.
 Apply `windows-release-packaging` for staging, archive, installer, or release
 handoff work. `For-Agent/Docs/build.md` owns executable commands;
-`For-Agent/Docs/windows-release.md` owns the implemented workflow and links to
+`For-Agent/Docs/windows-release.md` describes the existing implementation and links to
 the redistribution hold. A completed stage or successful build does not approve
 publication; preserve the blockers in `packaging/windows/REDISTRIBUTION.md`.
 

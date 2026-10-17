@@ -208,14 +208,14 @@ target_include_directories(JobTrackerApp
 
 if(WIN32)
     enable_language(RC)
-    set(JOBTRACKER_WINDOWS_ICON "${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/JobTracker.ico")
+    set(JOBTRACKER_WINDOWS_ICON "${CMAKE_CURRENT_SOURCE_DIR}/Installer/JobTracker.ico")
     set(JOBTRACKER_WINDOWS_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}.0")
     set(JOBTRACKER_WINDOWS_VERSION_TUPLE "${PROJECT_VERSION_MAJOR},${PROJECT_VERSION_MINOR},${PROJECT_VERSION_PATCH},0")
-    set(JOBTRACKER_IDENTITY_DIR "${CMAKE_CURRENT_BINARY_DIR}/packaging/windows")
+    set(JOBTRACKER_IDENTITY_DIR "${CMAKE_CURRENT_BINARY_DIR}/Installer")
 
     # Generate per configuration so resource flags and target filenames stay accurate.
     foreach(_identity_file IN ITEMS JobTracker.rc JobTrackerIdentity.cmake JobTrackerIdentity.iss)
-        configure_file("packaging/windows/${_identity_file}.in"
+        configure_file("Installer/${_identity_file}.in"
             "${JOBTRACKER_IDENTITY_DIR}/${_identity_file}.in" @ONLY)
         file(GENERATE OUTPUT "${JOBTRACKER_IDENTITY_DIR}/$<CONFIG>/${_identity_file}"
             INPUT "${JOBTRACKER_IDENTITY_DIR}/${_identity_file}.in")

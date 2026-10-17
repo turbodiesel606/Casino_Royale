@@ -29,7 +29,8 @@ while ($ancestor) {
     $ancestor = [IO.Path]::GetDirectoryName($ancestor)
 }
 $installer = (Get-Item -LiteralPath $InstallerPath).FullName
-$manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
+. (Join-Path $PSScriptRoot 'OfflineInstallerEvidence.ps1')
+$manifest = Get-OfflineInstallerEvidence -InstallerPath $installer -MetadataPath $ManifestPath
 $compiler = (Get-Item -LiteralPath $IsccPath).FullName
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $elevated = ([Security.Principal.WindowsPrincipal]::new($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -61,9 +62,9 @@ function Invoke-Setup([string]$Program, [string[]]$Arguments, [string]$Log) {
     $process = Start-Process -FilePath $Program -ArgumentList (@('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', "/LOG=`"$Log`"") + $Arguments) -WindowStyle Hidden -PassThru -Wait
     return $process.ExitCode
 }
-function Invoke-Policy([string]$Name, [hashtable]$Parameters) {
+function Invoke-Policy([string]$Name, [hashtable]$Parameters, [string]$Language = 'english') {
     $log = Join-Path $work "$Name.log"
-    $arguments = @('/LANG=english', "/DIR=`"$work/unused`"")
+    $arguments = @("/LANG=$Language", "/DIR=`"$work/unused`"")
     foreach ($entry in $Parameters.GetEnumerator()) { $arguments += "/$($entry.Key)=`"$($entry.Value)`"" }
     $code = Invoke-Setup $binaries['0.1.0'] $arguments $log
     Assert-Test ($code -eq 0) "Policy test exit $code; see $log"
@@ -91,7 +92,7 @@ function Set-RecordValue([string]$KeyPath, [string]$Name, [string]$Value) {
 
 try {
     foreach ($version in @('0.0.9', '0.1.0', '0.2.0')) {
-        $arguments = @("/DPipelineFile=$repository/packaging/windows/OnlinePayload.iss", "/DPolicyFile=$repository/packaging/windows/InstallationPolicy.iss",
+        $arguments = @("/DPipelineFile=$repository/Installer/PayloadSafety.iss", "/DPolicyFile=$repository/Installer/InstallationPolicy.iss",
             "/DTestOutput=$work", "/DTestVersion=$version", "$PSScriptRoot/InstallationPolicyHarness.iss")
         $output = @(& $compiler @arguments 2>&1)
         $code = $LASTEXITCODE
@@ -110,15 +111,17 @@ try {
             }
         }
         foreach ($incoming in @('0.1.0', '0.2.0', '0.0.9')) {
-            $expected = if ($incoming -eq '0.1.0') { '' } else { 'InstallMixedVersions' }
             Test-Case "$scope-cross-scope-$incoming" {
-                Invoke-Policy "$scope-cross-$incoming" @{ Case='record'; Key=$record.key; Scope=$scope; Path=$other; Incoming=$incoming; Expected=$expected }
+                Invoke-Policy "$scope-cross-$incoming" @{ Case='record'; Key=$record.key; Scope=$scope; Path=$other; Incoming=$incoming; Expected='InstallScopeConflict' }
             }
+        }
+        Test-Case "$scope-cross-scope-russian" {
+            Invoke-Policy "$scope-cross-russian" @{ Case='record'; Key=$record.key; Scope=$scope; Path=$other; Incoming='0.1.0'; Expected='InstallScopeConflict' } 'russian'
         }
         foreach ($path in @($record.directory, "$($record.directory)\child", $work)) {
             $index = $results.Count
             Test-Case "$scope-overlap-$index" {
-                Invoke-Policy "overlap-$index" @{ Case='record'; Key=$record.key; Scope=$scope; Path=$path; Incoming='0.1.0'; Expected='InstallPathConflict' }
+                Invoke-Policy "overlap-$index" @{ Case='record'; Key=$record.key; Scope=$scope; Path=$path; Incoming='0.1.0'; Expected='InstallScopeConflict' }
             }
         }
         Test-Case "$scope-relocation-requires-uninstall" {
@@ -142,14 +145,16 @@ try {
     Test-Case 'conflicting-scope-marker' {
         Invoke-Policy 'bad-marker' @{ Case='record'; Key=$record.key; Scope='CurrentUser'; Path=$record.directory; Incoming='0.1.0'; SameScope='yes'; Expected='InstallStateInvalid' }
     }
-    Set-Content -LiteralPath "$($record.directory)/JobTracker.install.ini" -Value "[Installation]`r`nScope=CurrentUser"
-    Test-Case 'legacy-scope-only-marker' {
-        Invoke-Policy 'legacy-marker' @{ Case='record'; Key=$record.key; Scope='CurrentUser'; Path=$record.directory; Incoming='0.1.0'; SameScope='yes' }
+    foreach ($bad in @('', 'invalid', '0.1', '0.2.0', '0.1.0.0')) {
+        $markerText = "[Installation]`r`nScope=CurrentUser"
+        if ($bad) { $markerText += "`r`nVersion=$bad" }
+        Set-Content -LiteralPath "$($record.directory)/JobTracker.install.ini" -Value $markerText
+        Test-Case "untrusted-marker-version-$bad" {
+            Invoke-Policy "bad-marker-version-$bad" @{ Case='record'; Key=$record.key; Scope='CurrentUser'; Path=$record.directory; Incoming='0.1.0'; SameScope='yes'; Expected='InstallStateInvalid' }
+        }
     }
+    Set-Content -LiteralPath "$($record.directory)/JobTracker.install.ini" -Value "[Installation]`r`nScope=CurrentUser`r`nVersion=0.1.0"
     Test-Case 'unloaded-profile-fails-closed' { Invoke-Policy 'profile' @{ Case='unloaded-profile'; Expected='InstallProfileUnavailable' } }
-    Test-Case 'same-prefix-siblings-do-not-overlap' {
-        Invoke-Policy 'siblings' @{ Case='overlap'; Path=$other; Other="$other-other"; Overlap='no' }
-    }
     Test-Case 'case-and-trailing-separator-alias' {
         Invoke-Policy 'case' @{ Case='path'; Path="$($record.directory.ToUpperInvariant())\"; Canonical=$record.directory }
     }
@@ -188,22 +193,13 @@ try {
             & $localTest -InstallerPath $installer -ManifestPath $ManifestPath -WorkDirectory $realWork -Scope CurrentUser -Action Install -WithDesktopShortcut
         }
         Test-Case 'read-only-loaded-HKU-profile-discovery' {
-            Invoke-Policy 'loaded-profile' @{ Case='loaded-profile'; Sid=$identity.User.Value }
+            Invoke-Policy 'loaded-profile' @{ Case='loaded-profile'; Sid=$identity.User.Value; Expected='InstallScopeConflict' }
         }
-        $machineHive = [Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::LocalMachine, [Microsoft.Win32.RegistryView]::Registry64)
-        $usersHive = [Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::Users, [Microsoft.Win32.RegistryView]::Registry64)
-        try {
-            $profileList = $machineHive.OpenSubKey('Software\Microsoft\Windows NT\CurrentVersion\ProfileList')
-            try { $profileNames = $profileList.GetSubKeyNames() } finally { $profileList.Dispose() }
-            $missingProfile = $false
-            foreach ($sid in $profileNames) {
-                if ($sid -notmatch '^S-' -or $sid -in @('S-1-5-18','S-1-5-19','S-1-5-20') -or $sid.Contains('_')) { continue }
-                $profile = $usersHive.OpenSubKey($sid)
-                if ($null -eq $profile) { $missingProfile = $true } else { $profile.Dispose() }
-            }
-            $expectedProfileResult = if ($missingProfile) { 'InstallProfileUnavailable' } else { '' }
-            Test-Case 'read-only-host-allusers-audit' { Invoke-Policy 'allusers-audit' @{ Case='allusers-audit'; Expected=$expectedProfileResult } }
-        } finally { $machineHive.Dispose(); $usersHive.Dispose() }
+        Test-Case 'read-only-host-allusers-audit' {
+            # Enumeration order can encounter the owned CurrentUser fixture or
+            # an unloaded profile first. Both must block; this never installs.
+            Invoke-Policy 'allusers-audit' @{ Case='allusers-audit'; Expected='InstallScopeConflict'; AlternativeExpected='InstallProfileUnavailable' }
+        }
         $exe = Join-Path $target 'bin/JobTrackerApp.exe'
         $backup = Join-Path $realWork 'original-JobTrackerApp.exe'
         Copy-Item -LiteralPath $exe -Destination $backup
@@ -267,7 +263,7 @@ try {
         }
     }
     [ordered]@{ result='PASS'; checks=$results.Count; currentUserIntegration=[bool]$RunCurrentUserIntegration; elevated=$elevated;
-        user=$identity.Name; policySha256=(Get-FileHash -LiteralPath "$repository/packaging/windows/InstallationPolicy.iss").Hash;
+        user=$identity.Name; policySha256=(Get-FileHash -LiteralPath "$repository/Installer/InstallationPolicy.iss").Hash;
         installerSha256=(Get-FileHash -LiteralPath $installer).Hash } |
         ConvertTo-Json | Set-Content -LiteralPath "$work/summary.json" -Encoding utf8
     Write-Output "PASS: $($results.Count) installation policy checks."

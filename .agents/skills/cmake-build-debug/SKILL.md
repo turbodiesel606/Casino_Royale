@@ -39,22 +39,24 @@ second command catalog in this skill.
 
 ## Windows Release Routing
 
-For staging, archives, Setup, runtime locks or release handoff, also apply
+For staging, offline Setup, runtime locks or release handoff, also apply
 `windows-release-packaging` and read `For-Agent/Docs/windows-release.md`.
-For a numbered task, select only the stage identified through
-`Tasks/Windows-Release/00_RUN_NEXT.md` and STATUS; do not start another stage.
+For a numbered task, select through `Tasks/Offline-Installer/00_RUN_NEXT.md` and
+`Tasks/Offline-Installer/STATUS.md`; complete only that stage.
 
-`build.md` owns the exact Release/install/archive/Setup/smoke commands as well
-as Debug and Linux forms. Distinguish recorded runs from commands not executed
-on the current host. Its stage-specific output paths are retained evidence;
-use fresh output paths consistently for a rerun. Never infer clean-machine,
-public-download or redistribution approval from a successful build.
+`build.md` owns Release/staging/offline-Setup/smoke commands as well as Windows
+and Linux Debug/Release production/test forms. Distinguish recorded runs from
+commands not executed on the current host. Use fresh stage/test paths and
+matching private build JSON; retained paths are evidence, not empty output
+directories. Never infer clean-machine or redistribution approval from a build.
 
 Production Release staging, backend tests and the standalone deployment probe
 remain separate. CurrentUser installer tests require a non-elevated Windows
 token; elevated Codex tool access for CMake builds is not permission to elevate
 those installer tests. Preserve the publication hold in
-`packaging/windows/REDISTRIBUTION.md`.
+`packaging/windows/REDISTRIBUTION.md` and the current issues in
+`For-Agent/Task-Report/offline-installer/LICENSE_ISSUES.md`. Report the selected
+stage under `For-Agent/Task-Report/offline-installer/`, update STATUS last and stop.
 
 ## Reporting
 

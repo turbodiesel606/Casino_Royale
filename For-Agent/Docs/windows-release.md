@@ -1,188 +1,133 @@
-# Windows Release Workflow
+# Windows Offline Release Workflow
 
-This document describes the implemented Windows workflow. Commands belong only
-in [build.md](build.md); dated results and stage selection belong in
-[STATUS.md](../Task-Report/windows-release/STATUS.md). The
-[accepted requirements](windows-release-requirements.md) remain the product
-contract. Developer entry points are [BUILDING](../../docs/BUILDING.md),
-[WINDOWS-RELEASE](../../docs/WINDOWS-RELEASE.md) and
-[WINDOWS-INSTALLER](../../docs/WINDOWS-INSTALLER.md).
+This document describes the implemented workflow.
+[build.md](build.md) owns executable commands;
+[requirements](../../Tasks/Offline-Installer/00_REQUIREMENTS.md) are binding;
+[STATUS](../../Tasks/Offline-Installer/STATUS.md) selects exactly one stage.
+Reports under `For-Agent/Task-Report/offline-installer/` are dated evidence,
+not automatic validation of current artifacts.
 
-**Publication HOLD:** the stage-14 audit completed with unresolved R1-R7 in
-[REDISTRIBUTION.md](../../packaging/windows/REDISTRIBUTION.md). Existing candidates
-must not be published. This is a maintainer hold; the packaging scripts can still
-produce candidates. A DONE stage, valid hash or passing test is not release or
-legal approval. Do not resolve these findings by silently changing dependencies,
-source policy, notices or owner terms during a documentation stage.
+**Publication HOLD:** unresolved
+[license issues](../Task-Report/offline-installer/LICENSE_ISSUES.md) and the
+[redistribution hold](../../packaging/windows/REDISTRIBUTION.md) remain.
+Stage completion and technical checks do not approve distribution.
 
-## Toolchain And Lifecycle
+## Toolchain And Operation Boundaries
 
-Target Windows 10/11 x64 with C++20, Visual Studio 2022 / MSVC v143, CMake 3.21+
-and exactly Qt 6.10.3. Packaging scripts require PowerShell 7.2+; Setup requires
-Inno Setup 6.7.1+. The recorded candidate used CMake 4.0.2 and Inno 6.7.1. The
-current CRT lock is 14.44.35211.0; a different/newer toolchain requires deliberate
-compatibility and lock review. Linux also requires Qt 6.10.3; existing Ninja Debug
-presets remain, with Linux execution and packaging outside this Windows evidence.
+Windows 10/11 x64 uses C++20, Visual Studio 2022/MSVC v143, CMake 3.21+ and exactly
+Qt 6.10.3. Installer scripts need PowerShell 7.2+ and Inno Setup 7+; 7.1.0 is the
+recorded native-x64 compiler. Inno 6's I386 launcher is rejected even when its
+payload/install mode is x64. Linux has Ninja Debug/Release production/test
+presets using Qt 6.10.3; Linux execution is still NOT RUN on this Windows host.
 
-Shared presets use `QTDIR`; machine-specific SDK overrides belong in
-`CMakeUserPresets.json`. That file is already tracked here: ignoring it does not
-untrack it, and Git writes still need explicit authorization.
+Shared presets use `QTDIR`; local overrides belong in `CMakeUserPresets.json`.
+That file is already tracked: ignoring it does not untrack it. Preserve local
+values; Git writes require separate authorization.
 
-| Step | Owner / input | Result |
+| Operation | Owner / result |
+|---|---|
+| Configure/build | Root CMake and matching production preset; compile/link only. |
+| Development runtime | Explicit `JobTrackerApp_dev_runtime`; development-machine output only. |
+| Release staging | Explicit CMake install to a fresh absolute prefix; Qt/QML/platform/SQLite payload. |
+| Offline Setup | `Installer/Build-Installer.ps1` validates/snapshots the direct stage and local runtime, then compiles one native x64 EXE. |
+| Backend and deployment tests | Separate consumers; never production dependencies. |
+| Release decision | Exact-artifact technical evidence plus separate owner/license resolution. |
+
+Run Windows commands sequentially in PowerShell from the repository root.
+Every CMake build needs elevated tool access from its first attempt and a final
+exit code before proceeding. CurrentUser installer tests require a non-elevated
+Windows token; host-tool permission is different from OS elevation.
+Do not delete or overwrite prior outputs, failures or personal files.
+
+## Payload, Identity And Output
+
+CMake installation supplies `bin/`, `plugins/`, `qml/`, `translations/` and relative
+`bin/qt.conf`. The 148-file [reviewed inventory](../../Installer/payload-files.txt)
+includes `qwindows.dll` and `qsqlite.dll`; development/tooling/input plugins and
+non-SQLite SQL drivers are excluded. Windows Debug install is executable-only.
+`NO_COMPILER_RUNTIME` leaves CRT delivery to the installer.
+
+Root `project(JobTracker VERSION ...)` owns app/Setup versions; Windows numeric
+metadata appends `.0`. The binary remains `JobTrackerApp.exe`, independent of the
+QML import version. Generated RC/CMake/Inno identity is private under
+`<build>/Installer/<configuration>/`. `Installer/JobTracker.ico` is the temporary
+seven-size icon; publisher is blank.
+
+The wrapper checks production Release identity/hash, exact file inventory,
+x64 Release PEs, Qt versions, relative metadata, streams and reparse paths.
+It snapshots verified bytes and generates explicit hashed `[Files]` entries.
+The only end-user artifact is
+`Installer/output/JobTracker-Setup-<version>.exe`; that directory is ignored.
+Existing same-name output is rejected. Private snapshots/runtime/includes/logs
+and `installer-build.json` remain in `<build>/Installer/work/<id>/`.
+
+There is no application archive, GitHub release/download, remote checksum,
+Online/Local mode or installer-time network requirement. The required inputs
+are local. Stage 10 removed the retired archive/transport implementation and
+old working tasks/reports. Necessary evidence and open findings remain in the
+[cleanup handoff](../Task-Report/offline-installer/10.md) and license register;
+Git preserves the older history.
+
+Embedded QML resources are explicitly allowed. Loose C++ headers/sources,
+CMake files, tests, PDBs and internal documents must not ship. The current payload
+still contains Lottie and external DLLs covered by the hold; missing DXC/DXIL
+warnings remain a graphics acceptance question.
+
+## Runtime, Scopes And Maintenance
+
+| Scope | Registration / default directory | Runtime |
 |---|---|---|
-| Configure/build | Root CMake, matching production preset | Compiled/linked `JobTrackerApp`; no automatic install/archive/Setup. |
-| Development runtime | Explicit `JobTrackerApp_dev_runtime` | Qt files beside the development EXE; not a release payload. |
-| Release install | CMake Qt QML deployment, fresh absolute prefix | Common application/Qt/QML/SQLite runtime tree. |
-| Archive | `Package-Release.ps1`, matching build/staging | Versioned 7z, checksum and per-file manifest under fresh `dist/`. |
-| Setup compilation | `Build-Installer.ps1`, verified archive, generated identity, locked CRT | Online or Local Setup plus private build evidence. |
-| Verification | Separate backend/standalone test consumers | Logs and retained fixtures; never dependencies of production. |
-| Redistribution decision | Exact payload audit and owner decisions | Resolve the hold before any separately authorized publication. |
+| CurrentUser | `JobTracker.CurrentUser`, HKCU, `%LocalAppData%/Programs/JobTracker` | Ten signed/hash-pinned App-Local x64 Release DLLs. |
+| AllUsers | `JobTracker.AllUsers`, HKLM, `%ProgramFiles%/JobTracker` | Read system-runtime identity; use the bundled authentic Microsoft package only if insufficient. |
 
-Run Windows commands in PowerShell from the project root, sequentially, waiting
-for final exit codes. Every CMake build requires elevated tool access from its
-first attempt. CurrentUser installation tests require a non-elevated Windows
-token; host-tool permissions and OS administrator elevation are different.
-Keep production/tests in separate trees and preserve existing outputs and failures.
+The lock pins 14.44.35211.0. Build preparation validates local signatures, hashes,
+sizes, versions and CRT architecture against the selected kit. Missing inputs
+fail with actionable paths/version; no download or silent repinning occurs.
+Actual prerequisite failure/cancellation stops app copying; reboot-required
+results require restart and rerunning Setup. The shared runtime is not removed
+with JobTracker or rolled back after later failure. `licenses/MSVC-NOTICE.txt`
+is not a complete Qt/third-party notice bundle or proof of entitlement.
 
-## Qt, QML And SQLite Payload
+Fresh locations are editable. Both scopes have EN/RU UI, Start Menu shortcuts
+and an unchecked desktop option. Same-scope repair/upgrade retains validated
+location and uninstall identity. Downgrade, inconsistent/missing registry/PE/
+marker versions, unsafe paths and relocation fail closed.
 
-The Windows Release install deploys `bin/`, `plugins/`, `qml/`, `translations/`
-and relative `bin/qt.conf`. Platform and SQLite plugins are loaded dynamically;
-QtSql alone is insufficient. QML imports determine further runtime dependencies.
-Development/tooling/input plugins and non-SQLite SQL drivers are excluded.
-Debug installs remain executable-only. Linux's explicit installation rule remains
-separate from normal builds.
+Opposite-scope installations reject every version, including equal versions.
+Switch scope by manual uninstall preserving data, then reinstall. AllUsers
+checks available profiles/hives and blocks unreadable state without loading
+offline hives. Setup does not migrate or open the database. Both scopes used
+by one account resolve to the same normal `%LocalAppData%/JobTracker/Data`.
 
-`NO_COMPILER_RUNTIME` leaves the common payload free of MSVC CRT DLLs. The
-installer applies the scope-specific policy below. The current 148-file allowlist
-is [payload-files.txt](../../packaging/windows/payload-files.txt); it contains
-Lottie and other dependencies subject to the audit hold. Do not regenerate this
-list blindly or call the common archive a standalone clean-machine distribution.
-Missing DXC/DXIL deployment warnings still require graphics acceptance.
+Manual-close gates require closure of the exact installed executable, recheck
+later boundaries, and never terminate/restart the app. Unattended Setup requires
+`/VERYSILENT` plus `/SUPPRESSMSGBOXES`; unsafe close/INF overrides are refused.
+The gate is not a transaction-wide file lock or a full rollback guarantee.
 
-## Version, Icon And Archive Trust
+## Uninstall And Evidence
 
-`project(JobTracker VERSION ...)` in root CMake owns the release version, currently
-`0.1.0`. Windows numeric metadata appends `.0`; QML module version `1.0` is an
-independent import contract. `JobTrackerApp.exe` remains the binary filename.
-Generated `.rc`, CMake and Inno identity files live under
-`<build>/packaging/windows/<configuration>/`. Reconfigure/rebuild after a version
-or icon change. Replace [JobTracker.ico](../../packaging/windows/JobTracker.ico)
-for the final icon; the current original temporary asset has seven sizes from
-16 to 256 pixels and supplies executable, Setup, shortcut and uninstall icons.
-Publisher is blank and the application/Setup candidates are unsigned.
+Default uninstall preserves personal data. Only verified non-elevated CurrentUser
+removal can offer EN/RU default-No consent after complete program removal.
+Explicit Yes deletes the owned `%LocalAppData%/JobTracker` tree. Silent, elevated/
+AllUsers, shared, incomplete or unverifiable cases preserve data. AllUsers cleanup
+does not enumerate profiles. Ancestor/ownership/link/handle checks protect the
+operation; cleanup is irreversible and nontransactional.
 
-The archive tool requires production x64 Release inputs, an exact executable
-hash match to the build, the reviewed inventory and safe relative layout. It
-rejects Debug/test/developer extras, reparse points and unsafe paths. It writes:
+The [implementation reference](../../Installer/README.md) maps these contracts.
+Use [testing.md](testing.md), the
+[acceptance checklist](../../tests/deployment/Windows-Release-Checklist.md) and
+[acceptance matrix](../../Tasks/Offline-Installer/00_ACCEPTANCE_MATRIX.md).
+Static source/artifact checks, native harnesses, actual owned installation,
+real app/data, GUI and clean-machine results are distinct.
 
-- `JobTracker-<version>-windows-x64.7z`
-- `JobTracker-<version>-windows-x64.7z.sha256`
-- `JobTracker-<version>-windows-x64.7z.manifest.json`
+Stage 08 records 34 payload, 14 artifact, 12 runtime, 50 policy, 16 manual-close,
+62 data checks, owned CurrentUser install/repair/uninstall, standalone CTest 1/1
+and App-Local smoke. These are prior runs, not new documentation-stage results.
+Earlier failed attempts and the unresolved sharing error 32 remain evidence.
 
-The checksum is lowercase SHA-256, two spaces and the archive basename. The
-schema-1 manifest records identity, archive size/hash and ordered per-file
-paths/sizes/hashes. Local verification checks the sidecar, extracts a retained
-copy and checks every file. Same bytes with the same archive writer were
-deterministic; reproducible C++ compilation is not claimed.
-
-The Online URL is fixed at build time:
-
-```text
-https://github.com/turbodiesel606/Releases/releases/download/v<version>/JobTracker-<version>-windows-x64.7z
-```
-
-For the current identity this is tag `v0.1.0` and asset
-`JobTracker-0.1.0-windows-x64.7z`. There is no `latest`, endpoint override or
-runtime replacement hash. Setup embeds the locally verified archive digest,
-size and file checks. A downloaded checksum/manifest cannot authenticate itself
-or replace that trust anchor. Inno performs native HTTPS download, hash checking
-and extraction into its private temporary area; explicit validated file entries
-reach the destination. EN/RU failures/cancellation allow safe retry or exit.
-
-Online Setup is `JobTracker-<version>-windows-x64-online-setup.exe`. Local mode
-embeds the common payload as `JobTracker-<version>-windows-x64-local-setup.exe`
-for local integration. Local payload does not mean every AllUsers prerequisite
-is offline: the machine CRT can still require Microsoft's download.
-Both builds use the same installer policies. Neither build publishes anything.
-
-## Scopes, Runtime And Maintenance
-
-| Scope | Identity / default path | Runtime |
-|---|---|---|
-| CurrentUser | `JobTracker.CurrentUser`; HKCU; `%LocalAppData%/Programs/JobTracker` | Ten verified App-Local x64 Release CRT DLLs beside the EXE; no system prerequisite/elevation. |
-| AllUsers | `JobTracker.AllUsers`; HKLM; `%ProgramFiles%/JobTracker` | Check system x64 CRT; download/verify/run pinned official Microsoft redistributable only when insufficient. |
-
-The lock records exact runtime hashes, size, URL and version; build preparation
-validates signatures and selected Visual Studio inputs. Reboot-required results
-stop before application installation and require a restart/new Setup run.
-The machine runtime is neither rolled back on later failure nor uninstalled
-with JobTracker. `licenses/MSVC-NOTICE.txt` is delivered in both scopes; it is
-not a complete Qt/third-party notice bundle or a grant of redistribution rights.
-
-Both scopes offer editable new-install paths, scoped Start Menu shortcuts and
-desktop opt-in unchecked by default. English and Russian are included; system
-UI language can select Russian, and the language dialog permits a choice.
-English is the fallback, not a forced selection on Russian Windows.
-
-Upgrade and repair preserve the known path/data and require consistent registry,
-PE and installer-marker identity. Downgrades, ambiguous paths, nesting and unsafe
-relocation fail closed. Relocation requires uninstall with data preserved, then
-reinstall. Opposite scopes may coexist only at exactly equal release versions.
-AllUsers examines regular profiles/loaded hives; unloaded or unreadable profile
-state blocks it. Setup never loads offline hives or migrates the database.
-
-Both scopes used by one account resolve to the same
-`QStandardPaths::AppLocalDataLocation/Data`: normally
-`%LocalAppData%/JobTracker/Data`, with `database.sqlite` and `Resumes/`.
-Separate AppIds do not isolate data. To upgrade two copies, remove one preserving
-data, upgrade the remaining copy, then reinstall the other at the same version.
-Equal versions do not prove concurrent application sessions are safe. Manually
-copied/legacy binaries and already migrated data remain outside the installer
-version gate.
-
-Setup and Uninstall require manual closure of the exact installed EXE. They
-never terminate or restart a process. Rechecks cover later boundaries and copies;
-unsafe automatic-close/INF overrides are refused. Unattended Setup requires both
-`/VERYSILENT` and `/SUPPRESSMSGBOXES`. The gate is not a transaction-wide file lock;
-late failures do not guarantee full restoration of already overwritten files.
-
-Uninstall removes registered program files/shortcuts and preserves personal data
-by default. Only verified non-elevated CurrentUser removal offers an EN/RU
-default-No prompt after complete program removal. Yes permanently deletes the
-entire owned `%LocalAppData%/JobTracker` folder, not only the database. Silent,
-elevated/AllUsers, shared, incomplete or unverifiable cases preserve data. Path,
-SID, registration, reparse/hardlink and handle checks guard cleanup; no CLI delete
-switch exists. Cleanup is irreversible and nontransactional; unknown copies
-cannot be exhaustively discovered. Detailed implementation is in the
-[packaging reference](../../packaging/windows/README.md).
-
-## Verification And Release Hold
-
-Use the [canonical suites](build.md#windows-release-integration-verification),
-[testing policy](testing.md) and
-[acceptance matrix](../../tests/deployment/Windows-Release-Checklist.md).
-Stage 13 recorded 18/18 backend tests, staging 1/1, App-Local smoke, 19 archive,
-54 policy twice, 21 manual-close, 19 data, 25 Online and 15 runtime checks, plus
-Russian Unicode-path lifecycle checks. These are dated local evidence, not new
-runs implied by this guide.
-
-Still unresolved: application startup/graphics and interactive EN/RU dialogs,
-AllUsers/UAC/dual-scope/multiple sessions, actual missing-runtime installation and
-reboot, historical-release/database compatibility and clean Windows 10/11.
-The stage-13 public asset returned 404; safe rejection is not successful public
-installation. Stage-12 sharing error 32 did not recur in two unchanged stage-13
-runs, but its cause/fix remains unknown. Retain the failures and manual-close gate.
-
-The stage-14 R1-R7 hold covers three GPL-only/commercial Lottie files, missing
-delivered notices/source/replacement material and unresolved SBOM correspondence,
-Windows ICU/Mesa/D3D/Inno provenance, recoverable private QML, and owner/Visual
-Studio entitlement. Use the file-level audit, not an older Qt audit or a generic
-license list. Internal resource/audit/build metadata must remain private.
-
-No CI/CD, Linux packaging, automatic updates or signing is implemented by this
-workflow. Future signing must occur before the hashes it changes: application
-before staging/archive generation, Setup before its final published digest.
-Owner identity, certificates and authorization remain separate work. Do not
-promise SmartScreen reputation. Publication is a separately authorized manual
-action after the hold and acceptance issues are resolved.
+Actual app/data, AllUsers/UAC/prerequisite/reboot, interactive cleanup,
+disconnected clean Windows 10/11 and Linux acceptance remain NOT RUN.
+Use disposable accounts/VMs, never personal data. Optional
+[Setup signing](build.md#optional-installer-signing) records the final digest
+after signature verification; unsigned builds remain supported and no
+certificate/secret is stored by the workflow.

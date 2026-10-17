@@ -1,7 +1,0 @@
-Audit report-validator exit code: 1
-Get-FileHash: D:\Project_CV\Root\For-Agent\Task-Report\windows-release\acceptance-audit-20261015-143044\Validate-Audit.ps1:41
-Line |
-  41 |  … object]@{Record=$name;Equal=((Get-FileHash -LiteralPath $left).Hash - …
-     |                                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-     | Could not find file
-     | 'D:\Project_CV\Root\For-Agent\Task-Report\windows-release\acceptance-audit-20261015-143044\snapshots\staged-diff-before.patch'.

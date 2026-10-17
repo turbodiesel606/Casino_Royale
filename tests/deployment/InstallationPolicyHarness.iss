@@ -1,4 +1,7 @@
 ; TEST ONLY: no application registration, shortcuts, data access or prerequisites.
+#if Ver < EncodeVer(7, 0, 0)
+  #error Inno Setup 7 or newer is required to verify the native x64 policy ABI.
+#endif
 #define JobTrackerExecutableName "JobTrackerApp.exe"
 #include PipelineFile
 #include PolicyFile
@@ -11,6 +14,7 @@ DefaultDirName={tmp}\unused
 OutputDir={#TestOutput}
 OutputBaseFilename=policy-{#TestVersion}-test-only
 PrivilegesRequired=lowest
+SetupArchitecture=x64
 ArchitecturesAllowed=x64os
 ArchitecturesInstallIn64BitMode=x64os
 MinVersion=10.0
@@ -48,13 +52,14 @@ end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
-  CaseName, Expected, Path, Key, Scope, ErrorMessage: String;
+  CaseName, Expected, AlternativeExpected, Path, Key, Scope, ErrorMessage: String;
   First, Second: Int64;
   Found: Boolean;
 begin
   Result := '';
   CaseName := ExpandConstant('{param:Case}');
   Expected := ExpandConstant('{param:Expected}');
+  AlternativeExpected := ExpandConstant('{param:AlternativeExpected}');
   try
     if CaseName = 'parse' then begin
       CheckVersion('0.0.0', True);
@@ -83,10 +88,6 @@ begin
       Path := ExpandConstant('{param:Path}');
       RequireTest(CompareText(CanonicalInstallPath(GetShortName(Path)),
         CanonicalInstallPath(Path)) = 0, 'short-name path alias');
-    end else if CaseName = 'overlap' then begin
-      Path := CanonicalInstallPath(ExpandConstant('{param:Path}'));
-      RequireTest(InstallPathsOverlap(Path, CanonicalInstallPath(ExpandConstant('{param:Other}'))) =
-        (ExpandConstant('{param:Overlap}') = 'yes'), 'path overlap');
     end else if CaseName = 'record' then begin
       Key := ExpandConstant('{param:Key}');
       // A test fixture cannot name real application registration.
@@ -118,6 +119,9 @@ begin
     ErrorMessage := GetExceptionMessage;
     if (Expected <> '') and (Pos(CustomMessage(Expected), ErrorMessage) = 1) then
       Log('TEST PASS: rejected ' + Expected)
+    else if (AlternativeExpected <> '') and
+      (Pos(CustomMessage(AlternativeExpected), ErrorMessage) = 1) then
+      Log('TEST PASS: rejected ' + AlternativeExpected)
     else begin
       Result := ErrorMessage;
       Log(Result);

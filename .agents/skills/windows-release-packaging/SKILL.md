@@ -1,68 +1,81 @@
 ---
 name: windows-release-packaging
-description: Prepare or diagnose JobTracker Windows Release staging, archives, Inno Setup installers, runtime inputs, and release handoffs. Use for the numbered Windows Release workflow or bounded packaging work; use cmake-build-debug for ordinary development builds.
+description: Prepare or diagnose JobTracker Windows Release staging, the offline Inno Setup installer, local runtime inputs, and release handoffs. Use for the numbered Offline-Installer workflow or bounded packaging work; use cmake-build-debug for ordinary development builds.
 ---
 
 # Windows Release Packaging
 
 Work in the existing JobTracker checkout. For a numbered task, enter through
-`Tasks/Windows-Release/00_RUN_NEXT.md` and select exactly the lowest non-DONE
-stage from `For-Agent/Task-Report/windows-release/STATUS.md`. Resume BLOCKED or
-IN_PROGRESS work; read only that task and directly relevant handoff evidence.
+`Tasks/Offline-Installer/00_RUN_NEXT.md` and select the lowest non-DONE stage
+from `Tasks/Offline-Installer/STATUS.md`. Resume BLOCKED or IN_PROGRESS work;
+read only that stage, binding requirements and directly relevant handoff evidence.
+The 11-stage offline plan supersedes the historical Windows-Release workflow.
 
 ## Sources Of Truth
 
-- `For-Agent/Docs/build.md` owns all executable commands and their verification
-  provenance. Do not maintain another command catalog in this skill.
-- `For-Agent/Docs/windows-release.md` describes implemented behavior;
-  `windows-release-requirements.md` beside it records accepted requirements.
-- `packaging/windows/README.md` documents implementation contracts;
-  `packaging/windows/REDISTRIBUTION.md` owns the actual-payload publication hold.
+- `For-Agent/Docs/build.md` owns executable commands and verification provenance.
+  Do not maintain another command catalog in this skill.
+- `Tasks/Offline-Installer/00_REQUIREMENTS.md` owns approved requirements.
+  `For-Agent/Docs/windows-release.md` describes implemented behavior.
+- `Installer/README.md` maps implementation contracts.
+- `packaging/windows/REDISTRIBUTION.md` preserves publication HOLD;
+  `For-Agent/Task-Report/offline-installer/LICENSE_ISSUES.md` carries current
+  license/provenance/owner issues.
 - `For-Agent/Docs/testing.md` and `tests/deployment/Windows-Release-Checklist.md`
-  distinguish local suites from real UI/clean-machine acceptance.
-- Stage reports are dated handoffs, not proof that current source/artifacts match.
+  separate local suites from actual UI/data/clean-host acceptance.
+- Stage reports are dated handoffs, not proof that current inputs match.
 
 ## Preparation And Verification
 
-Inspect the scoped diff, existing helpers, generated identity and relevant
-manifest/lock before changing anything. Keep normal builds, explicit Qt staging,
-archive generation and Setup compilation separate. Preserve Debug/Linux workflows
-and the one-way test-to-production dependency. Use `cmake-build-debug` for CMake
-execution and its mandatory build-access/wait rules.
+Inspect the scoped diff, existing helpers, generated identity, reviewed inventory
+and runtime lock before edits. Keep normal builds, explicit Qt staging, offline
+Setup compilation and standalone verification separate. Preserve Windows/Linux
+Debug/Release production/test isolation. Use `cmake-build-debug` for CMake
+execution and its mandatory elevated-tool-access and process-wait rules.
 
-Use a fresh absolute install prefix and fresh ignored `dist/` output/fixture
-directories, propagating them through dependent commands. Canonical stage paths
-are retained evidence, not reusable empty directories. Do not remove old outputs,
-failed attempts or user files. Never package a development/test runtime.
+Use a fresh absolute stage and fresh ignored build/dist fixtures, propagating
+paths consistently. Preserve old outputs, failed attempts and user files.
+Never package a development/test runtime or change production to support tests.
 
-Root CMake owns the version; the generated Release identity, archive filenames,
-manifest and compiled fixed GitHub URL/digest must agree. Do not use `latest`,
-accept a downloaded replacement trust anchor, bypass the reviewed payload
-inventory or silently refresh the MSVC lock. Verify exact artifact hashes.
-Keep private logs, includes, extracted copies and audit evidence out of publication.
+Root CMake owns the version. Build `Installer/JobTracker.iss` through
+`Installer/Build-Installer.ps1` with Inno Setup 7+ and verified local runtime
+inputs. The native x64 `Installer/output/JobTracker-Setup-<version>.exe` is the
+only required end-user artifact. No application archive, GitHub payload, remote
+hash, Online/Local release mode or installation-time network is required.
+The wrapper refuses an existing same-name EXE; preserve it before rebuilding.
 
-CurrentUser integration needs a non-elevated Windows token and its real
+CurrentUser uses App-Local CRTs. AllUsers embeds the authentic Microsoft x64
+redistributable and runs it only when needed. Missing/mismatched local inputs
+must fail clearly; never download silently, refresh the lock, bypass inventory
+or relax integrity checks. Private snapshots/logs/includes/`installer-build.json`
+remain under the selected build's `Installer/work/<id>/`, outside customer output.
+
+CurrentUser integration requires a non-elevated Windows token and real
 registry/shell-folder access; elevated build-tool access does not change that.
-Use only owned test fixtures. Application startup and actual data acceptance need
-a disposable account/VM. Keep shared SQLite/CV data, equal-version coexistence,
-manual closure and default-preservation safeguards intact. Do not force-close
-processes or weaken a guard to obtain a passing test.
+Use only guarded owned fixtures. Actual app/data acceptance requires a disposable
+account/VM. Preserve same-scope repair/upgrade, opposite-scope rejection/manual
+uninstall-reinstall, default data preservation and manual closure. Never force
+close processes or weaken a guard to obtain a passing test.
 
-Choose checks for the changed contract. Reuse existing standalone suites and
-record PASS/FAIL/NOT_RUN at the right evidence level. Do not rebuild unchanged
-C++ or run real installers merely for documentation changes. A test probe is not
-application startup, a synthetic version is not historical compatibility, and
-safe rejection of a missing asset is not successful public installation.
+Choose checks for the changed contract and record PASS/FAIL/NOT RUN at the right
+evidence level. Reuse standalone suites. Do not rebuild unchanged C++ or run
+installers merely for documentation changes. A probe is not app startup,
+synthetic versions/data are not real compatibility, and static network-code
+inspection is not disconnected clean-Windows acceptance. Preserve unresolved
+sharing error 32 and earlier failures.
 
 ## Completion And Boundaries
 
-Preserve unresolved acceptance findings and the redistribution hold. DONE means
-the selected stage's obligations are complete; it never means permission to
-publish or legal clearance. Owner/license/source-policy decisions are not
-silently resolved by packaging changes.
+Write `For-Agent/Task-Report/offline-installer/NN.md`, update only established
+acceptance evidence, then update `Tasks/Offline-Installer/STATUS.md` last and stop.
+DONE means the selected stage's obligations are complete, not release approval.
 
-For a numbered stage, write `For-Agent/Task-Report/windows-release/NN.md` with
-actual changes, commands, evidence and limits, then update STATUS and stop.
-Keep historical reports and task inputs unchanged. No Git writes, publication,
-CI/CD, Linux packaging, automatic updates or signing are authorized by using this
-skill; follow the user's explicit scope and existing project policies.
+Preserve historical implementation/reports until the assigned cleanup stage.
+Only directly relevant build/test/installer documentation and skills may change;
+`src/`, application QML, unrelated skills/workflows and immutable task inputs
+remain protected. Embedded QML resources are allowed by approved requirements.
+
+No Git writes, publication, CI/CD, updater, Linux packaging or licensing
+remediation is authorized by this skill. Unsigned builds remain supported.
+Optional signing follows the canonical procedure with an authorized certificate;
+never store secrets or infer rights/clearance from a signature.

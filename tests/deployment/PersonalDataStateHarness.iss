@@ -1,8 +1,11 @@
 ; TEST ONLY: read-only production account/coexistence/completion consumers.
+#if Ver < EncodeVer(7, 0, 0)
+  #error Inno Setup 7 or newer is required to verify native x64 account identity.
+#endif
 #define JobTrackerExecutableName "JobTrackerApp.exe"
-#include "../../packaging/windows/OnlinePayload.iss"
-#include "../../packaging/windows/InstallationPolicy.iss"
-#include "../../packaging/windows/PersonalData.iss"
+#include "../../Installer/PayloadSafety.iss"
+#include "../../Installer/InstallationPolicy.iss"
+#include "../../Installer/PersonalData.iss"
 
 [Setup]
 AppName=JobTracker personal data state TEST ONLY
@@ -11,6 +14,7 @@ DefaultDirName={tmp}\unused
 OutputDir={#TestOutput}
 OutputBaseFilename=personal-data-state-test-only
 PrivilegesRequired=lowest
+SetupArchitecture=x64
 ArchitecturesAllowed=x64os
 ArchitecturesInstallIn64BitMode=x64os
 MinVersion=10.0

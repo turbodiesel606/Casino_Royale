@@ -1,8 +1,11 @@
 ; TEST ONLY. All deletion fixtures are confined to TestOutput, never LocalAppData.
+#if Ver < EncodeVer(7, 0, 0)
+  #error Inno Setup 7 or newer is required to verify native x64 personal-data handles.
+#endif
 #define JobTrackerExecutableName "JobTrackerApp.exe"
-#include "../../packaging/windows/OnlinePayload.iss"
-#include "../../packaging/windows/InstallationPolicy.iss"
-#include "../../packaging/windows/PersonalData.iss"
+#include "../../Installer/PayloadSafety.iss"
+#include "../../Installer/InstallationPolicy.iss"
+#include "../../Installer/PersonalData.iss"
 
 [Setup]
 AppName=JobTracker personal data TEST ONLY
@@ -11,6 +14,7 @@ DefaultDirName={#TestOutput}\program
 OutputDir={#TestOutput}
 OutputBaseFilename=personal-data-test-only
 PrivilegesRequired=lowest
+SetupArchitecture=x64
 ArchitecturesAllowed=x64os
 ArchitecturesInstallIn64BitMode=x64os
 MinVersion=10.0
