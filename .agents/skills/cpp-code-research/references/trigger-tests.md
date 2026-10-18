@@ -8,7 +8,7 @@ Static consistency review is preparation, not an empirical performance result.
 
 | Request | Workflow and initial scope | Required evidence or output | Expand only when |
 | --- | --- | --- | --- |
-| "Briefly explain this function / this Qt notify mechanism." | `cpp-code-research`; named function or project usage. | Direct answer, source anchors, material limits; no lesson artifacts, index, or mandatory matrix. | A caller, receiver, or lifetime contract is needed to explain it. |
+| "Briefly explain this function / this Qt notify mechanism." | `cpp-code-research`; named function or project usage. | Direct answer, source anchors, material limits; no mandatory matrix. | A caller, receiver, or lifetime contract is needed to explain it. |
 | "Trace Add Job from `createApplication()` through SQLite, read only." | End-to-end research; controller entry. | QML/controller/worker/service/repository/storage/publication trace with source evidence; stop before edits. | The requested path crosses another contract or failure branch. |
 | "Which direct project functions does `JobSaveExecutor::process()` call? Do not recurse." | Bounded direct-call research; named method. | Direct project callees, Qt/standard-library boundary, static limits. | Clarification of a direct call is necessary; do not recursively trace callees. |
 | "Where is the CV import SQL connection created and destroyed?" | Qt/threading/storage research; import worker context. | Source-backed ownership, affinity, connection lifecycle. | A lifecycle edge or shared runtime owns part of the answer. |
@@ -25,10 +25,8 @@ Static consistency review is preparation, not an empirical performance result.
 | "Change worker cancellation and storage rollback." | `cpp-backend-task`; affected worker/service/runtime. | Ownership/order/transaction analysis, meaningful failure tests, broader relevant verification and independent review when warranted. | Shared lifecycle or storage semantics require coverage; do not stop at one mapped test. |
 | "Review my current C++ diff for regressions." | `cpp-code-review`; focused diff. | Severity-ordered findings, source evidence, residual risk; no automatic saved report. | Direct contracts or a concrete finding require more code. |
 | "Review this existing function; there is no diff." | `cpp-code-review`; named function. | Inspect its current contract and dependencies; actionable findings or no findings with limits. | A caller/owner/invariant is needed; no manufactured diff or global audit. |
-| "Review a supplied setter that emits notify before storing the value; a direct observer reads it." | `cpp-code-review`; isolated known-defect example. | Detect the stale-observation defect with source and observer evidence; do not merely approve or suggest cosmetic changes. | Notification/receiver semantics need inspection; no production mutation. |
-| "Give me a bounded lesson on QObject ownership here." | `learn-cpp-codebase`; named ownership example and prerequisites. | Complete that lesson with explanation, anchors, recap, limits; save only if requested or continuing saved state. | A prerequisite or ownership edge is necessary; no eight-phase requirement. |
-| "Teach me the entire backend from scratch." | `learn-cpp-codebase`; Phase 1 then all phases. | Full course depth, eight detailed phase artifacts and cumulative index; interactive delivery may pause between phases. | Each planned phase introduces its domain; do not preload all domains. |
-| "Continue my existing lesson/course." | `learn-cpp-codebase`; relevant saved lesson or phase plus course index if applicable. | Complete the requested next lesson/phase and update its required state. | Relevant earlier sections or changed live source are needed. |
+| "Review the supplied C++ setter and observer under their stated contract." | `cpp-code-review`; supplied code and contract. | Actionable findings or no actionable findings with source evidence and limits. | Notification/receiver semantics need inspection; no production mutation. |
+| "Audit the whole C++ backend for architecture drift and responsibility overlap." | `cpp-codebase-review`; complete backend inventory. | Broad coverage, source-backed findings, justified similarities, verification gaps. | Cross-module ownership and contracts require it. |
 | "Fix this CMake configure failure." | `cmake-build-debug`; exact command, preset, error. | Diagnose configuration separately from build/tests; preserve execution policy. | Error evidence points to toolchain, registration, or dependency. |
 | "Review spacing and hierarchy of this existing QML page." | `qml-code-review`; target page even without a diff. | Source-backed interaction/layout risks and visual-verification limits. | Direct components or backend contracts matter. |
 | "Use review-code-for-human to explain Add Job completely." | Explicit `review-code-for-human`; requested workflow. | Preserve its detailed specialized deliverable. | Its workflow requires connected code; no implicit invocation elsewhere. |
@@ -39,12 +37,21 @@ Static consistency review is preparation, not an empirical performance result.
 - Negative cases route to the more specific project skill.
 - Direct-call requests do not recursively trace nested callees.
 - Ordinary research does not load duplication guidance or trigger tests.
-- Research performs no edits, builds, CTest runs, or GUI launches unless separately authorized.
+- Research does not edit project code or documentation as implementation work;
+  implementation requests route to the appropriate workflow. Runtime verification
+  follows the research skill's [Boundaries](../SKILL.md#boundaries) and active
+  environment permissions.
 - Implementation planning stops before code changes and produces a handoff suitable for `cpp-backend-task`.
-- Bounded explanations, lessons, and reviews without a diff retain their own
-  completion rules. Full courses and broad audits retain their depth.
-- The known-defect case must produce a substantiated correctness finding when
-  actually evaluated, not just select a plausible skill.
+- Explanations retain the requested depth; bounded reviews without a diff and
+  explicitly requested broad audits retain their respective scope.
+
+## Optional Review Quality Cases
+
+The routing cases above check workflow selection, not independent defect
+detection. For review-quality evaluation, use the synthetic C++ and QML/backend
+[fixtures and evaluator rubric](review-quality-cases.md), including correct
+controls. Pass only the neutral reviewer inputs identified there to the reviewer;
+keep evaluator expectations separate.
 
 ## Optional Before/After Comparison
 
@@ -53,12 +60,13 @@ Static consistency review is preparation, not an empirical performance result.
 2. Keep model and reasoning effort the same. Run independent fresh sessions for
    each version/case so old instructions or conclusions do not carry over.
 3. Assess correctness, completeness, regressions, verification quality, and
-   required human corrections first, using the expected boundaries above.
+   required human corrections first, using the expected boundaries above and
+   the fixture rubric when evaluating review quality.
 4. Then compare elapsed time, unnecessary work, and available usage data,
    including delegated work. State when a usage metric is unavailable.
 5. Separate measured results from assumptions. Static scenario validation alone
    establishes neither improvement, percentage savings, nor optimality.
 
 Run this comparison only when requested as evaluation work. Maintaining these
-cases does not require starting a course, running implementation benchmarks,
-creating evaluation infrastructure, or spending substantial usage.
+cases requires static inspection only; it does not require benchmarks,
+evaluation infrastructure, or empirical comparison runs.

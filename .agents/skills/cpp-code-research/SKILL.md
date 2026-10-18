@@ -1,6 +1,6 @@
 ---
 name: cpp-code-research
-description: Answer ordinary JobTracker C++ code questions and perform read-only, source-backed research. Use for bounded symbol or workflow tracing, Qt ownership and threading, QML contracts, storage, CMake and test mapping, implementation planning, or architecture and duplication analysis. Do not use for implementation, code review, build debugging, or requested structured lessons and courses.
+description: Answer JobTracker C++ code questions and perform read-only, source-backed research. Use for bounded symbol or workflow tracing, Qt ownership and threading, QML contracts, storage, CMake and test mapping, implementation planning, or architecture and duplication analysis. Do not use for implementation, code review, or build debugging.
 ---
 
 # C++ Code Research
@@ -12,7 +12,6 @@ Research the smallest relevant JobTracker C++ surface and return evidence-backed
 - Use `cpp-backend-task` when the user asks to implement or modify C++.
 - Use `cpp-code-review` for a focused diff or review of explicitly identified existing code, even without a diff. Use `cpp-codebase-review` for a whole-backend audit.
 - Use `cmake-build-debug` when the primary task is configuration, compilation, CTest, or build-failure diagnosis.
-- Use `learn-cpp-codebase` for an explicitly requested structured lesson, full backend course, or learning-run continuation. A short function, class, Qt-mechanism, or code-path explanation stays here and creates no course artifacts.
 - Use `qml-code-research` for QML structure or visual ownership; inspect QML here only to verify a C++ contract boundary.
 - [references/trigger-tests.md](references/trigger-tests.md) contains optional workflow-maintenance scenarios and a comparison method. Consult it when validating routing changes; ordinary tasks must not load or execute it automatically.
 
@@ -130,7 +129,7 @@ For architecture, maintainability, duplication, or overlapping-responsibility re
 
 ## Research Output
 
-Match the output to the requested result. For a narrow factual question, normally
+Match the explanation depth and output to the requested result. For a narrow factual question, normally
 return the answer, the file/symbol/line evidence needed to support it, and material
 uncertainty or evidence limitations. Do not add unrelated ownership maps,
 implementation plans, architecture research, or registration checks.

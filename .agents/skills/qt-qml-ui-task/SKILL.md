@@ -20,10 +20,17 @@ Use this skill for QML and UI work in JobTracker.
 9. Keep durable business logic out of QML unless the task explicitly asks for a UI-only prototype.
 10. Extract a reusable component only when repetition or readability justifies it.
 11. If adding QML files, update `qt_add_qml_module` in `CMakeLists.txt`.
-12. After implementation is stable, finish with one incremental `test-and-review` pass. Use `cmake-build-debug` for required build/tests, `testing.md` for test selection and expansion, and perform one documentation-impact check.
-13. Use an available suitable environment to exercise the changed interaction and inspect its visual result when relevant and proportionate. Follow `For-Agent/Docs/qml-style.md` for states, transitions, navigation, bindings, layout, and runtime warnings. Report what was observed separately from build success; broaden only for concrete risks.
+12. After implementation is stable, finish with one incremental `test-and-review` pass, including applicable runtime and visual evidence below before its completion report. Use `cmake-build-debug` for required build/tests, `testing.md` for test selection and expansion, and perform one documentation-impact check.
 
 ## Runtime And Manual UI Evidence
+
+Within that final pass, use a suitable available environment to exercise the
+changed interaction and inspect its visual result when relevant and proportionate.
+Follow `For-Agent/Docs/qml-style.md` for states, transitions, navigation, bindings,
+layout, and runtime warnings. Reuse sufficiently current evidence for the affected
+behavior; do not repeat a GUI launch or visual inspection just because both skills
+mention it. Report observations separately from build success and broaden only
+for concrete risks.
 
 If runtime or visual inspection is unavailable, state the unavailable environment
 or capability and what remains unverified. Provide the focused manual checklist

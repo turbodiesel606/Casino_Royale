@@ -85,6 +85,13 @@ Keep purely subjective design comments out unless they affect usability, consist
 
 ## Review Output
 
+For each material correctness finding, establish the trigger, relevant code path
+and source or contract evidence, violated contract or invariant, and observable
+consequence, with file and line references where available. A sufficient static
+argument is valid; a runtime reproducer is not mandatory. If the causal chain is
+incomplete, report a question, explicit assumption, or unverified risk instead of
+a confirmed defect. "No actionable findings" is a valid result.
+
 Use file and line references for findings. Include:
 
 - Findings.

@@ -6,9 +6,6 @@ output or treating old conclusions as current evidence.
 ## Artifact Location
 
 - `For-Agent/Review/`: code review files and review findings.
-- `For-Human/Architecture/`: detailed full-course `learn-cpp-codebase` phase
-  artifacts and each course run's compact cumulative index, plus bounded lessons
-  when saving them is requested or an existing saved lesson is continued.
 
 Research findings are normally returned to the active task. If the user requests
 a durable research artifact or provides one from another location, apply the
@@ -21,7 +18,7 @@ Before opening artifact bodies:
 
 1. Inventory filenames, timestamps, titles, scope, and status metadata.
 2. Identify which artifacts overlap the current symbol, subsystem, diff,
-   architecture question, or learning phase.
+   or architecture question.
 3. Prefer a compact index or summary. Load a detailed artifact only when it
    contains context needed for the current question.
 4. When several review artifacts overlap, read the newest relevant broad
@@ -63,22 +60,3 @@ Before starting a review that overlaps prior review work:
 5. If no time is available, treat the date-only artifact as the earliest artifact for that date.
 
 Do not treat an old artifact as current proof. Artifacts prevent redundant discovery; they do not replace verification.
-
-## Learning Indexes
-
-Each full-course `learn-cpp-codebase` run keeps all eight detailed phase artifacts
-as phases are completed and one compact same-run cumulative index. The index
-records phase status, architecture and contract summaries, subsystem and file
-pointers, ownership and threading rules,
-unresolved questions, stale assumptions, and links to the detailed artifacts.
-
-For a new or resumed phase, read the current phase artifact when present, then
-the cumulative index, then only the detailed prior phase sections relevant to the
-lesson or newly discovered source evidence. Update the index after every phase or
-Phase 4 domain lesson. Do not delete or collapse the detailed phase artifacts.
-
-A standalone bounded lesson completes its requested objective without requiring
-the full course or a course index. Save it only when requested or when continuing
-an established saved lesson, following the skill's bounded-lesson format. Load
-only that lesson's relevant state and necessary prior context. Ordinary code
-explanations create neither course artifacts nor a cumulative learning index.

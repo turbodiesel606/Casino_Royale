@@ -77,14 +77,13 @@ Choose the narrowest matching workflow:
 | C++ backend implementation | `cpp-backend-task` | Start from the affected model, controller, service, repository, storage class, utility, or startup surface. |
 | QML/UI implementation | `qt-qml-ui-task` | Start from the target page or component. Inspect `qml/Main.qml` only for shell, navigation, or reachability changes. |
 | Move durable QML behavior to C++ | `qml-to-cpp-extraction` | Start from the target QML behavior and its exposed C++ contract; preserve the UI behavior while moving durable logic. |
-| C++ explanation, research, or implementation planning | `cpp-code-research` | Keep the investigation read-only, start from the smallest relevant backend entry point, and stop before edits. An ordinary code question does not start a course. |
+| C++ explanation, research, or implementation planning | `cpp-code-research` | Keep the investigation read-only, start from the smallest relevant backend entry point, and stop before edits. |
 | QML research or implementation planning | `qml-code-research` | Keep the investigation read-only, start from the target screen, component, or binding, and stop before edits. |
 | Bounded C++ review | `cpp-code-review` | Start from a focused diff or the explicitly identified existing function, class, file, or behavior; expand through relevant contracts or concrete risks. |
 | Bounded QML/UI review | `qml-code-review` | Start from a focused diff or the explicitly identified existing component, file, or behavior; expand through relevant consumers, contracts, or concrete UI risks. |
 | Whole-backend architecture review | `cpp-codebase-review` | Deliberately inventory the C++ codebase to assess architecture drift, responsibility overlap, and cross-module duplication. |
 | Whole-QML architecture review | `qml-codebase-review` | Deliberately inventory the QML surface to assess component boundaries, durable-logic leakage, and broad duplication. |
 | Configure, build, test, or diagnose CMake | `cmake-build-debug` | Use `For-Agent/Docs/build.md` for normal application configuration, builds, development runtime preparation, and backend tests. |
-| Requested structured learning | `learn-cpp-codebase` | Select a full backend course, an explicitly requested bounded lesson, or continuation of an existing learning run. Course phases and cumulative artifacts apply to a full course, not ordinary explanations. |
 | Incremental final implementation validation | `test-and-review` | Start from the focused final diff, reuse established context, and expand only for a concrete new dependency, changed assumption, result, or risk. |
 
 Use `.agents/skills/review-code-for-human/SKILL.md` only when the user explicitly requests `review-code-for-human` by name. Do not invoke it implicitly for a code review, explanation, walkthrough, or teaching request.
@@ -120,8 +119,8 @@ Apply `.agents/skills/test-and-review/SKILL.md` for incremental final validation
 independent-review criteria, documentation synchronization, and the completion
 report. Reuse established context throughout the task.
 
-Artifact naming, timestamps, selective reuse, and learning indexes are owned by
-`For-Agent/Docs/artifacts.md`; detailed lessons follow `learn-cpp-codebase`.
+Artifact naming, timestamps, and selective reuse are owned by
+`For-Agent/Docs/artifacts.md`.
 
 ## Core Rules
 
