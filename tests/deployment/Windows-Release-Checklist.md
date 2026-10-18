@@ -1,10 +1,11 @@
 # Windows release acceptance checklist
 
-Use this checklist with the single `Installer/output/JobTracker-Setup-<version>.exe`
-and private `installer-build.json` hashes recorded in the selected offline-stage
-report. Results belong in `For-Agent/Task-Report/offline-installer/` and the
-persisted `Tasks/Offline-Installer/00_ACCEPTANCE_MATRIX.md`. This file is reusable
-procedure, not a claim of success. Commands are owned by `For-Agent/Docs/build.md`.
+Use this checklist for a particular
+`Installer/output/JobTracker-Setup-<version>.exe` and its matching private
+`installer-build.json`. Record results with those artifact hashes in the
+chosen release/test evidence location. This is reusable procedure, not a claim
+of success. Use the [installer reference](../../For-Agent/Docs/installer.md)
+and [suite commands](../../For-Agent/Docs/installer-testing.md).
 
 ## Evidence rules
 
@@ -103,8 +104,8 @@ Do not infer multi-process CV/filesystem safety from SQLite transactions alone.
 
 ## Completion record
 
-The stage report must include the concrete matrix, exact commands/hashes, failed
-attempts, unresolved defects, and unavailable environments. External VM/UI/Linux
-checks may remain `NOT_RUN` when explicitly recorded; a genuine unresolved local
-implementation/acceptance failure must remain a blocker. Update `STATUS.md` only
-after the report, and do not start the next numbered stage automatically.
+The artifact's acceptance record should include the applicable cases, exact
+commands/hashes, failed attempts, unresolved defects, fixture cleanup, and
+unavailable environments. Mark unexecuted cases `NOT_RUN`; retain unresolved
+failures and their scope even if a later retry passes. Keep source checks,
+synthetic harnesses, real installation, UI, and clean-machine results distinct.

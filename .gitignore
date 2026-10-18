@@ -9,11 +9,10 @@ build/
 #qt_bins.txt
 Requirements/
 .vs/
+/CMakeUserPresets.json
 /Tasks/*
-# Keep only the active offline-installer plan versionable; other Tasks content stays ignored.
-!/Tasks/Offline-Installer/
 deploy/
 # Archives, Setup output, extracted payloads, logs and private test/audit evidence.
 /dist/
 # Only the versioned offline Setup is an end-user artifact; retain private build evidence separately.
-/Installer
+/Installer/output/

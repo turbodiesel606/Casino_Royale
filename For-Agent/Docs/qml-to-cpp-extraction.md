@@ -43,7 +43,7 @@ Mock data can stay in QML only for short-lived prototypes. Move it behind C++ mo
 5. Expose only the smallest useful API to QML.
 6. Replace QML business logic with bindings, signal handlers, and calls into the exposed C++ API.
 7. Add or update tests for validation, parsing, algorithms, storage, model roles, and signal behavior.
-8. Run the applicable build and tests from `D:\Project_CV\Root`.
+8. Run the applicable build and tests from the repository root.
 
 Define the extraction boundary and production API from product responsibilities. Do not move behavior, expose internals, add commands or signals, or widen a QML/C++ contract solely to accommodate tests; tests must exercise the production contract that the feature requires.
 

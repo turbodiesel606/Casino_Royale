@@ -16,9 +16,12 @@ The current production workflow supports:
 - Importing local PDF, DOC, and DOCX CV files during Add Job.
 - Persisting jobs, CV metadata, and job technology rows in SQLite.
 - Browsing the CV library and linked application data.
-- Rendering company and contact directory pages over current in-memory directory models.
+- Loading companies from SQLite and publishing companies resolved during job saves.
+- Persisting CV favorites and opening managed CVs through the file-access service.
+- Queuing job saves and CV imports for background workers after controller validation.
 
-Company and contact storage is not implemented yet. Their pages and controller contracts exist, but the production bootstrap currently starts them with empty models.
+The contact directory currently starts with an empty in-memory model; contact
+persistence and standalone directory editing remain incomplete.
 
 ## Tech Stack
 
@@ -83,43 +86,30 @@ The QML module URI is `JobTracker`.
 
 ## Persistence
 
-Jobs and CVs are stored in SQLite.
+Jobs, companies, and CV metadata (including favorites) are stored in SQLite.
 
 The current schema stores:
 
-- CV metadata
+- CV metadata and favorites
+- Companies and job-to-company links
 - Jobs
 - Ordered job technology rows
 
 CV import is handled by the C++ backend. Imported CV files are hashed, deduplicated by SHA-256, copied into managed application storage, and linked to jobs when selected during Add Job.
 
-## Build And Windows Release
+## Build And Installer Documentation
 
-Start with [Building JobTracker](docs/BUILDING.md). The
-[canonical command catalog](For-Agent/Docs/build.md) covers Windows Debug,
-separate test builds, Release staging, offline Setup and Linux Debug/Release
-production/test presets. Both platforms require exactly Qt 6.10.3; shared presets use `QTDIR`,
-and local presets can override `CMAKE_PREFIX_PATH`. Normal builds compile/link;
-development runtime preparation and Release deployment are explicit steps.
+- [Application builds](For-Agent/Docs/build.md): Windows/Linux Debug and Release,
+  local presets, development runtime preparation, and backend test commands.
+- [Backend testing](For-Agent/Docs/testing.md): suite responsibilities and validation scope.
+- [Windows installer](For-Agent/Docs/installer.md): tools, staging, Setup construction,
+  maintenance/data behavior, and distribution review considerations.
+- [Installer testing](For-Agent/Docs/installer-testing.md): standalone suites and
+  artifact-specific acceptance.
 
-[Windows release preparation](docs/WINDOWS-RELEASE.md) describes direct staging
-and one native x64 `Installer/output/JobTracker-Setup-<version>.exe`.
-[Windows installer behavior](docs/WINDOWS-INSTALLER.md) explains CurrentUser
-App-Local runtime, the bundled AllUsers prerequisite, same-scope manual upgrades
-and data preservation. No GitHub archive or installation-time download is needed.
-Switching scope requires manual uninstall with data preserved, then reinstall.
-Linux builds/tests remain available but were not executed on this Windows host;
-Linux packaging is out of scope.
-
-**Publication HOLD:** current candidates are unsigned and unapproved. The
-[current license issues](For-Agent/Task-Report/offline-installer/LICENSE_ISSUES.md)
-preserve the [redistribution hold](packaging/windows/REDISTRIBUTION.md), including
-Lottie licensing, notices/source/replacement material, external-binary provenance
-and owner entitlement. Embedded QML resources are explicitly allowed by the
-offline requirements. Passing local tests
-does not clear these findings or establish GUI/clean-machine acceptance.
-Use the [offline status index](Tasks/Offline-Installer/STATUS.md)
-for dated evidence and remaining work. Nothing is uploaded automatically.
+Both platforms require exactly Qt 6.10.3. Shared presets use `QTDIR`; local
+presets can override `CMAKE_PREFIX_PATH`. Normal builds compile/link;
+development runtime preparation and installer construction are explicit steps.
 
 ## Tests
 
@@ -158,11 +148,8 @@ Important conventions:
 
 Current known limitations include:
 
-- Company and contact storage and mutation workflows are not implemented yet.
-- Company linkage is incomplete at the persistence boundary.
-- CV favorite changes are currently in-memory only.
-- Stored CV opening is not fully implemented.
-- Add Job and CV import run synchronously from the UI invocation.
+- Contact persistence and standalone company/contact mutation workflows are incomplete.
+- Opening CVs depends on a readable managed file and a suitable OS file association.
 - Some selection behavior is still index-based across filtering and sorting.
 - Some QML option lists still use display strings that C++ interprets.
 

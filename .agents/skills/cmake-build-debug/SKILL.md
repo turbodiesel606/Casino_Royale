@@ -9,14 +9,14 @@ Use this skill for JobTracker build, test, and CMake verification work.
 
 ## Rules
 
-1. Work from `D:\Project_CV\Root`.
-2. Use PowerShell.
-3. Read `For-Agent/Docs/build.md` before running build or test commands.
+1. Work from the actual repository root.
+2. Use PowerShell on Windows and a suitable native shell on Linux; PowerShell scripts require PowerShell.
+3. For normal application configuration, builds, development runtime preparation, and backend tests, use `For-Agent/Docs/build.md`. Read its relevant section before execution.
 4. Run build and test commands one at a time.
-5. Do not combine build commands with shell separators, pipes, or chained commands.
-6. Run every `cmake --build ...` command with elevated access from the first attempt. Do not first attempt a build with restricted or sandboxed access.
+5. Do not combine build or test commands with shell separators, pipes, or chained commands.
+6. Run every `cmake --build ...` command with elevated Codex tool access (`sandbox_permissions: require_escalated`) from the first attempt; do not first try restricted/sandboxed access. This is tool-access permission, not a request for Windows administrator elevation or Linux `sudo`.
 7. Wait for the active build process to finish and return its final exit code. If the command runner yields a still-running build, keep waiting on that same process until it completes; do not infer completion from silence or start a duplicate build.
-8. If an external timeout terminates a build, confirm that no build process remains before retrying once with a longer timeout and elevated access.
+8. If an external timeout terminates a build, confirm that no build process remains before retrying once with a longer timeout under the same tool-access policy.
 9. Do not delete build directories, caches, generated files, or deployment artifacts without explicit user approval.
 10. If a command fails, capture the exact command, exit code, and key error excerpt, then diagnose before retrying or expanding scope. Do not continue blindly.
 11. Keep non-test configure, build, and deployment independent of tests. With `JOBTRACKER_BUILD_TESTS=OFF`, do not require test-only packages, create or register test targets, compile test sources, deploy test dependencies, or change the production application artifact.
@@ -32,31 +32,10 @@ Select build and test scope from the final diff and the affected targets.
 
 ## Canonical Commands
 
-Use only the current configure, build, and CTest commands documented in
-`For-Agent/Docs/build.md`. That document owns preset names, exact command forms,
-and the distinction between targeted and broader verification; do not maintain a
-second command catalog in this skill.
-
-## Windows Release Routing
-
-For staging, offline Setup, runtime locks or release handoff, also apply
-`windows-release-packaging` and read `For-Agent/Docs/windows-release.md`.
-For a numbered task, select through `Tasks/Offline-Installer/00_RUN_NEXT.md` and
-`Tasks/Offline-Installer/STATUS.md`; complete only that stage.
-
-`build.md` owns Release/staging/offline-Setup/smoke commands as well as Windows
-and Linux Debug/Release production/test forms. Distinguish recorded runs from
-commands not executed on the current host. Use fresh stage/test paths and
-matching private build JSON; retained paths are evidence, not empty output
-directories. Never infer clean-machine or redistribution approval from a build.
-
-Production Release staging, backend tests and the standalone deployment probe
-remain separate. CurrentUser installer tests require a non-elevated Windows
-token; elevated Codex tool access for CMake builds is not permission to elevate
-those installer tests. Preserve the publication hold in
-`packaging/windows/REDISTRIBUTION.md` and the current issues in
-`For-Agent/Task-Report/offline-installer/LICENSE_ISSUES.md`. Report the selected
-stage under `For-Agent/Task-Report/offline-installer/`, update STATUS last and stop.
+For normal application configuration, builds, development runtime preparation,
+and backend tests, use only the commands in `For-Agent/Docs/build.md`. It owns
+preset names, exact command forms, and targeted versus broader verification;
+do not maintain a second command catalog in this skill.
 
 ## Reporting
 

@@ -13,7 +13,7 @@ Prioritize correctness, maintainability, readability, and cross-platform behavio
 - Project: JobTracker.
 - Stack: C++20 / Qt 6 / QML / CMake / MSVC / Qt VS Tools / Windows / Linux.
 - Target platforms: Windows and Linux.
-- Project root: `D:\Project_CV\Root`.
+- Repository root: the directory containing this `AGENTS.md` and `CMakeLists.txt`.
 - C++ entry point: `src/main.cpp`.
 - QML entry point: `qml/Main.qml`.
 
@@ -67,20 +67,6 @@ Use `For-Agent/` as the Codex-facing project knowledge area:
 
 Project skills live under `.agents/skills/`.
 
-For the Windows offline-installer refactor, enter through
-`Tasks/Offline-Installer/00_RUN_NEXT.md` and select exactly one stage using
-`Tasks/Offline-Installer/STATUS.md`. Save its report in
-`For-Agent/Task-Report/offline-installer/`, update that status index last, and stop.
-This 11-stage plan and its approved requirements are the authority for this
-refactor. The retired 16-stage working tasks and reports were removed in stage
-10; necessary evidence and unresolved findings remain under
-`For-Agent/Task-Report/offline-installer/`. Git preserves the older history.
-Apply `windows-release-packaging` for staging, archive, installer, or release
-handoff work. `For-Agent/Docs/build.md` owns executable commands;
-`For-Agent/Docs/windows-release.md` describes the existing implementation and links to
-the redistribution hold. A completed stage or successful build does not approve
-publication; preserve the blockers in `packaging/windows/REDISTRIBUTION.md`.
-
 Choose the narrowest matching workflow:
 
 | Task | Skill | Start And Boundary |
@@ -94,8 +80,7 @@ Choose the narrowest matching workflow:
 | Bounded QML/UI diff review | `qml-code-review` | Start from the final diff and expand only through affected components, backend contracts, registration, or concrete UI risks. |
 | Whole-backend architecture review | `cpp-codebase-review` | Deliberately inventory the C++ codebase to assess architecture drift, responsibility overlap, and cross-module duplication. |
 | Whole-QML architecture review | `qml-codebase-review` | Deliberately inventory the QML surface to assess component boundaries, durable-logic leakage, and broad duplication. |
-| Configure, build, test, or diagnose CMake | `cmake-build-debug` | Read `For-Agent/Docs/build.md` and use only its documented commands. |
-| Windows staging, archive, installer, or release handoff | `windows-release-packaging` | Follow the selected release stage, `For-Agent/Docs/windows-release.md`, and the canonical commands in `build.md`; preserve the publication hold and evidence limits. |
+| Configure, build, test, or diagnose CMake | `cmake-build-debug` | Use `For-Agent/Docs/build.md` for normal application configuration, builds, development runtime preparation, and backend tests. |
 | Teach the complete backend progressively | `learn-cpp-codebase` | Use the phased read-only learning workflow rather than ordinary task research. |
 | Incremental final implementation validation | `test-and-review` | Start from the focused final diff, reuse established context, and expand only for a concrete new dependency, changed assumption, result, or risk. |
 
@@ -111,41 +96,15 @@ codebase review. `cpp_reviewer` remains the strongest high-reasoning reviewer.
 Select its bounded or codebase skill from the requested scope before gathering
 context.
 
-## Implementation And Final Verification Workflow
+## Implementation And Final Verification
 
-For an ordinary bounded implementation, use one continuous workflow:
+Inspect the smallest relevant source surface and implement the bounded change.
+Apply `.agents/skills/test-and-review/SKILL.md` for incremental final validation,
+independent-review criteria, documentation synchronization, and the completion
+report. Reuse established context throughout the task.
 
-1. Apply the applicable instructions and read only the relevant documentation.
-2. Inspect the smallest relevant source surface and implement the change.
-3. Inspect the final diff and changed files.
-4. Build the smallest affected production target that provides meaningful compile and link confidence.
-5. Run the tests directly associated with the changed subsystem when tests are required.
-6. Perform one documentation-impact and consistency check after the implementation is stable.
-
-Final verification is incremental. Start from the final diff and the context already established during implementation. Do not begin a fresh research phase merely because implementation ended, reread architecture documentation that is still current for the task, or retrace dependencies already understood. Expand context or verification only when the final diff introduces a new dependency, an assumption changed, an unexpected build or test result occurs, a new risk becomes visible, or a concrete verification question requires broader evidence.
-
-Do not invoke a full independent reviewer merely because implementation completed. Use one when concurrency or synchronization, worker/runtime behavior, ownership or lifetime, storage or transaction semantics, architecture boundaries, shared infrastructure, broad multi-subsystem behavior, significant public or internal contracts, a complex refactor, merge/release readiness, or an explicit user request makes independent review materially useful.
-
-## Review Artifacts
-
-Save durable review artifacts under `For-Agent/Review/`.
-
-When creating a durable review artifact, include the creation date and time in the filename using `YYYY-MM-DD-HHMM`, and put a `Created: YYYY-MM-DD HH:MM local time` line at the beginning of the file immediately after the title.
-
-Before repeating a broad review, inventory `For-Agent/Review/` by filename and
-metadata rather than opening every artifact. Read only the newest artifacts whose
-scope overlaps the current review, starting with the newest broad artifact and
-then any newer narrow artifact. Use them as context, never as proof, and verify
-current facts against the actual source, instructions, and diff. Do not reread an
-artifact in the same task unless a changed assumption or concrete finding makes
-it necessary. Determine recency from the filename timestamp first; for legacy
-date-only artifacts, inspect the beginning of the file for a `Created:`
-timestamp, and if no time exists, treat the artifact as the earliest one for
-that date.
-
-Learning runs under `For-Human/Architecture/` use a compact cumulative index.
-Read the current phase, that index, and only the prior detailed phase artifacts
-relevant to the current lesson; live source remains authoritative.
+Artifact naming, timestamps, selective reuse, and learning indexes are owned by
+`For-Agent/Docs/artifacts.md`; detailed lessons follow `learn-cpp-codebase`.
 
 ## Core Rules
 
@@ -154,9 +113,9 @@ relevant to the current lesson; live source remains authoritative.
 3. Do not break existing behavior unless the task explicitly requires it.
 4. Preserve cross-platform compatibility for Windows and Linux.
 5. Prefer simple, explicit, maintainable solutions over clever abstractions.
-6. Before introducing a new class, function, method, service, model, component, helper, or domain entity, inspect the relevant existing code. Reuse or extend an existing implementation when it already satisfies the requirement. Create a new entity only when reuse would reduce clarity, violate responsibility or ownership boundaries, or conflict with the documented architecture.
+6. Before introducing a new class, function, method, service, model, component, helper, or domain entity, inspect the relevant existing code. Reuse a fully suitable implementation directly; extend a partially suitable one through an overload, template, or specialization when appropriate. Create a new entity only when existing implementations are unsuitable for the responsibility, reuse would reduce clarity, or extension would violate ownership boundaries or documented architecture.
 7. Do not introduce temporary hacks, hidden fragile behavior, or unrelated refactoring.
-8. If something cannot be verified automatically, state that clearly in the final response.
+8. Preserve unrelated user changes and personal data. Do not delete build directories, caches, generated files, or artifacts without explicit user approval.
 
 ## Git Rules
 
@@ -209,7 +168,6 @@ Avoid god classes, god files, and monolithic QML files. Decompose the codebase i
 ## C++ / Qt Rules
 
 - Consolidate C++ functions, classes, and methods that duplicate the same logic, responsibility, and invariants into one canonical function, class, or method. Use overloads, inheritance (without virtuals), templates, and template specializations when they are necessary and technically appropriate to expose the canonical implementation without duplicating it.
-- Use existing C++ classes, functions, and methods when solving a problem. Reuse a fully suitable entity directly. If an entity is only partially suitable, extend it through an overload, template, or specialization when appropriate. Create a new entity only when the existing entities are not suitable for the responsibility.
 - Follow established modern C++ best practices for correctness, type safety, ownership, lifetime and resource management, exception safety, clarity, maintainability, portability, and testability.
 - Use modern C++20 where supported by the current compiler and where it does not reduce portability.
 - Perform computations at compile time whenever possible; use `constexpr`, `consteval`, and `if constexpr` as appropriate while preserving correctness and Windows/Linux portability.
@@ -233,50 +191,9 @@ Avoid god classes, god files, and monolithic QML files. Decompose the codebase i
 
 ## Build And Verification
 
-Use only the commands documented in `For-Agent/Docs/build.md`. Apply
-`.agents/skills/cmake-build-debug/SKILL.md` for build, test, and CMake execution
-or diagnosis.
-
-Always run project commands from `D:\Project_CV\Root` in PowerShell.
-
-Run commands one at a time. Do not combine build or test commands with `;`, `&&`, pipes, or other shell separators.
-
-Always run every `cmake --build ...` command with elevated access from the first attempt. Do not first attempt a build with restricted or sandboxed access.
-
-Wait for each build process to finish and return its final exit code before continuing or reporting its status. If the command runner yields a still-running build, keep waiting on that same process until it completes. Do not treat missing output as completion, and do not start a duplicate build while the original process is still running.
-
-Do not delete build directories, caches, generated files, or artifacts without explicit user approval.
-
-After code, QML, CMake, resource, storage, or runtime-behavior changes, build the smallest affected production target that gives meaningful compile and link confidence unless verification is impossible. Expand to a broader build when shared infrastructure, cross-target APIs, build-system behavior, several modules, merge/release readiness, or a failure indicates broader impact. Do not repeat the same successful build without a concrete reason.
-
-Run the tests directly associated with the changed subsystem when the change affects business logic, storage, parsing, algorithms, or risky behavior. Use the broader relevant test preset when schema or migrations, storage semantics, worker/runtime or concurrency behavior, shared infrastructure, several subsystems, cross-module contracts, unexpected targeted-test failures, or merge/release readiness requires it. Do not leave risky behavior unverified merely to reduce execution time or usage.
-
-Do not claim that code works unless it was verified.
-
-## Documentation Synchronization
-
-After the implementation is stable, inspect the final diff and perform one documentation-impact check for changes to architecture, code, build configuration, testing workflow, or runtime behavior. Inspect only the documentation directly governing the final changed behavior and contracts; do not scan the whole `For-Agent/Docs/` tree for an ordinary implementation task. Update only affected documents and do not repeat the check unless a later edit changes the impact. If no documentation is affected, state that the focused check found no required update.
-
-## Definition Of Done
-
-A task is complete when:
-
-- The change stays within scope.
-- Modified files are listed.
-- The solution is briefly explained.
-- Build/test status is reported, or the reason verification was impossible is stated.
-- Relevant `For-Agent/Docs/` guidance was updated, or its review confirmed that no update was needed.
-- Manual checks are listed when relevant.
-- Risks, limitations, and unverified areas are stated.
-
-## Final Response Format
-
-Use this format after making changes:
-
-1. What did I do?
-2. Which files changed?
-3. Why this solution?
-4. What did I verify?
-5. What should be checked manually?
-6. Risks, limitations, and unverified areas.
-7. Improvement ideas, if relevant.
+For normal application configuration, builds, development runtime preparation,
+and backend tests, use `For-Agent/Docs/build.md`.
+Apply `.agents/skills/cmake-build-debug/SKILL.md` for build/test execution and
+CMake diagnosis; it owns command sequencing, Codex tool permissions, process
+completion, and failure handling. Run from the actual repository root using
+PowerShell on Windows or a suitable shell on Linux.
