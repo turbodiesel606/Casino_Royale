@@ -1,18 +1,8 @@
-#.agents/
-#.codex/
-For-Agent/Review/
-For-Human/
 build/
-#.gitignore
-#AGENTS.md
-#BuildCommands.txt
-#qt_bins.txt
-Requirements/
 .vs/
-/CMakeUserPresets.json
-/Tasks/*
-deploy/
-# Archives, Setup output, extracted payloads, logs and private test/audit evidence.
-/dist/
-# Only the versioned offline Setup is an end-user artifact; retain private build evidence separately.
+For-Agent/Review/
+For-Agent/Task-Report/
+For-Human/
+Requirements/
+Tasks/
 /Installer/output/

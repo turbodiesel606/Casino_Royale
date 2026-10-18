@@ -6,8 +6,9 @@ output or treating old conclusions as current evidence.
 ## Artifact Location
 
 - `For-Agent/Review/`: code review files and review findings.
-- `For-Human/Architecture/`: detailed `learn-cpp-codebase` phase artifacts and
-  each learning run's compact cumulative index.
+- `For-Human/Architecture/`: detailed full-course `learn-cpp-codebase` phase
+  artifacts and each course run's compact cumulative index, plus bounded lessons
+  when saving them is requested or an existing saved lesson is continued.
 
 Research findings are normally returned to the active task. If the user requests
 a durable research artifact or provides one from another location, apply the
@@ -34,6 +35,12 @@ authoritative. Artifacts are context and navigation aids, not proof.
 
 ## Creating Review Artifacts
 
+Ordinary and delegated reviews return findings, evidence, unresolved questions,
+and residual verification risk to the active task. A saved report, filename,
+creation timestamp, and artifact metadata are required only when the task calls
+for a durable review artifact. The lead reconciles and writes that final artifact.
+The explicitly invoked `review-code-for-human` workflow retains its detailed output.
+
 When creating a durable review artifact:
 
 1. Include the artifact creation date and time in the filename.
@@ -59,12 +66,19 @@ Do not treat an old artifact as current proof. Artifacts prevent redundant disco
 
 ## Learning Indexes
 
-Each `learn-cpp-codebase` run keeps its detailed phase artifacts and one compact
-same-run cumulative index. The index records phase status, architecture and
-contract summaries, subsystem and file pointers, ownership and threading rules,
+Each full-course `learn-cpp-codebase` run keeps all eight detailed phase artifacts
+as phases are completed and one compact same-run cumulative index. The index
+records phase status, architecture and contract summaries, subsystem and file
+pointers, ownership and threading rules,
 unresolved questions, stale assumptions, and links to the detailed artifacts.
 
 For a new or resumed phase, read the current phase artifact when present, then
 the cumulative index, then only the detailed prior phase sections relevant to the
 lesson or newly discovered source evidence. Update the index after every phase or
 Phase 4 domain lesson. Do not delete or collapse the detailed phase artifacts.
+
+A standalone bounded lesson completes its requested objective without requiring
+the full course or a course index. Save it only when requested or when continuing
+an established saved lesson, following the skill's bounded-lesson format. Load
+only that lesson's relevant state and necessary prior context. Ordinary code
+explanations create neither course artifacts nor a cumulative learning index.

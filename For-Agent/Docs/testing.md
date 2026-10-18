@@ -41,11 +41,31 @@ deploy the production application or create a Release staging directory.
 For normal application configuration, builds, development runtime preparation,
 and backend tests, use the commands in `For-Agent/Docs/build.md`.
 
-If CTest reports that no tests were found, report that state clearly instead of treating it as a test failure.
+## Test Outcomes
+
+Report the selected preset/configuration/filter, the number of tests actually
+executed, and one of these outcomes:
+
+- `passed`: the selected tests ran and all passed.
+- `failed`: a CTest run reported failures; distinguish assertion failures from
+  crashes, timeouts, or test-start/runtime errors, and count only tests that
+  actually executed.
+- `not run`: tests were not executed; state why and what remains unverified.
+- `no matching tests`: selection found zero tests. This is neither a passing
+  suite nor an executed failing test, even if CTest exits successfully.
+
+If tests were expected but none matched, verification is incomplete. Inspect the
+selected preset, test-enabled configuration, CMake registration, and filter before
+claiming success. Report configuration or build failures separately from test
+assertion failures; tests blocked by those failures are `not run`.
 
 ## Test Scope
 
-Choose test scope from the final diff. For an ordinary bounded change, build and run the test target or CTest suite directly associated with the changed subsystem. Use the targeted commands documented in `For-Agent/Docs/build.md`.
+Choose test scope from the final diff and affected contracts. For an ordinary
+bounded change, start with the directly associated targets or CTest selections
+from the map below, using the canonical command forms in `build.md`. Substitute
+verified preset names, target names, and filters as appropriate; the examples
+are not an exhaustive list of permitted targets.
 
 Use the full relevant test preset when schema or migrations, storage semantics,
 worker/runtime or concurrency behavior, shared infrastructure, several
@@ -73,6 +93,52 @@ For storage or file-system behavior, use temporary test data and avoid depending
 
 Name tests by the behavior they cover, and keep them registered through the project CMake test setup.
 
+## Regression-Test Quality
+
+- Verify an observable contract or meaningful invariant with a test capable of
+  detecting the relevant defect. Avoid tests that mirror implementation steps,
+  assert incidental internals, or pass without exercising the changed behavior.
+- For a bug fix, demonstrate failure before the fix and success afterward when
+  feasible and proportionate. If that demonstration is unavailable, state the
+  limitation; do not manufacture ceremonial tests for every small task.
+- Cover important failure and boundary cases when the changed contract and risk
+  justify them. Reuse suitable existing coverage instead of adding redundant tests.
+- For concurrency, lifetime, cancellation, and shutdown, verify ordering,
+  completion, ownership, and termination through observable synchronization and
+  outcomes. Bounded timeouts may prevent hangs; arbitrary waits alone do not
+  establish the contract.
+- Tests consume production contracts. Test quality never justifies changing
+  production APIs, access control, ownership, threading, or architecture solely
+  to accommodate a test.
+
+## Subsystem-To-Test Map
+
+These target and CTest names match the root `CMakeLists.txt`; sources are relative
+to `tests/`. This is an initial selection aid, not a claim that one suite covers
+every change in a subsystem. Inspect relevant test cases and expand under Test
+Scope above. Static test-source inspection does not establish a passing run.
+
+| Subsystem or contract | Build target / CTest name | Test source |
+| --- | --- | --- |
+| Shared filtering, sorting, job validation | `JobTrackerCommonTests` | `common/FilterAndValidationTest.cpp` |
+| Relation proxy and source-model mutations | `JobTrackerRelationProxyTests` | `common/RelationFilterProxyModelTest.cpp` |
+| Stable-ID and bulk selection | `JobTrackerSelectionTrackerTests` | `common/StableIdSelectionTrackerTest.cpp` |
+| FIFO, cancellation, worker lifecycle and shutdown | `JobTrackerAsyncInfrastructureTests` | `common/AsyncInfrastructureTest.cpp` |
+| Jobs controller, roles, selection, preflight, updates and removal publication | `JobTrackerJobsTests` | `jobs/JobApplicationsControllerTest.cpp` |
+| CV controller, selection, import queue and archive/removal publication | `JobTrackerCvTests` | `cvs/CvLibraryControllerTest.cpp` |
+| Dashboard metrics, funnel, recent rows and refresh | `JobTrackerDashboardTests` | `dashboard/DashboardControllerTest.cpp` |
+| Company/contact models, selection, linked rows and updates | `JobTrackerDirectoryTests` | `directory/DirectoryControllerTest.cpp` |
+| Schema initialization, upgrades, rollback and connection cleanup | `JobTrackerMigrationTests` | `storage/MigrationTest.cpp` |
+| Repository persistence, SQL errors and transactions | `JobTrackerRepositoryTests` | `storage/RepositoryTest.cpp` |
+| CV buffered import, identity, files, cancellation and recovery | `JobTrackerCvImportTests` | `storage/CvFileStoreImportTest.cpp` |
+| CV mutex waiter/cancellation contract | `JobTrackerCvLockTests` | `cvs/CvLockWrapperTest.cpp` |
+| Add Job validation and transactional orchestration | `JobTrackerAddJobTests` | `storage/AddJobServiceTest.cpp` |
+| Update Job metadata, company and replacement-CV transactions | `JobTrackerUpdateJobTests` | `storage/UpdateJobServiceTest.cpp` |
+| Typed job/CV removal, archive/restore and worker cleanup | `JobTrackerRemovalTests` | `storage/DataRemovalServiceTest.cpp` |
+| Mutation admission, reservations and retry notices | `JobTrackerMutationGateTests` | `maintenance/StorageMutationGateTest.cpp` |
+| Offscreen QML mutation feedback and runtime warnings | `JobTrackerMutationFeedbackTests` | `maintenance/StorageMutationFeedbackTest.cpp` |
+| Controller/worker/storage integration, recovery and shutdown | `JobTrackerIntegrationTests` | `storage/EndToEndIntegrationTest.cpp` |
+
 ## Test Suite Responsibilities
 
 - `JobTrackerCommonTests` covers shared filtering, limited sorting, and canonical job validation.
@@ -82,7 +148,8 @@ Name tests by the behavior they cover, and keep them registered through the proj
   activation, cancellation, completion suppression, stale-result correlation,
   drained state, lazy worker-executor creation, initialization failure, busy and
   shutdown state, worker-thread context destruction, and quit/wait cleanup.
-- Jobs, CV, dashboard, and directory controller suites retain QML-facing
+- `JobTrackerJobsTests`, `JobTrackerCvTests`, `JobTrackerDashboardTests`, and
+  `JobTrackerDirectoryTests` retain QML-facing
   contracts and controller-specific side effects. The jobs controller suite
   verifies synchronous canonical preflight, immediate complete field errors,
   no queue or worker state for invalid input, first-valid operation-ID

@@ -31,22 +31,24 @@ Use qt-qml-ui-task when implementation also changes QML files.
 
 ## C++ Implementation Rules
 
-1. Consolidate C++ functions, classes, and methods that duplicate the same logic, responsibility, and invariants into one canonical function, class, or method. Use overloads, inheritance (without virtuals), templates, and template specializations when they are necessary and technically appropriate to expose the canonical implementation without duplicating it.
-2. Use existing C++ classes, functions, and methods when solving a problem. Reuse a fully suitable entity directly. If an entity is only partially suitable, extend it through an overload, override, template, or specialization when appropriate. Create a new entity only when the existing entities are not suitable for the responsibility.
-3. Follow established modern C++ best practices for correctness, type safety, ownership, lifetime and resource management, exception safety, clarity, maintainability, portability, and testability. Apply the concrete conventions in `AGENTS.md`, the selected architecture domain documents, and `For-Agent/Docs/coding-style.md`.
-4. Keep the test dependency one-way. Do not add or widen production APIs, expose internals, weaken access control, add test-only hooks or compile definitions, or alter production ownership, lifetime, threading, behavior, or architecture solely for tests. Keep fixtures, mocks, fakes, and helpers under `tests/`.
+1. Apply `For-Agent/Docs/coding-style.md` for canonical reuse/generalization,
+   C++ conventions, template placement, compile-time decisions, and comments.
+   Inspect suitable existing entities before adding an owner, and preserve the
+   contracts in the affected architecture documents.
+2. Keep the test dependency one-way. Do not add or widen production APIs, expose internals, weaken access control, add test-only hooks or compile definitions, or alter production ownership, lifetime, threading, behavior, or architecture solely for tests. Keep fixtures, mocks, fakes, and helpers under `tests/`.
 
 ## Workflow
 
 1. Inspect `git status` and existing diffs for files in scope. Identify and preserve pre-existing changes.
 2. Start from the smallest affected model, controller, service, repository, storage class, utility, or startup surface. Use `cpp-code-research` first when ownership, data flow, or implementation direction is unclear.
 3. Define ownership, lifetime, public and QML-facing contracts, error behavior, thread boundaries, and storage or transaction boundaries from production requirements, then identify the tests required for those contracts.
-4. Make the smallest sufficient change. Follow the architecture and C++ style guidance, preserve unrelated work, and do not change comments for logic that did not change.
+4. Make the smallest sufficient change. Preserve unrelated work and apply the canonical comment policy: use `// Codex Comment:` for added ordinary explanatory comments, preserve unmarked comments with unchanged code, update associated comments when code changes, and correct stale marked comments in scope. Comments never restrict necessary authorized code changes.
 5. Update `CMakeLists.txt` source and test registration when C++ files or test targets are added, removed, or renamed.
-6. Add or update tests for changed business logic, storage, parsing, algorithms, Qt model behavior, signals, or other high-risk contracts.
-7. After implementation is stable, finish with one incremental final verification pass: inspect the final diff, use `cmake-build-debug` for the smallest meaningful production build and directly associated tests, then perform one documentation-impact check. Apply `test-and-review` as this integrated final checklist, not as a separate full research or architecture-review phase. Reuse established context and broaden the build, tests, documentation, or independent review only under the risk and evidence gates in `AGENTS.md`.
+6. Use `For-Agent/Docs/testing.md` to select meaningful regression coverage for changed business logic, storage, parsing, algorithms, Qt model behavior, signals, or high-risk contracts. Start from its verified subsystem-to-test map and expand for affected contracts and risk.
+7. After implementation is stable, complete one incremental `test-and-review` pass: inspect the final diff, execute the required build/tests through `cmake-build-debug`, and check documentation impact. Reuse established context. `test-and-review` owns integrated verification and independent-review criteria; `testing.md` owns test-scope expansion.
 
-Treat `For-Agent/Docs/build.md` as the source of truth for build and test commands. Do not substitute undocumented commands.
+Treat `For-Agent/Docs/build.md` as the command-form catalog. Substitute verified
+presets, targets, and CTest selections as described there; do not invent commands.
 
 ## Boundaries
 

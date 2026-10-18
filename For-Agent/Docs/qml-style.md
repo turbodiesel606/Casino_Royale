@@ -89,12 +89,24 @@ accent outline or selection bar around selected data items.
 
 After QML changes, build the smallest affected production target that provides
 meaningful compile and link confidence. Broaden verification only under the
-risk gates in `AGENTS.md` and use the commands in `For-Agent/Docs/build.md`.
+criteria in `.agents/skills/test-and-review/SKILL.md` and
+`For-Agent/Docs/testing.md`; use `For-Agent/Docs/build.md` for commands.
 
-If visual verification is not possible, list concrete manual checks:
+When an available suitable environment supports relevant, proportionate runtime
+or visual inspection, use it to exercise the affected interaction and inspect the
+changed visual result. Check relevant states, transitions, navigation, bindings,
+focus/layout, and QML runtime warnings. Keep the checks on the changed surface
+unless evidence or risk requires broader coverage. A successful build does not
+prove the interaction or appearance was verified.
 
-- App starts.
-- Target page opens.
-- Navigation still works.
-- Text fits at supported window sizes.
-- No obvious overlapping UI.
+When runtime or visual inspection is unavailable, state exactly what remains
+unverified and give a concrete manual checklist for the affected behavior: the
+screen and action, expected result, relevant empty/loading/error/disabled states,
+transitions and navigation, and supported window sizes where fitting or overlap
+matters. Distinguish observed checks from those still needed; a full-application
+visual tour is not mandatory for every edit.
+
+For ordinary explanatory QML comments, apply the canonical
+[comment policy](coding-style.md#explanatory-comments-in-c-and-qml), including
+`// Codex Comment:`, preservation of unmarked comments with unchanged code, and
+associated-comment updates for authorized code changes.

@@ -24,6 +24,22 @@ test targets, compile test sources, deploy test dependencies, or change the
 production artifact to support tests. Keep all test-only setup in the enabled
 configuration.
 
+## Canonical Command Forms And Substitutions
+
+The command catalog below defines supported forms, not an exhaustive allowlist
+of example target names. Substitute a preset verified in `CMakePresets.json` or
+`CMakeUserPresets.json`, a build target verified in `CMakeLists.txt`, and a CTest
+selection matching registered tests. Use the [subsystem-to-test map](testing.md#subsystem-to-test-map)
+as an initial aid, then inspect the relevant contracts and tests.
+
+Keep production/test presets, host conditions, Qt kit, generator, and build/test
+configuration consistent. Windows multi-config presets select Debug or Release;
+Linux presets use the matching single-config build type. Targeted Linux or
+Release checks may use the same `--target` and CTest `-R` forms as the Debug
+examples with verified names. Do not invent targets, presets, scripts, or options.
+A zero-test selection is `no matching tests`, not a passing suite; apply the
+[outcome rules](testing.md#test-outcomes).
+
 ## Windows Build
 
 Shared presets contain no machine-specific SDK path. They read `QTDIR` as the
@@ -240,13 +256,11 @@ ctest --list-presets
 
 ## Validation Policy
 
-Select verification scope from the final diff. For a bounded code, QML, resource, storage, or runtime-behavior change, use the targeted `JobTrackerApp` command above to build the smallest affected production target that provides meaningful compile and link confidence.
-
-Expand to the full production preset build when shared infrastructure, cross-target APIs, build-system changes, several affected modules, merge/release readiness, or a diagnosed failure requires broader coverage.
-
-When tests are required, use the targeted test commands above to build and run the directly associated test target or CTest suite by default.
-
-Use the full test-enabled build and registered test set when schema or migrations, storage semantics, worker/runtime or concurrency behavior, shared infrastructure, several subsystems, cross-module contracts, unexpected targeted-test failures, or merge/release readiness requires broader verification.
+Use [test-and-review](../../.agents/skills/test-and-review/SKILL.md) for integrated
+verification and production-build expansion criteria. Use [testing.md](testing.md)
+for test selection, quality, and expansion. Apply the appropriate targeted or full
+preset command forms above to that scope; neither compile/link success nor a
+listed test establishes runtime, UI, or executed-test verification.
 
 Do not repeat an unchanged successful configure, build, or test run without a concrete reason. Reconfigure when the build tree is missing or stale, or when CMake, presets, source registration, or build options changed.
 

@@ -23,24 +23,32 @@ Use this skill for JobTracker build, test, and CMake verification work.
 
 ## Scope Selection
 
-Select build and test scope from the final diff and the affected targets.
-
-- For a bounded production change, build the smallest affected production target that gives meaningful compile and link confidence. The current application target is `JobTrackerApp`.
-- Build the complete relevant preset when shared infrastructure, cross-target APIs, build-system changes, several affected modules, merge/release readiness, or a diagnosed failure requires broader coverage.
-- Build and run the directly associated test target or CTest suite by default. Use the full relevant test preset for schema or migrations, storage semantics, worker/runtime or concurrency behavior, shared infrastructure, several subsystems, cross-module contracts, unexpected targeted-test failures, or merge/release readiness.
-- Do not repeat an unchanged successful configure, build, or test run without a concrete reason. A source or configuration edit after the run, a changed verification scope, or diagnosis of a failure is a concrete reason.
+Select scope from the final diff and affected contracts using `test-and-review`
+for production-build and independent-review criteria, and
+`For-Agent/Docs/testing.md` for test selection and expansion. Its subsystem map
+provides actual registered suite names, including the controller suites; it is
+an initial aid, not proof that one target is sufficient. Use
+`For-Agent/Docs/build.md` for configuration freshness and command forms. Do not
+repeat successful unchanged checks without new evidence, edits, or risk.
 
 ## Canonical Commands
 
 For normal application configuration, builds, development runtime preparation,
-and backend tests, use only the commands in `For-Agent/Docs/build.md`. It owns
-preset names, exact command forms, and targeted versus broader verification;
-do not maintain a second command catalog in this skill.
+and backend tests, use the canonical forms in `For-Agent/Docs/build.md`. Verified
+preset names, build targets, and CTest filters may be substituted for its examples
+as described there. Do not invent names or options, or maintain a second command
+catalog in this skill.
 
 ## Reporting
 
 After each build command, report the command and status: `success` or `error`.
 
-For `ctest`, report the final result: `passed` or `failed`.
+For `ctest`, report `passed`, `failed`, `not run`, or `no matching tests` under
+`For-Agent/Docs/testing.md`. State the preset/configuration/filter, how many tests
+actually ran, and what remains unverified. A successful process exit with zero
+matching tests is not a passing suite. When tests were expected, inspect the
+preset, test registration, configuration, and filter before claiming success.
+Do not describe zero matches as an executed failing test. Keep configure/build
+failures and test-start errors distinct from test assertion failures.
 
 For workflow-only or documentation-only changes, do not run a C++ build unless build behavior changed.

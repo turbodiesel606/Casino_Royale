@@ -1,13 +1,19 @@
 ---
 name: qml-codebase-review
-description: Review the complete JobTracker QML architecture for global component boundaries, navigation and reachability, QML-to-C++ contracts, durable business-logic leakage, repeated UI structures, registration, and manual visual risk. Use only for an explicitly requested whole-QML or codebase-wide UI architecture review, not for a bounded diff.
+description: Review the complete JobTracker QML architecture for global component boundaries, navigation and reachability, backend contracts, durable business-logic leakage, repeated UI structures, registration, and visual risk. Use for an explicitly requested whole-QML audit or an assigned partition of it, not a bounded diff or one existing component.
 ---
 
 # QML Codebase Review
 
 Use this deliberate broad mode only when the requested scope is the complete QML
 surface or a codebase-wide UI architecture, decomposition, responsibility, or
-duplication assessment. Use `qml-code-review` for ordinary changed-diff review.
+duplication assessment. Use `qml-code-review` for a bounded diff or existing component.
+
+For a delegated partition of a broad audit, apply the inventory and scrutiny below
+to the assigned portion and necessary boundary contracts. Reuse established
+navigation; independently verify critical code and assumptions. Report uncovered
+boundaries to the lead, who owns overall coverage, overlaps, gaps, and reconciliation.
+Each worker need not repeat the whole-QML inventory or unrelated navigation mapping.
 
 ## Context And Artifact Selection
 
@@ -22,7 +28,7 @@ duplication assessment. Use `qml-code-review` for ordinary changed-diff review.
    narrow artifact that materially updates it.
 
 Artifacts are navigation aids, not evidence. Verify all current claims against
-live QML, exposed C++ contracts, CMake registration, and the current diff.
+live QML, exposed C++ contracts, CMake registration, and any relevant current diff.
 
 ## Deliberate QML Inventory
 

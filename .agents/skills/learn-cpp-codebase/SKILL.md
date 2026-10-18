@@ -1,6 +1,6 @@
 ---
 name: learn-cpp-codebase
-description: Teach the JobTracker C++ codebase progressively from scratch and save a human-facing result after every phase. Use when Codex needs to onboard a learner, explain the complete backend architecture, provide a guided codebase tour or study plan, trace end-to-end workflows, explain Qt and QML-facing contracts, or connect C++ modules with storage and tests.
+description: Provide requested structured JobTracker C++ learning through a complete backend tour or progressive course, an explicitly requested bounded lesson, or continuation of an existing learning run. Preserve all phases and saved artifacts for a full course. Ordinary questions about one function, class, Qt mechanism, or code path use cpp-code-research instead.
 ---
 
 # Learn the JobTracker C++ Codebase
@@ -10,16 +10,22 @@ Teach the codebase as a connected system. Build the learner's mental model progr
 ## Context Selection
 
 1. Apply `AGENTS.md`.
-2. For a complete tour, read `For-Agent/Docs/architecture/overview.md` first and
+2. Select full course, bounded lesson, or continuation from the user's request.
+   An ordinary code explanation does not activate this skill or create artifacts.
+3. For a complete tour, read `For-Agent/Docs/architecture/overview.md` first and
    load each domain document only when its phase begins. Do not preload the whole
    architecture directory before Phase 1.
-3. For a narrower lesson, go directly to the matching architecture domain
-   document and omit unrelated phase documents.
-4. Read `For-Agent/Docs/coding-style.md` when teaching implementation
+4. For a bounded lesson, start at its target code and load only the matching
+   domain guidance needed to explain it. Omit unrelated phases and inventories.
+   For continuation, load the relevant existing lesson state; use the course
+   index only when continuing a course, then the necessary prior sections.
+5. Read `For-Agent/Docs/coding-style.md` when teaching implementation
    conventions or interpreting a style-dependent design choice.
-5. Read `For-Agent/Docs/testing.md` when the lesson reaches tests or Phase 8.
-6. Read `For-Agent/Docs/build.md` only when the user requests current build or
+6. Read `For-Agent/Docs/testing.md` when the lesson reaches tests or Phase 8.
+7. Read `For-Agent/Docs/build.md` only when the user requests current build or
    test verification.
+8. Read `For-Agent/Docs/artifacts.md` when creating or resuming saved lessons
+   or course phases.
 
 Do not reread an architecture document already established in the current
 learning run unless later live-source evidence invalidates it.
@@ -35,7 +41,21 @@ learning run unless later live-source evidence invalidates it.
 - Explain one coherent subsystem or execution path at a time. Do not dump the entire source inventory without interpretation.
 - Preserve the phase order below for a complete from-scratch tour. For a narrower request, use only the relevant phases while retaining their internal order.
 - End each phase with a concise recap, recommended files to read, and optional comprehension questions.
-- Remain read-only with respect to production code. Create the required learning artifacts, but do not implement, refactor, or fix code unless the user explicitly changes the task scope.
+- Remain read-only with respect to production code. Create artifacts required by the selected delivery mode, but do not implement, refactor, or fix code unless the user explicitly changes the task scope.
+
+## Bounded Lessons
+
+Complete the requested learning objective using the relevant concepts and code
+paths from the course below. Explain prerequisites only as needed, provide source
+anchors, a recap, and optional comprehension questions. Do not require unrelated
+phases, a complete inventory, or full-course synthesis.
+
+A standalone bounded lesson is delivered in chat unless the user requests a
+saved lesson or is continuing an established saved lesson. In that case, preserve
+the lesson's existing format and state, or use
+`For-Human/Architecture/cpp-lesson-YYYY-MM-DD-HHMM-topic.md` with creation metadata,
+scope, explanation, source anchors, status, and remaining questions. A standalone
+lesson does not require a cumulative course index.
 
 ## Phase 1: Project Inventory
 
@@ -162,7 +182,9 @@ Use tests as executable documentation.
 
 ## Phase Artifact Rules
 
-Treat the saved artifact as part of each phase's definition of done, not as an optional final export.
+These rules apply to full-course phases and continuation of those phases. Treat
+the saved artifact as part of each course phase's definition of done, not as an
+optional final export. Standalone bounded lessons follow Bounded Lessons above.
 
 1. Save every phase result directly under `For-Human/Architecture/`.
 2. Use one Markdown file per phase with these names:
@@ -209,14 +231,24 @@ Treat the saved artifact as part of each phase's definition of done, not as an o
 
 ## Delivery Modes
 
-- For interactive learning, teach one phase or domain per response and let the learner choose when to continue or go deeper.
-- For a single complete report, cover every phase in order but keep file inventories compact and emphasize relationships and workflows.
-- In every delivery mode, apply the phase artifact rules and save each phase independently.
+- For an interactive full course, teach one phase or domain per response and let
+  the learner choose when to continue or go deeper. Report phase completion
+  separately from course completion.
+- For a single complete course report, cover every phase in order, retaining
+  detailed explanations while keeping inventories compact.
+- Both full-course modes save each phase independently and maintain the index.
+- For a bounded lesson, complete only the requested lesson and its conditional
+  artifact. Continuation retains the scope and delivery mode of the existing run.
 - Do not run builds or tests for explanation-only work. If the user requests current build or test verification, follow `cmake-build-debug` and the documented build commands.
 
 ## Completion Standard
 
-Finish only when the learner has received:
+For a bounded lesson, finish when the requested objective is covered, material
+claims have source support, limitations are stated, and any requested saved
+lesson is updated. Continuation completes the requested next lesson or phase;
+it does not silently expand into finishing every remaining phase.
+
+A full course is complete only when the learner has received:
 
 - A project inventory and glossary.
 - A startup and dependency-construction explanation.

@@ -43,8 +43,9 @@ Use this skill when moving durable behavior from QML into the JobTracker C++ bac
 
 After implementation is stable, inspect the final diff and complete one incremental `test-and-review` pass using the context already established during extraction.
 
-Use `cmake-build-debug` for the smallest meaningful production build and the tests directly associated with the extracted logic, storage, parsing, algorithms, models, signals, or other high-risk behavior. Broaden the build, tests, context, or independent review only under the risk and evidence gates in `AGENTS.md`.
+Use `cmake-build-debug` for required build/tests. `test-and-review` owns integrated verification, build expansion, and independent-review criteria; `For-Agent/Docs/testing.md` owns test selection, quality, and expansion for the extracted contracts.
 
 Perform one documentation-impact check after build and test verification. Do not repeat architecture exploration or documentation review unless the final diff or verification results expose a new dependency, changed assumption, or risk.
 
-List manual UI checks when visual behavior must be confirmed by the user.
+Follow `For-Agent/Docs/qml-style.md` for relevant runtime/visual inspection in a
+suitable available environment and for concrete manual checks when unavailable.

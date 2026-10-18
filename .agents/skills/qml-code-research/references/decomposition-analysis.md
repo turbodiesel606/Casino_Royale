@@ -1,8 +1,27 @@
 # QML Decomposition Analysis
 
-Read this reference only for whole-QML architecture, file-splitting, component-boundary, duplication, or maintainability research.
+Read this reference for requested architecture, file-splitting, component-boundary,
+duplication, or maintainability research. Select the scope before inspection.
 
-## Inventory And Reachability
+## Local Component Scope
+
+For one component, page, extraction candidate, or local boundary:
+
+1. Start at the named target and inspect its direct instantiators and consumers.
+2. Trace the relevant properties, signals, bindings, local state, ownership,
+   lifetime, and exposed backend contracts.
+3. Check its registration/imports and existing reuse opportunities. Inspect the
+   affected interaction, visual behavior, focus, sizing, and state transitions.
+4. Apply Candidate Analysis below only to that surface. Expand when a concrete
+   dependency or risk needs more evidence, and explain material expansions.
+
+A complete QML inventory or `Main.qml` navigation map is not a prerequisite.
+Inspect the shell only when the target's creation, navigation, or reachability
+actually depends on it.
+
+## Whole-QML Inventory And Reachability
+
+For an explicitly whole-QML decomposition or architecture request:
 
 1. Start from `qml/Main.qml` and map the shell, navigation, overlays, forms, and page ownership.
 2. Treat the `qt_add_qml_module` list in `CMakeLists.txt` as the registered QML inventory, then compare it with `rg --files qml -g '*.qml'`.
@@ -42,7 +61,13 @@ Classify every recommendation:
 
 ## Deliverable
 
-Include:
+For a local request, answer whether and how the target should be split, with
+source evidence, the proposed boundary or reason to keep it intact, affected
+contracts, visual/behavioral invariants, verification needs, and material limits.
+Use a candidate table only when several candidates benefit from comparison.
+Do not emit a whole-QML map for one component.
+
+For whole-QML scope, include:
 
 - Current QML structure, registration, instantiation, and reachability summary.
 - Candidate table with priority, evidence, current responsibilities, proposed boundary, reusable implementation, API contract, and rationale.

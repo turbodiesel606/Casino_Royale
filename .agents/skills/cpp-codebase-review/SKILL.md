@@ -1,19 +1,27 @@
 ---
 name: cpp-codebase-review
-description: Review the complete JobTracker C++ backend architecture for global drift, cross-module duplication, overlapping responsibilities, ownership and threading risks, storage integrity, test coverage, and CMake integration. Use only for an explicitly requested whole-backend or codebase-wide architecture review, not for a bounded diff.
+description: Review the complete JobTracker C++ backend architecture for global drift, cross-module duplication, overlapping responsibilities, ownership and threading risks, storage integrity, test coverage, and CMake integration. Use for an explicitly requested whole-backend audit or an assigned partition of it, not a bounded diff or one existing-code target.
 ---
 
 # C++ Codebase Review
 
 Use this deliberate broad mode only when the requested scope is the complete C++
 backend or a codebase-wide architecture, responsibility, consolidation, or
-duplication assessment. Use `cpp-code-review` for ordinary changed-diff review.
+duplication assessment. Use `cpp-code-review` for a bounded diff or existing-code target.
+
+For a delegated partition of a broad audit, apply the inventory and scrutiny below
+to the assigned portion and necessary boundary contracts. Reuse established
+navigation; independently verify critical code and assumptions. Report uncovered
+boundaries to the lead, who owns overall coverage, overlaps, gaps, and reconciliation.
+Each worker need not repeat the whole-backend inventory or unrelated domain reading.
 
 ## Context And Artifact Selection
 
 1. Apply `AGENTS.md` and record current worktree state.
-2. Read `For-Agent/Docs/architecture/overview.md`, then load each domain
+2. For the overall audit, read `For-Agent/Docs/architecture/overview.md`, then load each domain
    architecture document as its module enters the inventory.
+   A partition worker starts with its assigned domain and uses the overview only
+   when needed to establish a boundary.
 3. Read `For-Agent/Docs/coding-style.md`. Read testing, build, extraction, and
    artifact guidance only when their concerns enter the requested review.
 4. Inventory prior artifact filenames and metadata before opening any artifact.
@@ -21,7 +29,7 @@ duplication assessment. Use `cpp-code-review` for ordinary changed-diff review.
    narrow artifact that materially updates it.
 
 Artifacts are navigation aids, not evidence. Verify all current claims against
-live source, CMake registration, tests, and the current diff.
+live source, CMake registration, tests, and any relevant current diff.
 
 ## Deliberate Codebase Inventory
 

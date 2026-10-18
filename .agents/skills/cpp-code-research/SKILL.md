@@ -1,6 +1,6 @@
 ---
 name: cpp-code-research
-description: Perform read-only, source-backed research of the JobTracker C++ backend before implementation. Use for bounded symbol or workflow tracing, Qt ownership and threading, QML contracts, storage, CMake and test mapping, implementation planning, or architecture and duplication analysis. Do not use for code changes, diff review, build debugging, or progressive teaching.
+description: Answer ordinary JobTracker C++ code questions and perform read-only, source-backed research. Use for bounded symbol or workflow tracing, Qt ownership and threading, QML contracts, storage, CMake and test mapping, implementation planning, or architecture and duplication analysis. Do not use for implementation, code review, build debugging, or requested structured lessons and courses.
 ---
 
 # C++ Code Research
@@ -10,11 +10,11 @@ Research the smallest relevant JobTracker C++ surface and return evidence-backed
 ## Routing
 
 - Use `cpp-backend-task` when the user asks to implement or modify C++.
-- Use `cpp-code-review` when the user asks to review a diff, changed code, or release readiness.
+- Use `cpp-code-review` for a focused diff or review of explicitly identified existing code, even without a diff. Use `cpp-codebase-review` for a whole-backend audit.
 - Use `cmake-build-debug` when the primary task is configuration, compilation, CTest, or build-failure diagnosis.
-- Use `learn-cpp-codebase` for a progressive teaching tour of the complete backend.
+- Use `learn-cpp-codebase` for an explicitly requested structured lesson, full backend course, or learning-run continuation. A short function, class, Qt-mechanism, or code-path explanation stays here and creates no course artifacts.
 - Use `qml-code-research` for QML structure or visual ownership; inspect QML here only to verify a C++ contract boundary.
-- When changing this skill's routing or description, read [references/trigger-tests.md](references/trigger-tests.md) and exercise its cases. Do not load that file for ordinary backend research.
+- [references/trigger-tests.md](references/trigger-tests.md) contains optional workflow-maintenance scenarios and a comparison method. Consult it when validating routing changes; ordinary tasks must not load or execute it automatically.
 
 ## Context Selection
 
@@ -88,9 +88,9 @@ Use targeted `rg` searches for definitions, callers, constructors, connections, 
 
 1. Inspect each relevant project-defined implementation before inferring ownership or behavior.
 2. Trace the requested direction explicitly: caller to callee, signal sender to connected receiver, QML command to backend, or storage operation back to model publication.
-3. Verify that participating production and test files are registered in `CMakeLists.txt`; file existence alone is not registration evidence.
+3. Verify production or test registration in `CMakeLists.txt` when it bears on the question, a material claim, or an implementation plan. File existence alone is not registration evidence; do not inspect registration just to fill an output template.
 4. Cite the file and line for every non-trivial claim, risk, missing contract, and implementation recommendation.
-5. Distinguish these evidence levels in the output:
+5. Distinguish relevant evidence levels when they affect the conclusion:
    - live source inspection;
    - current worktree or diff inspection;
    - CMake registration inspection;
@@ -130,15 +130,18 @@ For architecture, maintainability, duplication, or overlapping-responsibility re
 
 ## Research Output
 
-Always return:
+Match the output to the requested result. For a narrow factual question, normally
+return the answer, the file/symbol/line evidence needed to support it, and material
+uncertainty or evidence limitations. Do not add unrelated ownership maps,
+implementation plans, architecture research, or registration checks.
 
-- Requested scope, stopping boundary, and files inspected.
-- Current ownership and data flow relevant to that scope.
-- Source references for non-trivial claims.
-- QML-facing, Qt model, threading, storage, test, and CMake contracts when applicable.
-- Relevant risks, missing coverage, open questions, and intentional omissions.
-- Suggested implementation direction without changing code.
-- Verification matrix separating static inspection, build, CTest, and manual runtime evidence.
+For a trace or broader investigation, include the relevant scope, ownership,
+data flow, contracts, risks, and missing coverage. Include implementation
+direction when a recommendation, plan, or options were requested, or when needed
+to answer the actual question. Use a verification matrix when multiple relevant
+evidence types need to be distinguished; a short static-only statement is enough
+for a directly verifiable source question. Preserve source verification of
+material claims regardless of output length.
 
 Keep findings compact. Quote or reproduce only the smallest source fragments
 needed to make a conclusion understandable; use file, symbol, and line references

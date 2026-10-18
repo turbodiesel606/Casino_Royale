@@ -1,6 +1,6 @@
 ---
 name: qml-code-research
-description: Perform read-only, source-backed research of JobTracker QML before implementation. Use for bounded screen, component, navigation, or binding traces; QML-to-C++ contract mapping; UI-versus-durable ownership analysis; whole-QML decomposition; or implementation planning. Do not use for code changes, diff review, backend-only research, build debugging, or visual redesign.
+description: Answer JobTracker QML questions through read-only, source-backed research. Use for bounded screen, component, navigation, or binding traces; QML-to-C++ contract mapping; UI-versus-durable ownership; local component or whole-QML decomposition; or implementation planning. Do not use for implementation, code review, backend-only research, build debugging, or visual redesign.
 ---
 
 # QML Code Research
@@ -10,11 +10,11 @@ Research the smallest relevant JobTracker QML surface and return evidence-backed
 ## Routing
 
 - Use `qt-qml-ui-task` when the user asks to implement or modify QML, navigation, layout, resources, styling, or UI behavior.
-- Use `qml-code-review` when the user asks to review a diff, changed QML, visual regressions, or release readiness.
+- Use `qml-code-review` for a focused diff or review of an explicitly identified existing component or behavior, even without a diff. Use `qml-codebase-review` for a whole-QML audit.
 - Use `qml-to-cpp-extraction` when the user authorizes moving durable QML behavior into C++.
 - Use `cpp-code-research` when the requested behavior is backend-only or requires tracing beyond the QML-facing C++ contract.
 - Use `cmake-build-debug` when the primary task is QML module configuration, compilation, deployment, CTest, or build-failure diagnosis.
-- When changing this skill's routing or description, read [references/trigger-tests.md](references/trigger-tests.md) and exercise its cases. Do not load that file for ordinary QML research.
+- [references/trigger-tests.md](references/trigger-tests.md) contains optional workflow-maintenance scenarios and a comparison method. Consult it when validating routing changes; ordinary tasks must not load or execute it automatically.
 
 ## Context Selection
 
@@ -90,10 +90,10 @@ Use targeted `rg` searches for component definitions and instantiations, imports
    - user event to QML handler, signal, or backend command;
    - backend property, signal, or model role to QML binding, `Connections` handler, or delegate;
    - shell navigation to the page or form surface it can actually instantiate.
-3. Verify related QML files in `qt_add_qml_module`; source existence alone is not registration evidence.
-4. Verify actual instantiation and navigation reachability separately from registration. A registered page may still be unreachable.
+3. Verify related QML files in `qt_add_qml_module` when registration affects the question or a proposed split; source existence alone is not registration evidence.
+4. Verify actual instantiation and navigation reachability when relevant, separately from registration. A registered page may still be unreachable. Do not build a global navigation map merely to answer a local binding question.
 5. Cite the file and line for every non-trivial claim, risk, missing contract, and implementation recommendation.
-6. Distinguish these evidence levels in the output:
+6. Distinguish relevant evidence levels when they affect the conclusion:
    - live source inspection;
    - current worktree or diff inspection;
    - QML module registration inspection;
@@ -119,19 +119,28 @@ When the scope touches a QML component or QML-facing C++ object:
 
 ## Architecture And Decomposition Mode
 
-For whole-QML architecture, file-splitting, component-boundary, duplication, or maintainability research, read and follow [references/decomposition-analysis.md](references/decomposition-analysis.md). Do not load or emit its complete decomposition deliverable for a narrow screen, event-flow, or contract task.
+For a decomposition, component-boundary, duplication, or maintainability request,
+read [references/decomposition-analysis.md](references/decomposition-analysis.md)
+and select its local or whole-QML scope. A local question starts at the named
+component, direct instantiators/consumers, and affected contracts; inspect its
+registration, reuse opportunities, interaction, and visual invariants. Expand
+only for concrete dependencies or risks. Whole-QML requests retain the complete
+inventory, navigation mapping, and cross-component analysis. A bounded event-flow
+or contract question that does not concern decomposition need not load this reference.
 
 ## Research Output
 
-Always return:
+Match the output to the requested result. For a narrow factual question, normally
+return the answer, supporting file/symbol/line locations, and material uncertainty
+or evidence limitations. Do not inspect unrelated registration, navigation, or
+architecture solely to fill a template.
 
-- Requested scope, stopping boundary, files inspected, and relevant worktree state.
-- Current page or component ownership and the requested navigation, event, binding, or data flow.
-- Source references for non-trivial claims.
-- UI-only state, durable-behavior ownership, QML-to-C++ contracts, CMake registration, and reachability when applicable.
-- Relevant risks, missing coverage, open questions, and intentional omissions.
-- Suggested implementation direction without changing code.
-- A verification matrix separating static source, diff, registration, reachability, test-source, build, and manual-runtime evidence.
+For a trace or broader investigation, include relevant scope, ownership, flow,
+contracts, risks, and missing coverage. Include implementation direction when a
+recommendation, plan, or options were requested, or when necessary to answer the
+question. Use a verification matrix when multiple relevant evidence types need
+to be distinguished; a short static-only statement is enough for a directly
+verifiable source question. Verify material claims regardless of output length.
 
 Keep findings compact. Quote or reproduce only the smallest QML or C++ fragments
 needed to make a conclusion understandable; use file, symbol, and line references
@@ -139,7 +148,7 @@ instead of copying large implementation bodies.
 
 Add only the sections required by the selected mode:
 
-- For architecture or decomposition research, include the deliverable defined in `references/decomposition-analysis.md`.
+- For architecture or decomposition research, use the local or whole-QML deliverable defined in `references/decomposition-analysis.md`.
 - For QML-to-C++ ownership research, classify each relevant function, inline array, state mutation, or computed value as UI-only, durable, or mixed and define the smallest QML-facing contract needed after extraction.
 - For implementation planning, include:
   - existing pages, components, controllers, models, and contracts to reuse or extend;
