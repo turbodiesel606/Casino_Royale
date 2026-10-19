@@ -2,7 +2,7 @@
   "version": 3,
   "cmakeMinimumRequired": {
     "major": 3,
-    "minor": 21,
+    "minor": 22,
     "patch": 0
   },
   "configurePresets": [
@@ -21,7 +21,8 @@
       "inherits": "base",
       "generator": "Ninja",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "JOBTRACKER_ENABLE_DEB_PACKAGING": "OFF"
       },
       "condition": {
         "type": "equals",
@@ -49,6 +50,17 @@
       "binaryDir": "${sourceDir}/build/qt-6.10.3/linux-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "linux-deb-local-test",
+      "inherits": "linux-release",
+      "binaryDir": "${sourceDir}/build/qt-6.10.3/linux-deb-local-test",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "JOBTRACKER_BUILD_TESTS": "OFF",
+        "JOBTRACKER_ENABLE_DEB_PACKAGING": "ON",
+        "JOBTRACKER_DEB_LOCAL_TEST": "ON"
       }
     },
     {
@@ -113,6 +125,10 @@
     {
       "name": "linux-release",
       "configurePreset": "linux-release"
+    },
+    {
+      "name": "linux-deb-local-test",
+      "configurePreset": "linux-deb-local-test"
     },
     {
       "name": "linux-release-tests",

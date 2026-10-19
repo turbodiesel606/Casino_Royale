@@ -41,6 +41,11 @@ from the repository root and wait for each process tree/final exit code.
 CMake execution follows
 [cmake-build-debug](../../.agents/skills/cmake-build-debug/SKILL.md).
 
+If `RemoteSigned` blocks trusted transferred scripts, use the dedicated process
+described in the [build sequence](installer.md#build-sequence). Continue these
+checks inside it so child PowerShell processes, including the CTest probe, inherit
+the process setting without changing persistent policy or source zone metadata.
+
 CurrentUser native/lifecycle suites need a non-elevated Windows token and
 HKCU/shell-folder access. AllUsers lifecycle checks require administrator
 elevation in a disposable environment. Codex host-tool access does not change

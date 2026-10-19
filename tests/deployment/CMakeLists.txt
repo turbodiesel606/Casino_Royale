@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.22)
 project(JobTrackerDeploymentChecks LANGUAGES CXX)
 
 # Standalone verification only: the production project never includes this tree.

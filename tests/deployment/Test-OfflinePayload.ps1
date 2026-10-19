@@ -162,26 +162,43 @@ foreach ($scenario in @('wrong-product', 'wrong-exe-version')) {
     Assert-Rejected $scenario { Get-VerifiedReleasePayload $caseBuild $caseStage } 'Executable version/product mismatch'
 }
 
-# Mutate a private copy of the canonical validator's reviewed input, not the real inventory.
-$privateValidator = Join-Path $work 'duplicate-inventory'
+# Keep the copied validator's source/build context coherent before mutating its inventory.
+$privateRepository = Join-Path $work 'inventory-checkout'
+$privateValidator = Join-Path $privateRepository 'Installer'
 New-Item -ItemType Directory -Path $privateValidator | Out-Null
 Copy-Item -LiteralPath (Join-Path $repository 'Installer/PayloadValidation.ps1') -Destination $privateValidator
+Copy-Item -LiteralPath (Join-Path $repository 'CMakeLists.txt') -Destination $privateRepository
+$inventoryBuild = New-BuildCopy 'inventory-build'
+$inventoryCache = Join-Path $inventoryBuild 'CMakeCache.txt'
+$sourceSetting = 'CMAKE_HOME_DIRECTORY:INTERNAL=' + $privateRepository.Replace('\', '/')
+$cacheText = [regex]::Replace([IO.File]::ReadAllText($inventoryCache),
+    '(?m)^CMAKE_HOME_DIRECTORY:INTERNAL=[^\r\n]+', $sourceSetting)
+[IO.File]::WriteAllText($inventoryCache, $cacheText)
 $inventory = Get-Content -LiteralPath (Join-Path $repository 'Installer/payload-files.txt')
+$inventory | Set-Content -LiteralPath (Join-Path $privateValidator 'payload-files.txt')
+$privatePayload = & {
+    . (Join-Path $privateValidator 'PayloadValidation.ps1')
+    Get-VerifiedReleasePayload $inventoryBuild $StageDirectory
+}
+if (($original.Files | ConvertTo-Json -Compress) -cne ($privatePayload.Files | ConvertTo-Json -Compress)) {
+    throw 'Private validator fixture differs from the original valid payload.'
+}
+Record-Pass 'valid-private-inventory-fixture' 'Copied source/build context validates the original payload before mutation.'
 @($inventory) + @($inventory[0]) | Set-Content -LiteralPath (Join-Path $privateValidator 'payload-files.txt')
 Assert-Rejected 'duplicate-inventory' {
     . (Join-Path $privateValidator 'PayloadValidation.ps1')
-    Get-VerifiedReleasePayload $BuildDirectory $StageDirectory
+    Get-VerifiedReleasePayload $inventoryBuild $StageDirectory
 } 'Duplicate payload inventory'
 @($inventory) + @('bin/../outside.dll') | Set-Content -LiteralPath (Join-Path $privateValidator 'payload-files.txt')
 Assert-Rejected 'inventory-traversal' {
     . (Join-Path $privateValidator 'PayloadValidation.ps1')
-    Get-VerifiedReleasePayload $BuildDirectory $StageDirectory
+    Get-VerifiedReleasePayload $inventoryBuild $StageDirectory
 } 'Unsafe payload path'
 foreach ($unsafe in @('bin/../../escape.dll', 'bin/https://example.invalid/payload.dll', 'bin//server/share.dll')) {
     @($inventory) + @($unsafe) | Set-Content -LiteralPath (Join-Path $privateValidator 'payload-files.txt')
     Assert-Rejected "unsafe-inventory-$unsafe" {
         . (Join-Path $privateValidator 'PayloadValidation.ps1')
-        Get-VerifiedReleasePayload $BuildDirectory $StageDirectory
+        Get-VerifiedReleasePayload $inventoryBuild $StageDirectory
     } 'Unsafe payload path'
 }
 

@@ -1,5 +1,6 @@
 build/
 .vs/
+.vscode/
 For-Agent/Review/
 For-Agent/Task-Report/
 For-Human/
@@ -7,3 +8,5 @@ Requirements/
 Tasks/
 /Installer/output/
 /dist/
+/deploy/
+/CMakeUserPresets.json

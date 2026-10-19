@@ -1,7 +1,7 @@
 # Windows Offline Installer
 
 This reference describes the existing native x64 installer for Windows 10/11.
-It produces one `Installer/output/JobTracker-Setup-<version>.exe` containing the
+It produces one `Installer/output/<run-id>/JobTracker-Setup-<version>.exe` containing the
 Release application, Qt/QML/plugins/SQLite, scope-specific MSVC inputs, and the
 runtime notice. Installation requires no Qt/Visual Studio SDK, application
 archive, remote manifest, or dependency download.
@@ -18,6 +18,7 @@ All paths below are relative to [Installer/](../../Installer/README.md).
 | File | Responsibility |
 |---|---|
 | `JobTracker.iss` | Inno Setup entry point: native x64 Setup, EN/RU UI, scopes, shortcuts, and lifecycle callbacks. |
+| `Stage-Release.ps1` | Fresh direct CMake Release staging, shared build/payload validation, and private staging evidence. |
 | `Build-Installer.ps1` | Validates direct staging and generated identity, prepares local runtime inputs, snapshots bytes, generates explicit hashed file entries, invokes ISCC, and records private build evidence. |
 | `PayloadValidation.ps1`, `payload-files.txt` | Canonical exact payload inventory and validation of production identity/hash, Qt version, x64 Release PE files, safe paths, relative metadata, reparse points, and alternate streams. Shared by the builder and standalone tests. |
 | `PayloadSafety.iss` | Native destination/local-file safety checks used by Setup. |
@@ -33,7 +34,7 @@ All paths below are relative to [Installer/](../../Installer/README.md).
 ## Tools And Local Inputs
 
 - Windows x64 application toolchain from [build.md](build.md), including exactly
-  Qt 6.10.3, Visual Studio 2022/MSVC v143, and CMake 3.21+.
+  Qt 6.10.3, Visual Studio 2022/MSVC v143, and CMake 3.22+.
 - PowerShell 7.2+ for the installer scripts.
 - Inno Setup 7+ with native `SetupArchitecture=x64` support. The wrapper checks
   the finished Setup for AMD64/PE32+. Inno 6's I386 launcher is rejected even
@@ -69,114 +70,105 @@ session, checking the exit code before continuing. CMake execution follows
 [cmake-build-debug](../../.agents/skills/cmake-build-debug/SKILL.md). Preserve
 existing outputs and failed evidence.
 
-First configure/build the production Windows Release preset using
-[Windows Release Build And Tests](build.md#windows-release-build-and-tests);
-run applicable backend tests in their separate tree. The remaining commands do
-not configure or build the application.
-
-### Direct Release Staging
-
-Initialize fresh private paths. The examples use the existing local Release
-preset's build directory; choose the corresponding production tree if different.
+An archive transfer can leave `Zone.Identifier` metadata on unsigned PowerShell
+sources, causing `RemoteSigned` to reject them before execution. For transferred
+scripts you have reviewed and chosen to trust, start a dedicated session if needed:
 
 ~~~powershell
-$installerRun = [Guid]::NewGuid().ToString('N')
+pwsh -NoProfile -ExecutionPolicy Bypass
 ~~~
+
+Run the commands below and the deployment checks inside that session. The setting
+applies only to that process and its children; it does not change persistent
+execution policy or remove source zone metadata. Close the session afterward.
+Payload and Microsoft runtime hash/signature validation remain enforced.
+
+First configure/build `windows-release` with your local `QTDIR`, following
+[Windows Build](build.md#windows-build). The following commands run in the same
+PowerShell 7.2+ session and consume that already built production Release tree.
+They do not implicitly configure/build the application.
+
+### Direct Release Staging
 
 ~~~powershell
 $installerBuild = (Resolve-Path -LiteralPath build/qt-6.10.3/windows-release).Path
 ~~~
 
 ~~~powershell
-$installerRoot = Join-Path (Get-Location).Path "build/qt-6.10.3/installer-$installerRun"
+$stageResult = & ./Installer/Stage-Release.ps1 -BuildDirectory $installerBuild -PassThru
 ~~~
 
 ~~~powershell
-$installerStage = Join-Path $installerRoot 'stage'
+$installerStage = $stageResult.StageDirectory
+$installerRoot = $stageResult.EvidenceDirectory
 ~~~
 
-Select the installed native-x64-capable compiler:
+The wrapper reserves a fresh `build/installer-stage-<run-id>/stage`, runs the
+existing `cmake --install ... --config Release --prefix ...` procedure, checks
+the native command exit and validates the exact payload. `install.log` and
+`staging.json` stay beside the stage in the private run directory. To choose
+an explicit fresh stage instead, add `-StageDirectory <path-under-build>`.
+Existing paths and reparse points are rejected. Failed output is retained.
+The wrapper prints absolute stage/evidence/log paths; `-PassThru` returns them
+as an object. It does not prepare or snapshot MSVC runtime inputs.
 
-~~~powershell
-$installerIscc = (Resolve-Path -LiteralPath (Read-Host 'Path to Inno Setup 7+ ISCC.exe')).Path
-~~~
+The stage contains `bin/`, `plugins/`, `qml/`, `translations/`, and relative
+`bin/qt.conf`, including `qwindows.dll` and `qsqlite.dll`. CMake owns the sole
+payload algorithm and excludes development/tooling/input plugins and
+non-SQLite SQL drivers. `NO_COMPILER_RUNTIME` leaves CRT delivery to the
+installer. Debug installs and the development-runtime target are not Release
+stages. Linux staging uses its separate Linux wrapper.
 
-~~~powershell
-cmake --install $installerBuild --config Release --prefix $installerStage
-~~~
-
-The new absolute prefix receives `bin/`, `plugins/`, `qml/`, `translations/`,
-and relative `bin/qt.conf`, including `qwindows.dll` and `qsqlite.dll`.
-CMake excludes development/tooling/input plugins and non-SQLite SQL drivers.
-`NO_COMPILER_RUNTIME` leaves MSVC CRT delivery to the installer. Windows Debug
-install is executable-only; neither that output nor the development-runtime
-target is a Release stage. Linux runtime installation remains a separate
-explicit CMake operation; this Setup is Windows-only.
-
-The reviewed payload inventory currently lists 148 application/Qt files.
-Embedded QML resources are allowed; loose C++ sources/headers, CMake files,
-tests, PDBs, and internal documents must not ship. Keep logs/probes outside the
-stage and customer output. A common stage without the runtime inputs is not a
-complete clean-machine distribution.
+The reviewed inventory lists 148 application/Qt files. Embedded QML resources
+are allowed; loose C++ sources/headers, tests, PDBs, CMake files and internal
+documents must not ship. Keep probes and logs outside the payload. The common
+stage alone lacks the scope-specific MSVC inputs of the finished installer.
 
 ### Compile Setup
 
-Before rebuilding the same version, preserve the existing exact Setup in a
-verified private destination outside `Installer/output/`, recording its hash.
-The wrapper refuses an existing same-name EXE. Do not overwrite evidence or move
-a whole directory as a shortcut.
-
-To use discovery from the selected Visual Studio instance:
+If ISCC.exe from Inno Setup 7+ is on PATH, use:
 
 ~~~powershell
-pwsh -NoProfile -File Installer/Build-Installer.ps1 -BuildDirectory $installerBuild -StageDirectory $installerStage -IsccPath $installerIscc
+$installerResult = & ./Installer/Build-Installer.ps1 -BuildDirectory $installerBuild -StageDirectory $installerStage -PassThru
 ~~~
 
-Alternatively, select an authentic local package matching the lock and run this
-form instead of the preceding command:
+If it is not on PATH, add `-IsccPath <absolute-path-to-ISCC.exe>` to that
+invocation. An explicit invalid path fails without fallback. Discovery is
+local only; the existing Inno version and native x64 output checks still apply.
+To select another authentic local redistributable matching the lock, also add
+`-RedistributablePath <absolute-path-to-vc_redist.x64.exe>`. Otherwise the
+builder uses the selected Visual Studio instance's existing default described
+above. No inputs are downloaded or silently repinned.
+
+Every invocation reserves `Installer/output/<run-id>/` and writes exactly
+`JobTracker-Setup-<version>.exe` inside it. Rebuilding the same version
+requires no manual moving or deletion: earlier Setup bytes and evidence stay
+in their own run directories. The builder retains stage/identity/hash checks,
+verified private MSVC snapshots and explicit hashed Inno file entries. It
+prints absolute result, compiler-log and evidence paths before compilation.
+
+Use that exact invocation's structured result, never an arbitrary newest file:
 
 ~~~powershell
-$installerRedist = (Resolve-Path -LiteralPath (Read-Host 'Path to the local vc_redist.x64.exe matching Installer/MsvcRuntime.lock.json')).Path
+$installerSetup = $installerResult.InstallerPath
+$installerEvidence = $installerResult.EvidenceDirectory
+$installerMetadata = $installerResult.MetadataPath
+$installerIscc = $installerResult.CompilerPath
 ~~~
+
+Without `-PassThru`, use the exact paths printed by the wrapper. Private
+snapshots, generated includes, `compile.log` and `installer-build.json` live
+under `build/installer/<run-id>/`, separate from customer output. Failed runs
+remain available for diagnosis.
+
+Optional standalone runtime input diagnosis (the builder already performs
+this; it is not an additional normal step):
 
 ~~~powershell
-pwsh -NoProfile -File Installer/Build-Installer.ps1 -BuildDirectory $installerBuild -StageDirectory $installerStage -IsccPath $installerIscc -RedistributablePath $installerRedist
+pwsh -NoProfile -File Installer/Prepare-MsvcRuntime.ps1 -BuildDirectory $installerBuild -RedistributablePath <absolute-path-to-vc_redist.x64.exe> -OutputDirectory "$installerRoot/runtime-input-check"
 ~~~
 
-The wrapper validates the stage, verifies local runtime inputs, takes private
-hash-checked snapshots, and compiles explicit hashed `[Files]` entries. It does
-not run Qt deployment, install the application, publish, download, or clean.
-
-After a successful build:
-
-~~~powershell
-$installerVersion = (Get-Item -LiteralPath "$installerBuild/Release/JobTrackerApp.exe").VersionInfo.ProductVersion.Trim()
-~~~
-
-~~~powershell
-$installerSetup = Join-Path (Get-Location).Path "Installer/output/JobTracker-Setup-$installerVersion.exe"
-~~~
-
-Use the exact `Private build evidence:` path printed by that invocation,
-never an arbitrary newest directory or metadata from another build:
-
-~~~powershell
-$installerEvidence = (Resolve-Path -LiteralPath (Read-Host 'Private build evidence path printed by this build')).Path
-~~~
-
-~~~powershell
-$installerMetadata = Join-Path $installerEvidence 'installer-build.json'
-~~~
-
-Optional standalone input preparation requires the explicit `$installerRedist`
-path above and a new output directory. The wrapper already performs this step;
-this command is useful for diagnosing inputs without compiling Setup:
-
-~~~powershell
-pwsh -NoProfile -File Installer/Prepare-MsvcRuntime.ps1 -BuildDirectory $installerBuild -RedistributablePath $installerRedist -OutputDirectory "$installerRoot/runtime-input-check"
-~~~
-
-It verifies/copies inputs only; it never executes the prerequisite.
+This verifies/copies local inputs only; it never executes the prerequisite.
 
 ## Version, Generated Files, And Evidence
 
@@ -189,9 +181,9 @@ Reconfigure/rebuild after version or icon changes; do not edit generated identit
 Generated RC/CMake/Inno identity lives under
 `<build>/Installer/<configuration>/`. Private snapshots, generated includes,
 runtime copies, logs, and `installer-build.json` live under
-`<build>/Installer/work/<id>/`. JSON records local hashes, source state, compiler,
+`build/installer/<run-id>/`. JSON records local hashes, source state, compiler,
 identity, and payload inputs; it is not a remote trust anchor or customer asset.
-Only the versioned Setup belongs in `Installer/output/`.
+Only the versioned Setup belongs in its `Installer/output/<run-id>/` directory.
 The publisher is blank and normal builds are unsigned.
 
 Keep each Setup with its own private evidence. Changed payload, source, runtime,
@@ -266,7 +258,7 @@ provenance, and entitlement separately from functional tests.
 | Missing or stale generated identity | Wrapper rejects; configure/build the intended production Release tree. |
 | Inventory/hash/Qt/PE mismatch, unsafe path, reparse point or stream | Payload validation rejects; identify the changed input rather than relaxing checks. |
 | Missing/mismatched runtime or incompatible toolset | Preparation reports required paths/version/integrity; supply authorized matching local inputs or explicitly review the lock/toolset. Discovery does not guarantee a usable input. |
-| Existing versioned Setup | Wrapper refuses overwrite; preserve that exact artifact before a new build. |
+| Existing or unsafe run directory | Wrapper refuses collisions and reparse points. Each invocation selects a fresh run directory, so earlier same-version Setup files remain unchanged. |
 | Inno compilation or native identity failure | Retain `compile.log` and candidate state under private work; inspect compiler diagnostics and native x64 support. |
 | Opposite scope, damaged identity, relocation, unreadable profile | Policy fails closed; resolve the actual installation state without weakening guards. |
 | Running application or late sharing failure | Stop safely, retain logs and owned fixture state, and close the app cooperatively. A retry is not proof of a root-cause fix or atomic rollback. |
@@ -300,7 +292,7 @@ existing code-signing certificate in the current user's certificate store.
 Set these session variables to the intended values: `$JobTrackerSignTool`
 (full tool path), `$JobTrackerCertificateThumbprint` (certificate thumbprint),
 `$JobTrackerTimestampUrl` (the certificate provider's RFC 3161 endpoint), and
-`$JobTrackerSetup` (the finished canonical `Installer/output/JobTracker-Setup-<version>.exe`).
+`$JobTrackerSetup` (the finished canonical `Installer/output/<run-id>/JobTracker-Setup-<version>.exe`).
 No PFX, password, private key or secret belongs in the repository or commands.
 Preserve the unsigned EXE and its `installer-build.json` in private evidence
 first. Require exit code 0 after each command before proceeding:

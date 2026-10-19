@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.22)
 
 project(JobTracker
     VERSION 0.1.0
@@ -13,6 +13,13 @@ option(JOBTRACKER_BUILD_TESTS "Build JobTracker tests" OFF)
 
 set(JOBTRACKER_QT_VERSION 6.10.3)
 find_package(Qt6 ${JOBTRACKER_QT_VERSION} EXACT REQUIRED COMPONENTS Quick Sql)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+        set(CMAKE_INSTALL_PREFIX "/opt/jobtracker" CACHE PATH "Install prefix" FORCE)
+    endif()
+    set(CMAKE_INSTALL_LIBDIR "lib" CACHE PATH "Private runtime library directory")
+endif()
 
 qt_standard_project_setup(REQUIRES ${JOBTRACKER_QT_VERSION})
 
@@ -583,6 +590,10 @@ endif()
 
 include(GNUInstallDirs)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    include(Installer/Linux/Runtime.cmake)
+endif()
+
 install(TARGETS JobTrackerApp
     BUNDLE DESTINATION .
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -607,12 +618,12 @@ endif()
 
 # Retain Linux runtime installation as an explicit install operation.
 # Normal builds leave existing deployment trees untouched.
-if(UNIX AND NOT APPLE)
-    qt_generate_deploy_qml_app_script(
-        TARGET JobTrackerApp
-        OUTPUT_SCRIPT JOBTRACKER_LINUX_DEPLOY_SCRIPT
-        NO_UNSUPPORTED_PLATFORM_ERROR
-    )
-
-    install(SCRIPT ${JOBTRACKER_LINUX_DEPLOY_SCRIPT})
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    install(SCRIPT "${JOBTRACKER_LINUX_DEPLOY_SCRIPT}")
+    install(SCRIPT "${JOBTRACKER_LINUX_VERIFY_SCRIPT}")
+    include(Installer/Linux/Desktop.cmake)
+    option(JOBTRACKER_ENABLE_DEB_PACKAGING "Enable explicit native DEB packaging" OFF)
+    if(JOBTRACKER_ENABLE_DEB_PACKAGING)
+        include(Installer/Linux/Packaging.cmake)
+    endif()
 endif()

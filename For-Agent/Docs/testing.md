@@ -25,10 +25,10 @@ Tests are consumers of the production architecture, never production dependencie
 ## Current Test Setup
 
 Tests are enabled through the `JOBTRACKER_BUILD_TESTS` CMake option and the
-Windows Debug/Release test presets (`windows-debug-tests-local` and
-`windows-release-tests-local`). Both require Qt 6.10.3 and use separate build
-directories. Linux Debug and Release test presets (`linux-debug-tests-local`
-and `linux-release-tests-local`) use the same SDK pin, distinct directories and
+Windows Debug/Release test presets (`windows-debug-tests` and
+`windows-release-tests`). Both require Qt 6.10.3 and use separate build
+directories. Linux Debug and Release test presets (`linux-debug-tests`
+and `linux-release-tests`) use the same SDK pin, distinct directories and
 matching single-config build types. Use the Linux commands in `build.md` on a
 Linux host; preset inspection on Windows does not verify Linux execution.
 

@@ -1,0 +1,21 @@
+cmake_minimum_required(VERSION 3.22)
+
+# Compare CPack's automatic dependencies against the strict all-ELF scan.
+list(LENGTH CPACK_PACKAGE_FILES package_count)
+if(NOT package_count EQUAL 1)
+    message(FATAL_ERROR "Expected exactly one DEB.")
+endif()
+list(GET CPACK_PACKAGE_FILES 0 package)
+execute_process(COMMAND "@JOBTRACKER_DPKG_DEB_EXECUTABLE@" --field "${package}" Depends
+    OUTPUT_VARIABLE actual OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ERROR_IS_FATAL ANY)
+file(READ "$ENV{JOBTRACKER_DEB_WORK}/dependency-check/system-depends.txt" expected)
+string(APPEND expected ", @CPACK_DEBIAN_PACKAGE_DEPENDS@")
+foreach(name IN ITEMS actual expected)
+    string(REPLACE ", " ";" ${name} "${${name}}")
+    list(REMOVE_DUPLICATES ${name})
+    list(SORT ${name})
+endforeach()
+if(NOT actual STREQUAL expected)
+    message(FATAL_ERROR "DEB Depends differs from the strict ELF scan and explicit OpenSSL dependency: ${actual}; expected ${expected}")
+endif()
+message(STATUS "DEB Depends matches the strict scan plus the dynamic OpenSSL requirement")

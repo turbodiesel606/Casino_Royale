@@ -2,7 +2,7 @@
 # Shared local Release validation for direct Setup and the retained legacy archive tool.
 # No build, archive, installation, download, or output creation occurs here.
 function Assert-NoReparsePoint([string]$Path) {
-    $itemPath = [IO.Path]::GetFullPath($Path)
+    $itemPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
     while ($itemPath) {
         if (Test-Path -LiteralPath $itemPath) {
             if ((Get-Item -LiteralPath $itemPath -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
@@ -70,23 +70,16 @@ function Assert-ReleaseBinary([string]$Path) {
     return $info
 }
 
-function Get-VerifiedReleasePayload {
+function Get-VerifiedReleaseBuild {
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$BuildDirectory,
-          [Parameter(Mandatory)][string]$StageDirectory)
+    param([Parameter(Mandatory)][string]$BuildDirectory)
     if (-not $IsWindows) { throw 'Windows Release validation requires Windows.' }
     $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-    $build = [IO.Path]::GetFullPath($BuildDirectory)
-    $stage = [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath($StageDirectory))
+    $build = [IO.Path]::TrimEndingDirectorySeparator($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($BuildDirectory))
     Assert-NoReparsePoint $build
-    Assert-NoReparsePoint $stage
-    [string[]]$inventory = [IO.File]::ReadAllLines((Join-Path $PSScriptRoot 'payload-files.txt'))
-    foreach ($path in $inventory) { Assert-RelativePath $path }
-    [Array]::Sort($inventory, [StringComparer]::Ordinal)
-    if (@($inventory | Sort-Object -Unique).Count -ne $inventory.Count) { throw 'Duplicate payload inventory entry.' }
-
     $cache = Get-Content -LiteralPath (Join-Path $build 'CMakeCache.txt') -Raw
-    if ($cache -notmatch '(?m)^CMAKE_GENERATOR_PLATFORM:INTERNAL=x64\r?$' -or
+    if ($cache -notmatch '(?m)^CMAKE_GENERATOR:INTERNAL=Visual Studio 17 2022\r?$' -or
+        $cache -notmatch '(?m)^CMAKE_GENERATOR_PLATFORM:INTERNAL=x64\r?$' -or
         $cache -notmatch '(?m)^JOBTRACKER_BUILD_TESTS:BOOL=OFF\r?$') {
         throw 'Packaging requires an x64 production build with tests OFF.'
     }
@@ -109,6 +102,36 @@ function Get-VerifiedReleasePayload {
     }
     $version = $versionMatch.Groups[1].Value
     $executable = $exeMatch.Groups[1].Value
+    $builtExe = Join-Path $build "Release/$executable"
+    Assert-NoReparsePoint $builtExe
+    $info = Assert-ReleaseBinary $builtExe
+    if ($info.FileVersion -cne $version -or $info.ProductVersion -cne $version -or $info.ProductName -cne 'JobTracker') {
+        throw 'Executable version/product mismatch.'
+    }
+    return [pscustomobject]@{
+        BuildDirectory = $build
+        Version = $version
+        Executable = $executable
+        QtVersion = $qtVersion.Groups[1].Value
+    }
+}
+
+function Get-VerifiedReleasePayload {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$BuildDirectory,
+          [Parameter(Mandatory)][string]$StageDirectory)
+    $release = Get-VerifiedReleaseBuild -BuildDirectory $BuildDirectory
+    $build = $release.BuildDirectory
+    $version = $release.Version
+    $executable = $release.Executable
+    $stage = [IO.Path]::TrimEndingDirectorySeparator($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($StageDirectory))
+    Assert-NoReparsePoint $build
+    Assert-NoReparsePoint $stage
+    [string[]]$inventory = [IO.File]::ReadAllLines((Join-Path $PSScriptRoot 'payload-files.txt'))
+    foreach ($path in $inventory) { Assert-RelativePath $path }
+    [Array]::Sort($inventory, [StringComparer]::Ordinal)
+    if (@($inventory | Sort-Object -Unique).Count -ne $inventory.Count) { throw 'Duplicate payload inventory entry.' }
+
     Assert-SamePaths (Get-PayloadPaths $stage) $inventory
     $builtExe = Join-Path $build "Release/$executable"
     Assert-NoReparsePoint $builtExe
@@ -125,7 +148,7 @@ function Get-VerifiedReleasePayload {
             }
             if ($item.Extension -in '.exe', '.dll') {
                 $info = Assert-ReleaseBinary $path
-                if ($info.ProductName -match 'Qt' -and $info.FileVersion -ne "$($qtVersion.Groups[1].Value).0") {
+                if ($info.ProductName -match 'Qt' -and $info.FileVersion -ne "$($release.QtVersion).0") {
                     throw "Qt version mismatch: $relative"
                 }
                 if ($relative -ceq "bin/$executable" -and

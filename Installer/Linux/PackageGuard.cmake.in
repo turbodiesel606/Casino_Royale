@@ -1,0 +1,37 @@
+cmake_minimum_required(VERSION 3.22)
+
+# Recheck the live cache: cpack -C Release cannot turn a Debug tree into Release.
+if(NOT CPACK_GENERATOR STREQUAL "DEB" OR NOT CPACK_BUILD_CONFIG STREQUAL "Release")
+    message(FATAL_ERROR "Use the DEB generator with the actual Release configuration.")
+endif()
+file(STRINGS "@CMAKE_BINARY_DIR@/CMakeCache.txt" cache_lines)
+foreach(setting IN ITEMS
+        "CMAKE_HOME_DIRECTORY:INTERNAL=@CMAKE_SOURCE_DIR@"
+        "CMAKE_BUILD_TYPE:STRING=Release"
+        "JOBTRACKER_BUILD_TESTS:BOOL=OFF"
+        "JOBTRACKER_ENABLE_DEB_PACKAGING:BOOL=ON"
+        "CMAKE_INSTALL_PREFIX:PATH=/opt/jobtracker"
+        "CMAKE_INSTALL_BINDIR:PATH=bin"
+        "CMAKE_INSTALL_LIBDIR:PATH=lib")
+    if(NOT setting IN_LIST cache_lines)
+        message(FATAL_ERROR "Unexpected live configuration: expected ${setting}")
+    endif()
+endforeach()
+if(NOT EXISTS "@CMAKE_BINARY_DIR@/JobTrackerApp")
+    message(FATAL_ERROR "Build the configured production Release executable before packaging.")
+endif()
+
+# Package.sh supplies a fresh, reserved work directory, keeping CPack's cleanup
+# confined to this invocation and preventing direct packaging into system paths.
+if(NOT IS_ABSOLUTE "$ENV{JOBTRACKER_DEB_WORK}")
+    message(FATAL_ERROR "Use Installer/Linux/Package.sh with fresh work and output directories.")
+endif()
+file(REAL_PATH "$ENV{JOBTRACKER_DEB_WORK}" package_work)
+string(FIND "${package_work}/" "@CMAKE_SOURCE_DIR@/build/linux-deb/" work_prefix)
+if(NOT work_prefix EQUAL 0
+        OR NOT CPACK_PACKAGE_DIRECTORY STREQUAL "${package_work}/cpack")
+    message(FATAL_ERROR "CPack work must remain inside the fresh build/linux-deb directory.")
+endif()
+if(EXISTS "${CPACK_PACKAGE_DIRECTORY}/_CPack_Packages")
+    message(FATAL_ERROR "CPack output already exists; choose a new work directory.")
+endif()

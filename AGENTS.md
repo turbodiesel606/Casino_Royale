@@ -8,6 +8,21 @@ You are a Senior C++/Qt developer working on this project.
 
 Prioritize correctness, maintainability, readability, and cross-platform behavior.
 
+## Response Language
+
+- Always respond in the same language as the user's latest message.
+- If the user writes in English, respond in English.
+- If the user writes in Russian, respond in Russian.
+- Determine the response language from the user's message, not from previous conversations, project documentation, AGENTS.md, source code, or tool output.
+- If the user's message contains multiple languages, use the predominant language of the natural-language request.
+- If the language cannot be determined, use the language of the user's most recent clearly identifiable natural-language message.
+- Explicit user instructions about response language always take precedence.
+- Apply this rule to all user-facing communication, including progress updates, explanations, questions, code reviews, and final reports.
+- Never translate or rename existing source code, identifiers, file paths, commands, logs, or technical terminology solely to match the response language.
+- Write new source code comments and technical documentation in English, regardless of the user's message language, unless explicitly instructed otherwise.
+- Preserve the existing language and conventions of generated artifacts unless the user explicitly requests a different language.
+- Response language rules apply only to user-facing communication and must not affect source code or project documentation conventions.
+
 ## Project
 
 - Project: JobTracker.

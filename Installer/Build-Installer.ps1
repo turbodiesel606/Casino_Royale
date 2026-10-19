@@ -2,25 +2,33 @@
 <#
 Compile the single offline Setup from a verified direct Release stage.
 Never builds, installs, downloads, launches JobTracker, publishes or cleans.
-Private snapshots/logs stay in the selected build tree, outside Installer/output.
+Private snapshots/logs stay under build/, outside Installer/output.
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$BuildDirectory,
     [Parameter(Mandatory)][string]$StageDirectory,
-    [Parameter(Mandatory)][string]$IsccPath,
-    [string]$RedistributablePath
+    [ValidateNotNullOrEmpty()][string]$IsccPath,
+    [string]$RedistributablePath,
+    [switch]$PassThru
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $false
 if (-not $IsWindows) { throw 'The Windows installer requires Windows.' }
 . (Join-Path $PSScriptRoot 'PayloadValidation.ps1')
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$build = [IO.Path]::GetFullPath($BuildDirectory)
-$destination = Join-Path $PSScriptRoot 'output'
+$build = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($BuildDirectory)
+$run = [Guid]::NewGuid().ToString('N')
+$destination = Join-Path $PSScriptRoot "output/$run"
 Assert-NoReparsePoint $destination
+if (-not $PSBoundParameters.ContainsKey('IsccPath')) {
+    $IsccPath = (Get-Command ISCC.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+}
 Assert-NoReparsePoint $IsccPath
-$compiler = (Get-Item -LiteralPath $IsccPath -ErrorAction Stop).FullName
+$compilerItem = Get-Item -LiteralPath $IsccPath -ErrorAction Stop
+if ($compilerItem.PSIsContainer -or $compilerItem.Name -ine 'ISCC.exe') { throw 'IsccPath must identify an existing ISCC.exe.' }
+$compiler = $compilerItem.FullName
 $verified = Get-VerifiedReleasePayload -BuildDirectory $build -StageDirectory $StageDirectory
 $version = $verified.Version
 $identityFile = Join-Path $build 'Installer/Release/JobTrackerIdentity.iss'
@@ -34,22 +42,28 @@ if (-not $versionMatch.Success -or $versionMatch.Groups[1].Value -cne $version -
     throw 'Missing or stale generated Release Inno identity; reconfigure and rebuild.'
 }
 $installer = Join-Path $destination "JobTracker-Setup-$version.exe"
-if (Test-Path -LiteralPath $installer) {
-    throw "Setup already exists: $installer. Preserve or move that artifact before rebuilding; it will not be overwritten."
-}
-$work = Join-Path $build ('Installer/work/' + [Guid]::NewGuid().ToString('N'))
+$work = Join-Path $repository "build/installer/$run"
 Assert-NoReparsePoint $work
 foreach ($path in @($work, $destination, $identityFile)) {
     if ($path -match '["{}\r\n]') { throw "Path contains unsupported Inno metacharacters: $path" }
     if ($path.StartsWith($verified.StageDirectory + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) -or
         $path -ieq $verified.StageDirectory) { throw 'Installer output/work must be outside the staging tree.' }
 }
+foreach ($path in @($work, $destination)) {
+    if (Test-Path -LiteralPath $path) { throw "Output already exists; choose a fresh run: $path" }
+}
+New-Item -ItemType Directory -Path $work | Out-Null
+New-Item -ItemType Directory -Path $destination | Out-Null
+Write-Host "Setup output: $installer"
+Write-Host "Private build evidence: $work"
+Write-Host "Compiler log: $(Join-Path $work 'compile.log')"
 if (-not $RedistributablePath) {
     $cache = Get-Content -LiteralPath (Join-Path $build 'CMakeCache.txt') -Raw
     $instance = [regex]::Match($cache, '(?m)^CMAKE_GENERATOR_INSTANCE:INTERNAL=(.+?)\r?$')
     if (-not $instance.Success) { throw 'Visual Studio instance is missing from the build cache.' }
     $RedistributablePath = Join-Path $instance.Groups[1].Value 'VC/Redist/MSVC/v143/vc_redist.x64.exe'
 }
+$RedistributablePath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($RedistributablePath)
 $runtime = & (Join-Path $PSScriptRoot 'Prepare-MsvcRuntime.ps1') -BuildDirectory $build -RedistributablePath $RedistributablePath -OutputDirectory (Join-Path $work 'msvc-runtime') -PassThru
 
 # Snapshot only the exact reviewed files. Hash: also binds ISCC's bytes to validation.
@@ -87,6 +101,7 @@ $compilerArguments = @(
 $compilerOutput = @(& $compiler @compilerArguments 2>&1)
 $compilerExitCode = $LASTEXITCODE
 $compilerOutput | Set-Content -LiteralPath (Join-Path $work 'compile.log') -Encoding utf8
+Add-Content -LiteralPath (Join-Path $work 'compile.log') -Value "Exit code: $compilerExitCode"
 if ($compilerExitCode -ne 0) {
     throw "Inno Setup compilation failed ($compilerExitCode). See $work/compile.log."
 }
@@ -118,5 +133,14 @@ foreach ($name in @('JobTracker.iss','Build-Installer.ps1','PayloadValidation.ps
     generatedPayloadSha256 = Get-Sha256 $payloadFile
     msvcRuntime = $runtime.Evidence
 } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $work 'installer-build.json') -Encoding utf8
-Write-Output "PASS: $installer; $($verified.Files.Count) embedded application files; verified local MSVC inputs."
-Write-Output "Private build evidence: $work"
+Write-Host "PASS: $installer; $($verified.Files.Count) embedded application files; verified local MSVC inputs."
+Write-Host "Private build evidence: $work"
+if ($PassThru) {
+    return [pscustomobject]@{
+        InstallerPath = $installer
+        EvidenceDirectory = $work
+        MetadataPath = Join-Path $work 'installer-build.json'
+        CompilerPath = $compiler
+        Version = $version
+    }
+}

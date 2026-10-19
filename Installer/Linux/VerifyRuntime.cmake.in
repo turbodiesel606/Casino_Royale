@@ -1,0 +1,95 @@
+# Verify installed files, never the SDK or a previously populated output tree.
+set(payload "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}")
+set(required_files
+    bin/JobTrackerApp bin/qt.conf
+    lib/libQt6Core.so.@JOBTRACKER_QT_VERSION@
+    lib/libQt6Gui.so.@JOBTRACKER_QT_VERSION@
+    lib/libQt6Qml.so.@JOBTRACKER_QT_VERSION@
+    lib/libQt6Quick.so.@JOBTRACKER_QT_VERSION@
+    lib/libQt6Sql.so.@JOBTRACKER_QT_VERSION@
+    plugins/sqldrivers/libqsqlite.so
+    plugins/platforms/libqxcb.so
+    plugins/platforms/libqwayland.so
+    qml/QtQuick/qmldir qml/QtQuick/Controls/qmldir
+    qml/QtQuick/Dialogs/qmldir qml/QtQuick/Layouts/qmldir
+    qml/QtQuick/Templates/qmldir qml/QtQuick/Shapes/qmldir
+)
+foreach(relative_path IN LISTS required_files)
+    if(NOT EXISTS "${payload}/${relative_path}")
+        message(FATAL_ERROR "Incomplete Linux runtime: missing ${relative_path}")
+    endif()
+endforeach()
+file(GLOB_RECURSE qml_descriptors "${payload}/qml/qmldir")
+foreach(descriptor IN LISTS qml_descriptors)
+    file(STRINGS "${descriptor}" plugin_lines REGEX "^(optional )?plugin ")
+    get_filename_component(module_dir "${descriptor}" DIRECTORY)
+    foreach(line IN LISTS plugin_lines)
+        if(NOT line MATCHES "^(optional )?plugin ([A-Za-z0-9_]+)$")
+            message(FATAL_ERROR "Review unsupported plugin directive in ${descriptor}: ${line}")
+        endif()
+        if(NOT EXISTS "${module_dir}/lib${CMAKE_MATCH_2}.so")
+            message(FATAL_ERROR "Incomplete QML module: ${descriptor} references a missing plugin")
+        endif()
+    endforeach()
+endforeach()
+file(GLOB sql_plugins "${payload}/plugins/sqldrivers/*.so")
+if(NOT sql_plugins STREQUAL "${payload}/plugins/sqldrivers/libqsqlite.so")
+    message(FATAL_ERROR "The Linux runtime must contain only the SQLite SQL plugin.")
+endif()
+file(GLOB translations "${payload}/translations/*.qm")
+if(NOT translations)
+    message(FATAL_ERROR "Incomplete Linux runtime: missing Qt translations")
+endif()
+
+# Qt does not fail every unresolved dependency in its deployment pass. Inspect
+# every shipped ELF with CMake again, this time making omissions fatal.
+file(GLOB_RECURSE runtime_files LIST_DIRECTORIES FALSE "${payload}/*")
+set(elf_files "")
+foreach(path IN LISTS runtime_files)
+    if(IS_SYMLINK "${path}")
+        file(REAL_PATH "${path}" resolved_path)
+        string(FIND "${resolved_path}" "${payload}/" prefix_position)
+        if(NOT EXISTS "${resolved_path}" OR NOT prefix_position EQUAL 0)
+            message(FATAL_ERROR "Broken or escaping runtime symlink: ${path}")
+        endif()
+    else()
+        file(READ "${path}" magic LIMIT 4 HEX)
+        if(magic STREQUAL "7f454c46")
+            list(APPEND elf_files "${path}")
+        endif()
+    endif()
+endforeach()
+list(REMOVE_ITEM elf_files "${payload}/bin/JobTrackerApp")
+file(GET_RUNTIME_DEPENDENCIES
+    EXECUTABLES "${payload}/bin/JobTrackerApp"
+    LIBRARIES ${elf_files}
+    RESOLVED_DEPENDENCIES_VAR resolved
+    UNRESOLVED_DEPENDENCIES_VAR unresolved
+    CONFLICTING_DEPENDENCIES_PREFIX conflicts
+)
+if(unresolved OR conflicts_FILENAMES)
+    message(FATAL_ERROR "Incomplete Linux runtime: unresolved=${unresolved}; conflicting=${conflicts_FILENAMES}")
+endif()
+foreach(path IN LISTS resolved)
+    string(FIND "${path}" "${payload}/" prefix_position)
+    if(prefix_position EQUAL 0)
+        continue()
+    endif()
+    get_filename_component(filename "${path}" NAME)
+    if(filename MATCHES "^lib(Qt6|icu)" OR NOT path MATCHES "^/(usr/)?lib(64)?/")
+        message(FATAL_ERROR "Runtime dependency escapes private/system directories: ${path}")
+    endif()
+endforeach()
+
+# Preserve the matching SDK's available notices and component metadata. The
+# upstream SBOMs describe full Qt modules, not the exact JobTracker payload.
+if(NOT EXISTS "@JOBTRACKER_QT_LICENSE_FILE@")
+    message(FATAL_ERROR "Set JOBTRACKER_QT_LICENSE_FILE to the matching Qt license text.")
+endif()
+file(INSTALL "@JOBTRACKER_QT_LICENSE_FILE@"
+    DESTINATION "${CMAKE_INSTALL_PREFIX}/notices" RENAME Qt-LICENSE.txt)
+foreach(module IN ITEMS qtbase qtdeclarative qtwayland qtsvg qtimageformats qttranslations)
+    file(INSTALL "@JOBTRACKER_QT_KIT@/sbom/${module}-@JOBTRACKER_QT_VERSION@.spdx"
+        DESTINATION "${CMAKE_INSTALL_PREFIX}/notices/qt-sbom")
+endforeach()
+message(STATUS "Verified private Linux runtime at ${payload}")

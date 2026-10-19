@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=JobTracker
+Comment=Track job applications
+Exec=/opt/jobtracker/bin/JobTrackerApp
+TryExec=/opt/jobtracker/bin/JobTrackerApp
+Icon=jobtracker
+Terminal=false
+Categories=Office;

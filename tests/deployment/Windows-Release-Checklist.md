@@ -1,7 +1,7 @@
 # Windows release acceptance checklist
 
 Use this checklist for a particular
-`Installer/output/JobTracker-Setup-<version>.exe` and its matching private
+`Installer/output/<run-id>/JobTracker-Setup-<version>.exe` and its matching private
 `installer-build.json`. Record results with those artifact hashes in the
 chosen release/test evidence location. This is reusable procedure, not a claim
 of success. Use the [installer reference](../../For-Agent/Docs/installer.md)
