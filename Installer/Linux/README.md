@@ -74,8 +74,15 @@ prefix. The stage contains:
 - `usr/share/applications/jobtracker.desktop` and the seven maintained icons
   under `usr/share/icons/hicolor/<size>/apps/jobtracker.png`.
 
-Direct Linux installation without an absolute non-root `DESTDIR` is rejected.
-Normal builds only compile/link and do not deploy or remove existing output.
+Full Linux installation without an absolute non-root `DESTDIR` is rejected.
+Building `JobTrackerApp` alone only compiles/links. For routine development,
+`JobTrackerApp_dev_runtime` additionally prepares a local application/runtime
+copy under the build tree's `dev-runtime/<configuration>/` directory, as
+documented in the [build reference](../../For-Agent/Docs/build.md#linux-development-runtime-and-startup).
+That separate install component supports Debug and test-enabled trees and is
+excluded from full installation/CPack. The Release staging and packaging
+requirements in this guide remain unchanged. Neither workflow removes
+existing output.
 
 ## Build a local-test DEB
 

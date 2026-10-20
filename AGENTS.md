@@ -231,6 +231,16 @@ Avoid god classes, god files, and monolithic QML files. Decompose the codebase i
 
 ## Build And Verification
 
+For routine code implementation and verification, use Debug only on the current
+host. Include Qt runtime preparation for the production application on both
+Windows and Linux through `JobTrackerApp_dev_runtime`, and build and run required
+tests in a separate Debug test preset. Broader verification expands target/test
+coverage within Debug. Release builds and Release tests require an explicit
+user request. Other configurations, staging, and packaging also require an
+explicit user request. Follow the
+[routine workflow](For-Agent/Docs/build.md#routine-codex-workflow) for the complete
+selection rule.
+
 For normal application configuration, builds, development runtime preparation,
 and backend tests, use `For-Agent/Docs/build.md`.
 Apply `.agents/skills/cmake-build-debug/SKILL.md` for build/test execution and

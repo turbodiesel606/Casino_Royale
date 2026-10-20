@@ -24,7 +24,19 @@ Expand only when the final diff introduces a new dependency, an implementation a
 7. Confirm added, removed, or renamed C++, QML, and test files are registered correctly in `CMakeLists.txt`.
 8. When testing is relevant, apply `For-Agent/Docs/testing.md` for test quality, initial subsystem-to-test selection, and criteria for expanding coverage. Confirm tests exercise the changed contract and can detect its defect; retain proportionate before/after regression evidence when feasible. Do not leave risky behavior unverified merely to reduce execution time or usage.
 9. After the implementation is stable, perform one documentation-impact check from the final changed behavior and contracts. Inspect only directly affected guidance, update it or record that no update is required, and do not repeat the check unless a later edit changes the impact.
-10. After code, QML, CMake, resource, storage, or runtime-behavior changes, build the smallest affected production target that gives meaningful compile/link confidence unless verification is impossible. Read `For-Agent/Docs/build.md` for ordinary application/backend-test commands and use `cmake-build-debug` for execution. Broaden the production build for shared infrastructure, cross-target APIs, build-system behavior, several modules, merge/release readiness, or a diagnosed failure. Do not repeat an unchanged successful run without a concrete reason.
+10. After code, QML, CMake, resource, storage, or runtime-behavior changes,
+    complete the smallest sufficient production build unless verification is
+    impossible. For routine Windows and Linux tasks, build Debug through
+    `JobTrackerApp_dev_runtime` to include application/runtime deployment, and
+    build and run required tests in a separate Debug test preset. Broaden
+    production targets or test coverage for shared infrastructure, cross-target
+    APIs, build-system behavior, several modules, merge/release readiness, or
+    a diagnosed failure; routine expansion stays within Debug. Release builds
+    and Release tests require an explicit user request, including after Debug
+    failures. Follow the [routine workflow](../../../For-Agent/Docs/build.md#routine-codex-workflow)
+    for configuration selection and command forms, and use `cmake-build-debug`
+    for execution. Do not repeat an unchanged successful run without a concrete
+    reason.
 11. Include applicable QML/UI runtime and visual evidence in this final pass before reporting completion. Apply `For-Agent/Docs/qml-style.md` for focused inspection when a suitable environment is available. Reuse sufficiently current evidence for the affected behavior; do not repeat a GUI launch or visual inspection merely because the UI workflow also mentions it. When unavailable, identify the specific verification gap and provide focused manual actions and expected results. Keep build success distinct from runtime and visual verification. Report `passed`, `failed`, `not run`, and `no matching tests` under `testing.md`; do not claim unverified behavior works.
 12. Complete the report below, including any required validation that could not be performed and why.
 

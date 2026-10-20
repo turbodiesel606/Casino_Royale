@@ -1,4 +1,5 @@
-# This file registers explicit installation only; normal builds do not deploy.
+# Register explicit installation and development runtime preparation.
+# Building JobTrackerApp alone does not deploy.
 set_target_properties(JobTrackerApp PROPERTIES
     INSTALL_RPATH "$ORIGIN/../lib"
     INSTALL_RPATH_USE_LINK_PATH FALSE
@@ -33,6 +34,39 @@ qt_generate_deploy_qml_app_script(
     INCLUDE_PLUGINS
         qsqlite qxcb qwayland qgif qico qjpeg qsvg qwebp
         composeplatforminputcontextplugin ibusplatforminputcontextplugin
+)
+
+# A separate opt-in component allows Debug and test-enabled development trees.
+# Full installation and CPack exclude it and retain the packaging guards above.
+# Installing the executable also changes its RPATH to the private ../lib folder.
+install(CODE "
+    if(NOT \"${CMAKE_INSTALL_BINDIR}\" STREQUAL \"bin\"
+            OR NOT \"${CMAKE_INSTALL_LIBDIR}\" STREQUAL \"lib\")
+        message(FATAL_ERROR \"Linux development runtime requires bin/ and lib/.\")
+    endif()
+" COMPONENT JobTrackerDevelopmentRuntime EXCLUDE_FROM_ALL)
+
+install(TARGETS JobTrackerApp
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    COMPONENT JobTrackerDevelopmentRuntime
+    EXCLUDE_FROM_ALL
+)
+install(SCRIPT "${JOBTRACKER_LINUX_DEPLOY_SCRIPT}"
+    COMPONENT JobTrackerDevelopmentRuntime
+    EXCLUDE_FROM_ALL
+)
+
+# Ignore an inherited packaging DESTDIR for this build-local development copy.
+# Keep configurations separate and preserve existing files between invocations.
+add_custom_target(JobTrackerApp_dev_runtime
+    COMMAND "${CMAKE_COMMAND}" -E env --unset=DESTDIR
+        "${CMAKE_COMMAND}" --install "${CMAKE_BINARY_DIR}"
+        --config "$<CONFIG>"
+        --prefix "${CMAKE_CURRENT_BINARY_DIR}/dev-runtime/$<CONFIG>"
+        --component JobTrackerDevelopmentRuntime
+    DEPENDS JobTrackerApp
+    COMMENT "Preparing Qt runtime dependencies for local Linux development"
+    VERBATIM
 )
 
 get_filename_component(JOBTRACKER_QT_KIT "${Qt6_DIR}/../../.." ABSOLUTE)

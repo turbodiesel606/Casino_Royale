@@ -23,6 +23,15 @@ Use this skill for JobTracker build, test, and CMake verification work.
 
 ## Scope Selection
 
+Follow the [routine workflow](../../../For-Agent/Docs/build.md#routine-codex-workflow).
+For routine code tasks on Windows and Linux, use Debug on the current host and
+build `JobTrackerApp_dev_runtime` to include production application/runtime
+deployment. Build and run required tests in a separate Debug test preset.
+Broader coverage stays in Debug. Release builds and Release tests require an
+explicit user request; a Debug failure or broader verification does not
+authorize them. Other configurations, staging, and packaging also require an
+explicit user request.
+
 Select scope from the final diff and affected contracts using `test-and-review`
 for production-build and independent-review criteria, and
 `For-Agent/Docs/testing.md` for test selection and expansion. Its subsystem map
