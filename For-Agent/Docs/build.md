@@ -127,6 +127,13 @@ Standalone deployment consumers remain separate CMake projects under
 
 ## Explicit Release, Staging, And Packaging
 
+When asked to create or update an installer, prefer the native unattended
+`Installer/Windows/Create-Installer.ps1` or `Installer/Linux/Create-Installer.sh`
+entry point documented in [Installer/README.md](../../Installer/README.md).
+They configure/build Release and reuse existing staging/package checks; they
+never run acceptance tests or install/launch the result. Ordinary development
+verification does not invoke these launchers.
+
 Development runtime preparation is unnecessary for packaging. For an explicit
 request, use the [Windows installer build sequence](installer.md#build-sequence)
 or the Linux [standalone staging](../../Installer/Linux/README.md#build-and-stage)

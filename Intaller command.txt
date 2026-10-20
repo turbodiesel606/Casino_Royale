@@ -1,0 +1,4 @@
+Windows:
+pwsh -NoProfile -ExecutionPolicy Bypass -File ./Installer/Windows/Create-Installer.ps1
+Linux:
+bash ./Installer/Linux/Create-Installer.sh

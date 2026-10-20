@@ -94,7 +94,7 @@ foreach ($entry in @($payloadEntries) + @($runtimeEntries)) {
 }
 Record-Pass 'no-network-or-external-payload' 'Static executable-source and generated-entry check; disconnected VM remains separate.'
 
-foreach ($scenario in @('kind', 'hash', 'size', 'version', 'source')) {
+foreach ($scenario in @('kind', 'hash', 'size', 'version', 'source', 'filename')) {
     $changed = Get-Content -LiteralPath $MetadataPath -Raw | ConvertFrom-Json
     $pattern = ''
     switch ($scenario) {
@@ -103,6 +103,10 @@ foreach ($scenario in @('kind', 'hash', 'size', 'version', 'source')) {
         'size' { $changed.size += 1; $pattern = 'filename/size' }
         'version' { $changed.version = '999.0.0'; $pattern = 'filename/size|version' }
         'source' { $changed.sourceHashes.'MsvcRuntime.lock.json' = '0' * 64; $pattern = 'source hash mismatch' }
+        'filename' {
+            $changed | Add-Member -NotePropertyName installerFileName -NotePropertyValue "JobTracker-Setup-$($changed.version)-20000101T000000Z-000000000000.exe" -Force
+            $pattern = 'filename/size'
+        }
     }
     $path = Join-Path $work "$scenario.json"
     $changed | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $path

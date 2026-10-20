@@ -16,11 +16,15 @@ only. Record unavailable environment capabilities separately from test failures.
 
 ## Artifact selection and integrity
 
-Build and package with the existing [Linux DEB workflow](../../../Installer/Linux/README.md#build-a-local-test-deb).
+Build and package with the [release launcher](../../../Installer/Linux/README.md#one-command-release-deb)
+or existing [manual Linux DEB workflow](../../../Installer/Linux/README.md#build-a-local-test-deb).
 Use the exact `Package:` and `Package work:` paths printed by that successful
 `Package.sh` invocation; its `paths.txt` records the work/output directories.
-New final packages are under `Installer/Linux/output/<run-id>/`; work and
-checksum evidence remain under `build/linux-deb/`.
+The launcher places timestamped DEBs directly under `Installer/Linux/output/`;
+manual packaging defaults to `Installer/Linux/output/<run-id>/`. Private work,
+`result.txt` (exact final filename/version/size/hash), and checksum evidence
+remain under `build/linux-deb/`. The launcher also copies the result record to
+its printed log directory and never runs these separate acceptance checks.
 Do not select an arbitrary newest package or assume a versioned filename.
 From the repository root, set these paths and verify the wrapper's exact-byte
 SHA-256 manifest:

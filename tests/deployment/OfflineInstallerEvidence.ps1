@@ -14,7 +14,11 @@ function Get-OfflineInstallerEvidence {
         throw 'Rebuild offline Setup: evidence kind or installer hash mismatch.'
     }
     $item = Get-Item -LiteralPath $InstallerPath
-    if ($item.Name -cne "JobTracker-Setup-$($evidence.version).exe" -or $item.Length -ne $evidence.size) {
+    $approvedName = "JobTracker-Setup-$($evidence.version).exe"
+    if ($evidence.PSObject.Properties.Name -contains 'installerFileName') { $approvedName = $evidence.installerFileName }
+    $approvedPattern = '^JobTracker-Setup-' + [regex]::Escape($evidence.version) + '(?:-\d{8}T\d{6}Z-[0-9a-f]{12})?\.exe$'
+    if ($approvedName -cnotmatch $approvedPattern -or $item.Name -cne $approvedName -or
+        [IO.Path]::GetFileName($evidence.installer) -cne $approvedName -or $item.Length -ne $evidence.size) {
         throw 'Offline Setup filename/size does not match its private build evidence.'
     }
     $info = Assert-ReleaseBinary $InstallerPath

@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.22)
 if(NOT CPACK_GENERATOR STREQUAL "DEB" OR NOT CPACK_BUILD_CONFIG STREQUAL "Release")
     message(FATAL_ERROR "Use the DEB generator with the actual Release configuration.")
 endif()
-file(STRINGS "@CMAKE_BINARY_DIR@/CMakeCache.txt" cache_lines)
+file(STRINGS "@CMAKE_BINARY_DIR@/CMakeCache.txt" cache_lines ENCODING UTF-8)
 foreach(setting IN ITEMS
         "CMAKE_HOME_DIRECTORY:INTERNAL=@CMAKE_SOURCE_DIR@"
         "CMAKE_BUILD_TYPE:STRING=Release"

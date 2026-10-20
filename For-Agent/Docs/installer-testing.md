@@ -29,6 +29,19 @@ snapshot/generated identity and embedding. Use the Setup, build, stage, source
 state, and private evidence from the same invocation; never choose arbitrary
 latest metadata.
 
+The builder records an exact approved `installerFileName`: either the manual
+`JobTracker-Setup-<version>.exe` or the launcher's
+`JobTracker-Setup-<version>-<UTC-time>-<id>.exe`. The reader validates the versioned
+filename grammar and exact approved name, as well as size/hash/PE identity;
+renaming to another otherwise valid timestamped name still fails. Older evidence
+without this field uses the canonical manual name. Source-hash freshness remains
+required. `Test-OfflineInstaller.ps1` retains its incorrectly renamed EXE case
+and checks altered approved-filename metadata too.
+
+Use the exact fields from `Create-Installer.ps1 -PassThru` or its printed
+`build/installer-create/windows-<run-id>/result.json` for the commands below.
+Launcher creation does not run any of these separate suites or acceptance cases.
+
 Signing changes Setup bytes: the unsigned build JSON no longer matches that
 signed EXE, so the existing reader rejects it. Retain the unsigned candidate for
 repeatable suite checks and the separate signed-artifact receipt for verification
@@ -93,6 +106,16 @@ $installerFixtureRoot = Join-Path (Get-Location).Path "build/installer-tests/$in
 ~~~
 
 ## Direct Payload And Compiled Artifact
+
+For focused launcher regressions, the separate
+`tests/deployment/Test-CreateInstaller.ps1` accepts `-QtRoot <installed-kit>` and
+`-WorkDirectory <fresh-path-under-build>`. Optional `-IncompatibleQtRoot` checks
+automatic fallback from another installed Qt version. Its isolated fixtures
+cover typed/inherited presets, exact Unicode build paths, cache preservation,
+compiler conflicts, configuration precedence, native failure propagation and
+overlapping-launcher refusal. It never builds an app or compiles/runs Setup;
+it is not part of production packaging. Use the trusted process policy above
+when required by transferred scripts.
 
 `Test-OfflinePayload.ps1` exercises missing stages/plugins, Debug DLLs renamed
 to Release names, extra source/test/dev material, PE architecture/product/version,

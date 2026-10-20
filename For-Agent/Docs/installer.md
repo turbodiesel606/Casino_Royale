@@ -1,10 +1,15 @@
 # Windows Offline Installer
 
 This reference describes the existing native x64 installer for Windows 10/11.
-It produces one `Installer/Windows/output/<run-id>/JobTracker-Setup-<version>.exe` containing the
+It produces one offline Setup containing the
 Release application, Qt/QML/plugins/SQLite, scope-specific MSVC inputs, and the
 runtime notice. Installation requires no Qt/Visual Studio SDK, application
 archive, remote manifest, or dependency download.
+
+The [one-command launcher](../../Installer/README.md#one-command-release-installers)
+writes `Installer/Windows/output/JobTracker-Setup-<version>-<UTC-time>-<id>.exe`
+directly. The manual builder retains its
+`Installer/Windows/output/<run-id>/JobTracker-Setup-<version>.exe` default.
 
 Use [build.md](build.md) for shared build action selection and
 [build-windows.md](build-windows.md) for the Windows toolchain and backend-test
@@ -20,6 +25,7 @@ Use [Installer/README.md](../../Installer/README.md) for shared platform navigat
 
 | File | Responsibility |
 |---|---|
+| `Create-Installer.ps1`, `Create-Installer.example.psd1` | Unattended configure/build/stage/package orchestration and optional ignored local configuration. |
 | `JobTracker.iss` | Inno Setup entry point: native x64 Setup, EN/RU UI, scopes, shortcuts, and lifecycle callbacks. |
 | `Stage-Release.ps1` | Fresh direct CMake Release staging, shared build/payload validation, and private staging evidence. |
 | `Build-Installer.ps1` | Validates direct staging and generated identity, prepares local runtime inputs, snapshots bytes, generates explicit hashed file entries, invokes ISCC, and records private build evidence. |
@@ -67,6 +73,44 @@ nor runtime preparation downloads inputs or silently refreshes the lock.
 `Prepare-MsvcRuntime.ps1` itself requires an explicit redistributable path.
 
 ## Build Sequence
+
+For a request to create or update an installer, prefer the unattended launcher:
+
+~~~powershell
+pwsh -NoProfile -File ./Installer/Windows/Create-Installer.ps1
+~~~
+
+For trusted, reviewed scripts transferred through an archive and blocked by
+PowerShell execution policy (for example, `RemoteSigned`), use this alternative:
+
+~~~powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File ./Installer/Windows/Create-Installer.ps1
+~~~
+
+Run the appropriate command, not both, from the repository root. `Bypass` applies
+only to the newly started PowerShell process and its children; it does not change
+persistent execution-policy settings or remove file zone metadata. It is
+unnecessary when execution policy already permits the scripts. The manual
+sequence below retains the corresponding dedicated PowerShell session.
+
+Use [Installer/README.md](../../Installer/README.md#one-time-local-setup) for
+one-time configuration, precedence, options, cache/locking rules, UTC filenames
+and logs. Existing matching local presets need no duplicate SDK configuration.
+No tests, installation, app launch or development-runtime target is added.
+Within a trusted PowerShell session, structured results are also available:
+
+~~~powershell
+$created = & ./Installer/Windows/Create-Installer.ps1 -PassThru
+$installerBuild = $created.BuildDirectory
+$installerStage = $created.StageDirectory
+$installerSetup = $created.InstallerPath
+$installerEvidence = $created.EvidenceDirectory
+$installerMetadata = $created.MetadataPath
+$installerIscc = $created.CompilerPath
+~~~
+
+The step-by-step manual sequence below remains available unchanged. The
+launcher's `result.json` records the same exact invocation paths for later tests.
 
 Run each command separately from the repository root in the same PowerShell
 session, checking the exit code before continuing. CMake execution follows
@@ -159,6 +203,12 @@ in their own run directories. The builder retains stage/identity/hash checks,
 verified private MSVC snapshots and explicit hashed Inno file entries. It
 prints absolute result, compiler-log and evidence paths before compilation.
 
+The backward-compatible `-TimestampedOutput` builder switch instead publishes
+directly into `Installer/Windows/output/` using the launcher's UTC/random suffix.
+Both modes compile privately, validate native x64/product/version, write the
+approved exact `installerFileName` and bytes into metadata, then atomically move
+without overwrite. Existing `-PassThru` fields are preserved in both modes.
+
 Use that exact invocation's structured result, never an arbitrary newest file:
 
 ~~~powershell
@@ -196,7 +246,8 @@ Generated RC/CMake/Inno identity lives under
 runtime copies, logs, and `installer-build.json` live under
 `build/installer/<run-id>/`. JSON records local hashes, source state, compiler,
 identity, and payload inputs; it is not a remote trust anchor or customer asset.
-Only the versioned Setup belongs in its `Installer/Windows/output/<run-id>/` directory.
+Only finished Setups belong under `Installer/Windows/output/`: directly for the
+launcher/timestamped mode, in a run directory for the default manual builder.
 The publisher is blank and normal builds are unsigned.
 
 Keep each Setup with its own private evidence. Changed payload, source, runtime,
@@ -305,7 +356,7 @@ existing code-signing certificate in the current user's certificate store.
 Set these session variables to the intended values: `$JobTrackerSignTool`
 (full tool path), `$JobTrackerCertificateThumbprint` (certificate thumbprint),
 `$JobTrackerTimestampUrl` (the certificate provider's RFC 3161 endpoint), and
-`$JobTrackerSetup` (the finished canonical `Installer/Windows/output/<run-id>/JobTracker-Setup-<version>.exe`).
+`$JobTrackerSetup` (the exact finished Setup path from the launcher or manual builder).
 No PFX, password, private key or secret belongs in the repository or commands.
 Preserve the unsigned EXE and its `installer-build.json` in private evidence
 first. Require exit code 0 after each command before proceeding:

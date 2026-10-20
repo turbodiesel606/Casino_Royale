@@ -23,6 +23,12 @@ configure/build/stage/package commands. Debian packaging tools are required
 only for the opt-in DEB workflow, not ordinary application builds.
 CMake adjusts installed runtime paths; `patchelf` is not a prerequisite.
 The minimum CMake version is not itself a claim of testing on 3.22.
+
+The one-command installer launcher requires `flock` to prevent overlapping
+installer runs against the same build tree and stops if it is unavailable.
+This is a launcher prerequisite; ordinary application compilation does not
+require it.
+
 Preserve LF line endings for the Bash scripts. Invoke `Stage.sh` and `Package.sh`
 through `bash`, so transferring sources through ZIP does not require preserved
 executable bits.
@@ -32,6 +38,50 @@ commands sequentially from the repository root as an ordinary user. Stop on
 failure and retain the command, exit code and logs. Do not use sudo for
 configuration, builds, staging or packaging. Local user presets are optional
 and ignored; shared presets are the documented workflow.
+
+## One-command release DEB
+
+Use the [one-time launcher setup](../README.md#one-time-local-setup): install
+the existing requirements and configure a real confirmed `Name <email>`.
+Supply the Qt kit through `QTDIR`, `INSTALLER_QT_ROOT` in the ignored local
+configuration, or a compatible DEB preset's `CMAKE_PREFIX_PATH`.
+Copy `Create-Installer.example.conf` to the ignored
+`Create-Installer.local.conf` only when local overrides are needed; fill
+`INSTALLER_MAINTAINER` unless a release preset or
+`JOBTRACKER_DEB_MAINTAINER` environment value already supplies it.
+
+Leave `INSTALLER_PRESET` unset to preserve automatic preset selection. A custom
+local DEB preset must exist and inherit `linux-deb-release`. The ordinary
+`linux-release-local` preset is not a DEB substitute; a Qt path configured only
+there is not automatically reused by this launcher.
+
+```bash
+bash ./Installer/Linux/Create-Installer.sh
+```
+
+The launcher also works by absolute path from another working directory. It
+configures `linux-deb-release` (or a compatible local descendant), builds
+`JobTrackerApp` with tests OFF and `JOBTRACKER_DEB_LOCAL_TEST=OFF`, then calls
+`Package.sh`. No ordinary Release build, standalone stage, tests, installation,
+or application launch is added. Missing real metadata fails before configuring;
+there is no local-test fallback. `--help` lists `--preset`, `--qt-root`,
+`--maintainer`, `--parallel` and `--config` overrides. Command line overrides
+the local configuration, which overrides existing preset/environment defaults.
+The [shared launcher reference](../README.md#overrides-and-preset-selection)
+documents precedence, cache preservation and exclusive build-tree locking.
+
+The completed DEB goes directly into `Installer/Linux/output/`, for example
+`jobtracker_0.1.0-1_amd64_20261021T120000Z_0123456789ab.deb`. Date/time is UTC;
+the random suffix prevents same-second collisions. Filename suffixes do not
+change the package Version/revision. Root `CMakeLists.txt` owns the version.
+Logs/result live under `build/installer-create/linux-<UTC-time>.<id>/`;
+the printed `build/linux-deb/create-<run-id>/package/` contains CPack/dependency
+evidence, `package.sha256`, and `result.txt` identifying the exact final path,
+version, size and hash. Use that result, never the newest file in output.
+Failure stops immediately, returns nonzero, identifies its step/log and retains
+private evidence. No old outputs or caches are deleted.
+
+The manual commands below and manual installation procedures remain available.
 
 ## Build and stage
 
@@ -132,6 +182,12 @@ does not establish release acceptance.
 
 ### Package outputs
 
+The launcher supplies the backward-compatible `--timestamped-output` switch
+to `Package.sh`. This mode accepts the build and optional fresh work argument,
+with no output-directory argument, and publishes directly into the shared
+`Installer/Linux/output/`. The positional manual forms below retain their
+per-run output directories.
+
 With work/output arguments omitted, `Package.sh` reserves unique directories
 under `build/linux-deb/package-<run-id>/` and `Installer/Linux/output/package-<run-id>/`.
 The work and output identifiers may differ; use the printed absolute paths.
@@ -145,10 +201,15 @@ You may supply only the work argument and let the final output be automatic.
 Each explicit destination must be fresh and strictly below its allowed root:
 `build/linux-deb/` for work and `Installer/Linux/output/` for the final package.
 Repeated same-version packaging automatically preserves all earlier packages.
-The wrapper checks native command exits and final copy bytes, refuses existing
+The wrapper checks native command exits and final bytes, refuses existing
 outputs and symlinks, and leaves failed work/logs available. It never rebuilds,
 downloads, installs or launches the application. Reconfigure/build first after
 changing build inputs; an existing executable alone does not prove freshness.
+Timestamped mode publishes the completed, CPack-validated DEB with an exclusive
+hard link. In that mode work/final output must be on the same filesystem; a
+cross-device link fails without a partial final file. Legacy mode retains its
+exclusive copy and supports output on a different filesystem. Neither mode
+overwrites a collision.
 
 CPack uses the same install/runtime/desktop rules with `CPACK_SET_DESTDIR=ON`
 and `/opt/jobtracker`; absolute `/usr/share` destinations remain alongside
@@ -163,6 +224,9 @@ Results and evidence:
   local-test packages append `~localtest` to the revision.
 - Work: `cpack.log`, `paths.txt`, `package.sha256`, CPack's package/stage copy and
   `dependency-check/` under the printed `build/linux-deb/` run.
+- `result.txt`: UTF-8 key=value fields `version`, `packageVersion`, `installer`,
+  `size`, `sha256`, `evidence`, `log`. Both output modes record the actual final
+  filename and bytes; the launcher copies this record to its log directory.
 - `dependency-check/stage-root.txt` identifies the exact CPack stage;
   `dpkg-shlibdeps.log`, `elf-files.txt` and `system-depends.txt` retain the
   strict dependency evidence. Package stage and final paths are printed.

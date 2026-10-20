@@ -9,3 +9,5 @@ Tasks/
 /Installer/Windows/output/
 /Installer/Linux/output/
 /CMakeUserPresets.json
+/Installer/Windows/Create-Installer.local.psd1
+/Installer/Linux/Create-Installer.local.conf

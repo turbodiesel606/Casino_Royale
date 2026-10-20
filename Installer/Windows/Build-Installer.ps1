@@ -10,6 +10,7 @@ param(
     [Parameter(Mandatory)][string]$StageDirectory,
     [ValidateNotNullOrEmpty()][string]$IsccPath,
     [string]$RedistributablePath,
+    [switch]$TimestampedOutput,
     [switch]$PassThru
 )
 Set-StrictMode -Version Latest
@@ -20,7 +21,8 @@ if (-not $IsWindows) { throw 'The Windows installer requires Windows.' }
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $build = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($BuildDirectory)
 $run = [Guid]::NewGuid().ToString('N')
-$destination = Join-Path $PSScriptRoot "output/$run"
+$destination = Join-Path $PSScriptRoot 'output'
+if (-not $TimestampedOutput) { $destination = Join-Path $destination $run }
 Assert-NoReparsePoint $destination
 if (-not $PSBoundParameters.ContainsKey('IsccPath')) {
     $IsccPath = (Get-Command ISCC.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
@@ -41,7 +43,11 @@ if (-not $versionMatch.Success -or $versionMatch.Groups[1].Value -cne $version -
     $identity -notmatch ('(?m)^#define JobTrackerWindowsVersion "' + [regex]::Escape("$version.0") + '"\r?$')) {
     throw 'Missing or stale generated Release Inno identity; reconfigure and rebuild.'
 }
-$installer = Join-Path $destination "JobTracker-Setup-$version.exe"
+$installerName = "JobTracker-Setup-$version.exe"
+if ($TimestampedOutput) {
+    $installerName = "JobTracker-Setup-$version-$([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'))-$($run.Substring(0, 12)).exe"
+}
+$installer = Join-Path $destination $installerName
 $work = Join-Path $repository "build/installer/$run"
 Assert-NoReparsePoint $work
 foreach ($path in @($work, $destination, $identityFile)) {
@@ -49,11 +55,16 @@ foreach ($path in @($work, $destination, $identityFile)) {
     if ($path.StartsWith($verified.StageDirectory + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) -or
         $path -ieq $verified.StageDirectory) { throw 'Installer output/work must be outside the staging tree.' }
 }
-foreach ($path in @($work, $destination)) {
+$newDirectories = @($work)
+if (-not $TimestampedOutput) { $newDirectories += $destination }
+foreach ($path in $newDirectories) {
     if (Test-Path -LiteralPath $path) { throw "Output already exists; choose a fresh run: $path" }
 }
 New-Item -ItemType Directory -Path $work | Out-Null
-New-Item -ItemType Directory -Path $destination | Out-Null
+$null = [IO.Directory]::CreateDirectory($destination)
+$compileDirectory = Join-Path $work 'compiler-output'
+$null = [IO.Directory]::CreateDirectory($compileDirectory)
+$compiledInstaller = Join-Path $compileDirectory "JobTracker-Setup-$version.exe"
 Write-Host "Setup output: $installer"
 Write-Host "Private build evidence: $work"
 Write-Host "Compiler log: $(Join-Path $work 'compile.log')"
@@ -93,7 +104,7 @@ $payloadFile = Join-Path $work 'JobTrackerPayload.iss'
 $payload | Set-Content -LiteralPath $payloadFile -Encoding utf8
 $compilerArguments = @(
     "/DJobTrackerIdentityFile=$identityFile"
-    "/DJobTrackerOutputDirectory=$destination"
+    "/DJobTrackerOutputDirectory=$compileDirectory"
     "/DJobTrackerMsvcFile=$($runtime.IncludePath)"
     "/DJobTrackerPayloadFile=$payloadFile"
     (Join-Path $PSScriptRoot 'JobTracker.iss')
@@ -105,8 +116,8 @@ Add-Content -LiteralPath (Join-Path $work 'compile.log') -Value "Exit code: $com
 if ($compilerExitCode -ne 0) {
     throw "Inno Setup compilation failed ($compilerExitCode). See $work/compile.log."
 }
-$installerItem = Get-Item -LiteralPath $installer
-$null = Assert-ReleaseBinary $installer
+$installerItem = Get-Item -LiteralPath $compiledInstaller
+$null = Assert-ReleaseBinary $compiledInstaller
 $installerInfo = $installerItem.VersionInfo
 if ($installerInfo.ProductName.Trim() -cne 'JobTracker' -or $installerInfo.ProductVersion.Trim() -cne $version -or
     $installerInfo.FileVersion.Trim() -cne "$version.0") { throw 'Compiled installer version/product mismatch.' }
@@ -120,8 +131,9 @@ foreach ($name in @('JobTracker.iss','Build-Installer.ps1','PayloadValidation.ps
     kind = 'offline'
     version = $version
     installer = $installer
+    installerFileName = $installerName
     size = $installerItem.Length
-    sha256 = Get-Sha256 $installer
+    sha256 = Get-Sha256 $compiledInstaller
     payloadFileCount = $verified.Files.Count
     files = $verified.Files
     stageDirectory = $verified.StageDirectory
@@ -133,6 +145,9 @@ foreach ($name in @('JobTracker.iss','Build-Installer.ps1','PayloadValidation.ps
     generatedPayloadSha256 = Get-Sha256 $payloadFile
     msvcRuntime = $runtime.Evidence
 } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $work 'installer-build.json') -Encoding utf8
+# Atomic, non-overwriting publication of the already validated bytes. Inno never
+# writes a partial/unvalidated executable into the shared final output directory.
+[IO.File]::Move($compiledInstaller, $installer, $false)
 Write-Host "PASS: $installer; $($verified.Files.Count) embedded application files; verified local MSVC inputs."
 Write-Host "Private build evidence: $work"
 if ($PassThru) {

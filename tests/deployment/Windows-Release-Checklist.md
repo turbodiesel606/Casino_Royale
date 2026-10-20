@@ -1,7 +1,9 @@
 # Windows release acceptance checklist
 
-Use this checklist for a particular
-`Installer/Windows/output/<run-id>/JobTracker-Setup-<version>.exe` and its matching private
+Use this checklist for a particular completed Setup: the launcher's direct
+`Installer/Windows/output/JobTracker-Setup-<version>-<UTC-time>-<id>.exe`, or the
+manual builder's `Installer/Windows/output/<run-id>/JobTracker-Setup-<version>.exe`,
+and its matching private
 `installer-build.json`. Record results with those artifact hashes in the
 chosen release/test evidence location. This is reusable procedure, not a claim
 of success. Use the [installer reference](../../For-Agent/Docs/installer.md)
@@ -11,6 +13,10 @@ and [suite commands](../../For-Agent/Docs/installer-testing.md).
 
 - Record Windows edition/build, x64 architecture, account/elevation, installed
   MSVC runtime, artifact hashes, language, destination, exit code and log path.
+- Take exact result/evidence paths from the successful creation invocation.
+  Check approved filename, size, hash and PE identity, including renamed-file
+  rejection; never choose the newest EXE from shared output. The launcher does
+  not automatically run this acceptance checklist.
 - Use `PASS`, `FAIL` or `NOT_RUN` per case. Name the evidence level: source check,
   test harness, real installer integration, interactive UI, or clean VM.
 - Keep each build/test process sequential. Keep work/evidence under fresh `build/`
