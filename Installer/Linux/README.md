@@ -21,8 +21,9 @@ configure/build/stage/package commands. Debian packaging tools are required
 only for the opt-in DEB workflow, not ordinary application builds.
 CMake adjusts installed runtime paths; `patchelf` is not a prerequisite.
 The minimum CMake version is not itself a claim of testing on 3.22.
-Preserve LF line endings for the Bash scripts and executable permissions for
-`Stage.sh` and `Package.sh` when transferring sources.
+Preserve LF line endings for the Bash scripts. Invoke `Stage.sh` and `Package.sh`
+through `bash`, so transferring sources through ZIP does not require preserved
+executable bits.
 
 Set `QTDIR` to the installed kit containing `bin/` and `lib/cmake/`, then run
 commands sequentially from the repository root as an ordinary user. Stop on
@@ -42,7 +43,7 @@ cmake --build --preset linux-release --target JobTrackerApp --parallel 1
 After a successful build, use automatic fresh staging:
 
 ```bash
-Installer/Linux/Stage.sh build/qt-6.10.3/linux-release
+bash Installer/Linux/Stage.sh build/qt-6.10.3/linux-release
 ```
 
 The wrapper atomically allocates `build/linux-deb/stage-<run-id>/` and stages
@@ -50,7 +51,7 @@ into its `stage/` child. `install.log` and `paths.txt` stay beside that child.
 The original explicit form remains supported (choose a new path each time):
 
 ```bash
-Installer/Linux/Stage.sh build/qt-6.10.3/linux-release 'build/linux-deb/my fresh stage'
+bash Installer/Linux/Stage.sh build/qt-6.10.3/linux-release 'build/linux-deb/my fresh stage'
 ```
 
 An explicit stage is reserved at that exact location. Its log/evidence uses a
@@ -76,13 +77,25 @@ prefix. The stage contains:
 
 Full Linux installation without an absolute non-root `DESTDIR` is rejected.
 Building `JobTrackerApp` alone only compiles/links. For routine development,
-`JobTrackerApp_dev_runtime` additionally prepares a local application/runtime
-copy under the build tree's `dev-runtime/<configuration>/` directory, as
+build the tests-OFF Debug application, run required tests in a separate Debug
+test tree, then use `JobTrackerApp_dev_runtime` after final changes and successful
+checks. It prepares a local application/runtime copy under the build tree's
+`dev-runtime/<configuration>/` directory, as
 documented in the [build reference](../../For-Agent/Docs/build.md#linux-development-runtime-and-startup).
 That separate install component supports Debug and test-enabled trees and is
-excluded from full installation/CPack. The Release staging and packaging
-requirements in this guide remain unchanged. Neither workflow removes
-existing output.
+excluded from full installation/CPack. Its distinct deployment script includes
+`qmltooling` for debugging/profiling; production keeps the tooling exclusions.
+`QT_QML_DEBUG` remains Debug-only.
+
+For an optional fresh local copy, use
+`cmake --build --preset linux-debug --target JobTrackerApp_dev_runtime_fresh --parallel 1`.
+It uses the same development component in a new
+`dev-runtime-fresh/Debug/<run-id>/` directory and prints its exact path and launch
+command. It copies no old runtime and is never invoked by ordinary builds or
+packaging. Both development targets preserve relative RPATH and `qt.conf`, clear
+inherited `DESTDIR` only for the child installation, and preserve existing outputs.
+They do not force a full rebuild or create a Release distribution. The Release
+staging/packaging guards and requirements in this guide remain unchanged.
 
 ## Build a local-test DEB
 
@@ -92,7 +105,7 @@ settings but has its own cache at `build/qt-6.10.3/linux-deb-local-test`:
 ```bash
 cmake --preset linux-deb-local-test
 cmake --build --preset linux-deb-local-test --target JobTrackerApp --parallel 1
-Installer/Linux/Package.sh build/qt-6.10.3/linux-deb-local-test
+bash Installer/Linux/Package.sh build/qt-6.10.3/linux-deb-local-test
 ```
 
 This selects Release, `JOBTRACKER_BUILD_TESTS=OFF`,
@@ -106,7 +119,7 @@ The work and output identifiers may differ; use the printed absolute paths.
 The original explicit form also remains supported:
 
 ```bash
-Installer/Linux/Package.sh build/qt-6.10.3/linux-deb-local-test 'build/linux-deb/my package work' 'dist/linux-deb/my package result'
+bash Installer/Linux/Package.sh build/qt-6.10.3/linux-deb-local-test 'build/linux-deb/my package work' 'dist/linux-deb/my package result'
 ```
 
 You may supply only the work argument and let the final output be automatic.

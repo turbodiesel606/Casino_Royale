@@ -24,9 +24,16 @@ Use this skill for JobTracker build, test, and CMake verification work.
 ## Scope Selection
 
 Follow the [routine workflow](../../../For-Agent/Docs/build.md#routine-codex-workflow).
-For routine code tasks on Windows and Linux, use Debug on the current host and
-build `JobTrackerApp_dev_runtime` to include production application/runtime
-deployment. Build and run required tests in a separate Debug test preset.
+For routine code tasks requiring build validation on Windows and Linux, use
+Debug on the current host. After editing, build `JobTrackerApp` with tests OFF,
+then build and run required tests in a separate Debug test preset. Use
+`JobTrackerTests` for all tests, or named targets for selected tests; run CTest
+separately. After the final changes and successful required checks, build
+`JobTrackerApp_dev_runtime` to prepare the latest production runtime.
+Intermediate edit/build cycles may compile only. Prepare runtime earlier when
+startup or dependency verification needs it; do not force a full rebuild.
+`JobTrackerApp_dev_runtime_fresh` is an explicit optional copy in a new directory,
+not a routine prerequisite. Launch the main GUI only when the task requires it.
 Broader coverage stays in Debug. Release builds and Release tests require an
 explicit user request; a Debug failure or broader verification does not
 authorize them. Other configurations, staging, and packaging also require an
@@ -60,4 +67,5 @@ preset, test registration, configuration, and filter before claiming success.
 Do not describe zero matches as an executed failing test. Keep configure/build
 failures and test-start errors distinct from test assertion failures.
 
-For workflow-only or documentation-only changes, do not run a C++ build unless build behavior changed.
+For workflow-only or documentation-only changes without build impact, do not
+compile, run tests, or prepare runtime.

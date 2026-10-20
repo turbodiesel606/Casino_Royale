@@ -36,6 +36,24 @@ qt_generate_deploy_qml_app_script(
         composeplatforminputcontextplugin ibusplatforminputcontextplugin
 )
 
+# Qt 6.10.3 hashes the generated script content, not the OUTPUT_SCRIPT variable
+# name. Different plugin policies produce separate files for this same target.
+# Keep tooling in development copies; QT_QML_DEBUG itself remains Debug-only.
+qt_generate_deploy_qml_app_script(
+    TARGET JobTrackerApp
+    OUTPUT_SCRIPT JOBTRACKER_LINUX_DEV_DEPLOY_SCRIPT
+    EXCLUDE_PLUGIN_TYPES
+        sqldrivers imageformats platforminputcontexts vectorimageformats
+        designer qmllint qmlls egldeviceintegrations
+    INCLUDE_PLUGIN_TYPES qmltooling
+    INCLUDE_PLUGINS
+        qsqlite qxcb qwayland qgif qico qjpeg qsvg qwebp
+        composeplatforminputcontextplugin ibusplatforminputcontextplugin
+)
+if(JOBTRACKER_LINUX_DEV_DEPLOY_SCRIPT STREQUAL JOBTRACKER_LINUX_DEPLOY_SCRIPT)
+    message(FATAL_ERROR "Development and production deployment scripts must be distinct.")
+endif()
+
 # A separate opt-in component allows Debug and test-enabled development trees.
 # Full installation and CPack exclude it and retain the packaging guards above.
 # Installing the executable also changes its RPATH to the private ../lib folder.
@@ -51,7 +69,7 @@ install(TARGETS JobTrackerApp
     COMPONENT JobTrackerDevelopmentRuntime
     EXCLUDE_FROM_ALL
 )
-install(SCRIPT "${JOBTRACKER_LINUX_DEPLOY_SCRIPT}"
+install(SCRIPT "${JOBTRACKER_LINUX_DEV_DEPLOY_SCRIPT}"
     COMPONENT JobTrackerDevelopmentRuntime
     EXCLUDE_FROM_ALL
 )

@@ -27,8 +27,14 @@ Expand only when the final diff introduces a new dependency, an implementation a
 10. After code, QML, CMake, resource, storage, or runtime-behavior changes,
     complete the smallest sufficient production build unless verification is
     impossible. For routine Windows and Linux tasks, build Debug through
-    `JobTrackerApp_dev_runtime` to include application/runtime deployment, and
-    build and run required tests in a separate Debug test preset. Broaden
+    `JobTrackerApp` with tests OFF, then build and run required tests in a
+    separate Debug test preset (`JobTrackerTests` builds all tests; CTest runs
+    them separately). After the final changes and successful required checks,
+    prepare the latest runtime through `JobTrackerApp_dev_runtime`. Intermediate
+    builds may compile only; runtime may be prepared earlier for startup or
+    dependency verification. Do not force a full rebuild. The optional
+    `JobTrackerApp_dev_runtime_fresh` target is not a routine prerequisite.
+    Launch the main GUI only when required by the task. Broaden
     production targets or test coverage for shared infrastructure, cross-target
     APIs, build-system behavior, several modules, merge/release readiness, or
     a diagnosed failure; routine expansion stays within Debug. Release builds
@@ -56,7 +62,8 @@ For code review requests, lead with concrete findings ordered by severity.
 
 For implementation tasks, keep the final response concise and focused on what changed, why, and what was verified.
 
-For documentation-only, workflow-only, or instruction-only changes, do not run a C++ build unless build behavior changed.
+For documentation-only, workflow-only, or instruction-only changes without build
+impact, do not compile, run tests, or prepare runtime.
 
 Do not claim code works unless it was verified.
 

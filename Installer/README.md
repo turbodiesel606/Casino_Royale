@@ -7,8 +7,9 @@
   `Installer/output/<run-id>/JobTracker-Setup-<version>.exe`; private evidence
   stays under `build/`. See [Windows installer checks](../For-Agent/Docs/installer-testing.md).
 - **Ubuntu 24.04 amd64:** [Linux runtime and DEB guide](Linux/README.md).
-  Use the dedicated `linux-deb-local-test` preset, then `Linux/Stage.sh` or
-  `Linux/Package.sh` with automatic fresh directories. Work/staging stays under
+  Use the dedicated `linux-deb-local-test` preset, then invoke
+  `bash Installer/Linux/Stage.sh ...` or `bash Installer/Linux/Package.sh ...`
+  from the repository root with automatic fresh directories. Work/staging stays under
   `build/linux-deb/`; final DEBs go under `dist/linux-deb/<run-id>/`.
   See [Linux deployment checks](../tests/deployment/linux/README.md).
 

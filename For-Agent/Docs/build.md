@@ -12,21 +12,30 @@ current execution host. Select the matching `*-local` preset when it exists
 and points to the installed Qt kit; otherwise use the shared preset with
 `QTDIR` configured as described below.
 
-- Build the production application with tests OFF. On Windows and Linux, use
-  `JobTrackerApp_dev_runtime` as the routine application build target: it builds
-  `JobTrackerApp` and prepares its Qt/QML/platform/SQLite runtime together,
-  even when a GUI launch is not needed. Windows prepares dependencies beside
-  the executable; Linux prepares an application copy under the selected build
-  tree's `dev-runtime/<configuration>/` directory.
-- When the [testing policy](testing.md) requires tests, keep that production
-  build and additionally build/run the affected tests in the separate Debug
-  test preset. Windows test targets automatically copy their required Qt
-  libraries and SQLite plugin. Preparing the application runtime does not
-  build or run tests, and preparing test dependencies does not deploy the
-  production application. If launching the application from a test tree on
-  either platform, also build `JobTrackerApp_dev_runtime` in that tree. Linux
-  test executables continue to use their configured SDK runtime; the deployed
-  application copy is separate from the test executables.
+1. Make the changes; configure when the build tree or changed inputs require it.
+2. Build the production application with tests OFF using `JobTrackerApp`.
+3. When the [testing policy](testing.md) requires tests, build the affected
+   targets in the separate Debug test preset, then run them through CTest.
+   `JobTrackerTests` builds the full suite without building the application;
+   a named test target builds only that test and its prerequisites.
+4. After the final changes and successful required checks, prepare the latest
+   production runtime using `JobTrackerApp_dev_runtime`. It builds the
+   application incrementally if necessary; no forced full rebuild is required.
+
+Intermediate edit/build cycles may use `JobTrackerApp` without repeating
+deployment. Prepare runtime earlier when needed to verify startup or new
+dependencies. Final preparation must reflect the latest application state;
+reuse successful unchanged checks. Launch the main GUI only when the task
+requires it.
+
+Windows prepares application dependencies beside its executable; Linux prepares
+an application copy under `dev-runtime/<configuration>/`. Windows tests copy
+their Qt libraries/plugins into separate directories per target, so they can
+build in parallel. Linux tests use their configured SDK directly. Preparing
+test dependencies does not deploy the application; application runtime targets
+do not build or run tests. For an application launch from a test-enabled tree,
+explicitly prepare its application runtime too.
+
 - Broader verification expands production targets or test coverage within
   Debug, including the full relevant Debug suite when required. It does not
   automatically add Release or another operating system.
@@ -36,8 +45,9 @@ and points to the installed Qt kit; otherwise use the shared preset with
   day-to-day code workflow or infer Release coverage from broader tests or
   a Debug failure.
 - Documentation/instruction-only changes without build impact and read-only
-  code investigations do not trigger builds or application launches. An
-  explicitly requested build/test investigation follows its requested scope.
+  code investigations do not trigger compilation, tests, deployment or
+  application launches. An explicitly requested build/test investigation follows
+  its requested scope.
 
 On Windows, the routine presets are `windows-debug-local` and, when needed,
 `windows-debug-tests-local`; their shared equivalents omit `-local`. On Linux,
@@ -125,8 +135,10 @@ variants currently defined for this project. Choose the row for the requested
 platform/configuration; these are alternatives, not a checklist. All commands
 run from the repository root. Configure after CMake/preset/options/source
 registration changes or when the build tree is absent or stale, then build.
-Run the launch command only when application startup or GUI verification is
-part of the task. Local and shared variants use the same output directories.
+Before a launch, prepare the matching runtime using the
+[target selection commands](#target-selection). Run the launch command only
+when application startup or GUI verification is part of the task. Local and
+shared variants use the same output directories.
 
 Test-preset rows below build the application in a test-enabled tree; building
 and running the tests requires the separate [test commands](#optional-tests).
@@ -141,31 +153,35 @@ Build/runtime preparation and application startup are separate evidence.
 Use PowerShell. Visual Studio presets select x64; each build preset selects
 Debug or Release. `QT_QML_DEBUG` and MSVC Just My Code stay Debug-only.
 
-| Preset / tests | Configure | Build application and deploy Qt runtime | Launch application |
+| Preset / tests | Configure | Compile/link application | Launch application |
 | --- | --- | --- | --- |
-| `windows-debug` / OFF | `cmake --preset windows-debug` | `cmake --build --preset windows-debug --target JobTrackerApp_dev_runtime` | `& .\build\qt-6.10.3\windows-debug\Debug\JobTrackerApp.exe` |
-| `windows-debug-local` / OFF | `cmake --preset windows-debug-local` | `cmake --build --preset windows-debug-local --target JobTrackerApp_dev_runtime` | `& .\build\qt-6.10.3\windows-debug\Debug\JobTrackerApp.exe` |
-| `windows-debug-tests` / ON | `cmake --preset windows-debug-tests` | `cmake --build --preset windows-debug-tests --target JobTrackerApp_dev_runtime` | `& .\build\qt-6.10.3\windows-debug-tests\Debug\JobTrackerApp.exe` |
-| `windows-debug-tests-local` / ON | `cmake --preset windows-debug-tests-local` | `cmake --build --preset windows-debug-tests-local --target JobTrackerApp_dev_runtime` | `& .\build\qt-6.10.3\windows-debug-tests\Debug\JobTrackerApp.exe` |
-| `windows-release` / OFF | `cmake --preset windows-release` | `cmake --build --preset windows-release --target JobTrackerApp_dev_runtime` | `& .\build\qt-6.10.3\windows-release\Release\JobTrackerApp.exe` |
-| `windows-release-local` / OFF | `cmake --preset windows-release-local` | `cmake --build --preset windows-release-local --target JobTrackerApp_dev_runtime` | `& .\build\qt-6.10.3\windows-release\Release\JobTrackerApp.exe` |
-| `windows-release-tests` / ON | `cmake --preset windows-release-tests` | `cmake --build --preset windows-release-tests --target JobTrackerApp_dev_runtime` | `& .\build\qt-6.10.3\windows-release-tests\Release\JobTrackerApp.exe` |
-| `windows-release-tests-local` / ON | `cmake --preset windows-release-tests-local` | `cmake --build --preset windows-release-tests-local --target JobTrackerApp_dev_runtime` | `& .\build\qt-6.10.3\windows-release-tests\Release\JobTrackerApp.exe` |
+| `windows-debug` / OFF | `cmake --preset windows-debug` | `cmake --build --preset windows-debug --target JobTrackerApp` | `& .\build\qt-6.10.3\windows-debug\Debug\JobTrackerApp.exe` |
+| `windows-debug-local` / OFF | `cmake --preset windows-debug-local` | `cmake --build --preset windows-debug-local --target JobTrackerApp` | `& .\build\qt-6.10.3\windows-debug\Debug\JobTrackerApp.exe` |
+| `windows-debug-tests` / ON | `cmake --preset windows-debug-tests` | `cmake --build --preset windows-debug-tests --target JobTrackerApp` | `& .\build\qt-6.10.3\windows-debug-tests\Debug\JobTrackerApp.exe` |
+| `windows-debug-tests-local` / ON | `cmake --preset windows-debug-tests-local` | `cmake --build --preset windows-debug-tests-local --target JobTrackerApp` | `& .\build\qt-6.10.3\windows-debug-tests\Debug\JobTrackerApp.exe` |
+| `windows-release` / OFF | `cmake --preset windows-release` | `cmake --build --preset windows-release --target JobTrackerApp` | `& .\build\qt-6.10.3\windows-release\Release\JobTrackerApp.exe` |
+| `windows-release-local` / OFF | `cmake --preset windows-release-local` | `cmake --build --preset windows-release-local --target JobTrackerApp` | `& .\build\qt-6.10.3\windows-release\Release\JobTrackerApp.exe` |
+| `windows-release-tests` / ON | `cmake --preset windows-release-tests` | `cmake --build --preset windows-release-tests --target JobTrackerApp` | `& .\build\qt-6.10.3\windows-release-tests\Release\JobTrackerApp.exe` |
+| `windows-release-tests-local` / ON | `cmake --preset windows-release-tests-local` | `cmake --build --preset windows-release-tests-local --target JobTrackerApp` | `& .\build\qt-6.10.3\windows-release-tests\Release\JobTrackerApp.exe` |
 
 ### Windows Development Runtime And Startup
 
 For local Windows launches, prepare the development runtime separately for
 each configuration after its first build or a Qt/QML dependency change. This
-applies to both Debug and Release, including Visual Studio Ctrl+F5 launches.
-The routine Codex workflow includes this preparation in its Debug application
-build command every time that build is required.
+also supports explicitly requested Release work and Visual Studio Ctrl+F5.
+Routine Codex work prepares it after final edits and successful required Debug
+checks, rather than after each intermediate compile.
 
 `JobTrackerApp_dev_runtime` builds the application if needed and uses the
 matching SDK's `windeployqt` for Qt/QML/platform/SQLite dependencies, without
 compiler runtime deployment. It preserves existing files and prepares a local
 development runtime, not a redistributable Release package. A populated old
-directory alone is not proof of current deployment. If `windeployqt` is missing
-and the target is unavailable, report runtime preparation as incomplete.
+directory alone is not proof of current deployment. Configuration requires
+`windeployqt.exe` from the selected Qt kit's `bin/` directory and validates an
+existing `WINDEPLOYQT_EXECUTABLE` cache value. A missing or mismatched tool fails
+with a diagnostic. For a stale cached path, reconfigure with
+`cmake --preset <preset> -UWINDEPLOYQT_EXECUTABLE`; no global PATH/QTDIR or SDK
+changes are needed.
 
 An application-only build using `--target JobTrackerApp`, or a full build
 without `--target`, does not invoke this opt-in runtime target. Neither form
@@ -177,33 +193,38 @@ Use Bash or a suitable native shell on Linux. Each Ninja tree selects its
 matching build type. `--parallel 1` is suitable for a memory-constrained host
 and does not change preset settings.
 
-| Preset / tests | Configure | Build application and deploy Qt runtime | Launch deployed application |
+| Preset / tests | Configure | Compile/link application | Launch deployed application |
 | --- | --- | --- | --- |
-| `linux-debug` / OFF | `cmake --preset linux-debug` | `cmake --build --preset linux-debug --target JobTrackerApp_dev_runtime --parallel 1` | `./build/qt-6.10.3/linux-debug/dev-runtime/Debug/bin/JobTrackerApp` |
-| `linux-debug-local` / OFF | `cmake --preset linux-debug-local` | `cmake --build --preset linux-debug-local --target JobTrackerApp_dev_runtime --parallel 1` | `./build/qt-6.10.3/linux-debug/dev-runtime/Debug/bin/JobTrackerApp` |
-| `linux-debug-tests` / ON | `cmake --preset linux-debug-tests` | `cmake --build --preset linux-debug-tests --target JobTrackerApp_dev_runtime --parallel 1` | `./build/qt-6.10.3/linux-debug-tests/dev-runtime/Debug/bin/JobTrackerApp` |
-| `linux-debug-tests-local` / ON | `cmake --preset linux-debug-tests-local` | `cmake --build --preset linux-debug-tests-local --target JobTrackerApp_dev_runtime --parallel 1` | `./build/qt-6.10.3/linux-debug-tests/dev-runtime/Debug/bin/JobTrackerApp` |
-| `linux-release` / OFF | `cmake --preset linux-release` | `cmake --build --preset linux-release --target JobTrackerApp_dev_runtime --parallel 1` | `./build/qt-6.10.3/linux-release/dev-runtime/Release/bin/JobTrackerApp` |
-| `linux-release-local` / OFF | `cmake --preset linux-release-local` | `cmake --build --preset linux-release-local --target JobTrackerApp_dev_runtime --parallel 1` | `./build/qt-6.10.3/linux-release/dev-runtime/Release/bin/JobTrackerApp` |
-| `linux-release-tests` / ON | `cmake --preset linux-release-tests` | `cmake --build --preset linux-release-tests --target JobTrackerApp_dev_runtime --parallel 1` | `./build/qt-6.10.3/linux-release-tests/dev-runtime/Release/bin/JobTrackerApp` |
-| `linux-release-tests-local` / ON | `cmake --preset linux-release-tests-local` | `cmake --build --preset linux-release-tests-local --target JobTrackerApp_dev_runtime --parallel 1` | `./build/qt-6.10.3/linux-release-tests/dev-runtime/Release/bin/JobTrackerApp` |
-| `linux-deb-local-test` / OFF, Release packaging input | `cmake --preset linux-deb-local-test` | `cmake --build --preset linux-deb-local-test --target JobTrackerApp_dev_runtime --parallel 1` | `./build/qt-6.10.3/linux-deb-local-test/dev-runtime/Release/bin/JobTrackerApp` |
+| `linux-debug` / OFF | `cmake --preset linux-debug` | `cmake --build --preset linux-debug --target JobTrackerApp --parallel 1` | `./build/qt-6.10.3/linux-debug/dev-runtime/Debug/bin/JobTrackerApp` |
+| `linux-debug-local` / OFF | `cmake --preset linux-debug-local` | `cmake --build --preset linux-debug-local --target JobTrackerApp --parallel 1` | `./build/qt-6.10.3/linux-debug/dev-runtime/Debug/bin/JobTrackerApp` |
+| `linux-debug-tests` / ON | `cmake --preset linux-debug-tests` | `cmake --build --preset linux-debug-tests --target JobTrackerApp --parallel 1` | `./build/qt-6.10.3/linux-debug-tests/dev-runtime/Debug/bin/JobTrackerApp` |
+| `linux-debug-tests-local` / ON | `cmake --preset linux-debug-tests-local` | `cmake --build --preset linux-debug-tests-local --target JobTrackerApp --parallel 1` | `./build/qt-6.10.3/linux-debug-tests/dev-runtime/Debug/bin/JobTrackerApp` |
+| `linux-release` / OFF | `cmake --preset linux-release` | `cmake --build --preset linux-release --target JobTrackerApp --parallel 1` | `./build/qt-6.10.3/linux-release/dev-runtime/Release/bin/JobTrackerApp` |
+| `linux-release-local` / OFF | `cmake --preset linux-release-local` | `cmake --build --preset linux-release-local --target JobTrackerApp --parallel 1` | `./build/qt-6.10.3/linux-release/dev-runtime/Release/bin/JobTrackerApp` |
+| `linux-release-tests` / ON | `cmake --preset linux-release-tests` | `cmake --build --preset linux-release-tests --target JobTrackerApp --parallel 1` | `./build/qt-6.10.3/linux-release-tests/dev-runtime/Release/bin/JobTrackerApp` |
+| `linux-release-tests-local` / ON | `cmake --preset linux-release-tests-local` | `cmake --build --preset linux-release-tests-local --target JobTrackerApp --parallel 1` | `./build/qt-6.10.3/linux-release-tests/dev-runtime/Release/bin/JobTrackerApp` |
+| `linux-deb-local-test` / OFF, Release packaging input | `cmake --preset linux-deb-local-test` | `cmake --build --preset linux-deb-local-test --target JobTrackerApp --parallel 1` | `./build/qt-6.10.3/linux-deb-local-test/dev-runtime/Release/bin/JobTrackerApp` |
 
 ### Linux Development Runtime And Startup
 
-The routine Linux workflow requires `JobTrackerApp_dev_runtime`, even though
-the original build-tree executable can use its configured SDK directly.
-The target builds the application and installs the opt-in
+After final edits and successful required checks, prepare
+`JobTrackerApp_dev_runtime`, even though the original build-tree executable can
+use its configured SDK directly. The target builds the application if needed
+and installs the opt-in
 `JobTrackerDevelopmentRuntime` component into
 `<build-directory>/dev-runtime/<configuration>/`. Launch the deployed copy
 shown in the table for routine application/runtime verification.
 
-This component reuses the existing Qt QML/runtime deployment script to prepare
+This component uses its own Qt QML/runtime deployment script to prepare
 `bin/JobTrackerApp`, private libraries under `lib/`, plugins, QML imports,
 translations and `bin/qt.conf`. CMake installs the executable with
 `$ORIGIN/../lib` as its runtime library path. System libraries remain host
 dependencies. The target clears an inherited `DESTDIR` for its child install
-command and preserves existing output files.
+command and preserves existing output files. Development deployment explicitly
+includes `qmltooling` for QML debugging/profiling. `QT_QML_DEBUG` remains enabled
+only in Debug. The production script retains its developer-tooling exclusions.
+Qt 6.10.3 generates distinct scripts from their differing deployment content;
+changing an output variable name alone would not distinguish them.
 
 The development component supports Debug and Release, including test-enabled
 trees, and is excluded from full installation/CPack. It does not install
@@ -212,19 +233,42 @@ Release packaging keeps its existing production-build, prefix and `DESTDIR`
 guards. A full build or `--target JobTrackerApp` alone does not prepare the
 development runtime; select `JobTrackerApp_dev_runtime` explicitly.
 
+### Fresh Development Runtime
+
+`JobTrackerApp_dev_runtime_fresh` builds the current application if necessary
+and deploys it into a new directory on every invocation:
+`<build-directory>/dev-runtime-fresh/<configuration>/<UTC-time>-<random-id>/`.
+It prints the exact absolute output path and a launch command (the executable
+is at the directory root on Windows and under `bin/` on Linux).
+
+The helper copies only the current Windows executable, then uses the validated
+SDK's `windeployqt` with the same options as ordinary preparation. Linux invokes
+the same `JobTrackerDevelopmentRuntime` component as the ordinary target,
+including debugging/profiling plugins, relative RPATH/`qt.conf`, and child-only
+`DESTDIR` clearing. Neither path copies an old prepared runtime.
+
+Fresh preparation is explicit and optional: it is not a dependency of `ALL`,
+ordinary runtime preparation, tests or packaging. Both development targets
+preserve existing output; the ordinary target keeps its established launch
+paths and does not prune stale files. Use a fresh copy when an empty destination
+is needed. Neither target creates an installer/package or forces a full rebuild.
+
 ### Target Selection
 
 Replace `<preset>` with a compatible preset from the tables above and
 `<test-target>` with an actual target from the [test map](testing.md#subsystem-to-test-map).
-These command forms cover application-only, full and selected-test builds.
-For routine Windows and Linux work, the production application build must
-include runtime preparation through `JobTrackerApp_dev_runtime`.
+These command forms cover compilation, runtime preparation and test builds.
+For routine work, compile first, run required tests, then prepare the final
+runtime. The full configured `ALL` build remains available but is not the
+command for building just the full test suite.
 
 | Scope | Windows | Linux |
 | --- | --- | --- |
 | Application compile/link only | `cmake --build --preset <preset> --target JobTrackerApp` | `cmake --build --preset <preset> --target JobTrackerApp --parallel 1` |
 | Application with local runtime preparation | `cmake --build --preset <preset> --target JobTrackerApp_dev_runtime` | `cmake --build --preset <preset> --target JobTrackerApp_dev_runtime --parallel 1` |
+| Application with a fresh local runtime | `cmake --build --preset <preset> --target JobTrackerApp_dev_runtime_fresh` | `cmake --build --preset <preset> --target JobTrackerApp_dev_runtime_fresh --parallel 1` |
 | Full configured build | `cmake --build --preset <preset>` | `cmake --build --preset <preset> --parallel 1` |
+| All tests in a test-enabled preset | `cmake --build --preset <preset> --target JobTrackerTests --parallel 4` | `cmake --build --preset <preset> --target JobTrackerTests --parallel 1` |
 | Selected tests in a test-enabled preset | `cmake --build --preset <preset> --target <test-target>` | `cmake --build --preset <preset> --target <test-target> --parallel 1` |
 
 ### Other Windows Configurations
@@ -273,23 +317,27 @@ three commands without setting `QTDIR`. Their Release equivalents are
 `windows-release-tests-local` and `linux-release-tests-local`, reserved for
 explicit Release work.
 
-Use the full build/suite table only when the testing policy requires full
+Use the full test build/suite table only when the testing policy requires full
 coverage. Full coverage in routine tasks still uses Debug; Release test rows
-require an explicit user request. Windows test targets deploy their own
-required Qt runtime and SQLite plugin; the full build does not invoke
-`JobTrackerApp_dev_runtime`. Use the application/runtime table as well if
-launching the application from that test tree.
+require an explicit user request. `JobTrackerTests` exists only with tests ON,
+depends on all current test executables, and neither builds the application nor
+runs tests. Each Windows test deploys its runtime and SQLite plugin under
+`test-runtime/<configuration>/<test-target>/`; Qt Quick/QML/offscreen files for
+the feedback test go into its own directory too. Individual targets remain
+independent, and compilation/deployment can run in parallel without shared
+runtime writes. Choose a suitable `--parallel` value for available memory.
+Linux test outputs and SDK runtime selection are unchanged.
 
-| Test preset | Build full test-enabled tree | Run full suite |
+| Test preset | Build all tests (no application) | Run full suite |
 | --- | --- | --- |
-| `windows-debug-tests` | `cmake --build --preset windows-debug-tests` | `ctest --preset windows-debug-tests` |
-| `windows-debug-tests-local` | `cmake --build --preset windows-debug-tests-local` | `ctest --preset windows-debug-tests-local` |
-| `windows-release-tests` | `cmake --build --preset windows-release-tests` | `ctest --preset windows-release-tests` |
-| `windows-release-tests-local` | `cmake --build --preset windows-release-tests-local` | `ctest --preset windows-release-tests-local` |
-| `linux-debug-tests` | `cmake --build --preset linux-debug-tests --parallel 1` | `ctest --preset linux-debug-tests` |
-| `linux-debug-tests-local` | `cmake --build --preset linux-debug-tests-local --parallel 1` | `ctest --preset linux-debug-tests-local` |
-| `linux-release-tests` | `cmake --build --preset linux-release-tests --parallel 1` | `ctest --preset linux-release-tests` |
-| `linux-release-tests-local` | `cmake --build --preset linux-release-tests-local --parallel 1` | `ctest --preset linux-release-tests-local` |
+| `windows-debug-tests` | `cmake --build --preset windows-debug-tests --target JobTrackerTests` | `ctest --preset windows-debug-tests` |
+| `windows-debug-tests-local` | `cmake --build --preset windows-debug-tests-local --target JobTrackerTests` | `ctest --preset windows-debug-tests-local` |
+| `windows-release-tests` | `cmake --build --preset windows-release-tests --target JobTrackerTests` | `ctest --preset windows-release-tests` |
+| `windows-release-tests-local` | `cmake --build --preset windows-release-tests-local --target JobTrackerTests` | `ctest --preset windows-release-tests-local` |
+| `linux-debug-tests` | `cmake --build --preset linux-debug-tests --target JobTrackerTests --parallel 1` | `ctest --preset linux-debug-tests` |
+| `linux-debug-tests-local` | `cmake --build --preset linux-debug-tests-local --target JobTrackerTests --parallel 1` | `ctest --preset linux-debug-tests-local` |
+| `linux-release-tests` | `cmake --build --preset linux-release-tests --target JobTrackerTests --parallel 1` | `ctest --preset linux-release-tests` |
+| `linux-release-tests-local` | `cmake --build --preset linux-release-tests-local --target JobTrackerTests --parallel 1` | `ctest --preset linux-release-tests-local` |
 
 A zero-test selection is `no matching tests`, not PASS. Build/distribution
 verification does not imply business/UI testing.
@@ -309,8 +357,8 @@ Windows wrappers require PowerShell 7.2+.
 | --- | --- |
 | Windows fresh Release stage | `$stageResult = & ./Installer/Stage-Release.ps1 -BuildDirectory ./build/qt-6.10.3/windows-release -PassThru` |
 | Windows offline Setup from that stage | `& ./Installer/Build-Installer.ps1 -BuildDirectory $stageResult.BuildDirectory -StageDirectory $stageResult.StageDirectory` |
-| Linux fresh Release stage | `Installer/Linux/Stage.sh build/qt-6.10.3/linux-release` |
-| Ubuntu 24.04 amd64 local-test DEB from the dedicated preset | `Installer/Linux/Package.sh build/qt-6.10.3/linux-deb-local-test` |
+| Linux fresh Release stage | `bash Installer/Linux/Stage.sh build/qt-6.10.3/linux-release` |
+| Ubuntu 24.04 amd64 local-test DEB from the dedicated preset | `bash Installer/Linux/Package.sh build/qt-6.10.3/linux-deb-local-test` |
 
 The wrappers consume existing builds and preserve previous outputs. Linux
 installed paths remain `/opt/jobtracker` and `/usr/share` desktop resources.

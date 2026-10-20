@@ -283,34 +283,73 @@ endif()
 # Prepare the local development runtime only when explicitly requested.
 # This target is not part of ALL and does not produce a release package.
 if(WIN32)
-    if(TARGET Qt6::qmake)
-        get_target_property(_qt6_qmake_executable Qt6::qmake IMPORTED_LOCATION)
-        get_filename_component(_qt6_bin_dir "${_qt6_qmake_executable}" DIRECTORY)
+    get_filename_component(_qt6_kit_dir "${Qt6_DIR}/../../.." REALPATH)
+    set(_qt6_windeployqt "${_qt6_kit_dir}/bin/windeployqt.exe")
+    if(NOT EXISTS "${_qt6_windeployqt}")
+        message(FATAL_ERROR
+            "The selected Qt ${JOBTRACKER_QT_VERSION} kit has no windeployqt: "
+            "${_qt6_windeployqt}. Install that kit's deployment tools.")
     endif()
 
-    find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${_qt6_bin_dir}")
-
-    if(WINDEPLOYQT_EXECUTABLE)
-        add_custom_target(JobTrackerApp_dev_runtime
-            COMMAND "${WINDEPLOYQT_EXECUTABLE}"
-                --no-compiler-runtime
-                --qmldir "${CMAKE_CURRENT_SOURCE_DIR}/qml"
-                "$<TARGET_FILE:JobTrackerApp>"
-            DEPENDS JobTrackerApp
-            COMMENT "Preparing Qt runtime dependencies for local development"
-            VERBATIM
-        )
-    else()
-        message(WARNING "windeployqt was not found; JobTrackerApp_dev_runtime is unavailable.")
+    # find_program trusts cached values, so validate them before searching.
+    if(DEFINED WINDEPLOYQT_EXECUTABLE
+            AND NOT WINDEPLOYQT_EXECUTABLE MATCHES "-NOTFOUND$")
+        get_filename_component(_cached_windeployqt "${WINDEPLOYQT_EXECUTABLE}" REALPATH)
+        get_filename_component(_selected_windeployqt "${_qt6_windeployqt}" REALPATH)
+        string(TOLOWER "${_cached_windeployqt}" _cached_windeployqt)
+        string(TOLOWER "${_selected_windeployqt}" _selected_windeployqt)
+        if(NOT EXISTS "${WINDEPLOYQT_EXECUTABLE}"
+                OR NOT _cached_windeployqt STREQUAL _selected_windeployqt)
+            message(FATAL_ERROR
+                "WINDEPLOYQT_EXECUTABLE='${WINDEPLOYQT_EXECUTABLE}' does not match "
+                "the selected Qt kit (${_qt6_windeployqt}). Reconfigure with "
+                "-UWINDEPLOYQT_EXECUTABLE to select this kit's tool.")
+        endif()
     endif()
+    find_program(WINDEPLOYQT_EXECUTABLE NAMES windeployqt
+        PATHS "${_qt6_kit_dir}/bin" NO_DEFAULT_PATH REQUIRED)
+    set(WINDEPLOYQT_EXECUTABLE "${_qt6_windeployqt}")
+
+    add_custom_target(JobTrackerApp_dev_runtime
+        COMMAND "${WINDEPLOYQT_EXECUTABLE}"
+            --no-compiler-runtime
+            --qmldir "${CMAKE_CURRENT_SOURCE_DIR}/qml"
+            "$<TARGET_FILE:JobTrackerApp>"
+        DEPENDS JobTrackerApp
+        COMMENT "Preparing Qt runtime dependencies for local development"
+        VERBATIM
+    )
+endif()
+
+if(WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_custom_target(JobTrackerApp_dev_runtime_fresh
+        COMMAND "${CMAKE_COMMAND}"
+            "-DJOBTRACKER_BUILD_DIR=${CMAKE_BINARY_DIR}"
+            "-DJOBTRACKER_CONFIG=$<CONFIG>"
+            "-DJOBTRACKER_APP=$<TARGET_FILE:JobTrackerApp>"
+            "-DJOBTRACKER_QML_DIR=${CMAKE_CURRENT_SOURCE_DIR}/qml"
+            "-DWINDEPLOYQT_EXECUTABLE=${WINDEPLOYQT_EXECUTABLE}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/PrepareFreshRuntime.cmake"
+        DEPENDS JobTrackerApp
+        COMMENT "Preparing a fresh local development runtime"
+        VERBATIM
+    )
 endif()
 
 if(JOBTRACKER_BUILD_TESTS)
     find_package(Qt6 ${JOBTRACKER_QT_VERSION} EXACT REQUIRED COMPONENTS Test)
     enable_testing()
+    add_custom_target(JobTrackerTests)
 
     function(jobtracker_deploy_test_runtime target_name)
+        add_dependencies(JobTrackerTests ${target_name})
         if(WIN32)
+            # Each test owns its runtime files, including Qt Quick deployment.
+            # A generator expression prevents an extra multi-config suffix.
+            set_target_properties(${target_name} PROPERTIES
+                RUNTIME_OUTPUT_DIRECTORY
+                    "${CMAKE_CURRENT_BINARY_DIR}/test-runtime/$<CONFIG>/${target_name}"
+            )
             # SQLite is loaded as a plugin, so copying QtSql alone is insufficient.
             add_custom_command(TARGET ${target_name} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -557,14 +596,13 @@ if(JOBTRACKER_BUILD_TESTS)
                 "$<TARGET_FILE_DIR:JobTrackerMutationFeedbackTests>/platforms"
             COMMENT "Deploying the offscreen platform for QML feedback tests"
         )
-        if(WINDEPLOYQT_EXECUTABLE)
-            add_custom_command(TARGET JobTrackerMutationFeedbackTests POST_BUILD
-                COMMAND "${WINDEPLOYQT_EXECUTABLE}"
-                    --qmldir "${CMAKE_CURRENT_SOURCE_DIR}/qml/components"
-                    "$<TARGET_FILE:JobTrackerMutationFeedbackTests>"
-                COMMENT "Deploying Qt Quick dependencies for QML feedback tests"
-            )
-        endif()
+        add_custom_command(TARGET JobTrackerMutationFeedbackTests POST_BUILD
+            COMMAND "${WINDEPLOYQT_EXECUTABLE}"
+                --qmldir "${CMAKE_CURRENT_SOURCE_DIR}/qml/components"
+                "$<TARGET_FILE:JobTrackerMutationFeedbackTests>"
+            COMMENT "Deploying Qt Quick dependencies for QML feedback tests"
+            VERBATIM
+        )
     endif()
     set_tests_properties(JobTrackerMutationFeedbackTests PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"

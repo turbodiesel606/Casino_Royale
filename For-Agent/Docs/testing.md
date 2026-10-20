@@ -32,11 +32,25 @@ and `linux-release-tests`) use the same SDK pin, distinct directories and
 matching single-config build types. Use the Linux commands in `build.md` on a
 Linux host; preset inspection on Windows does not verify Linux execution.
 
+`JobTrackerTests` exists only with tests ON and builds all test executables,
+without building `JobTrackerApp` or its development runtime. It does not run
+tests; invoke CTest separately. Named test targets remain independently
+buildable. The ordinary `ALL` target retains its existing behavior.
+
 The Windows test runtime helper copies the configuration-matched Qt libraries
-and SQLite driver into each test output directory (`sqldrivers/qsqlite[d].dll`).
+and SQLite driver into each test's separate output directory:
+`<build-directory>/test-runtime/<configuration>/<test-target>/`
+(`sqldrivers/qsqlite[d].dll` below it). Parallel targets write disjoint runtime
+files. The QML feedback test's additional Qt Quick/QML/offscreen deployment uses
+that same test-specific directory. CTest resolves the executable's new location.
 QtSql loads SQLite dynamically; linking/copying QtSql alone does not supply the
 driver. This preparation remains inside `JOBTRACKER_BUILD_TESTS` and does not
 deploy the production application or create a Release staging directory.
+
+Routine validation builds the tests-OFF Debug application first, runs the
+required separate Debug tests, then prepares the final development runtime
+after the last changes and successful checks. Follow the sequence in `build.md`;
+do not repeat successful unchanged checks or deploy after every intermediate edit.
 
 For normal application configuration, builds, development runtime preparation,
 and backend tests, use the commands in `For-Agent/Docs/build.md`.
