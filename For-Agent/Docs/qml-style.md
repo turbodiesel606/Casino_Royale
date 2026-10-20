@@ -4,7 +4,7 @@ Keep QML focused on presentation, layout, navigation, binding, and simple UI sta
 
 Never add business logic directly to QML.
 
-Move existing QML business logic into C++.
+Move existing QML business logic into C++ only within the requested task scope.
 
 Use `For-Agent/Docs/qml-to-cpp-extraction.md` for the extraction workflow and QML/C++ contract rules.
 
@@ -90,7 +90,8 @@ accent outline or selection bar around selected data items.
 After QML changes, build the smallest affected production target that provides
 meaningful compile and link confidence. Broaden verification only under the
 criteria in `.agents/skills/test-and-review/SKILL.md` and
-`For-Agent/Docs/testing.md`; use `For-Agent/Docs/build.md` for commands.
+`For-Agent/Docs/testing.md`; use [build.md](build.md) for shared action selection
+and its relevant OS reference for commands.
 
 When an available suitable environment supports relevant, proportionate runtime
 or visual inspection, use it to exercise the affected interaction and inspect the

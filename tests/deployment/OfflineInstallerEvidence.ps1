@@ -1,7 +1,7 @@
 #requires -Version 7.2
 # Test-only reader for the private evidence produced by the offline Setup build.
 # Never copy this JSON beside the end-user EXE or accept an archive manifest here.
-. (Join-Path $PSScriptRoot '../../Installer/PayloadValidation.ps1')
+. (Join-Path $PSScriptRoot '../../Installer/Windows/PayloadValidation.ps1')
 function Get-OfflineInstallerEvidence {
     [CmdletBinding()]
     param(
@@ -22,7 +22,7 @@ function Get-OfflineInstallerEvidence {
         $info.FileVersion.Trim() -cne "$($evidence.version).0") {
         throw 'Offline Setup version does not match its private build evidence.'
     }
-    $installerSource = Join-Path $PSScriptRoot '../../Installer'
+    $installerSource = Join-Path $PSScriptRoot '../../Installer/Windows'
     foreach ($name in @('JobTracker.iss', 'Build-Installer.ps1', 'PayloadValidation.ps1',
             'PayloadSafety.iss', 'InstallationPolicy.iss', 'ManualClose.iss', 'PersonalData.iss',
             'MsvcRuntime.iss', 'Prepare-MsvcRuntime.ps1', 'MsvcRuntime.lock.json',

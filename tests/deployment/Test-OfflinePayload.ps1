@@ -9,7 +9,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
-. (Join-Path $repository 'Installer/PayloadValidation.ps1')
+. (Join-Path $repository 'Installer/Windows/PayloadValidation.ps1')
 $work = [IO.Path]::GetFullPath($WorkDirectory)
 if (-not $work.StartsWith((Join-Path $repository 'build') + '\', [StringComparison]::OrdinalIgnoreCase)) {
     throw 'Private payload tests must stay below this repository''s build/ directory.'
@@ -164,9 +164,9 @@ foreach ($scenario in @('wrong-product', 'wrong-exe-version')) {
 
 # Keep the copied validator's source/build context coherent before mutating its inventory.
 $privateRepository = Join-Path $work 'inventory-checkout'
-$privateValidator = Join-Path $privateRepository 'Installer'
+$privateValidator = Join-Path $privateRepository 'Installer/Windows'
 New-Item -ItemType Directory -Path $privateValidator | Out-Null
-Copy-Item -LiteralPath (Join-Path $repository 'Installer/PayloadValidation.ps1') -Destination $privateValidator
+Copy-Item -LiteralPath (Join-Path $repository 'Installer/Windows/PayloadValidation.ps1') -Destination $privateValidator
 Copy-Item -LiteralPath (Join-Path $repository 'CMakeLists.txt') -Destination $privateRepository
 $inventoryBuild = New-BuildCopy 'inventory-build'
 $inventoryCache = Join-Path $inventoryBuild 'CMakeCache.txt'
@@ -174,7 +174,7 @@ $sourceSetting = 'CMAKE_HOME_DIRECTORY:INTERNAL=' + $privateRepository.Replace('
 $cacheText = [regex]::Replace([IO.File]::ReadAllText($inventoryCache),
     '(?m)^CMAKE_HOME_DIRECTORY:INTERNAL=[^\r\n]+', $sourceSetting)
 [IO.File]::WriteAllText($inventoryCache, $cacheText)
-$inventory = Get-Content -LiteralPath (Join-Path $repository 'Installer/payload-files.txt')
+$inventory = Get-Content -LiteralPath (Join-Path $repository 'Installer/Windows/payload-files.txt')
 $inventory | Set-Content -LiteralPath (Join-Path $privateValidator 'payload-files.txt')
 $privatePayload = & {
     . (Join-Path $privateValidator 'PayloadValidation.ps1')

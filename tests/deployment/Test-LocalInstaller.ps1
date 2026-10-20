@@ -1,8 +1,8 @@
 #requires -Version 7.2
 <#
 Exercise the real offline installer without launching JobTracker or reading its data.
-Each scope uses a fresh fixture below dist/. Only its own generated installation
-is uninstalled; logs, state and synthetic personal-data sentinels are retained.
+Each scope uses a fresh fixture below build/installer-tests/. Only its own generated
+installation is uninstalled; logs, state and synthetic personal-data sentinels are retained.
 Run CurrentUser without elevation, AllUsers from an elevated PowerShell session.
 #>
 [CmdletBinding()]
@@ -19,8 +19,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $work = [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath($WorkDirectory))
-if (-not $work.StartsWith((Join-Path $repository 'dist') + '\', [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'Installer fixtures must be below this repository''s dist/ directory.'
+if (-not $work.StartsWith((Join-Path $repository 'build/installer-tests') + '\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Installer fixtures must be below this repository''s build/installer-tests/ directory.'
 }
 $ancestor = $work
 while ($ancestor) {

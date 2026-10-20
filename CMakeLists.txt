@@ -215,14 +215,14 @@ target_include_directories(JobTrackerApp
 
 if(WIN32)
     enable_language(RC)
-    set(JOBTRACKER_WINDOWS_ICON "${CMAKE_CURRENT_SOURCE_DIR}/Installer/JobTracker.ico")
+    set(JOBTRACKER_WINDOWS_ICON "${CMAKE_CURRENT_SOURCE_DIR}/Installer/Windows/JobTracker.ico")
     set(JOBTRACKER_WINDOWS_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}.0")
     set(JOBTRACKER_WINDOWS_VERSION_TUPLE "${PROJECT_VERSION_MAJOR},${PROJECT_VERSION_MINOR},${PROJECT_VERSION_PATCH},0")
     set(JOBTRACKER_IDENTITY_DIR "${CMAKE_CURRENT_BINARY_DIR}/Installer")
 
     # Generate per configuration so resource flags and target filenames stay accurate.
     foreach(_identity_file IN ITEMS JobTracker.rc JobTrackerIdentity.cmake JobTrackerIdentity.iss)
-        configure_file("Installer/${_identity_file}.in"
+        configure_file("Installer/Windows/${_identity_file}.in"
             "${JOBTRACKER_IDENTITY_DIR}/${_identity_file}.in" @ONLY)
         file(GENERATE OUTPUT "${JOBTRACKER_IDENTITY_DIR}/$<CONFIG>/${_identity_file}"
             INPUT "${JOBTRACKER_IDENTITY_DIR}/${_identity_file}.in")
@@ -637,7 +637,7 @@ install(TARGETS JobTrackerApp
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-# The common Release payload excludes MSVC runtime policy (stage 09).
+# The common Release payload excludes MSVC runtime policy.
 # Keep deployment in the install lifecycle and leave Debug installs unchanged.
 if(WIN32)
     qt_generate_deploy_qml_app_script(

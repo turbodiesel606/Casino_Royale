@@ -3,9 +3,9 @@
   #error Inno Setup 7 or newer is required to verify native x64 manual closure.
 #endif
 #define JobTrackerExecutableName "JobTrackerApp.exe"
-#include "..\..\Installer\PayloadSafety.iss"
-#include "..\..\Installer\InstallationPolicy.iss"
-#include "..\..\Installer\ManualClose.iss"
+#include "..\..\Installer\Windows\PayloadSafety.iss"
+#include "..\..\Installer\Windows\InstallationPolicy.iss"
+#include "..\..\Installer\Windows\ManualClose.iss"
 
 [Setup]
 AppName=JobTracker manual close TEST ONLY

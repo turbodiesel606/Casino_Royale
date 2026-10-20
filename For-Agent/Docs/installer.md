@@ -1,19 +1,22 @@
 # Windows Offline Installer
 
 This reference describes the existing native x64 installer for Windows 10/11.
-It produces one `Installer/output/<run-id>/JobTracker-Setup-<version>.exe` containing the
+It produces one `Installer/Windows/output/<run-id>/JobTracker-Setup-<version>.exe` containing the
 Release application, Qt/QML/plugins/SQLite, scope-specific MSVC inputs, and the
 runtime notice. Installation requires no Qt/Visual Studio SDK, application
 archive, remote manifest, or dependency download.
 
-Use [build.md](build.md) for the application Release build and backend tests.
+Use [build.md](build.md) for shared build action selection and
+[build-windows.md](build-windows.md) for the Windows toolchain and backend-test
+commands. The Release build and installer sequence is below.
 Use [installer-testing.md](installer-testing.md) for standalone verification and
 the reusable acceptance checklist. These are procedures and implementation
 contracts, not a record of results for any particular candidate.
 
 ## Implementation Files
 
-All paths below are relative to [Installer/](../../Installer/README.md).
+All paths below are relative to [Installer/Windows/](../../Installer/Windows/).
+Use [Installer/README.md](../../Installer/README.md) for shared platform navigation.
 
 | File | Responsibility |
 |---|---|
@@ -33,7 +36,7 @@ All paths below are relative to [Installer/](../../Installer/README.md).
 
 ## Tools And Local Inputs
 
-- Windows x64 application toolchain from [build.md](build.md), including exactly
+- Windows x64 application toolchain from [build-windows.md](build-windows.md#toolchain-and-sdk), including exactly
   Qt 6.10.3, Visual Studio 2022/MSVC v143, and CMake 3.22+.
 - PowerShell 7.2+ for the installer scripts.
 - Inno Setup 7+ with native `SetupArchitecture=x64` support. The wrapper checks
@@ -42,7 +45,7 @@ All paths below are relative to [Installer/](../../Installer/README.md).
   Native handle declarations use pointer-sized types for the x64 engine.
 - A current x64 production Release build with tests OFF, its generated identity,
   a fresh direct CMake stage, and authorized local MSVC inputs matching
-  [MsvcRuntime.lock.json](../../Installer/MsvcRuntime.lock.json).
+  [MsvcRuntime.lock.json](../../Installer/Windows/MsvcRuntime.lock.json).
 
 The lock currently pins runtime version `14.44.35211.0`, Visual Studio redist
 directory `14.44.35112`, and ten App-Local DLLs under
@@ -83,10 +86,19 @@ applies only to that process and its children; it does not change persistent
 execution policy or remove source zone metadata. Close the session afterward.
 Payload and Microsoft runtime hash/signature validation remain enforced.
 
-First configure/build `windows-release` with your local `QTDIR`, following
-[Windows Build](build.md#windows-build). The following commands run in the same
-PowerShell 7.2+ session and consume that already built production Release tree.
-They do not implicitly configure/build the application.
+First configure/build the tests-OFF `windows-release` with your local `QTDIR`,
+using the [Windows SDK selection](build-windows.md#toolchain-and-sdk).
+Substitute matching `*-local` presets when they supply the installed kit:
+
+~~~powershell
+cmake --preset windows-release
+cmake --build --preset windows-release --target JobTrackerApp
+~~~
+
+The staging and installer commands below run in the same PowerShell 7.2+ session
+and consume that already built production Release tree. They do not implicitly
+configure/build the application. Development runtime preparation is unnecessary
+for packaging.
 
 ### Direct Release Staging
 
@@ -95,7 +107,7 @@ $installerBuild = (Resolve-Path -LiteralPath build/qt-6.10.3/windows-release).Pa
 ~~~
 
 ~~~powershell
-$stageResult = & ./Installer/Stage-Release.ps1 -BuildDirectory $installerBuild -PassThru
+$stageResult = & ./Installer/Windows/Stage-Release.ps1 -BuildDirectory $installerBuild -PassThru
 ~~~
 
 ~~~powershell
@@ -129,7 +141,7 @@ stage alone lacks the scope-specific MSVC inputs of the finished installer.
 If ISCC.exe from Inno Setup 7+ is on PATH, use:
 
 ~~~powershell
-$installerResult = & ./Installer/Build-Installer.ps1 -BuildDirectory $installerBuild -StageDirectory $installerStage -PassThru
+$installerResult = & ./Installer/Windows/Build-Installer.ps1 -BuildDirectory $installerBuild -StageDirectory $installerStage -PassThru
 ~~~
 
 If it is not on PATH, add `-IsccPath <absolute-path-to-ISCC.exe>` to that
@@ -140,7 +152,7 @@ To select another authentic local redistributable matching the lock, also add
 builder uses the selected Visual Studio instance's existing default described
 above. No inputs are downloaded or silently repinned.
 
-Every invocation reserves `Installer/output/<run-id>/` and writes exactly
+Every invocation reserves `Installer/Windows/output/<run-id>/` and writes exactly
 `JobTracker-Setup-<version>.exe` inside it. Rebuilding the same version
 requires no manual moving or deletion: earlier Setup bytes and evidence stay
 in their own run directories. The builder retains stage/identity/hash checks,
@@ -165,7 +177,7 @@ Optional standalone runtime input diagnosis (the builder already performs
 this; it is not an additional normal step):
 
 ~~~powershell
-pwsh -NoProfile -File Installer/Prepare-MsvcRuntime.ps1 -BuildDirectory $installerBuild -RedistributablePath <absolute-path-to-vc_redist.x64.exe> -OutputDirectory "$installerRoot/runtime-input-check"
+pwsh -NoProfile -File Installer/Windows/Prepare-MsvcRuntime.ps1 -BuildDirectory $installerBuild -RedistributablePath <absolute-path-to-vc_redist.x64.exe> -OutputDirectory "$installerRoot/runtime-input-check"
 ~~~
 
 This verifies/copies local inputs only; it never executes the prerequisite.
@@ -178,12 +190,13 @@ Windows numeric metadata adds `.0`; the executable remains
 `JobTrackerApp.exe`, independent of the QML module's version.
 Reconfigure/rebuild after version or icon changes; do not edit generated identity.
 
+The source templates live under `Installer/Windows/`.
 Generated RC/CMake/Inno identity lives under
 `<build>/Installer/<configuration>/`. Private snapshots, generated includes,
 runtime copies, logs, and `installer-build.json` live under
 `build/installer/<run-id>/`. JSON records local hashes, source state, compiler,
 identity, and payload inputs; it is not a remote trust anchor or customer asset.
-Only the versioned Setup belongs in its `Installer/output/<run-id>/` directory.
+Only the versioned Setup belongs in its `Installer/Windows/output/<run-id>/` directory.
 The publisher is blank and normal builds are unsigned.
 
 Keep each Setup with its own private evidence. Changed payload, source, runtime,
@@ -292,7 +305,7 @@ existing code-signing certificate in the current user's certificate store.
 Set these session variables to the intended values: `$JobTrackerSignTool`
 (full tool path), `$JobTrackerCertificateThumbprint` (certificate thumbprint),
 `$JobTrackerTimestampUrl` (the certificate provider's RFC 3161 endpoint), and
-`$JobTrackerSetup` (the finished canonical `Installer/output/<run-id>/JobTracker-Setup-<version>.exe`).
+`$JobTrackerSetup` (the finished canonical `Installer/Windows/output/<run-id>/JobTracker-Setup-<version>.exe`).
 No PFX, password, private key or secret belongs in the repository or commands.
 Preserve the unsigned EXE and its `installer-build.json` in private evidence
 first. Require exit code 0 after each command before proceeding:

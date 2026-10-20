@@ -63,8 +63,8 @@ Record-Pass 'direct-file-embedding' $payloadEntries.Count
 
 $runtimeDirectory = Join-Path $private 'msvc-runtime'
 $runtimeText = Get-Content -LiteralPath (Join-Path $runtimeDirectory 'JobTrackerMsvcRuntime.iss') -Raw
-$lock = Get-Content -LiteralPath (Join-Path $repository 'Installer/MsvcRuntime.lock.json') -Raw | ConvertFrom-Json
-Assert-Check ((Get-Sha256 (Join-Path $repository 'Installer/MsvcRuntime.lock.json')) -ceq $metadata.msvcRuntime.sourceLockSha256) 'Runtime lock changed since compilation.'
+$lock = Get-Content -LiteralPath (Join-Path $repository 'Installer/Windows/MsvcRuntime.lock.json') -Raw | ConvertFrom-Json
+Assert-Check ((Get-Sha256 (Join-Path $repository 'Installer/Windows/MsvcRuntime.lock.json')) -ceq $metadata.msvcRuntime.sourceLockSha256) 'Runtime lock changed since compilation.'
 Assert-Check (($metadata.msvcRuntime.files | ConvertTo-Json -Compress) -ceq ($lock.files | ConvertTo-Json -Compress)) 'Runtime evidence differs from pinned DLL inventory.'
 Assert-Check (($metadata.msvcRuntime.redistributable | ConvertTo-Json -Compress) -ceq ($lock.redistributable | ConvertTo-Json -Compress)) 'Runtime evidence differs from the pinned redistributable.'
 $runtimeEntries = [regex]::Matches($runtimeText, '(?m)^Source: "([^"]+)"; [^\r\n]+\r?$')
@@ -83,7 +83,7 @@ Record-Pass 'pinned-local-runtime-embedding' $runtimeFiles.Count
 
 # Static guard over active Inno sources and generated file entries. The lock's
 # official URL is provenance only and is deliberately outside this executable scan.
-$activeSources = @(Get-ChildItem -LiteralPath (Join-Path $repository 'Installer') -Filter '*.iss' -File)
+$activeSources = @(Get-ChildItem -LiteralPath (Join-Path $repository 'Installer/Windows') -Filter '*.iss' -File)
 $sourceLines = $activeSources | ForEach-Object { Get-Content -LiteralPath $_.FullName }
 # Localized explanatory license links are text, not transport. Keep every code,
 # directive and Files entry in the scan, including external-file flags.

@@ -6,7 +6,6 @@ For-Agent/Task-Report/
 For-Human/
 Requirements/
 Tasks/
-/Installer/output/
-/dist/
-/deploy/
+/Installer/Windows/output/
+/Installer/Linux/output/
 /CMakeUserPresets.json

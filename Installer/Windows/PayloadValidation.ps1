@@ -1,5 +1,5 @@
 #requires -Version 7.2
-# Shared local Release validation for direct Setup and the retained legacy archive tool.
+# Shared local Release validation for staging and offline Setup.
 # No build, archive, installation, download, or output creation occurs here.
 function Assert-NoReparsePoint([string]$Path) {
     $itemPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path)
@@ -42,8 +42,46 @@ function Get-PayloadPaths([string]$Root) {
 }
 
 function Assert-SamePaths([string[]]$Actual, [string[]]$Expected) {
-    if (($Actual -join "`n") -cne ($Expected -join "`n")) {
-        throw 'Payload inventory mismatch: missing, unexpected, duplicate or incorrectly cased files.'
+    $actualCounts = [Collections.Generic.Dictionary[string, int]]::new([StringComparer]::Ordinal)
+    $expectedCounts = [Collections.Generic.Dictionary[string, int]]::new([StringComparer]::Ordinal)
+    $diagnostics = [Collections.Generic.List[string]]::new()
+    foreach ($side in @(
+        @{ Name = 'actual'; Paths = $Actual; Counts = $actualCounts },
+        @{ Name = 'expected'; Paths = $Expected; Counts = $expectedCounts }
+    )) {
+        $caseNames = [Collections.Generic.Dictionary[string, string]]::new([StringComparer]::OrdinalIgnoreCase)
+        foreach ($path in $side.Paths) {
+            if ($side.Counts.ContainsKey($path)) { $side.Counts[$path]++ }
+            else { $side.Counts.Add($path, 1) }
+            if (-not $caseNames.TryAdd($path, $path) -and $caseNames[$path] -cne $path) {
+                $diagnostics.Add("Case-insensitive duplicate in $($side.Name): '$($caseNames[$path])' and '$path'.")
+            }
+        }
+        foreach ($entry in $side.Counts.GetEnumerator()) {
+            if ($entry.Value -gt 1) {
+                $diagnostics.Add("Duplicate payload inventory entry in $($side.Name): '$($entry.Key)' ($($entry.Value) occurrences).")
+            }
+        }
+    }
+
+    $missing = @($expectedCounts.Keys | Where-Object { -not $actualCounts.ContainsKey($_) })
+    $unexpected = @($actualCounts.Keys | Where-Object { -not $expectedCounts.ContainsKey($_) })
+    foreach ($path in $missing) {
+        $diagnostics.Add("Missing: '$path'.")
+        foreach ($actualPath in $unexpected) {
+            if ([StringComparer]::OrdinalIgnoreCase.Equals($path, $actualPath)) {
+                $diagnostics.Add("Case difference: expected '$path', actual '$actualPath'.")
+            }
+        }
+    }
+    foreach ($path in $unexpected) { $diagnostics.Add("Unexpected: '$path'.") }
+
+    # Preserve strict ordered comparison even when the path counts match.
+    if (($Actual -join "`n") -cne ($Expected -join "`n") -and $diagnostics.Count -eq 0) {
+        $diagnostics.Add('Path order differs; expected the ordinal inventory order.')
+    }
+    if ($diagnostics.Count) {
+        throw ("Payload inventory mismatch:`n" + ($diagnostics -join "`n"))
     }
 }
 
@@ -74,7 +112,7 @@ function Get-VerifiedReleaseBuild {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$BuildDirectory)
     if (-not $IsWindows) { throw 'Windows Release validation requires Windows.' }
-    $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+    $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
     $build = [IO.Path]::TrimEndingDirectorySeparator($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($BuildDirectory))
     Assert-NoReparsePoint $build
     $cache = Get-Content -LiteralPath (Join-Path $build 'CMakeCache.txt') -Raw
@@ -130,8 +168,6 @@ function Get-VerifiedReleasePayload {
     [string[]]$inventory = [IO.File]::ReadAllLines((Join-Path $PSScriptRoot 'payload-files.txt'))
     foreach ($path in $inventory) { Assert-RelativePath $path }
     [Array]::Sort($inventory, [StringComparer]::Ordinal)
-    if (@($inventory | Sort-Object -Unique).Count -ne $inventory.Count) { throw 'Duplicate payload inventory entry.' }
-
     Assert-SamePaths (Get-PayloadPaths $stage) $inventory
     $builtExe = Join-Path $build "Release/$executable"
     Assert-NoReparsePoint $builtExe

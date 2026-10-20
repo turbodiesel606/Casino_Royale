@@ -13,7 +13,7 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 if (-not $IsWindows) { throw 'Windows Release staging requires Windows.' }
 . (Join-Path $PSScriptRoot 'PayloadValidation.ps1')
-$repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $release = Get-VerifiedReleaseBuild -BuildDirectory $BuildDirectory
 $cmake = (Get-Command cmake -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 $work = Join-Path $repository ('build/installer-stage-' + [Guid]::NewGuid().ToString('N'))

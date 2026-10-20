@@ -3,7 +3,7 @@ set -euo pipefail
 umask 022
 
 if (( $# < 1 || $# > 3 )); then
-    printf 'Usage: %s <Release build> [new work root under build/linux-deb/] [new output under dist/linux-deb/]\n' "$0" >&2
+    printf 'Usage: %s <Release build> [new work root under build/linux-deb/] [new output under Installer/Linux/output/]\n' "$0" >&2
     exit 2
 fi
 source "$(dirname -- "${BASH_SOURCE[0]}")/Common.sh"
@@ -15,9 +15,9 @@ grep -Fqx 'JOBTRACKER_ENABLE_DEB_PACKAGING:BOOL=ON' "$jobtracker_cache" ||
 
 # Validate every explicit path before reserving any output.
 if (( $# >= 2 )); then jobtracker_check_new_path "$2" "$jobtracker_root/build/linux-deb" > /dev/null; fi
-if (( $# == 3 )); then jobtracker_check_new_path "$3" "$jobtracker_root/dist/linux-deb" > /dev/null; fi
+if (( $# == 3 )); then jobtracker_check_new_path "$3" "$jobtracker_root/Installer/Linux/output" > /dev/null; fi
 jobtracker_work=$(jobtracker_reserve_directory "$jobtracker_root/build/linux-deb" package "${@:2:1}")
-jobtracker_output=$(jobtracker_reserve_directory "$jobtracker_root/dist/linux-deb" package "${@:3:1}")
+jobtracker_output=$(jobtracker_reserve_directory "$jobtracker_root/Installer/Linux/output" package "${@:3:1}")
 jobtracker_log="$jobtracker_work/cpack.log"
 printf 'Package work: %s\nPackage output: %s\nCPack log: %s\nDependency evidence: %s/dependency-check\n' \
     "$jobtracker_work" "$jobtracker_output" "$jobtracker_log" "$jobtracker_work" | tee "$jobtracker_work/paths.txt"

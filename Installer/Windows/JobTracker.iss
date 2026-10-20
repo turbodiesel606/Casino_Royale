@@ -4,7 +4,7 @@
   #error Inno Setup 7 or newer is required for the native x64 installer. Inno Setup 6 produces a forbidden 32-bit launcher.
 #endif
 #ifndef JobTrackerIdentityFile
-  #error Build through Installer/Build-Installer.ps1.
+  #error Build through Installer/Windows/Build-Installer.ps1.
 #endif
 #ifndef JobTrackerOutputDirectory
   #error An explicit installer output directory is required.

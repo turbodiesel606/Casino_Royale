@@ -13,10 +13,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 . (Join-Path $PSScriptRoot 'OfflineInstallerEvidence.ps1')
-$work = [IO.Path]::GetFullPath($WorkDirectory)
-$workRoots = @(((Join-Path $repository 'build') + '\'), ((Join-Path $repository 'dist') + '\'))
-if (-not @($workRoots | Where-Object { $work.StartsWith($_, [StringComparison]::OrdinalIgnoreCase) }).Count) {
-    throw 'Runtime test fixtures must be below this repository''s build/ or dist/ directory.'
+$work = [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath($WorkDirectory))
+if (-not $work.StartsWith((Join-Path $repository 'build') + '\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Runtime test fixtures must be below this repository''s build/ directory.'
 }
 if (Test-Path -LiteralPath $work) { throw 'Test output exists; choose a fresh directory.' }
 $ancestor = $work
@@ -82,9 +81,9 @@ $imports | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $work 'msvc-impo
 Record-Pass 'payload-and-crt-import-closure' ([ordered]@{binaries=$binaries.Count;imports=$imports.Count})
 
 $compileArguments = @(
-    "/DPipelineFile=$(Join-Path $repository 'Installer/PayloadSafety.iss')"
+    "/DPipelineFile=$(Join-Path $repository 'Installer/Windows/PayloadSafety.iss')"
     "/DRuntimeInput=$(Join-Path $installerDirectory 'msvc-runtime/JobTrackerMsvcRuntime.iss')"
-    "/DRuntimeCode=$(Join-Path $repository 'Installer/MsvcRuntime.iss')"
+    "/DRuntimeCode=$(Join-Path $repository 'Installer/Windows/MsvcRuntime.iss')"
     "/DTestOutput=$work"
     "/DRedistFile=$redist"
     (Join-Path $PSScriptRoot 'MsvcRuntimeHarness.iss')
@@ -158,7 +157,7 @@ foreach ($negative in 'missing', 'tampered', 'wrong-x86') {
         $instance = [regex]::Match($cache, '(?m)^CMAKE_GENERATOR_INSTANCE:INTERNAL=(.+?)\r?$').Groups[1].Value
         Copy-Item -LiteralPath (Join-Path $instance 'VC/Redist/MSVC/v143/vc_redist.x86.exe') -Destination $path
     }
-    $negativeOutput = @(& pwsh -NoProfile -File (Join-Path $repository 'Installer/Prepare-MsvcRuntime.ps1') -BuildDirectory $BuildDirectory -RedistributablePath $path -OutputDirectory (Join-Path $work "rejected-$negative") 2>&1)
+    $negativeOutput = @(& pwsh -NoProfile -File (Join-Path $repository 'Installer/Windows/Prepare-MsvcRuntime.ps1') -BuildDirectory $BuildDirectory -RedistributablePath $path -OutputDirectory (Join-Path $work "rejected-$negative") 2>&1)
     $negativeExit = $LASTEXITCODE
     $negativeOutput | Set-Content -LiteralPath (Join-Path $work "$negative.log")
     Assert-Check ($negativeExit -ne 0) "Accepted $negative runtime input."

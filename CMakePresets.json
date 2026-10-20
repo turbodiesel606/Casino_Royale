@@ -64,6 +64,17 @@
       }
     },
     {
+      "name": "linux-deb-release",
+      "inherits": "linux-release",
+      "binaryDir": "${sourceDir}/build/qt-6.10.3/linux-deb-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "JOBTRACKER_BUILD_TESTS": "OFF",
+        "JOBTRACKER_ENABLE_DEB_PACKAGING": "ON",
+        "JOBTRACKER_DEB_LOCAL_TEST": "OFF"
+      }
+    },
+    {
       "name": "linux-release-tests",
       "inherits": "linux-release",
       "binaryDir": "${sourceDir}/build/qt-6.10.3/linux-release-tests",
@@ -131,6 +142,10 @@
       "configurePreset": "linux-deb-local-test"
     },
     {
+      "name": "linux-deb-release",
+      "configurePreset": "linux-deb-release"
+    },
+    {
       "name": "linux-release-tests",
       "configurePreset": "linux-release-tests"
     },
@@ -161,6 +176,9 @@
       "configurePreset": "linux-debug-tests",
       "output": {
         "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error"
       }
     },
     {
@@ -168,6 +186,9 @@
       "configurePreset": "linux-release-tests",
       "output": {
         "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error"
       }
     },
     {
@@ -176,6 +197,9 @@
       "configuration": "Debug",
       "output": {
         "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error"
       }
     },
     {
@@ -184,6 +208,9 @@
       "configuration": "Release",
       "output": {
         "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error"
       }
     }
   ]

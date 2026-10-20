@@ -1,7 +1,7 @@
 # Windows release acceptance checklist
 
 Use this checklist for a particular
-`Installer/output/<run-id>/JobTracker-Setup-<version>.exe` and its matching private
+`Installer/Windows/output/<run-id>/JobTracker-Setup-<version>.exe` and its matching private
 `installer-build.json`. Record results with those artifact hashes in the
 chosen release/test evidence location. This is reusable procedure, not a claim
 of success. Use the [installer reference](../../For-Agent/Docs/installer.md)
@@ -13,8 +13,10 @@ and [suite commands](../../For-Agent/Docs/installer-testing.md).
   MSVC runtime, artifact hashes, language, destination, exit code and log path.
 - Use `PASS`, `FAIL` or `NOT_RUN` per case. Name the evidence level: source check,
   test harness, real installer integration, interactive UI, or clean VM.
-- Keep each build/test process sequential. Use fresh retained `build/`/`dist/`
-  paths. Never delete earlier evidence or replace a failed result with a retry.
+- Keep each build/test process sequential. Keep work/evidence under fresh `build/`
+  paths and owned installation-test fixtures under
+  `build/installer-tests/<run-id>/fixtures/<scenario>/`. Never delete earlier
+  evidence or replace a failed result with a retry.
 - Automated CurrentUser suites refuse existing registrations and own only their
   test installation. Verify/remove that fixture before another real suite.
 - Never disable manual-close checks, security software, or data safeguards to

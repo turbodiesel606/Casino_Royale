@@ -1,6 +1,7 @@
 #requires -Version 7.2
-<# Native offline cleanup tests use only new dist/ fixtures. Never resolve or
-open the account's real JobTracker data. Production has no fixture overrides. #>
+<# Native offline cleanup tests use only new build/installer-tests/ fixtures.
+Never resolve or open the account's real JobTracker data.
+Production has no fixture overrides. #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$WorkDirectory,
@@ -13,8 +14,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $work = [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath($WorkDirectory))
-if (-not $work.StartsWith((Join-Path $repository 'dist') + '\', [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'Fixtures must be below this repository dist directory.'
+if (-not $work.StartsWith((Join-Path $repository 'build/installer-tests') + '\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Fixtures must be below this repository''s build/installer-tests/ directory.'
 }
 if (Test-Path -LiteralPath $work) { throw 'Choose a fresh fixture directory.' }
 $ancestor = $work
@@ -36,7 +37,7 @@ if ($RunCurrentUserIntegration) {
     $metadata = Get-OfflineInstallerEvidence -InstallerPath $InstallerPath -MetadataPath $ManifestPath
 }
 $compiler = (Get-Item -LiteralPath $IsccPath).FullName
-$personalDataSource = Join-Path $repository 'Installer/PersonalData.iss'
+$personalDataSource = Join-Path $repository 'Installer/Windows/PersonalData.iss'
 $personalDataHash = (Get-FileHash -LiteralPath $personalDataSource -Algorithm SHA256).Hash
 New-Item -ItemType Directory -Path $work | Out-Null
 $results = [Collections.Generic.List[object]]::new()
@@ -304,6 +305,6 @@ Assert-Test ((Get-FileHash -LiteralPath $personalDataSource -Algorithm SHA256).H
     passed=$results.Count; elevated=$elevated; currentUserIntegration=[bool]$RunCurrentUserIntegration
     personalDataSha256=$personalDataHash; architecture='AMD64/PE32+'
     installerSha256=if ($RunCurrentUserIntegration) { $metadata.sha256 } else { $null }
-    notes='Synthetic dist fixtures only. Callback scope/account/dialog boundaries are simulated in a private test include; real native core and optional owned CurrentUser lifecycle. No actual personal-data, interactive UI, AllUsers/UAC or clean-host acceptance.'
+    notes='Synthetic build/installer-tests/ fixtures only. Callback scope/account/dialog boundaries are simulated in a private test include; real native core and optional owned CurrentUser lifecycle. No actual personal-data, interactive UI, AllUsers/UAC or clean-host acceptance.'
 } | ConvertTo-Json | Set-Content -LiteralPath "$work/summary.json"
 Write-Output "PASS: $($results.Count) personal-data safety checks."

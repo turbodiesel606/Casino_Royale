@@ -39,7 +39,7 @@ Use qt-qml-ui-task when implementation also changes QML files.
 
 ## Workflow
 
-1. Inspect `git status` and existing diffs for files in scope. Identify and preserve pre-existing changes.
+1. When Git metadata exists, inspect `git status` and existing diffs for files in scope; otherwise inspect those files directly. Identify and preserve pre-existing changes.
 2. Start from the smallest affected model, controller, service, repository, storage class, utility, or startup surface. Use `cpp-code-research` first when ownership, data flow, or implementation direction is unclear.
 3. Define ownership, lifetime, public and QML-facing contracts, error behavior, thread boundaries, and storage or transaction boundaries from production requirements, then identify the tests required for those contracts.
 4. Make the smallest sufficient change. Preserve unrelated work and apply the canonical comment policy: use `// Codex Comment:` for added ordinary explanatory comments, preserve unmarked comments with unchanged code, update associated comments when code changes, and correct stale marked comments in scope. Comments never restrict necessary authorized code changes.
@@ -47,8 +47,10 @@ Use qt-qml-ui-task when implementation also changes QML files.
 6. Use `For-Agent/Docs/testing.md` to select meaningful regression coverage for changed business logic, storage, parsing, algorithms, Qt model behavior, signals, or high-risk contracts. Start from its verified subsystem-to-test map and expand for affected contracts and risk.
 7. After implementation is stable, complete one incremental `test-and-review` pass: inspect the final diff, execute the required build/tests through `cmake-build-debug`, and check documentation impact. Reuse established context. `test-and-review` owns integrated verification and independent-review criteria; `testing.md` owns test-scope expansion.
 
-Treat `For-Agent/Docs/build.md` as the command-form catalog. Substitute verified
-presets, targets, and CTest selections as described there; do not invent commands.
+Use [build.md](../../../For-Agent/Docs/build.md) for shared action selection and
+its relevant [Windows](../../../For-Agent/Docs/build-windows.md) or
+[Linux](../../../For-Agent/Docs/build-linux.md) reference for command forms.
+Substitute verified presets, targets, and CTest selections; do not invent commands.
 
 ## Boundaries
 

@@ -2,7 +2,8 @@
 <#
 Standalone consumer of the production installation policy. Registry fixtures use
 only a unique HKCU test key. Optional current-user integration owns a fresh real
-installation below dist/, never starts JobTracker, and uninstalls only that copy.
+installation below build/installer-tests/, never starts JobTracker, and uninstalls
+only that copy.
 #>
 [CmdletBinding()]
 param(
@@ -16,8 +17,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $work = [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath($WorkDirectory))
-if (-not $work.StartsWith((Join-Path $repository 'dist') + '\', [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'Test output must be below this repository''s dist/ directory.'
+if (-not $work.StartsWith((Join-Path $repository 'build/installer-tests') + '\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Test output must be below this repository''s build/installer-tests/ directory.'
 }
 if (Test-Path -LiteralPath $work) { throw 'Choose a fresh test output directory.' }
 $ancestor = $work
@@ -92,7 +93,7 @@ function Set-RecordValue([string]$KeyPath, [string]$Name, [string]$Value) {
 
 try {
     foreach ($version in @('0.0.9', '0.1.0', '0.2.0')) {
-        $arguments = @("/DPipelineFile=$repository/Installer/PayloadSafety.iss", "/DPolicyFile=$repository/Installer/InstallationPolicy.iss",
+        $arguments = @("/DPipelineFile=$repository/Installer/Windows/PayloadSafety.iss", "/DPolicyFile=$repository/Installer/Windows/InstallationPolicy.iss",
             "/DTestOutput=$work", "/DTestVersion=$version", "$PSScriptRoot/InstallationPolicyHarness.iss")
         $output = @(& $compiler @arguments 2>&1)
         $code = $LASTEXITCODE
@@ -263,7 +264,7 @@ try {
         }
     }
     [ordered]@{ result='PASS'; checks=$results.Count; currentUserIntegration=[bool]$RunCurrentUserIntegration; elevated=$elevated;
-        user=$identity.Name; policySha256=(Get-FileHash -LiteralPath "$repository/Installer/InstallationPolicy.iss").Hash;
+        user=$identity.Name; policySha256=(Get-FileHash -LiteralPath "$repository/Installer/Windows/InstallationPolicy.iss").Hash;
         installerSha256=(Get-FileHash -LiteralPath $installer).Hash } |
         ConvertTo-Json | Set-Content -LiteralPath "$work/summary.json" -Encoding utf8
     Write-Output "PASS: $($results.Count) installation policy checks."

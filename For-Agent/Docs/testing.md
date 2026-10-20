@@ -7,10 +7,16 @@ Do not claim code works unless verified.
 
 For documentation/instruction-only changes that do not affect build behavior,
 check links, command forms, preset/target/script contracts and evidence labels;
-do not rebuild unchanged C++ only for prose edits. For normal application
-configuration, builds, development runtime preparation, and backend tests, use
-[build.md](build.md). Standalone deployment and installer verification are
-documented separately in [installer-testing.md](installer-testing.md).
+do not rebuild unchanged C++ only for prose edits. Use [build.md](build.md) for
+shared action selection, then the relevant OS build reference for commands.
+Standalone deployment and installer verification use the relevant existing
+[installer guides](../../Installer/README.md).
+
+Start target selection with the [compact map](#subsystem-to-test-map) below.
+Consult [testing-reference.md](testing-reference.md) only for a specific suite,
+fixture, diagnostic log, or manual scenario: search its Suite Responsibilities
+section for the exact target name, or follow its feature-specific manual headings.
+Ordinary target selection does not require reading the complete suite catalog.
 
 ## Production And Test Isolation
 
@@ -24,36 +30,13 @@ Tests are consumers of the production architecture, never production dependencie
 
 ## Current Test Setup
 
-Tests are enabled through the `JOBTRACKER_BUILD_TESTS` CMake option and the
-Windows Debug/Release test presets (`windows-debug-tests` and
-`windows-release-tests`). Both require Qt 6.10.3 and use separate build
-directories. Linux Debug and Release test presets (`linux-debug-tests`
-and `linux-release-tests`) use the same SDK pin, distinct directories and
-matching single-config build types. Use the Linux commands in `build.md` on a
-Linux host; preset inspection on Windows does not verify Linux execution.
-
-`JobTrackerTests` exists only with tests ON and builds all test executables,
-without building `JobTrackerApp` or its development runtime. It does not run
-tests; invoke CTest separately. Named test targets remain independently
-buildable. The ordinary `ALL` target retains its existing behavior.
-
-The Windows test runtime helper copies the configuration-matched Qt libraries
-and SQLite driver into each test's separate output directory:
-`<build-directory>/test-runtime/<configuration>/<test-target>/`
-(`sqldrivers/qsqlite[d].dll` below it). Parallel targets write disjoint runtime
-files. The QML feedback test's additional Qt Quick/QML/offscreen deployment uses
-that same test-specific directory. CTest resolves the executable's new location.
-QtSql loads SQLite dynamically; linking/copying QtSql alone does not supply the
-driver. This preparation remains inside `JOBTRACKER_BUILD_TESTS` and does not
-deploy the production application or create a Release staging directory.
-
-Routine validation builds the tests-OFF Debug application first, runs the
-required separate Debug tests, then prepares the final development runtime
-after the last changes and successful checks. Follow the sequence in `build.md`;
-do not repeat successful unchanged checks or deploy after every intermediate edit.
-
-For normal application configuration, builds, development runtime preparation,
-and backend tests, use the commands in `For-Agent/Docs/build.md`.
+Tests are enabled through `JOBTRACKER_BUILD_TESTS` in separate test presets.
+Use the shared [preset-selection rules](build.md#shared-presets-and-local-qt-selection)
+and [routine workflow](build.md#routine-codex-workflow) for the validation sequence.
+Read [build-windows.md](build-windows.md#test-runtime) or
+[build-linux.md](build-linux.md#build-and-test-commands) for the relevant OS's
+test-runtime preparation and commands. Preset inspection on Windows does not
+verify Linux execution.
 
 ## Test Outcomes
 
@@ -66,20 +49,24 @@ executed, and one of these outcomes:
   actually executed.
 - `not run`: tests were not executed; state why and what remains unverified.
 - `no matching tests`: selection found zero tests. This is neither a passing
-  suite nor an executed failing test, even if CTest exits successfully.
+  suite nor an executed failing test. All shared and local test presets set
+  `execution.noTestsAction` to `error`, so an empty selection returns a nonzero
+  exit code. An intentional nonexistent-filter check verifies this guard;
+  report it as expected empty-selection rejection.
 
 If tests were expected but none matched, verification is incomplete. Inspect the
 selected preset, test-enabled configuration, CMake registration, and filter before
-claiming success. Report configuration or build failures separately from test
-assertion failures; tests blocked by those failures are `not run`.
+claiming success. Report configuration, build or execution errors separately
+from test assertion failures; tests blocked by those errors are `not run`.
 
 ## Test Scope
 
 Choose test scope from the final diff and affected contracts. For an ordinary
 bounded change, start with the directly associated targets or CTest selections
-from the map below, using the canonical command forms in `build.md`. Substitute
-verified preset names, target names, and filters as appropriate; the examples
-are not an exhaustive list of permitted targets.
+from the map below. Use [build.md](build.md#optional-tests) for action selection
+and its relevant OS reference for canonical command forms. Substitute verified
+preset names, target names, and filters as appropriate; the examples are not an
+exhaustive list of permitted targets.
 
 Use the full relevant test preset when schema or migrations, storage semantics,
 worker/runtime or concurrency behavior, shared infrastructure, several
@@ -153,110 +140,9 @@ Scope above. Static test-source inspection does not establish a passing run.
 | Offscreen QML mutation feedback and runtime warnings | `JobTrackerMutationFeedbackTests` | `maintenance/StorageMutationFeedbackTest.cpp` |
 | Controller/worker/storage integration, recovery and shutdown | `JobTrackerIntegrationTests` | `storage/EndToEndIntegrationTest.cpp` |
 
-## Test Suite Responsibilities
-
-- `JobTrackerCommonTests` covers shared filtering, limited sorting, and canonical job validation.
-- `JobTrackerRelationProxyTests` covers relation filtering and every relevant source-model mutation.
-- `JobTrackerSelectionTrackerTests` covers stable-ID selection, fallback behavior, and precise change reporting.
-- `JobTrackerAsyncInfrastructureTests` covers serial FIFO operation IDs,
-  activation, cancellation, completion suppression, stale-result correlation,
-  drained state, lazy worker-executor creation, initialization failure, busy and
-  shutdown state, worker-thread context destruction, and quit/wait cleanup.
-- `JobTrackerJobsTests`, `JobTrackerCvTests`, `JobTrackerDashboardTests`, and
-  `JobTrackerDirectoryTests` retain QML-facing
-  contracts and controller-specific side effects. The jobs controller suite
-  verifies synchronous canonical preflight, immediate complete field errors,
-  no queue or worker state for invalid input, first-valid operation-ID
-  allocation, normalized value capture before form reset, update rejection,
-  in-place role publication, failure isolation, replacement-CV publication,
-  and create/update FIFO ordering and state. The CV controller
-  suite verifies multi-batch FIFO ordering, pending-state transitions,
-  duplicate and failure isolation, database-lock recovery, cancel-all behavior,
-  idempotent Add Job/CV publication, and worker SQL connection cleanup.
-  It also verifies restored archive roles before Add Job/replacement links,
-  removal of the old link before publishing existing/new replacements, same-ID
-  replacement restoration, standalone restoration, and continuation after a CV
-  insert failure with finalized-file cleanup.
-- `JobTrackerMigrationTests` covers schema initialization, supported upgrades,
-  rollback, foreign keys, reopen, unsupported newer versions, and named-connection
-  cleanup when `SqliteDatabase` construction fails.
-- `JobTrackerRepositoryTests` covers repository persistence plus shared SQL error and transaction infrastructure.
-- `JobTrackerCvImportTests` covers exact buffered bytes/hash/size with no early
-  managed names or files, staging the snapshot after source removal, exact
-  case-sensitive identity, duplicate no-file behavior, archived restoration,
-  structured failures, cancellation before buffering, complete persistence with
-  a canceled token after buffering, final bytes without leftover `.part` files,
-  and startup recovery.
-- `JobTrackerCvLockTests` covers a canceled waiter remaining blocked until the
-  active mutex owner releases the lock. It makes no FIFO or cancellable-lock
-  guarantee. A test-only timeout bounds synchronization regressions.
-- `JobTrackerMutationGateTests` covers mixed counted batches, one exclusive
-  removal, every rejected attempt, non-reserving checks, live retry-notice
-  state, dismissal, fresh admission, and shutdown suppression.
-- `JobTrackerMutationFeedbackTests` runs the shared QML component offscreen at
-  the minimum window width, checks dialog reopening and live banner state, and
-  rejects QML runtime warnings. Its Qt Quick test dependency stays inside the
-  test-enabled configuration, including Windows deployment of the offscreen
-  platform plugin and QML dependencies.
-- `JobTrackerRemovalTests` covers job/CV deletion, archive/restore, linked-CV
-  protection, best-effort outcomes, managed paths/tombstones, and worker cleanup.
-  Compile-time checks cover supported request/outcome kinds, constant operation
-  identity, shared-facade request compatibility, typed executor return values,
-  and rejection of unsupported template arguments. Worker cases cover
-  all four typed signals and Qt metatype extraction, operation/token correlation,
-  empty and pre-canceled batches, item/context failures, shutdown rejection,
-  and repeated busy rejections without disturbing an accepted database operation.
-  They also cover completion-handler submission of the next batch, context
-  initialization retry, null cancellation tokens, lazy connection creation and
-  reuse, and suppression of pending accepted outcomes after idempotent shutdown.
-  The jobs and CV controller suites also verify typed routing, stale same-kind
-  and foreign completions, idle rejection, selection preservation, and admission
-  held through completion publication.
-- `JobTrackerAddJobTests` covers the canonical preflight contract used by Add
-  Job, defensive service pre-staging validation, cancellation immediately before
-  a transaction, archived restoration and its rollback, cleanup when CV/job
-  insertion fails, cancellation after final rename still committing, transaction
-  behavior, and durable orchestration.
-- `JobTrackerUpdateJobTests` covers in-place metadata and ordered-technology
-  updates, company creation and normalized reuse, replacement-CV insertion,
-  active duplicate reuse, archived restoration including same-ID replacement,
-  metadata-only CV preservation, old-CV preservation, restoration rollback and file
-  cleanup, missing targets, defensive invalid-input rejection, and cancellation
-  before the update transaction.
-- `JobTrackerIntegrationTests` covers synchronous invalid-input rejection
-  without queue, filesystem, or SQLite mutation; normalized controller FIFO
-  admission; exact queued/final event ordering; worker-thread connection
-  initialization and retry through final failure outcomes; FIFO persistence
-  order; pending-count and saving transitions; CV and database-lock failure
-  isolation; duplicate-CV cleanup; cooperative active and cancel-all behavior;
-  GUI event-loop responsiveness; shutdown cleanup; and restart hydration.
-  Cross-worker cases concurrently import the same exact identity through Add
-  Job and Add CV in both submission orders: one inserts, one reuses, and one CV
-  row/file remains without `.part` files. Job rollback cases verify the other
-  worker can still import the identity without orphaned files or partial jobs.
-  Gate cases cover both controller queues, completion-handler attempts to start
-  conflicting work, failures, active cancellation, and metadata updates waiting
-  for the shared CV mutex.
-
-Storage-oriented suites reuse the temporary database and filesystem fixtures under `tests/support` so setup and cleanup rules remain consistent.
-
-Suites registered through `jobtracker_add_backend_test` retain verbose Qt Test
-diagnostics in `<build-directory>/<test-target>.txt` as well as requesting console
-output. Use that file when a Windows host supplies an empty CTest failure log.
-
 ## Manual Checks
 
-When automated validation is unavailable or not applicable, list the manual checks needed for the user to confirm the change.
-
-For admission/feedback changes, verify repeated blocked actions, rejection from
-the unsaved-changes Save flow, native multi-file picker selection restoration,
-confirmation-time rechecks and focus, long/two-category banner text beside
-ordinary notifications at 1180 x 720, and Wait/Interrupt-and-Exit with feedback
-visible. Offscreen component tests do not verify native picker behavior.
-
-For CV-import changes, manually exercise overlapping Add Job/Add CV requests,
-archived duplicate restoration (including same-ID replacement), and cancel/close
-with a large selected file. Real disk-full/permission failures, abrupt process
-termination, Linux runtime behavior, and other-process races need separate
-environment-specific verification. Full-file buffering intentionally increases
-peak memory; no new CV size limit or streaming fallback is introduced.
+When automated validation is unavailable or not applicable, list the manual
+checks needed for the user to confirm the change. Consult only the relevant
+[manual scenario](testing-reference.md#manual-checks), including its expected
+environment-specific limitations.

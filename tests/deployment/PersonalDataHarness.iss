@@ -3,9 +3,9 @@
   #error Inno Setup 7 or newer is required to verify native x64 personal-data handles.
 #endif
 #define JobTrackerExecutableName "JobTrackerApp.exe"
-#include "../../Installer/PayloadSafety.iss"
-#include "../../Installer/InstallationPolicy.iss"
-#include "../../Installer/PersonalData.iss"
+#include "../../Installer/Windows/PayloadSafety.iss"
+#include "../../Installer/Windows/InstallationPolicy.iss"
+#include "../../Installer/Windows/PersonalData.iss"
 
 [Setup]
 AppName=JobTracker personal data TEST ONLY

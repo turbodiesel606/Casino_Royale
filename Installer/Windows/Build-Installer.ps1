@@ -2,7 +2,7 @@
 <#
 Compile the single offline Setup from a verified direct Release stage.
 Never builds, installs, downloads, launches JobTracker, publishes or cleans.
-Private snapshots/logs stay under build/, outside Installer/output.
+Private snapshots/logs stay under build/, outside Installer/Windows/output.
 #>
 [CmdletBinding()]
 param(
@@ -17,7 +17,7 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 if (-not $IsWindows) { throw 'The Windows installer requires Windows.' }
 . (Join-Path $PSScriptRoot 'PayloadValidation.ps1')
-$repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $build = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($BuildDirectory)
 $run = [Guid]::NewGuid().ToString('N')
 $destination = Join-Path $PSScriptRoot "output/$run"

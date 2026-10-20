@@ -16,8 +16,8 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $work = [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath($WorkDirectory))
-if (-not $work.StartsWith((Join-Path $repository 'dist') + '\', [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'Test output must be below this repository''s dist/ directory.'
+if (-not $work.StartsWith((Join-Path $repository 'build/installer-tests') + '\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Test output must be below this repository''s build/installer-tests/ directory.'
 }
 if (Test-Path -LiteralPath $work) { throw 'Choose a fresh test output directory.' }
 $ancestor = $work

@@ -4,8 +4,8 @@
 #endif
 #include PipelineFile
 #define JobTrackerExecutableName "JobTrackerApp.exe"
-#include "..\..\Installer\InstallationPolicy.iss"
-#include "..\..\Installer\ManualClose.iss"
+#include "..\..\Installer\Windows\InstallationPolicy.iss"
+#include "..\..\Installer\Windows\ManualClose.iss"
 #include RuntimeInput
 #include RuntimeCode
 

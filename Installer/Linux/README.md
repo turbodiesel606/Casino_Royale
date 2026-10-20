@@ -3,11 +3,13 @@
 The native package target is **Ubuntu 24.04 amd64**, using exactly Qt 6.10.3
 from the shared Online Installer `gcc_64` kit. Other distributions,
 architectures, cross builds and multi-config packaging are unsupported.
-The local-test DEB uses placeholder release metadata. An extracted-package SQL
-probe provides developer-host runtime evidence only.
+Local-test DEBs use placeholder metadata; release DEBs require an explicitly
+supplied, confirmed maintainer. An extracted-package SQL probe provides
+developer-host runtime evidence only.
 
-Use the [build reference](../../For-Agent/Docs/build.md) for common presets,
-optional tests and Qt selection. Use the
+Use [build.md](../../For-Agent/Docs/build.md) for shared action and preset
+selection, and [build-linux.md](../../For-Agent/Docs/build-linux.md) for Linux
+toolchain, ordinary build/test commands, and development-runtime details. Use the
 [Linux deployment checks](../../tests/deployment/linux/README.md) for artifact
 integrity, disposable-target installation and package lifecycle procedures.
 
@@ -33,7 +35,10 @@ and ignored; shared presets are the documented workflow.
 
 ## Build and stage
 
-Build the ordinary production Release configuration (tests OFF, DEB OFF):
+For a standalone runtime stage, build the ordinary production Release
+configuration (tests OFF, DEB OFF). To build a DEB, go directly to
+[Build a DEB](#build-a-deb); neither this ordinary build nor `Stage.sh` is a
+prerequisite for packaging.
 
 ```bash
 cmake --preset linux-release
@@ -76,28 +81,19 @@ prefix. The stage contains:
   under `usr/share/icons/hicolor/<size>/apps/jobtracker.png`.
 
 Full Linux installation without an absolute non-root `DESTDIR` is rejected.
-Building `JobTrackerApp` alone only compiles/links. For routine development,
-build the tests-OFF Debug application, run required tests in a separate Debug
-test tree, then use `JobTrackerApp_dev_runtime` after final changes and successful
-checks. It prepares a local application/runtime copy under the build tree's
-`dev-runtime/<configuration>/` directory, as
-documented in the [build reference](../../For-Agent/Docs/build.md#linux-development-runtime-and-startup).
-That separate install component supports Debug and test-enabled trees and is
-excluded from full installation/CPack. Its distinct deployment script includes
-`qmltooling` for debugging/profiling; production keeps the tooling exclusions.
-`QT_QML_DEBUG` remains Debug-only.
+For everyday Debug work, use the canonical
+[routine workflow](../../For-Agent/Docs/build.md#routine-codex-workflow),
+[Linux development runtime](../../For-Agent/Docs/build-linux.md#linux-development-runtime-and-startup),
+and optional [fresh runtime](../../For-Agent/Docs/build.md#fresh-development-runtime).
 
-For an optional fresh local copy, use
-`cmake --build --preset linux-debug --target JobTrackerApp_dev_runtime_fresh --parallel 1`.
-It uses the same development component in a new
-`dev-runtime-fresh/Debug/<run-id>/` directory and prints its exact path and launch
-command. It copies no old runtime and is never invoked by ordinary builds or
-packaging. Both development targets preserve relative RPATH and `qt.conf`, clear
-inherited `DESTDIR` only for the child installation, and preserve existing outputs.
-They do not force a full rebuild or create a Release distribution. The Release
-staging/packaging guards and requirements in this guide remain unchanged.
+## Build a DEB
 
-## Build a local-test DEB
+Both package presets use Release, tests OFF and packaging ON, with independent
+build directories. `Package.sh` invokes the same installation/runtime/desktop
+rules through CPack, so no separate ordinary Release build or staging run is
+needed. Shared presets use `QTDIR` as described above.
+
+### Build a local-test DEB
 
 Use the dedicated configure/build pair. It inherits production Release
 settings but has its own cache at `build/qt-6.10.3/linux-deb-local-test`:
@@ -113,17 +109,41 @@ This selects Release, `JOBTRACKER_BUILD_TESTS=OFF`,
 Ordinary Linux production and test presets explicitly inherit packaging OFF.
 Do not turn the everyday `linux-release` cache into the package build.
 
+### Build a release DEB
+
+The `linux-deb-release` configure/build pair uses
+`build/qt-6.10.3/linux-deb-release` and explicitly sets
+`JOBTRACKER_DEB_LOCAL_TEST=OFF`. Supply the confirmed `Name <email>` through
+`JOBTRACKER_DEB_MAINTAINER`; no release identity is provided by the repository:
+
+```bash
+read -r -p 'Confirmed DEB maintainer (Name <email>): ' deb_maintainer
+cmake --preset linux-deb-release "-DJOBTRACKER_DEB_MAINTAINER=$deb_maintainer"
+cmake --build --preset linux-deb-release --target JobTrackerApp --parallel 1
+bash Installer/Linux/Package.sh build/qt-6.10.3/linux-deb-release
+```
+
+Alternatively, set `JOBTRACKER_DEB_MAINTAINER` in `cacheVariables` of a local
+configure preset inheriting `linux-deb-release`, with a matching build preset.
+Missing or malformed maintainer data causes a configuration error; the release
+preset never switches to local-test mode. Confirm publisher/licensing information
+and review existing notices separately before distribution; supplying a maintainer
+does not establish release acceptance.
+
+### Package outputs
+
 With work/output arguments omitted, `Package.sh` reserves unique directories
-under `build/linux-deb/package-<run-id>/` and `dist/linux-deb/package-<run-id>/`.
+under `build/linux-deb/package-<run-id>/` and `Installer/Linux/output/package-<run-id>/`.
 The work and output identifiers may differ; use the printed absolute paths.
 The original explicit form also remains supported:
 
 ```bash
-bash Installer/Linux/Package.sh build/qt-6.10.3/linux-deb-local-test 'build/linux-deb/my package work' 'dist/linux-deb/my package result'
+bash Installer/Linux/Package.sh build/qt-6.10.3/linux-deb-local-test 'build/linux-deb/my package work' 'Installer/Linux/output/my package result'
 ```
 
 You may supply only the work argument and let the final output be automatic.
-Each explicit destination must be fresh and strictly below its allowed root.
+Each explicit destination must be fresh and strictly below its allowed root:
+`build/linux-deb/` for work and `Installer/Linux/output/` for the final package.
 Repeated same-version packaging automatically preserves all earlier packages.
 The wrapper checks native command exits and final copy bytes, refuses existing
 outputs and symlinks, and leaves failed work/logs available. It never rebuilds,
@@ -139,7 +159,8 @@ reserved directory.
 
 Results and evidence:
 
-- Final DEB: `dist/linux-deb/<run-id>/jobtracker_<version>-<revision>~localtest_amd64.deb`.
+- Final DEB: `Installer/Linux/output/<run-id>/jobtracker_<version>-<revision>_amd64.deb`;
+  local-test packages append `~localtest` to the revision.
 - Work: `cpack.log`, `paths.txt`, `package.sha256`, CPack's package/stage copy and
   `dependency-check/` under the printed `build/linux-deb/` run.
 - `dependency-check/stage-root.txt` identifies the exact CPack stage;
@@ -150,8 +171,9 @@ Root `project(VERSION)` owns the application version. The separate
 `JOBTRACKER_DEB_REVISION` defaults to `1`. Local-test mode retains the existing
 placeholder `Unspecified local-test maintainer <local-test@invalid>` and an
 explicit local-engineering description; this is not a public release identity.
-A future release must explicitly set `JOBTRACKER_DEB_LOCAL_TEST=OFF` and supply
-confirmed metadata. No release preset or new legal metadata is provided here.
+Release mode uses the supplied maintainer and omits the `~localtest` suffix and
+local-engineering description. Both modes retain the same validation and
+packaging safeguards.
 
 ## Runtime and dependency policy
 
@@ -206,7 +228,7 @@ linked into production or shipped. This does not prove clean-machine operation.
 
 The desktop entry uses `Icon=jobtracker` and direct
 `/opt/jobtracker/bin/JobTrackerApp` Exec/TryExec paths. The 16/24/32/48/64/128/256
-PNG icons retain the corresponding embedded bytes of `../JobTracker.ico`;
+PNG icons retain the corresponding embedded bytes of `../Windows/JobTracker.ico`;
 normal builds need no image conversion. Standard Ubuntu desktop/icon triggers
 handle integration; JobTracker adds no custom maintainer scripts or cache files.
 

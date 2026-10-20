@@ -24,7 +24,7 @@ Lifecycle suites use the test-only `OfflineInstallerEvidence.ps1` reader.
 Their legacy `ManifestPath` parameter accepts private offline
 `installer-build.json`, not an application archive manifest. Before fixtures
 are created, the reader checks Setup filename, size, version, hash, and recorded
-installer-source hashes. The compiled-artifact suite additionally checks
+installer-source hashes against `Installer/Windows/`. The compiled-artifact suite additionally checks
 snapshot/generated identity and embedding. Use the Setup, build, stage, source
 state, and private evidence from the same invocation; never choose arbitrary
 latest metadata.
@@ -40,6 +40,12 @@ Inno Setup 7+ and verifies native AMD64/PE32+ output. Run commands sequentially
 from the repository root and wait for each process tree/final exit code.
 CMake execution follows
 [cmake-build-debug](../../.agents/skills/cmake-build-debug/SKILL.md).
+The standalone staging-check CMake project selects `pwsh` and validates its
+version on every configure, including cached `JOBTRACKER_POWERSHELL` values.
+It rejects missing interpreters and versions below 7.2; Windows PowerShell
+5.1 is unsupported. To replace a stale selection, configure with
+`-UJOBTRACKER_POWERSHELL` or `-DJOBTRACKER_POWERSHELL=<path-to-pwsh>`.
+Direct `Verify-Staging.ps1` invocation enforces the same minimum.
 
 If `RemoteSigned` blocks trusted transferred scripts, use the dedicated process
 described in the [build sequence](installer.md#build-sequence). Continue these
@@ -53,8 +59,12 @@ the Windows account/token requirement. Never start another real-install suite
 until the prior owned fixture is safely uninstalled. Refuse an existing personal
 registration or shortcuts; uninstall only the recorded test installation.
 
-Only fresh owned synthetic trees under repository `dist/` are eligible for
-test deletion. Keep private payload/probe copies under fresh `build/` paths.
+Only fresh owned synthetic trees under repository `build/installer-tests/`
+are eligible for fixture cleanup. Use
+`build/installer-tests/<run-id>/fixtures/<scenario>/`, including nested
+`currentuser/` directories for optional integration. The subtree root itself,
+other build trees, staging, installer outputs, and personal data are outside
+this cleanup boundary. Keep private payload/probe copies under fresh `build/` paths.
 Do not run against personal data or delete failed evidence. Actual app startup
 and SQLite/CV/settings checks need disposable accounts/VMs; overriding environment
 variables does not prove that Windows known-folder storage has been redirected.
@@ -79,7 +89,7 @@ $installerTestRoot = Join-Path (Get-Location).Path "build/qt-6.10.3/installer-te
 ~~~
 
 ~~~powershell
-$installerFixtureRoot = Join-Path (Get-Location).Path "dist/installer-tests-$installerTestRun"
+$installerFixtureRoot = Join-Path (Get-Location).Path "build/installer-tests/$installerTestRun/fixtures"
 ~~~
 
 ## Direct Payload And Compiled Artifact
@@ -167,14 +177,16 @@ pwsh -NoProfile -File tests/deployment/Test-MsvcRuntime.ps1 -BuildDirectory $ins
 
 ## Owned Local Lifecycle Helper
 
-`Test-LocalInstaller.ps1` uses fresh `dist/` fixtures, refuses existing scoped
-registrations/shortcuts, verifies installed hashes, registration, shortcuts,
+`Test-LocalInstaller.ps1` uses fresh `build/installer-tests/` fixtures, refuses
+existing scoped registrations/shortcuts, verifies installed hashes, registration, shortcuts,
 previous-directory reuse and scope conflict, then checks uninstall preservation
 of synthetic outside/unknown files. The retained helper name does not denote
 a separate release mode. It never launches JobTracker or inspects personal data.
 
-Use the same account, Setup, JSON, and fixture for each action. Optional
-Russian/Unicode-path and desktop-shortcut coverage:
+`Install` requires a fresh fixture. `Verify`, `Reinstall`, `ScopeConflict`, and
+`Uninstall` reuse its existing recorded fixture. Use the same account, Setup,
+JSON, and fixture for each action. Optional Russian/Unicode-path and
+desktop-shortcut coverage:
 
 ~~~powershell
 pwsh -NoProfile -File tests/deployment/Test-LocalInstaller.ps1 -InstallerPath $installerSetup -ManifestPath $installerMetadata -WorkDirectory "$installerFixtureRoot/Установка с пробелами" -Scope CurrentUser -Action Install -Language russian -WithDesktopShortcut
@@ -197,8 +209,8 @@ shell/registry entries.
 
 `Test-InstallationPolicy.ps1` and `InstallationPolicyHarness.iss` consume the
 current offline version, registry, path and concurrency policy. They use
-GUID-qualified HKCU test keys and retained `dist/` fixtures, test both scope rules,
-malformed/mismatched identities, unsigned numeric ordering, equal/nested/aliased
+GUID-qualified HKCU test keys and retained `build/installer-tests/` fixtures,
+test both scope rules, malformed/mismatched identities, unsigned numeric ordering, equal/nested/aliased
 paths, unavailable profiles and the shared installer/uninstaller lock. The
 optional non-elevated CurrentUser integration refuses existing registration,
 installs the real offline installer, supplies coherent synthetic older/newer
@@ -266,9 +278,9 @@ pwsh -NoProfile -File tests/deployment/Test-ManualClose.ps1 -InstallerPath $inst
 `PersonalDataStateHarness.iss` and `PersonalDataPolicyHarness.iss` verify the
 retained production cleanup policy for the offline installer. All three native
 harnesses require Inno 7, request x64 and are checked for AMD64/PE32+ output.
-Only fresh synthetic `dist/` trees are eligible for test deletion; production
-has no test path/consent override. Tests check native handle deletion, Unicode
-CV names, all-tree preflight on locks/read-only files, SID comparison, hardlinks,
+Only fresh synthetic `build/installer-tests/` trees are eligible for fixture
+cleanup; production has no test path/consent override. Tests check native handle
+deletion, Unicode CV names, all-tree preflight on locks/read-only files, SID comparison, hardlinks,
 ancestor/root/child junctions, unsafe roots, access denial, and real helper-
 uninstaller complete and partial removal. The ACL case denies a directly
 requested attribute-read right as well as deletion and restores the original

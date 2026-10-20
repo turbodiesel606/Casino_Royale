@@ -14,12 +14,11 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (-not $IsWindows) { throw 'MSVC runtime preparation requires Windows.' }
-$repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$repository = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 . (Join-Path $PSScriptRoot 'PayloadValidation.ps1')
-$destination = [IO.Path]::GetFullPath($OutputDirectory)
-$runtimeRoots = @(((Join-Path $repository 'dist') + '\'), ((Join-Path $repository 'build') + '\'))
-if (-not @($runtimeRoots | Where-Object { $destination.StartsWith($_, [StringComparison]::OrdinalIgnoreCase) }).Count) {
-    throw 'Runtime output must be below this repository''s build/ or dist/ directory.'
+$destination = [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath($OutputDirectory))
+if (-not $destination.StartsWith((Join-Path $repository 'build') + '\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Runtime output must be below this repository''s build/ directory.'
 }
 if (Test-Path -LiteralPath $destination) { throw 'Runtime output already exists; choose a new directory.' }
 $ancestor = $destination
@@ -67,14 +66,14 @@ function Assert-MicrosoftFile([string]$Path, [object]$Record, [bool]$Dll) {
         if ($Dll) {
             throw "Required App-Local x64 Release CRT is missing: $Path. Expected Microsoft version $($lock.minimumVersion) from Visual Studio redist $($lock.visualStudioRedistDirectory). Restore the matching authorized local CRT inputs; nothing will be downloaded."
         }
-        throw "Official local x64 redistributable is missing: $Path. Supply -RedistributablePath to an existing Microsoft vc_redist.x64.exe, version $($lock.minimumVersion), SHA-256 $($Record.sha256), matching Installer/MsvcRuntime.lock.json; nothing will be downloaded."
+        throw "Official local x64 redistributable is missing: $Path. Supply -RedistributablePath to an existing Microsoft vc_redist.x64.exe, version $($lock.minimumVersion), SHA-256 $($Record.sha256), matching Installer/Windows/MsvcRuntime.lock.json; nothing will be downloaded."
     }
     $item = Get-Item -LiteralPath $Path -ErrorAction Stop
     if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
         $Record.sha256 -cnotmatch '^[0-9a-f]{64}$' -or $Record.size -le 0 -or
         $item.Length -ne $Record.size -or
         (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() -cne $Record.sha256) {
-        throw "Pinned MSVC file integrity mismatch: $Path. Required Microsoft version $($lock.minimumVersion), $($Record.size) bytes, SHA-256 $($Record.sha256). Supply the reviewed local input; do not silently repin Installer/MsvcRuntime.lock.json."
+        throw "Pinned MSVC file integrity mismatch: $Path. Required Microsoft version $($lock.minimumVersion), $($Record.size) bytes, SHA-256 $($Record.sha256). Supply the reviewed local input; do not silently repin Installer/Windows/MsvcRuntime.lock.json."
     }
     $info = $item.VersionInfo
     if ($info.IsDebug -or $info.FileVersion.Trim() -cne $lock.minimumVersion) {
