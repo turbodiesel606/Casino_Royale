@@ -225,7 +225,8 @@ Results and evidence:
 - Work: `cpack.log`, `paths.txt`, `package.sha256`, CPack's package/stage copy and
   `dependency-check/` under the printed `build/linux-deb/` run.
 - `result.txt`: UTF-8 key=value fields `version`, `packageVersion`, `installer`,
-  `size`, `sha256`, `evidence`, `log`. Both output modes record the actual final
+  `size`, `sha256`, `evidence`, `log`, plus additive `provenance` and
+  `provenanceSha256` fields. Both output modes record the actual final
   filename and bytes; the launcher copies this record to its log directory.
 - `dependency-check/stage-root.txt` identifies the exact CPack stage;
   `dpkg-shlibdeps.log`, `elf-files.txt` and `system-depends.txt` retain the
@@ -238,6 +239,54 @@ explicit local-engineering description; this is not a public release identity.
 Release mode uses the supplied maintainer and omits the `~localtest` suffix and
 local-engineering description. Both modes retain the same validation and
 packaging safeguards.
+
+### Package input provenance
+
+Each reserved package work directory retains `input-manifest.sha256`, `inputs.json`
+and `provenance.json`. The result record links the latter with its SHA-256; the
+receipt links the exact DEB path, version, size and SHA-256 to the immutable input
+snapshot and manifest hashes. The launcher validates those links before reporting
+PASS. Missing, malformed, foreign or stale results fail; old receipts are never
+reused or overwritten. Preserve the complete work evidence with the exact package.
+
+The sorted manifest hashes relative paths and contents under `src/`, `qml/`,
+`cmake/`, `Installer/`, plus root `CMakeLists.txt` and `CMakePresets.json`. New files
+inside those input roots are included. Build/output/cache/log directories, local
+installer overrides, Git metadata and generated receipts are excluded. No Git
+command, commit, filesystem timestamp, SDK copy or source-tree copy is required.
+ZIP extraction times therefore do not change the input digest. Source symlinks
+are rejected. Keep additional build/package inputs inside these recorded roots.
+
+`inputs.json` records the actual launcher configure/build presets (empty for the
+manual `Package.sh` path), Release/DEB/output mode, CMake/CPack versions, configured
+compiler identity/version, selected Qt kit/version, an explicit cache allowlist,
+and hashes of the built executable and generated packaging inputs. Compiler flags,
+compiler-launcher commands/arguments,
+and optional machine-local configuration files are hashed without publishing their
+contents. It does not dump the environment or complete cache. Absolute tool/build
+paths describe the originating machine; source manifest paths remain portable.
+
+Before CPack, `Package.sh` requires a clean `ninja -n JobTrackerApp` result. It does
+not rebuild: pending work requires the caller to reconfigure/build first. The
+launcher also compares source inputs with its pre-configure snapshot. Local config
+is hashed before sourcing; local presets/settings are frozen before resolution
+and checked again at capture/seal. Source,
+binary/generated-input or cache changes during packaging prevent a success receipt.
+The receipt is sealed against the private CPack candidate before final publication;
+it records the selected final path and the candidate's exact bytes. A failed input
+check preserves private failed evidence without publishing a new DEB.
+The manual path observes sources at package preflight after the clean dry run;
+it cannot reconstruct an earlier compiler invocation or detect deliberately forged
+build timestamps. Avoid concurrent manual builds or edits against the same inputs.
+Later reconfiguration does not alter earlier receipts. These records identify
+observed inputs and output bytes, not bit-for-bit reproducibility.
+
+The launcher passes `--launcher-record`, `--source-manifest`, `--settings-manifest`
+and `--local-config`
+to `Package.sh` to link its current invocation. Manual callers omit these options;
+the wrapper does not infer presets from a mutable build tree or environment.
+Focused [launcher and provenance regression checks](../../tests/deployment/linux/README.md#launcher-and-provenance-regressions)
+are separate from production build/package targets and installed-runtime acceptance.
 
 ## Runtime and dependency policy
 

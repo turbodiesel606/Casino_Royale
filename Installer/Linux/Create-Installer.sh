@@ -37,7 +37,12 @@ if [[ -n $config ]]; then
 else
     config="$script_dir/Create-Installer.local.conf"
 fi
-if [[ -f $config ]]; then source "$config"; fi
+config=$(realpath -m -- "$config")
+config_digest=absent
+if [[ -f $config ]]; then
+    config_digest=$(sha256sum -- "$config"); config_digest=${config_digest%% *}
+    source "$config"
+fi
 for key in "${!overrides[@]}"; do printf -v "$key" '%s' "${overrides[$key]}"; done
 parallel=${INSTALLER_PARALLEL:-}
 [[ -z $parallel || ( $parallel =~ ^[1-9][0-9]*$ && ${#parallel} -le 4 && $parallel -le 1024 ) ]] ||
@@ -51,6 +56,9 @@ printf 'Launcher logs: %s\n' "$run"
 step=resolve
 printf '[resolve] Inspect Release preset, Qt SDK and maintainer\n'
 trap 'status=$?; if (( status != 0 )); then printf "FAIL: installer creation during %s (exit %s). Logs: %s\n" "$step" "$status" "$run" | tee "$run/failure.log" >&2; fi' EXIT
+jobtracker_run_logged "$run/settings-inputs.log" cmake -DMODE=settings \
+    "-DLOCAL_CONFIG=$config" "-DSOURCE_CONFIG_HASH=$config_digest" "-DOUTPUT=$run/settings-before.json" \
+    -P "$script_dir/Provenance.cmake"
 export JOBTRACKER_CREATE_PRESET=${INSTALLER_PRESET:-}
 export JOBTRACKER_CREATE_QT=${INSTALLER_QT_ROOT:-}
 export JOBTRACKER_CREATE_MAINTAINER=${INSTALLER_MAINTAINER:-}
@@ -62,8 +70,8 @@ while IFS= read -r line; do
     case "$key" in
         preset) preset=$value ;; buildPreset) build_preset=$value ;; build) build=$value ;; qt) qt=$value ;;
         version) version=$value ;; maintainer) maintainer=$value ;;
-        env.JOBTRACKER_CREATE_*|unset.JOBTRACKER_CREATE_*) jobtracker_fail 'Preset environment must not override reserved JOBTRACKER_CREATE_* launcher inputs.' ;;
-        env.*|unset.*) ;;
+        env.JOBTRACKER_CREATE_*|unset.JOBTRACKER_CREATE_*|build.unset.JOBTRACKER_CREATE_*) jobtracker_fail 'Preset environment must not override reserved JOBTRACKER_CREATE_* launcher inputs.' ;;
+        env.*|unset.*|build.unset.*) ;;
         *) jobtracker_fail 'Invalid preset result record.' ;;
     esac
 done < "$run/preset.txt"
@@ -75,12 +83,21 @@ flock -n "$lock_fd" || jobtracker_fail "Another installer launcher holds the loc
 # Inspect again while holding the lock; a concurrent earlier run may have
 # configured the tree between resolution and lock acquisition.
 jobtracker_run_logged "$run/resolve-locked.log" cmake -P "$resolver"
+jobtracker_run_logged "$run/source-inputs.log" cmake -DMODE=manifest \
+    "-DOUTPUT=$run/source-before.sha256" -P "$script_dir/Provenance.cmake"
 step=configure
 printf '[configure] %s\n' "$preset"
-jobtracker_run_logged "$run/configure.log" cmake --preset "$preset" \
-    "-DCMAKE_PREFIX_PATH:PATH=$qt" '-DJOBTRACKER_BUILD_TESTS:BOOL=OFF' \
-    '-DJOBTRACKER_ENABLE_DEB_PACKAGING:BOOL=ON' '-DJOBTRACKER_DEB_LOCAL_TEST:BOOL=OFF' \
-    "-DJOBTRACKER_DEB_MAINTAINER:STRING=$maintainer"
+(
+    while IFS= read -r line; do
+        case "$line" in
+            unset.*) key=${line%%=*}; unset "${key#unset.}" ;;
+        esac
+    done < "$run/preset.txt"
+    jobtracker_run_logged "$run/configure.log" cmake --preset "$preset" \
+        "-DCMAKE_PREFIX_PATH:PATH=$qt" '-DJOBTRACKER_BUILD_TESTS:BOOL=OFF' \
+        '-DJOBTRACKER_ENABLE_DEB_PACKAGING:BOOL=ON' '-DJOBTRACKER_DEB_LOCAL_TEST:BOOL=OFF' \
+        "-DJOBTRACKER_DEB_MAINTAINER:STRING=$maintainer"
+)
 jobtracker_run_logged "$run/verify-configured-cache.log" cmake -P "$resolver"
 step=build
 printf '[build] JobTrackerApp (Release, tests OFF)\n'
@@ -95,6 +112,12 @@ if [[ -n $parallel ]]; then build_args+=(--parallel "$parallel"); fi
                 unset.*) key=${line%%=*}; unset "${key#unset.}" ;;
             esac
         done < "$run/preset.txt"
+    else
+        while IFS= read -r line; do
+            case "$line" in
+                build.unset.*) key=${line%%=*}; unset "${key#build.unset.}" ;;
+            esac
+        done < "$run/preset.txt"
     fi
     jobtracker_run_logged "$run/build.log" cmake "${build_args[@]}"
 )
@@ -102,12 +125,11 @@ step=package
 printf '[package] Release DEB through Package.sh\n'
 # Package work follows the existing build/linux-deb boundary.
 package_work=$(jobtracker_reserve_directory "$jobtracker_root/build/linux-deb" create)
-jobtracker_run_logged "$run/package.log" bash "$script_dir/Package.sh" "$build" "$package_work/package" --timestamped-output
-installer=''
-while IFS= read -r line; do
-    case "$line" in installer=*) installer=${line#*=} ;; esac
-done < "$package_work/package/result.txt"
-[[ -n $installer && -f $installer ]] || jobtracker_fail 'Packaging did not return its finished installer.'
+jobtracker_run_logged "$run/package.log" bash "$script_dir/Package.sh" "$build" "$package_work/package" \
+    --timestamped-output --launcher-record "$run/preset.txt" \
+    --source-manifest "$run/source-before.sha256" --local-config "$config" \
+    --settings-manifest "$run/settings-before.json"
+jobtracker_validate_result "$package_work/package/result.txt" "$package_work/package" "$version"
 cp -- "$package_work/package/result.txt" "$run/result.txt"
 printf 'PASS: JobTracker %s\nInstaller: %s\nEvidence/checksum: %s/package\nLogs/result: %s\n' \
-    "$version" "$installer" "$package_work" "$run"
+    "$version" "$jobtracker_installer" "$package_work" "$run"

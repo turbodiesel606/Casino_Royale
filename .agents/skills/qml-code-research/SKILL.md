@@ -20,7 +20,15 @@ Research the smallest relevant JobTracker QML surface and return evidence-backed
 
 1. Apply `AGENTS.md`, then identify the affected screen, component, navigation
    surface, or QML-facing backend contract.
-2. Read `For-Agent/Docs/qml-style.md` for QML/UI guidance.
+2. Select relevant sections of `For-Agent/Docs/qml-style.md` from the actual
+   question, property, and its consumers: **Logic Boundaries** for ownership and
+   binding contracts; **Navigation And Structure** for navigation or decomposition;
+   **Components** for component reuse and shared controls; **Button Interaction
+   Palette** for button states; **Selection Controls** for checkbox/selection
+   states; **Verification** when assessing runtime or visual evidence. A binding
+   that controls a button or checkbox still requires the applicable component,
+   palette, and selection rules. Follow consumers before narrowing the selection;
+   retain broader context, including the complete guide if needed, when ambiguous.
 3. Read only the matching documents under `For-Agent/Docs/architecture/` when
    the research reaches a QML/backend contract or another architecture boundary.
    Start with `qml-contracts.md` for model/property/signal contracts and add a

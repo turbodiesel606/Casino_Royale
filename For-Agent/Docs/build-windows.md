@@ -132,7 +132,17 @@ driver into each test's separate output directory:
 `<build-directory>/test-runtime/<configuration>/<test-target>/`
 (`sqldrivers/qsqlite[d].dll` below it). Parallel targets write disjoint runtime
 files. The QML feedback test's additional Qt Quick/QML/offscreen deployment uses
-that same test-specific directory. CTest resolves the executable's new location.
+that same test-specific directory. Building the named target followed by the
+ordinary selected CTest command is sufficient: CTest prepares that QML runtime
+before starting the feedback test. A content fingerprint covers the executable,
+selected deployment tool, offscreen plugin, preparation script, and the complete
+project QML subtree (`.qml`, `.js`, `.mjs`, `qmldir`, `.qmltypes`), including nested
+components. Changed inputs trigger deployment without C++ recompilation; unchanged
+inputs reuse it. The private `qt.conf` and cleared process-local QML/plugin import
+overrides prevent SDK imports from masking missing deployed modules. No machine
+environment changes are made. Direct executable invocation bypasses this CTest
+preparation; use CTest for current QML verification. The existing timeout and
+offscreen/software rendering settings apply to the complete test command.
 
 QtSql loads SQLite dynamically; linking/copying QtSql alone does not supply the
 driver. This preparation stays inside `JOBTRACKER_BUILD_TESTS`; it does not

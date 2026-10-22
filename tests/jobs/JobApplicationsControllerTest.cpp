@@ -7,6 +7,7 @@
 
 #include <QSignalSpy>
 #include <QSqlQuery>
+#include <QUrl>
 #include <QtTest/QtTest>
 
 #include <utility>
@@ -327,7 +328,7 @@ void JobApplicationsControllerTest::selectionPublishesControllerContracts()
 void JobApplicationsControllerTest::controllerValidatesSelectedApplication()
 {
     auto applications = testsupport::makeJobApplications();
-    applications.first().jobUrl_ = {};
+    applications.first().jobUrl_ = QUrl{};
     JobApplicationsController controller{applications, fixture_.worker_};
 
     QVERIFY(controller.validateSelectedApplication().isEmpty());

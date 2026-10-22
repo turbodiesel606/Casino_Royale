@@ -104,6 +104,17 @@ When a same-named build preset exists, it must select that configure preset
 a pair the launcher builds the resolved directory with the configure preset's
 environment. It never builds a different preset's tree.
 
+On Linux, literal `null` environment entries are removed from configure/build
+child processes, including paired builds. Build overrides and
+`inheritConfigureEnvironment` determine the effective build entries; an empty
+string remains defined. A selected preset or its ancestors must not reference a
+removed variable through `$env{...}` or `$penv{...}` macros. The launcher rejects
+that combination before configuration, because clearing the parent environment
+could otherwise change CMake's macro expansion or select another build directory.
+This conservative check scans the selected ancestry as written, including
+overridden fields and metadata. Use independent preset values for those
+paths/settings and avoid references to removed variables in that ancestry.
+
 ### Files, results and failures
 
 Root `project(JobTracker VERSION ...)` in `CMakeLists.txt` remains the sole
@@ -129,7 +140,9 @@ Its launcher `result.json` and optional `-PassThru` object identify the exact
 installer, build, stage, compiler and evidence. Linux prints its private
 `build/linux-deb/create-<run-id>/package/` directory with `cpack.log`,
 `dependency-check/`, `package.sha256`, and a `result.txt` key=value record
-(version, packageVersion, installer, size, sha256, evidence, log). That record is
+(version, packageVersion, installer, size, sha256, evidence, log, provenance,
+provenanceSha256). The linked [Linux input receipt](Linux/README.md#package-input-provenance)
+identifies the source/build inputs without requiring Git. That record is
 also copied to the launcher log directory. Checksums name the actual final DEB.
 Neither workflow selects a newest file from shared output.
 

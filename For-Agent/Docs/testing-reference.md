@@ -97,9 +97,22 @@ target name from the [test map](testing.md#subsystem-to-test-map), or use
 
 Storage-oriented suites reuse the temporary database and filesystem fixtures under `tests/support` so setup and cleanup rules remain consistent.
 
-Suites registered through `jobtracker_add_backend_test` retain verbose Qt Test
-diagnostics in `<build-directory>/<test-target>.txt` as well as requesting console
-output. Use that file when a Windows host supplies an empty CTest failure log.
+All 18 suites use `jobtracker_register_test` to retain verbose Qt Test diagnostics
+in `<build-directory>/test-logs/<configuration>/<test-target>.txt` as well as
+requesting console output. The CMake runner forwards captured output and, when
+stdout is empty, prints this invocation's text log to CTest. Configure creates
+writable log directories; test names
+and configurations have separate files. Each invocation replaces that test's
+previous text log, so retain a copy when comparing runs. Use this file when a
+Windows host supplies an empty CTest failure log. A failure before Qt Test
+initialization may produce no new Qt Test log: the runner says so and leaves any
+previous log unchanged. Retain CTest/process diagnostics
+(`Testing/Temporary/LastTest.log`, console output and exit status) as well.
+Captured process output is forwarded as it arrives. The runner prints the unique
+invocation log path before starting Qt Test; retain that partial file if CTest
+terminates the process on timeout before the normal log replacement.
+The QML feedback test uses the ordinary CTest command for automatic incremental
+[runtime preparation](build-windows.md#test-runtime).
 
 ## Manual Checks
 

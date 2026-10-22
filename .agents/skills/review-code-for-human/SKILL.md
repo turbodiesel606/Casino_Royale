@@ -1,6 +1,6 @@
 ---
 name: review-code-for-human
-description: Produce an exhaustive, source-backed human review of a JobTracker code fragment, function, class, module, or end-to-end workflow. Use when Codex must begin with a verified logic flow, explain every relevant entity in context, trace the complete caller-to-dependency path, show every participating project-defined function body completely in consecutive snippets without reproducing header declarations, explain each snippet in detail, infer rationale with clear uncertainty, and assess architectural improvements. Keep the review read-only unless the user explicitly requests changes.
+description: Use only when the user explicitly names review-code-for-human. Produce an exhaustive, source-backed walkthrough of a JobTracker code fragment, function, class, module, or workflow, explaining the complete relevant execution path and participating function bodies. Read-only unless changes are explicitly requested.
 ---
 
 # Review Code for Human

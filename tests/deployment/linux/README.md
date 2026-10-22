@@ -14,6 +14,54 @@ its own Qt/QML/plugins. Never install these packages on the developer host.
 A cleared environment or extracted-package run there is preliminary evidence
 only. Record unavailable environment capabilities separately from test failures.
 
+## Launcher and provenance regressions
+
+Run this standalone harness on the native Ubuntu 24.04 amd64 development host,
+as an ordinary user. It requires Python 3.10+ (standard library), CMake/CPack 3.22+,
+Ninja, Bash, `flock`, GNU core utilities and the existing Debian package tools.
+It uses private source/build/SDK fixtures, the real production launcher, resolver,
+path guards, result validator and provenance helper. A tiny CMake project replaces
+application compilation; a CPack double creates a tiny real DEB with `dpkg-deb`.
+It never installs, launches JobTracker, uses personal data or changes the real kit.
+Production has no dependency on the harness or Python.
+
+From the repository root, choose a fresh directory:
+
+```bash
+python3 tests/deployment/linux/Test-CreateInstaller.py --work build/linux-deb/launcher-regression-20261022
+```
+
+The harness exercises success/order, failures at each stage, nonzero exits and no
+false PASS, flock contention, CLI/local/preset/environment precedence, explicit
+invalid presets and automatic fallback, paired/unpaired builds, inherited/null
+environment, spaces/Unicode, invalid results/paths, preservation, and provenance.
+Paired cases distinguish null, empty and nonempty values, explicit/inherited
+build overrides and disabled configure-environment inheritance. Conflicting
+references to a removed parent variable are rejected before configure, including
+references in the build directory, environment and native tool options.
+Controlled stage failures and settings/input changes also compare final output
+inventories and hashes: a rejected candidate must not publish a new DEB. Direct
+`Package.sh` cases mutate source, executable and cache during the CPack double;
+the private receipt helper is checked before its final package path exists.
+All fixtures and command logs remain under the exact work path; `results.json`
+records unittest totals and `commands.jsonl` records each command and exit. A fresh
+run refuses an existing directory. Do not run these fixtures through sudo or bypass
+native host checks. They do not validate Qt deployment, actual application DEBs,
+desktop startup, installation or lifecycle acceptance. After these tests, perform
+the separately authorized real native build/package checks below.
+
+On Windows, only the platform-neutral CMake evidence helper can execute:
+
+```powershell
+python tests/deployment/linux/Test-CreateInstaller.py --portable --qt-root '<installed Qt 6.10.3 kit>' --work build/linux-provenance-check-20261022
+```
+
+This mode checks manifest stability/new/modified inputs without Git, receipt and
+package hash links, secret exclusion, manual preset absence, mid-run changes and
+old-record preservation. It uses a real local `qmake` for the version query and
+synthetic build identity files. A PASS is not native Linux launcher/package evidence.
+Bash `-n`, Python AST parsing and CMake/JSON structural checks have the same limit.
+
 ## Artifact selection and integrity
 
 Build and package with the [release launcher](../../../Installer/Linux/README.md#one-command-release-deb)

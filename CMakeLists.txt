@@ -369,6 +369,32 @@ if(JOBTRACKER_BUILD_TESTS)
         endif()
     endfunction()
 
+    function(jobtracker_register_test target_name)
+        set(test_log "${CMAKE_CURRENT_BINARY_DIR}/test-logs/$<CONFIG>/${target_name}.txt")
+        if(CMAKE_CONFIGURATION_TYPES)
+            foreach(config IN LISTS CMAKE_CONFIGURATION_TYPES)
+                file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/test-logs/${config}")
+            endforeach()
+        else()
+            file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/test-logs/${CMAKE_BUILD_TYPE}")
+        endif()
+        if(WIN32 AND target_name STREQUAL "JobTrackerMutationFeedbackTests")
+            add_test(NAME ${target_name} COMMAND "${CMAKE_COMMAND}"
+                "-DTEST_EXECUTABLE=$<TARGET_FILE:${target_name}>"
+                "-DTEST_QML_DIR=${CMAKE_CURRENT_SOURCE_DIR}/qml"
+                "-DTEST_QT_ROOT=${_qt6_kit_dir}"
+                "-DTEST_WINDEPLOYQT=${WINDEPLOYQT_EXECUTABLE}"
+                "-DTEST_OFFSCREEN=$<TARGET_FILE:Qt6::QOffscreenIntegrationPlugin>"
+                "-DTEST_LOG=${test_log}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/RunQmlTest.cmake")
+        else()
+            add_test(NAME ${target_name} COMMAND "${CMAKE_COMMAND}"
+                "-DTEST_EXECUTABLE=$<TARGET_FILE:${target_name}>"
+                "-DTEST_LOG=${test_log}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/RunQtTest.cmake")
+        endif()
+    endfunction()
+
     function(jobtracker_add_backend_test target_name test_source)
         add_executable(${target_name}
             ${test_source}
@@ -384,10 +410,7 @@ if(JOBTRACKER_BUILD_TESTS)
             PRIVATE Qt6::Core Qt6::Sql Qt6::Test
         )
 
-        # Retain Qt Test diagnostics even when a Windows host does not forward
-        # the test process's console output to CTest.
-        add_test(NAME ${target_name} COMMAND ${target_name}
-            -o "${CMAKE_CURRENT_BINARY_DIR}/${target_name}.txt,txt" -o -,txt -v1)
+        jobtracker_register_test(${target_name})
         jobtracker_deploy_test_runtime(${target_name})
     endfunction()
 
@@ -405,7 +428,7 @@ if(JOBTRACKER_BUILD_TESTS)
         PRIVATE Qt6::Core Qt6::Test
     )
 
-    add_test(NAME JobTrackerCommonTests COMMAND JobTrackerCommonTests)
+    jobtracker_register_test(JobTrackerCommonTests)
     jobtracker_deploy_test_runtime(JobTrackerCommonTests)
 
     jobtracker_add_backend_test(
@@ -447,7 +470,7 @@ if(JOBTRACKER_BUILD_TESTS)
         PRIVATE Qt6::Core Qt6::Sql Qt6::Test
     )
 
-    add_test(NAME JobTrackerJobsTests COMMAND JobTrackerJobsTests)
+    jobtracker_register_test(JobTrackerJobsTests)
     jobtracker_deploy_test_runtime(JobTrackerJobsTests)
 
     add_executable(JobTrackerCvTests
@@ -467,7 +490,7 @@ if(JOBTRACKER_BUILD_TESTS)
         PRIVATE Qt6::Core Qt6::Gui Qt6::Sql Qt6::Test
     )
 
-    add_test(NAME JobTrackerCvTests COMMAND JobTrackerCvTests)
+    jobtracker_register_test(JobTrackerCvTests)
     jobtracker_deploy_test_runtime(JobTrackerCvTests)
 
     add_executable(JobTrackerDashboardTests
@@ -488,7 +511,7 @@ if(JOBTRACKER_BUILD_TESTS)
         PRIVATE Qt6::Core Qt6::Gui Qt6::Sql Qt6::Test
     )
 
-    add_test(NAME JobTrackerDashboardTests COMMAND JobTrackerDashboardTests)
+    jobtracker_register_test(JobTrackerDashboardTests)
     jobtracker_deploy_test_runtime(JobTrackerDashboardTests)
 
     add_executable(JobTrackerDirectoryTests
@@ -508,7 +531,7 @@ if(JOBTRACKER_BUILD_TESTS)
         PRIVATE Qt6::Core Qt6::Sql Qt6::Test
     )
 
-    add_test(NAME JobTrackerDirectoryTests COMMAND JobTrackerDirectoryTests)
+    jobtracker_register_test(JobTrackerDirectoryTests)
     jobtracker_deploy_test_runtime(JobTrackerDirectoryTests)
 
     jobtracker_add_backend_test(
@@ -587,23 +610,6 @@ if(JOBTRACKER_BUILD_TESTS)
         src/maintenance/StorageMutationGate.hpp
     )
     target_link_libraries(JobTrackerMutationFeedbackTests PRIVATE Qt6::Quick)
-    if(WIN32)
-        add_custom_command(TARGET JobTrackerMutationFeedbackTests POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory
-                "$<TARGET_FILE_DIR:JobTrackerMutationFeedbackTests>/platforms"
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "$<TARGET_FILE:Qt6::QOffscreenIntegrationPlugin>"
-                "$<TARGET_FILE_DIR:JobTrackerMutationFeedbackTests>/platforms"
-            COMMENT "Deploying the offscreen platform for QML feedback tests"
-        )
-        add_custom_command(TARGET JobTrackerMutationFeedbackTests POST_BUILD
-            COMMAND "${WINDEPLOYQT_EXECUTABLE}"
-                --qmldir "${CMAKE_CURRENT_SOURCE_DIR}/qml/components"
-                "$<TARGET_FILE:JobTrackerMutationFeedbackTests>"
-            COMMENT "Deploying Qt Quick dependencies for QML feedback tests"
-            VERBATIM
-        )
-    endif()
     set_tests_properties(JobTrackerMutationFeedbackTests PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
         TIMEOUT 30

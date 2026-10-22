@@ -1,0 +1,30 @@
+cmake_minimum_required(VERSION 3.22)
+project(JobTracker VERSION 0.1.0 LANGUAGES NONE)
+# LANGUAGES NONE does not initialize the typed cache entry a C++ project creates.
+set(CMAKE_BUILD_TYPE "${CMAKE_BUILD_TYPE}" CACHE STRING "Build configuration" FORCE)
+set(JOBTRACKER_QT_VERSION 6.10.3)
+file(APPEND "${CMAKE_SOURCE_DIR}/trace.txt" "configure\n")
+if("$ENV{FIXTURE_FAIL}" STREQUAL "configure")
+    message(FATAL_ERROR "Intentional fixture configure failure")
+endif()
+if(DEFINED ENV{FIXTURE_UNSET})
+    file(WRITE "${CMAKE_BINARY_DIR}/configure-environment.txt" "FIXTURE_UNSET_DEFINED=1\n")
+else()
+    file(WRITE "${CMAKE_BINARY_DIR}/configure-environment.txt" "FIXTURE_UNSET_DEFINED=0\n")
+endif()
+set(CMAKE_INSTALL_PREFIX /opt/jobtracker CACHE PATH "" FORCE)
+set(CMAKE_INSTALL_BINDIR bin CACHE PATH "")
+set(CMAKE_INSTALL_LIBDIR lib CACHE PATH "")
+set(Qt6_DIR "${CMAKE_PREFIX_PATH}/lib/cmake/Qt6" CACHE PATH "" FORCE)
+set(JOBTRACKER_DEB_REVISION 1 CACHE STRING "")
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/CMakeFiles/${CMAKE_VERSION}")
+file(WRITE "${CMAKE_BINARY_DIR}/CMakeFiles/${CMAKE_VERSION}/CMakeCXXCompiler.cmake"
+    "set(CMAKE_CXX_COMPILER \"/fixture/compiler\")\nset(CMAKE_CXX_COMPILER_ID \"Fixture\")\nset(CMAKE_CXX_COMPILER_VERSION \"1.2.3\")\n")
+file(WRITE "${CMAKE_BINARY_DIR}/JobTrackerApp" "#!/bin/sh\nexit 0\n")
+file(CHMOD "${CMAKE_BINARY_DIR}/JobTrackerApp" PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
+file(WRITE "${CMAKE_BINARY_DIR}/CPackConfig.cmake" "# Test double consumes command-line paths only.\n")
+add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/app-ready"
+    COMMAND "${CMAKE_COMMAND}" "-DROOT=${CMAKE_SOURCE_DIR}" "-DBUILD=${CMAKE_BINARY_DIR}"
+        -P "${CMAKE_SOURCE_DIR}/fixture-build.cmake"
+    DEPENDS "${CMAKE_SOURCE_DIR}/src/input.cpp" VERBATIM)
+add_custom_target(JobTrackerApp DEPENDS "${CMAKE_BINARY_DIR}/app-ready")
