@@ -132,3 +132,13 @@ Broader verification expands target/test coverage within Debug. Release builds,
 Release tests, other configurations, staging, and packaging require an explicit
 user request. Documentation/instruction-only changes without build impact require
 no build, tests, deployment, or application launch.
+
+## Final Response Format
+
+Use this format after making changes:
+
+1. What did I do?
+2. Which files changed?
+5. What should be checked manually?
+6. Risks, limitations, and unverified areas.
+7. Improvement ideas, if relevant.

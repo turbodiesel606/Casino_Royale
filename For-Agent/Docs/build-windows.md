@@ -43,10 +43,16 @@ directories. The routine local names are `windows-debug-local` and, when needed,
 
 ## Build And Test Commands
 
-Application configure and compile/link:
+Application configure, when required:
 
 ```powershell
 cmake --preset windows-debug
+```
+
+Compile/link before required intermediate tests; skip this separate build in
+the no-test branch of the [routine workflow](build.md#routine-codex-workflow):
+
+```powershell
 cmake --build --preset windows-debug --target JobTrackerApp
 ```
 
@@ -58,10 +64,15 @@ cmake --build --preset windows-debug-tests --target JobTrackerCommonTests
 ctest --preset windows-debug-tests -R "^JobTrackerCommonTests$"
 ```
 
-Ordinary runtime preparation and, only when needed, launch:
+Ordinary runtime preparation (the only production build in the no-test branch):
 
 ```powershell
 cmake --build --preset windows-debug --target JobTrackerApp_dev_runtime
+```
+
+Only after that command succeeds, launch when required by the task:
+
+```powershell
 & .\build\qt-6.10.3\windows-debug\Debug\JobTrackerApp.exe
 ```
 

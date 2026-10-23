@@ -17,21 +17,37 @@ without build impact and read-only code investigations require no compilation,
 tests, deployment, or application launch. An explicitly requested build/test
 investigation follows its requested scope.
 
-1. Use **Debug on the current host OS**. Select a matching local or shared preset
-   as described below; configure when the tree or changed inputs require it.
-2. Build the production application with `JOBTRACKER_BUILD_TESTS=OFF` using
-   `JobTrackerApp`.
-3. When [testing.md](testing.md#test-scope) requires tests, configure as needed
-   and build selected test targets in a **separate Debug tests-ON tree**.
-4. Run the selected tests through **CTest separately from building**.
-5. After the final changes and successful required checks, prepare the ordinary
-   `JobTrackerApp_dev_runtime`. It builds the application incrementally if
-   necessary; no forced full rebuild is required.
+Use **Debug on the current host OS**. Select a matching local or shared preset
+as described below; configure when the tree or changed inputs require it.
+Keep the production tree at `JOBTRACKER_BUILD_TESTS=OFF`.
+
+Select the branch using [testing.md](testing.md#test-scope) and applicable
+project verification rules. The shorter branch is allowed only when those
+rules justify not running intermediate tests; test-selection criteria remain
+unchanged.
+
+- **No intermediate tests required:** after the final changes and any necessary
+  configure, build `JobTrackerApp_dev_runtime` directly in the production tree.
+  Do not run a separate preliminary `JobTrackerApp` build. On Windows and Linux,
+  the runtime target depends on `JobTrackerApp`, so the same invocation
+  compiles/links the application as needed before preparing its development runtime.
+- **Tests required:** preserve this order:
+
+  1. Build `JobTrackerApp` in the production tree.
+  2. Configure as needed and build selected test targets in a **separate Debug
+     tests-ON tree**.
+  3. Run the selected tests through **CTest separately from building**.
+  4. After the final changes and successful required checks, build the ordinary
+     `JobTrackerApp_dev_runtime` in the production tree.
+
+Runtime preparation builds the application incrementally if necessary; no
+forced full rebuild is required.
 
 Intermediate cycles may build `JobTrackerApp` without repeated deployment.
 Prepare runtime earlier when startup or new dependencies need verification;
 final preparation must reflect the latest application state. Reuse successful
-checks that remain current. Launch the GUI only when the task requires it.
+checks that remain current. Launch the GUI only when the task requires it and
+the runtime build has completed successfully for the current changes.
 
 Broader verification expands production targets or test coverage within Debug;
 it does not automatically add Release or another OS. Release builds, Release
@@ -41,7 +57,9 @@ request, including after a Debug failure.
 ## Action And Target Selection
 
 Run commands from the repository root, one configure/build/test command at a
-time, and check each final exit code. Apply
+time, and check each final exit code. On failure, stop and diagnose before
+continuing; do not launch an existing executable after a compile, link, or
+deployment failure. Apply
 [cmake-build-debug](../../.agents/skills/cmake-build-debug/SKILL.md) for process
 completion, failure handling, and diagnosis.
 

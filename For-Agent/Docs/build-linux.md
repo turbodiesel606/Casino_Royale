@@ -48,10 +48,16 @@ are not authority to package an ordinary cache; the wrapper checks the live cach
 
 ## Build And Test Commands
 
-Application configure and compile/link:
+Application configure, when required:
 
 ```bash
 cmake --preset linux-debug
+```
+
+Compile/link before required intermediate tests; skip this separate build in
+the no-test branch of the [routine workflow](build.md#routine-codex-workflow):
+
+```bash
 cmake --build --preset linux-debug --target JobTrackerApp --parallel 1
 ```
 
@@ -63,10 +69,15 @@ cmake --build --preset linux-debug-tests --target JobTrackerCommonTests --parall
 ctest --preset linux-debug-tests -R '^JobTrackerCommonTests$'
 ```
 
-Ordinary runtime preparation and, only when needed, launch:
+Ordinary runtime preparation (the only production build in the no-test branch):
 
 ```bash
 cmake --build --preset linux-debug --target JobTrackerApp_dev_runtime --parallel 1
+```
+
+Only after that command succeeds, launch when required by the task:
+
+```bash
 ./build/qt-6.10.3/linux-debug/dev-runtime/Debug/bin/JobTrackerApp
 ```
 
