@@ -12,29 +12,41 @@ builds also require Qt Test. Use Bash or a suitable native Linux shell from
 the repository root. CMake 3.22 is the intended minimum, not a claim of execution
 on that version; preset schema 3 is compatible with it.
 
-For shared presets, an illustrative kit selection is:
+For routine Debug work, prefer `linux-debug-local` when matching local
+configure/build presets exist in `CMakeUserPresets.json` and point to the
+installed Qt 6.10.3 `gcc_64` kit. Its explicit `CMAKE_PREFIX_PATH` overrides the
+inherited Qt path, so `QTDIR` does not need to be set. Apply the shared
+[local/SDK selection rules](build.md#shared-presets-and-local-qt-selection),
+including inspection of an existing cache before configuration.
+
+If no suitable local presets exist, use the shared `linux-debug` preset.
+It reads `QTDIR` through `CMAKE_PREFIX_PATH` and does not apply the Qt path from
+`linux-debug-local`. First export `QTDIR` in the same shell to the installed
+Qt 6.10.3 `gcc_64` kit. An unset or outdated `QTDIR` can cause Qt discovery to
+fail. Adjust this illustrative path before running:
 
 ```bash
 export QTDIR=/path/to/Qt/6.10.3/gcc_64
+cmake --preset linux-debug
 ```
 
-Apply the shared [local/SDK selection rules](build.md#shared-presets-and-local-qt-selection).
-The examples use shared presets; substitute corresponding `*-local` names
-throughout when those presets exist and match the installed kit.
+The command examples below use local presets. For the shared fallback, use
+`linux-debug` for configure/build and `linux-debug-tests` for required
+test configure/build/CTest commands after exporting the correct `QTDIR`.
 Local and shared variants use the same output directories.
 
 ## Presets And Configurations
 
 Each Ninja tree selects its matching build type.
 
-| Configure/build preset | Directory below `build/qt-6.10.3/` | Configuration | Tests | DEB |
-| --- | --- | --- | --- | --- |
-| `linux-debug` | `linux-debug` | Debug | OFF | OFF |
-| `linux-debug-tests` | `linux-debug-tests` | Debug | ON | OFF |
-| `linux-release` | `linux-release` | Release | OFF | OFF |
-| `linux-release-tests` | `linux-release-tests` | Release | ON | OFF |
-| `linux-deb-local-test` | `linux-deb-local-test` | Release | OFF | ON, local-test ON |
-| `linux-deb-release` | `linux-deb-release` | Release | OFF | ON, local-test OFF |
+| Shared configure/build preset | Local variant (when available) | Directory below `build/qt-6.10.3/` | Configuration | Tests | DEB |
+| --- | --- | --- | --- | --- | --- |
+| `linux-debug` | `linux-debug-local` | `linux-debug` | Debug | OFF | OFF |
+| `linux-debug-tests` | `linux-debug-tests-local` | `linux-debug-tests` | Debug | ON | OFF |
+| `linux-release` | `linux-release-local` | `linux-release` | Release | OFF | OFF |
+| `linux-release-tests` | `linux-release-tests-local` | `linux-release-tests` | Release | ON | OFF |
+| `linux-deb-local-test` | None | `linux-deb-local-test` | Release | OFF | ON, local-test ON |
+| `linux-deb-release` | None | `linux-deb-release` | Release | OFF | ON, local-test OFF |
 
 The two test presets also have matching CTest presets and separate build
 directories. The routine local names are `linux-debug-local` and, when needed,
@@ -51,28 +63,28 @@ are not authority to package an ordinary cache; the wrapper checks the live cach
 Application configure, when required:
 
 ```bash
-cmake --preset linux-debug
+cmake --preset linux-debug-local
 ```
 
 Compile/link before required intermediate tests; skip this separate build in
 the no-test branch of the [routine workflow](build.md#routine-codex-workflow):
 
 ```bash
-cmake --build --preset linux-debug --target JobTrackerApp --parallel 1
+cmake --build --preset linux-debug-local --target JobTrackerApp --parallel 1
 ```
 
 Selected tests, when required by the [test map and scope](testing.md#subsystem-to-test-map):
 
 ```bash
-cmake --preset linux-debug-tests
-cmake --build --preset linux-debug-tests --target JobTrackerCommonTests --parallel 1
-ctest --preset linux-debug-tests -R '^JobTrackerCommonTests$'
+cmake --preset linux-debug-tests-local
+cmake --build --preset linux-debug-tests-local --target JobTrackerCommonTests --parallel 1
+ctest --preset linux-debug-tests-local -R '^JobTrackerCommonTests$'
 ```
 
 Ordinary runtime preparation (the only production build in the no-test branch):
 
 ```bash
-cmake --build --preset linux-debug --target JobTrackerApp_dev_runtime --parallel 1
+cmake --build --preset linux-debug-local --target JobTrackerApp_dev_runtime --parallel 1
 ```
 
 Only after that command succeeds, launch when required by the task:

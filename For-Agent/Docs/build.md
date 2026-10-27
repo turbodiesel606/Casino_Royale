@@ -17,8 +17,8 @@ without build impact and read-only code investigations require no compilation,
 tests, deployment, or application launch. An explicitly requested build/test
 investigation follows its requested scope.
 
-Use **Debug on the current host OS**. Select a matching local or shared preset
-as described below; configure when the tree or changed inputs require it.
+Use **Debug on the current host OS**. Prefer a matching local preset as
+described below; configure when the tree or changed inputs require it.
 Keep the production tree at `JOBTRACKER_BUILD_TESTS=OFF`.
 
 Select the branch using [testing.md](testing.md#test-scope) and applicable
@@ -84,24 +84,36 @@ verified preset names, targets, and CTest filters.
 
 ## Shared Presets And Local Qt Selection
 
-`CMakePresets.json` is maintained and portable. Shared presets read `QTDIR`
-through `CMAKE_PREFIX_PATH`: select the kit containing `bin/` and `lib/cmake/`,
-not its parent version directory. Set it at configure time in the current shell;
-it remains available to child processes and need not be reset before every
-build in that session. Platform references provide the exact assignments and
-preset maps.
-
 Prefer a matching `*-local` preset when it exists and points to the installed
-kit; otherwise use the shared preset. `CMakeUserPresets.json` is optional, local,
-and ignored. Preserve local preferences on both platforms. User presets
-implicitly include the shared file and may override `CMAKE_PREFIX_PATH`; an
-explicit kit path there removes the need for `QTDIR`. Check that matching local
-configure/build/test presets exist with `cmake --list-presets=all`.
+kit. On Windows, use `windows-debug-local` for routine production configure/build
+and `windows-debug-tests-local` for required tests when those local presets are
+available. On Linux, use `linux-debug-local` for production and
+`linux-debug-tests-local` for required tests when those local presets are
+available. Select their names explicitly; CMake does not automatically replace
+a shared preset with its local variant.
+
+`CMakeUserPresets.json` is optional, local, and ignored. Preserve local
+preferences on both platforms. User presets implicitly include the shared file
+and may override `CMAKE_PREFIX_PATH`; an explicit kit path there removes the
+need for `QTDIR`. Check that matching local configure/build/test presets exist
+with `cmake --list-presets=all`.
+
+`CMakePresets.json` is maintained and portable. If no suitable local preset is
+available, use the shared preset after setting `QTDIR` in the current shell to
+the required Qt 6.10.3 kit. `windows-debug` requires `QTDIR` to point to the
+installed `msvc2022_64` kit; `linux-debug` requires the installed `gcc_64` kit.
+Shared presets do not use the Qt path from their corresponding local variants.
+They read `QTDIR` through `CMAKE_PREFIX_PATH`: select the kit containing `bin/`
+and `lib/cmake/`, not its parent version
+directory. An unset or outdated `QTDIR` can cause Qt discovery to fail. The
+variable remains available to child processes and need not be reset before
+every build in that session. Platform references provide the exact assignments
+and preset maps.
 
 An inherited local preset normally shares its parent's output directory.
 Do not switch SDKs in a populated cache. Inspect `CMAKE_PREFIX_PATH`, `Qt6_DIR`,
 and resolved Qt component paths after configuration. Preserve an incompatible
-cache and configure the shared preset with an explicit fresh `-B build/<new-name>`;
+cache and configure the selected preset with an explicit fresh `-B build/<new-name>`;
 then build that exact directory rather than the preset's original directory.
 
 ## Development Runtime Selection

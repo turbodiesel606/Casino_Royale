@@ -64,6 +64,18 @@ existing production contracts.
 Do not add or widen production APIs, alter access control, ownership, lifetime,
 threading, behavior, or architectural boundaries solely to make testing easier.
 
+## Architecture Documentation
+
+After implementation is stable, update directly affected architecture
+documentation. When a new domain, subsystem, or entity introduces an architectural
+responsibility that no existing document under `For-Agent/Docs/architecture/`
+appropriately covers, create a focused document named for that domain or
+responsibility. Describe its purpose, main components, ownership, dependencies,
+and relevant contracts. Add the document to the
+[architecture overview](For-Agent/Docs/architecture/overview.md) and update affected
+routing links. Group related entities in the same domain document and avoid
+duplicating information already maintained elsewhere.
+
 ## Selective Context And Task Routing
 
 Apply this file, identify the affected subsystem from the request, target files,
@@ -137,8 +149,8 @@ no build, tests, deployment, or application launch.
 
 Use this format after making changes:
 
-1. What did I do?
+1. What did you do?
 2. Which files changed?
-5. What should be checked manually?
-6. Risks, limitations, and unverified areas.
-7. Improvement ideas, if relevant.
+3. What should be checked manually?
+4. Risks, limitations, and unverified areas.
+5. Improvement ideas, if relevant.

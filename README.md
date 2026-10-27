@@ -15,8 +15,26 @@ SQLite persistence. It is under active development.
 ## Everyday Debug workflow
 
 For an initial local launch, run these commands separately from the project
-root. The Qt kit paths are illustrative; matching `*-local` presets can supply
-them instead. Do not switch Qt kits inside a populated cache.
+root. Do not switch Qt kits inside a populated cache; follow the
+[local/SDK selection rules](For-Agent/Docs/build.md#shared-presets-and-local-qt-selection)
+when an existing cache points to another kit.
+
+On Windows, prefer `windows-debug-local` when `CMakeUserPresets.json` defines
+matching configure/build presets pointing to the installed Qt 6.10.3
+`msvc2022_64` kit. Its explicit Qt path removes the need to set `QTDIR`:
+
+```powershell
+cmake --preset windows-debug-local
+cmake --build --preset windows-debug-local --target JobTrackerApp_dev_runtime
+& .\build\qt-6.10.3\windows-debug\Debug\JobTrackerApp.exe
+```
+
+Without suitable local presets, use the shared `windows-debug` preset after
+setting `QTDIR` in the same PowerShell session to the installed Qt 6.10.3
+`msvc2022_64` kit. Adjust the illustrative path below. The shared preset reads
+`QTDIR` and does not apply the Qt path from `windows-debug-local`; an unset or
+outdated `QTDIR` can cause Qt discovery to fail. Both variants use the same
+output directory.
 
 ```powershell
 $env:QTDIR = 'C:/Qt/6.10.3/msvc2022_64'
@@ -24,6 +42,22 @@ cmake --preset windows-debug
 cmake --build --preset windows-debug --target JobTrackerApp_dev_runtime
 & .\build\qt-6.10.3\windows-debug\Debug\JobTrackerApp.exe
 ```
+
+On Linux, prefer `linux-debug-local` when `CMakeUserPresets.json` defines
+matching configure/build presets pointing to the installed Qt 6.10.3 `gcc_64`
+kit. Its explicit Qt path removes the need to set `QTDIR`:
+
+```bash
+cmake --preset linux-debug-local
+cmake --build --preset linux-debug-local --target JobTrackerApp_dev_runtime --parallel 1
+./build/qt-6.10.3/linux-debug/dev-runtime/Debug/bin/JobTrackerApp
+```
+
+Without suitable local presets, use the shared `linux-debug` preset after
+exporting `QTDIR` in the same shell to the installed Qt 6.10.3 `gcc_64` kit.
+Adjust the illustrative path below. The shared preset reads `QTDIR` and does
+not apply the Qt path from `linux-debug-local`; an unset or outdated `QTDIR`
+can cause Qt discovery to fail. Both variants use the same output directory.
 
 ```bash
 export QTDIR=/path/to/Qt/6.10.3/gcc_64

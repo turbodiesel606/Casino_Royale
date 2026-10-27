@@ -12,16 +12,28 @@ Quick/QML and Sql; optional test builds also require Qt Test.
 CMake 3.22 is the intended minimum, not a claim of execution on that version;
 preset schema 3 is compatible with it.
 
-Use PowerShell from the repository root. For a shared preset, an illustrative
-kit selection is:
+Use PowerShell from the repository root. For routine Debug work, prefer
+`windows-debug-local` when matching local configure/build presets exist in
+`CMakeUserPresets.json` and point to the installed Qt 6.10.3 `msvc2022_64` kit.
+Its explicit `CMAKE_PREFIX_PATH` overrides the inherited Qt path, so `QTDIR`
+does not need to be set. Apply the shared
+[local/SDK selection rules](build.md#shared-presets-and-local-qt-selection),
+including inspection of an existing cache before configuration.
+
+If no suitable local presets exist, use the shared `windows-debug` preset.
+It reads `QTDIR` through `CMAKE_PREFIX_PATH` and does not apply the Qt path from
+`windows-debug-local`. First set `QTDIR` in the same PowerShell session to the
+installed Qt 6.10.3 `msvc2022_64` kit. An unset or outdated `QTDIR` can cause Qt
+discovery to fail. Adjust this illustrative path before running:
 
 ```powershell
 $env:QTDIR = 'C:/Qt/6.10.3/msvc2022_64'
+cmake --preset windows-debug
 ```
 
-Apply the shared [local/SDK selection rules](build.md#shared-presets-and-local-qt-selection).
-The examples below use shared presets; substitute corresponding `*-local`
-names throughout when those presets exist and match the installed kit.
+The command examples below use local presets. For the shared fallback, use
+`windows-debug` for configure/build and `windows-debug-tests` for required
+test configure/build/CTest commands after setting the correct `QTDIR`.
 Local and shared variants use the same output directories.
 
 ## Presets And Configurations
@@ -29,12 +41,12 @@ Local and shared variants use the same output directories.
 Visual Studio presets select x64; each build preset selects Debug or Release.
 `QT_QML_DEBUG` and MSVC Just My Code stay Debug-only.
 
-| Configure/build preset | Directory below `build/qt-6.10.3/` | Configuration | Tests |
-| --- | --- | --- | --- |
-| `windows-debug` | `windows-debug` | Debug (multi-config) | OFF |
-| `windows-debug-tests` | `windows-debug-tests` | Debug (multi-config) | ON |
-| `windows-release` | `windows-release` | Release (multi-config) | OFF |
-| `windows-release-tests` | `windows-release-tests` | Release (multi-config) | ON |
+| Shared configure/build preset | Local variant (when available) | Directory below `build/qt-6.10.3/` | Configuration | Tests |
+| --- | --- | --- | --- | --- |
+| `windows-debug` | `windows-debug-local` | `windows-debug` | Debug (multi-config) | OFF |
+| `windows-debug-tests` | `windows-debug-tests-local` | `windows-debug-tests` | Debug (multi-config) | ON |
+| `windows-release` | `windows-release-local` | `windows-release` | Release (multi-config) | OFF |
+| `windows-release-tests` | `windows-release-tests-local` | `windows-release-tests` | Release (multi-config) | ON |
 
 The two test presets also have matching CTest presets and separate build
 directories. The routine local names are `windows-debug-local` and, when needed,
@@ -46,28 +58,28 @@ directories. The routine local names are `windows-debug-local` and, when needed,
 Application configure, when required:
 
 ```powershell
-cmake --preset windows-debug
+cmake --preset windows-debug-local
 ```
 
 Compile/link before required intermediate tests; skip this separate build in
 the no-test branch of the [routine workflow](build.md#routine-codex-workflow):
 
 ```powershell
-cmake --build --preset windows-debug --target JobTrackerApp
+cmake --build --preset windows-debug-local --target JobTrackerApp
 ```
 
 Selected tests, when required by the [test map and scope](testing.md#subsystem-to-test-map):
 
 ```powershell
-cmake --preset windows-debug-tests
-cmake --build --preset windows-debug-tests --target JobTrackerCommonTests
-ctest --preset windows-debug-tests -R "^JobTrackerCommonTests$"
+cmake --preset windows-debug-tests-local
+cmake --build --preset windows-debug-tests-local --target JobTrackerCommonTests
+ctest --preset windows-debug-tests-local -R "^JobTrackerCommonTests$"
 ```
 
 Ordinary runtime preparation (the only production build in the no-test branch):
 
 ```powershell
-cmake --build --preset windows-debug --target JobTrackerApp_dev_runtime
+cmake --build --preset windows-debug-local --target JobTrackerApp_dev_runtime
 ```
 
 Only after that command succeeds, launch when required by the task:

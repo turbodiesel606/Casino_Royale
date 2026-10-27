@@ -23,7 +23,14 @@ Expand only when the final diff introduces a new dependency, an implementation a
 6. Verify affected QML-facing properties, commands, signals, and model roles remain compatible with their consumers.
 7. Confirm added, removed, or renamed C++, QML, and test files are registered correctly in `CMakeLists.txt`.
 8. When testing is relevant, apply `For-Agent/Docs/testing.md` for test quality, initial subsystem-to-test selection, and criteria for expanding coverage. Read only the relevant section of [testing-reference.md](../../../For-Agent/Docs/testing-reference.md) when a specific suite, fixture, log, or manual scenario needs detail. Confirm tests exercise the changed contract and can detect its defect; retain proportionate before/after regression evidence when feasible. Do not leave risky behavior unverified merely to reduce execution time or usage.
-9. After the implementation is stable, perform one documentation-impact check from the final changed behavior and contracts. Inspect only directly affected guidance, update it or record that no update is required, and do not repeat the check unless a later edit changes the impact.
+9. After the implementation is stable, perform one documentation-impact check from
+   the final changed behavior and contracts. Inspect only directly affected
+   guidance, update it or record that no update is required. Verify compliance with
+   [Architecture Documentation](../../../AGENTS.md#architecture-documentation),
+   including required new domain documents and their content, overview
+   registration, affected routing links, and reuse of appropriate existing
+   coverage without duplication. Do not repeat the check unless a later edit
+   changes the impact.
 10. After code, QML, CMake, resource, storage, or runtime-behavior changes,
     complete the smallest sufficient production build unless verification is
     impossible. Follow the [routine workflow](../../../For-Agent/Docs/build.md#routine-codex-workflow)
