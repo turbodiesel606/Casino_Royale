@@ -89,9 +89,20 @@ foreach ($file in $verified.Files) {
     Copy-Item -LiteralPath (Join-Path $verified.StageDirectory $relative) -Destination $source
     if ((Get-Sha256 $source) -cne $file.sha256) { throw "Staging changed during snapshot: $relative" }
     $parent = [IO.Path]::GetDirectoryName($relative)
-    $payload.Add(('Source: "{0}"; DestDir: "{{app}}\{1}"; Hash: "{2}"; Flags: ignoreversion; Check: CanInstallWithManualClose(ExpandConstant(''{{app}}\{3}''))' -f $source, $parent, $file.sha256, $relative))
+    $payload.Add(('Source: "{0}"; DestDir: "{{app}}\{1}"; Hash: "{2}"; Flags: ignoreversion uninsneveruninstall; AfterInstall: RecordInstalledFile(''{3}'')' -f $source, $parent, $file.sha256, $relative))
 }
 $payload.Add('[Code]')
+$payload.Add('procedure RegisterCurrentPayload;')
+$payload.Add('begin')
+foreach ($file in $verified.Files) {
+    $payload.Add(('  RegisterOwnedCandidate(''{0}'', ''{1}'');' -f $file.path.Replace('/', '\'), $file.sha256))
+}
+foreach ($file in $runtime.Evidence.files) {
+    $payload.Add(('  RegisterOwnedCandidate(''bin\{0}'', ''{1}'');' -f $file.name, $file.sha256))
+}
+$noticeHash = Get-Sha256 (Join-Path $PSScriptRoot 'MSVC-NOTICE.txt')
+$payload.Add(('  RegisterOwnedCandidate(''licenses\MSVC-NOTICE.txt'', ''{0}'');' -f $noticeHash))
+$payload.Add('end;')
 $payload.Add('procedure ValidatePayloadDestination;')
 $payload.Add('begin')
 foreach ($file in $verified.Files) {
@@ -124,7 +135,7 @@ if ($installerInfo.ProductName.Trim() -cne 'JobTracker' -or $installerInfo.Produ
 $sourceHashes = [ordered]@{}
 foreach ($name in @('JobTracker.iss','Build-Installer.ps1','PayloadValidation.ps1','PayloadSafety.iss',
         'MsvcRuntime.iss','Prepare-MsvcRuntime.ps1','MsvcRuntime.lock.json','MSVC-NOTICE.txt',
-        'InstallationPolicy.iss','ManualClose.iss','PersonalData.iss','payload-files.txt')) {
+        'InstallationPolicy.iss','InstallOwnership.iss','PersonalData.iss','payload-files.txt')) {
     $sourceHashes[$name] = Get-Sha256 (Join-Path $PSScriptRoot $name)
 }
 [ordered]@{

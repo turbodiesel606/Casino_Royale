@@ -100,7 +100,7 @@ function Invoke-Case([string]$Name, [bool]$Success, [string]$Pattern, [string]$L
     New-Item -ItemType Directory -Path $target | Out-Null
     $sentinel = Join-Path $target 'sentinel.txt'
     Set-Content -LiteralPath $sentinel -Value 'Preserve existing data.'
-    if ($Name -eq 'destination-conflict') {
+    if ($Name -eq 'local-runtime') {
         New-Item -ItemType Directory -Path (Join-Path $target 'bin') | Out-Null
         Set-Content -LiteralPath (Join-Path $target 'bin/msvcp140.dll') -Value 'Preserve existing runtime.'
     }
@@ -128,9 +128,6 @@ function Invoke-Case([string]$Name, [bool]$Success, [string]$Pattern, [string]$L
     } else {
         Assert-Check (-not (Test-Path -LiteralPath (Join-Path $target 'bin/vcruntime140.dll'))) 'Failure installed partial CRT files.'
     }
-    if ($Name -eq 'destination-conflict') {
-        Assert-Check ((Get-Content -LiteralPath (Join-Path $target 'bin/msvcp140.dll') -Raw).Trim() -ceq 'Preserve existing runtime.') 'Existing runtime overwritten.'
-    }
     if ($Name -eq 'reparse') {
         Assert-Check ((Get-Content -LiteralPath (Join-Path $directory 'outside/sentinel.txt') -Raw).Trim() -ceq 'Preserve outside.') 'Junction target changed.'
     }
@@ -140,7 +137,7 @@ function Invoke-Case([string]$Name, [bool]$Success, [string]$Pattern, [string]$L
 Invoke-Case 'policy' $true 'retry preserves reboot requirement'
 Invoke-Case 'currentuser' $true 'current-user skips system prerequisite'
 Invoke-Case 'system-present' $true 'host has compatible x64 registry and system files'
-Invoke-Case 'destination-conflict' $false 'contains App-Local MSVC'
+Invoke-Case 'local-runtime' $true 'existing App-Local runtime is compatible with all-users packaging'
 Invoke-Case 'reparse' $false 'symbolic link/junction'
 Invoke-Case 'integrity' $true 'verified official x64 package version'
 Invoke-Case 'corrupt' $false 'installation files are invalid'

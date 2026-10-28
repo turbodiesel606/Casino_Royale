@@ -1,4 +1,3 @@
-bin/D3Dcompiler_47.dll
 bin/JobTrackerApp.exe
 bin/Qt6Core.dll
 bin/Qt6Gui.dll
@@ -36,6 +35,9 @@ bin/Qt6QuickTemplates2.dll
 bin/Qt6QuickVectorImageGenerator.dll
 bin/Qt6Sql.dll
 bin/Qt6Svg.dll
+bin/d3dcompiler_47.dll
+bin/dxcompiler.dll
+bin/dxil.dll
 bin/icuuc.dll
 bin/opengl32sw.dll
 bin/qt.conf

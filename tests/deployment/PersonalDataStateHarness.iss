@@ -1,6 +1,6 @@
-; TEST ONLY: read-only production account/coexistence/completion consumers.
+; TEST ONLY. Read-only Windows token/profile/known-folder resolution.
 #if Ver < EncodeVer(7, 0, 0)
-  #error Inno Setup 7 or newer is required to verify native x64 account identity.
+  #error Inno Setup 7 or newer is required.
 #endif
 #define JobTrackerExecutableName "JobTrackerApp.exe"
 #include "../../Installer/Windows/PayloadSafety.iss"
@@ -8,7 +8,7 @@
 #include "../../Installer/Windows/PersonalData.iss"
 
 [Setup]
-AppName=JobTracker personal data state TEST ONLY
+AppName=JobTracker personal data identity TEST ONLY
 AppVersion=0.1.0
 DefaultDirName={tmp}\unused
 OutputDir={#TestOutput}
@@ -19,11 +19,9 @@ ArchitecturesAllowed=x64os
 ArchitecturesInstallIn64BitMode=x64os
 MinVersion=10.0
 Uninstallable=no
-; Keep {app} meaningful for the production identity check. No files are copied.
-CreateAppDir=yes
+CreateAppDir=no
 CreateUninstallRegKey=no
 UsePreviousAppDir=no
-DirExistsWarning=no
 DisableDirPage=yes
 DisableProgramGroupPage=yes
 CloseApplications=no
@@ -35,25 +33,34 @@ Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 
 [Code]
 function PrepareToInstall(var NeedsRestart: Boolean): String;
-var Failure, Expected, Path: String; Version: Int64; Found: Boolean;
+var Identity: TPersonalDataIdentity;
 begin
   Result := '';
+  ClearPersonalDataIdentity(Identity);
   try
-    Found := ReadInstallRecord(HKCU64, InstallUninstallKey + 'CurrentUser_is1', 'CurrentUser', Path, Version);
-    Log(Format('State probe: admin=%d; allusers=%d; found=%d; registered=%s; selected=%s', [Ord(IsAdmin), Ord(IsAdminInstallMode), Ord(Found), Path, ExpandConstant('{app}')]));
-    InitializePersonalDataPolicy;
-    Expected := ExpandConstant('{param:Verified}');
-    if DataAccountVerified <> (Expected = 'yes') then
-      RaiseException('TEST FAILURE: account identity');
-    Log('TEST PASS: account identity ' + Expected);
-    Failure := '';
-    try RequireNoRemainingInstallation;
-    except Failure := GetExceptionMessage; end;
-    if (Failure <> '') <> (ExpandConstant('{param:Shared}') = 'yes') then
-      RaiseException('TEST FAILURE: shared-data gate');
-    Log('TEST PASS: shared-data gate: ' + Failure);
-    // No data path is resolved or touched by either check.
-  except
-    Result := GetExceptionMessage;
+    try
+      ResolveExecutionPersonalDataIdentity(Identity);
+      if CompareText(Identity.LocalData, ExpandConstant('{param:ExpectedLocalData}')) <> 0 then
+        RaiseException('TEST FAILURE: execution Local AppData mismatch: ' + Identity.LocalData);
+      if CompareText(Identity.Profile, ExpandConstant('{param:ExpectedProfile}')) <> 0 then
+        RaiseException('TEST FAILURE: execution profile mismatch: ' + Identity.Profile);
+      if Identity.SidText <> ExpandConstant('{param:ExpectedSid}') then
+        RaiseException('TEST FAILURE: execution SID mismatch: ' + Identity.SidText);
+      if Pos(Identity.SidText, Identity.Account) = 0 then
+        RaiseException('TEST FAILURE: account display lacks SID');
+      ReleasePersonalDataIdentity(Identity);
+      ResolvePersonalDataIdentity(Identity);
+      if (Identity.LocalData = '') or (Identity.Profile = '') or
+         (Identity.Account = '') or (Identity.ExecutionAccount = '') then
+        RaiseException('TEST FAILURE: incomplete target identity');
+      Log('TEST PASS: Windows token/profile/known-folder identity resolved without opening application data.');
+      Log('Target account: ' + Identity.Account + '; execution account: ' + Identity.ExecutionAccount);
+      if not SaveStringToFile('{#TestOutput}\identity.txt', 'PASS', False) then
+        RaiseException('TEST FAILURE: identity result');
+    except
+      Result := GetExceptionMessage;
+    end;
+  finally
+    ReleasePersonalDataIdentity(Identity);
   end;
 end;

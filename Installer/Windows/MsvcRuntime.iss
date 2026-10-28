@@ -7,14 +7,12 @@ english.MsvcCancelled=Microsoft Visual C++ Runtime setup was cancelled. JobTrack
 russian.MsvcCancelled=Установка Microsoft Visual C++ Runtime отменена. Установка JobTracker ещё не началась.
 english.MsvcRestart=Microsoft Visual C++ Runtime requires a Windows restart. Restart Windows and run this JobTracker installer again. JobTracker files have not been changed.
 russian.MsvcRestart=Для Microsoft Visual C++ Runtime требуется перезагрузка Windows. Перезагрузите Windows и снова запустите установщик JobTracker. Файлы JobTracker не изменены.
-english.MsvcLocalConflict=This all-users destination contains App-Local MSVC runtime files. Choose a clean folder or remove the previous installation using its uninstaller.
-russian.MsvcLocalConflict=В папке для всех пользователей уже есть локальные файлы MSVC Runtime. Выберите чистую папку или удалите предыдущую установку её деинсталлятором.
 english.MsvcInstalling=Installing Microsoft Visual C++ Runtime...
 russian.MsvcInstalling=Установка Microsoft Visual C++ Runtime...
 english.MsvcCurrentUserInfo=MSVC runtime: bundled App-Local files; no system runtime installation.
 russian.MsvcCurrentUserInfo=MSVC Runtime: локальные файлы в папке программы; без системной установки.
-english.MsvcAllUsersInfo=MSVC runtime: a compatible system runtime is required. If missing, Setup installs the bundled official Microsoft x64 package. No internet connection is required. Microsoft license terms: https://visualstudio.microsoft.com/license-terms/
-russian.MsvcAllUsersInfo=MSVC Runtime: требуется совместимая системная версия. При её отсутствии будет установлен включённый официальный пакет Microsoft x64. Подключение к интернету не требуется. Лицензия Microsoft: https://visualstudio.microsoft.com/license-terms/
+english.MsvcAllUsersInfo=MSVC runtime: this copy includes its own App-Local files. If a compatible system runtime is missing, Setup also installs the bundled official Microsoft x64 package. No internet connection is required. Microsoft license terms: https://visualstudio.microsoft.com/license-terms/
+russian.MsvcAllUsersInfo=MSVC Runtime: эта копия содержит собственные локальные файлы. При отсутствии совместимой системной версии также будет установлен включённый официальный пакет Microsoft x64. Подключение к интернету не требуется. Лицензия Microsoft: https://visualstudio.microsoft.com/license-terms/
 
 [Code]
 var
@@ -57,28 +55,8 @@ begin
 end;
 
 procedure CheckMsvcDestination;
-var
-  Pattern: String;
-  Files: TFindRec;
-  Index: Integer;
 begin
   RequireSafePayloadPath(ExpandConstant('{app}\bin'));
-  // Do not silently allow an old local DLL to shadow the all-users prerequisite.
-  // Safe migration/removal of previous installations belongs to the upgrade stage.
-  for Index := 0 to 5 do begin
-    case Index of
-      0: Pattern := 'msvcp*.dll';
-      1: Pattern := 'vcruntime*.dll';
-      2: Pattern := 'concrt*.dll';
-      3: Pattern := 'vccorlib*.dll';
-      4: Pattern := 'vcomp*.dll';
-      5: Pattern := 'ucrtbase*.dll';
-    end;
-    if FindFirst(ExpandConstant('{app}\bin\') + Pattern, Files) then begin
-      FindClose(Files);
-      RaiseException(CustomMessage('MsvcLocalConflict'));
-    end;
-  end;
 end;
 
 procedure CleanupMsvcRuntime;

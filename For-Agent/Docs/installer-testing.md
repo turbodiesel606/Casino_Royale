@@ -20,14 +20,31 @@ hashes, Windows edition/build, x64 architecture, account/elevation, runtime
 state, language, destination, logs, and fixture cleanup. Use `PASS`, `FAIL`,
 or `NOT_RUN` per applicable case. Retain failed attempts alongside retries.
 
-Lifecycle suites use the test-only `OfflineInstallerEvidence.ps1` reader.
-Their legacy `ManifestPath` parameter accepts private offline
-`installer-build.json`, not an application archive manifest. Before fixtures
-are created, the reader checks Setup filename, size, version, hash, and recorded
-installer-source hashes against `Installer/Windows/`. The compiled-artifact suite additionally checks
-snapshot/generated identity and embedding. Use the Setup, build, stage, source
-state, and private evidence from the same invocation; never choose arbitrary
-latest metadata.
+Artifact-bound lifecycle runs (`Test-LocalInstaller.ps1`,
+`Test-InstallationPolicy.ps1`, and `Test-InstallOperations.ps1`) use the test-only
+`OfflineInstallerEvidence.ps1` reader. Their legacy `ManifestPath` parameter
+accepts private offline `installer-build.json`, not an application archive
+manifest. Before fixtures are created, the reader checks Setup filename, size,
+version, hash, and recorded installer-source hashes against `Installer/Windows/`.
+The compiled-artifact suite additionally checks snapshot/generated identity and
+embedding. Use the Setup, build, stage, source state, and private evidence from
+the same invocation; never choose arbitrary latest metadata.
+
+`Test-PersonalData.ps1` is source-based by default. It compiles the current
+production cleanup/consent source into native fixture consumers and records
+`installerSha256=null`; no built Setup or private build JSON is required.
+Only its `-RunCurrentUserIntegration` mode invokes the evidence reader and binds
+the real installation/removal checks to the supplied Setup. Supplying
+`InstallerPath` and `ManifestPath` without that switch does not validate those
+files or establish correspondence to a particular EXE.
+
+`Test-ShortcutLifecycle.ps1` also consumes current production source through
+native fixture Setups rather than validating a supplied distribution EXE. Its
+default mode substitutes scope and four disposable shell folders in a private
+test copy; report those scope transitions as simulated. Its opt-in Windows
+scope mode exercises the actual user/common shell-folder lifecycle and requires
+an already elevated token. Neither mode establishes a particular production
+Setup's artifact identity.
 
 The builder records an exact approved `installerFileName`: either the manual
 `JobTracker-Setup-<version>.exe` or the launcher's
@@ -38,8 +55,9 @@ without this field uses the canonical manual name. Source-hash freshness remains
 required. `Test-OfflineInstaller.ps1` retains its incorrectly renamed EXE case
 and checks altered approved-filename metadata too.
 
-Use the exact fields from `Create-Installer.ps1 -PassThru` or its printed
-`build/installer-create/windows-<run-id>/result.json` for the commands below.
+For artifact-bound commands below, use the exact fields from
+`Create-Installer.ps1 -PassThru` or its printed
+`build/installer-create/windows-<run-id>/result.json`.
 Launcher creation does not run any of these separate suites or acceptance cases.
 
 Signing changes Setup bytes: the unsigned build JSON no longer matches that
@@ -65,12 +83,16 @@ described in the [build sequence](installer.md#build-sequence). Continue these
 checks inside it so child PowerShell processes, including the CTest probe, inherit
 the process setting without changing persistent policy or source zone metadata.
 
-CurrentUser native/lifecycle suites need a non-elevated Windows token and
-HKCU/shell-folder access. AllUsers lifecycle checks require administrator
-elevation in a disposable environment. Codex host-tool access does not change
+CurrentUser artifact-integration helpers use a non-elevated Windows token and
+user shell-folder access. The focused Windows scope-transition mode described
+below instead requires an already elevated token to exercise both installation
+scopes and their actual shell folders. AllUsers lifecycle checks require
+administrator elevation in a disposable environment. Codex host-tool access does not change
 the Windows account/token requirement. Never start another real-install suite
-until the prior owned fixture is safely uninstalled. Refuse an existing personal
-registration or shortcuts; uninstall only the recorded test installation.
+until the prior owned fixtures are accounted for. Own only fresh test
+directories and per-copy shortcuts; uninstall only the recorded test copies.
+Existing personal installations must remain unchanged, and test copies must
+create no JobTracker uninstall registration.
 
 Only fresh owned synthetic trees under repository `build/installer-tests/`
 are eligible for fixture cleanup. Use
@@ -84,12 +106,25 @@ variables does not prove that Windows known-folder storage has been redirected.
 
 ## Paths For The Commands
 
-Continue with the exact `$installerBuild`, `$installerStage`,
+For artifact-bound commands, continue with the exact `$installerBuild`, `$installerStage`,
 `$installerSetup`, `$installerEvidence`, `$installerMetadata`, and
 `$installerIscc` values from the [build sequence](installer.md#build-sequence).
 When testing an existing artifact, explicitly restore those matching paths;
 the private build JSON records its stage and input identity. Do not rebuild
 solely to read this guide.
+
+For the standalone personal-data suite, only the installed Inno compiler path
+and a fresh fixture directory are needed; obtain `$installerIscc` from the local
+`ISCC.exe` installation. The fixture-path definitions below do not require a
+build or Setup artifact.
+
+When Inno Setup 7+ is on PATH:
+
+~~~powershell
+$installerIscc = (Get-Command ISCC.exe -CommandType Application -ErrorAction Stop).Source
+~~~
+
+Otherwise set `$installerIscc` to the actual installed compiler's absolute path.
 
 Choose fresh test directories for each run, leaving the stage/evidence unchanged:
 
@@ -187,7 +222,7 @@ private test copy and asks the deployment probe to verify the actual loaded path
 of `msvcp140.dll`, `vcruntime140.dll` and `vcruntime140_1.dll`. The common staging
 input must still contain no compiler runtime. This distinguishes App-Local loading
 from a successful run masked by an installed system CRT. The owned offline installer
-test additionally verifies CRT hashes/absence by scope, its current-user policy
+test additionally verifies per-copy CRT hashes in both scopes, its current-user policy
 log, the runtime notice and uninstall removal. Actual clean-machine application
 startup and all-users prerequisite execution remain separate acceptance checks.
 
@@ -200,163 +235,205 @@ pwsh -NoProfile -File tests/deployment/Test-MsvcRuntime.ps1 -BuildDirectory $ins
 
 ## Owned Local Lifecycle Helper
 
-`Test-LocalInstaller.ps1` uses fresh `build/installer-tests/` fixtures, refuses
-existing scoped registrations/shortcuts, verifies installed hashes, registration, shortcuts,
-previous-directory reuse and scope conflict, then checks uninstall preservation
-of synthetic outside/unknown files. The retained helper name does not denote
-a separate release mode. It never launches JobTracker or inspects personal data.
-
-`Install` requires a fresh fixture. `Verify`, `Reinstall`, `ScopeConflict`, and
-`Uninstall` reuse its existing recorded fixture. Use the same account, Setup,
-JSON, and fixture for each action. Optional Russian/Unicode-path and
-desktop-shortcut coverage:
+`Test-LocalInstaller.ps1` operates only on its recorded synthetic installation
+folders under `build/installer-tests/`. It verifies installed payload/runtime
+hashes, local metadata/uninstaller, per-copy shortcuts, and absence of JobTracker
+uninstall registration. Repair and uninstall preserve synthetic unrelated files
+and other fixture copies. It never launches JobTracker or inspects personal data.
+Use the same candidate, evidence, account, and fixture for related actions.
+Actions are `Install`, `Verify`, `Reinstall`, `AdditionalCopy`,
+`RepairMissingUninstaller`, `RepairMissingLog`, and `Uninstall`. Repeat
+`-WithDesktopShortcut` on later actions when it was selected for installation.
 
 ~~~powershell
 pwsh -NoProfile -File tests/deployment/Test-LocalInstaller.ps1 -InstallerPath $installerSetup -ManifestPath $installerMetadata -WorkDirectory "$installerFixtureRoot/Установка с пробелами" -Scope CurrentUser -Action Install -Language russian -WithDesktopShortcut
 ~~~
 
 ~~~powershell
-pwsh -NoProfile -File tests/deployment/Test-LocalInstaller.ps1 -InstallerPath $installerSetup -ManifestPath $installerMetadata -WorkDirectory "$installerFixtureRoot/Установка с пробелами" -Scope CurrentUser -Action Reinstall -Language russian
+pwsh -NoProfile -File tests/deployment/Test-LocalInstaller.ps1 -InstallerPath $installerSetup -ManifestPath $installerMetadata -WorkDirectory "$installerFixtureRoot/Установка с пробелами" -Scope CurrentUser -Action Reinstall -Language russian -WithDesktopShortcut
 ~~~
 
 ~~~powershell
-pwsh -NoProfile -File tests/deployment/Test-LocalInstaller.ps1 -InstallerPath $installerSetup -ManifestPath $installerMetadata -WorkDirectory "$installerFixtureRoot/Установка с пробелами" -Scope CurrentUser -Action Uninstall -Language russian
+pwsh -NoProfile -File tests/deployment/Test-LocalInstaller.ps1 -InstallerPath $installerSetup -ManifestPath $installerMetadata -WorkDirectory "$installerFixtureRoot/Установка с пробелами" -Scope CurrentUser -Action Uninstall -Language russian -WithDesktopShortcut
 ~~~
 
-The helper also supports `Verify`, `ScopeConflict`, `AllUsers`, and
-`-Language english`. AllUsers uses an elevated OS token; run real scope changes
-only in the corresponding disposable environment. Both scopes create actual
-shell/registry entries.
+AllUsers integration needs an elevated token in a disposable environment.
+Both scopes create actual per-copy shell links but no JobTracker installed-apps
+entry. Do not substitute a personal installation for a missing test fixture.
 
-## Installation Policy
+## Installation Policy And Repair
 
 `Test-InstallationPolicy.ps1` and `InstallationPolicyHarness.iss` consume the
-current offline version, registry, path and concurrency policy. They use
-GUID-qualified HKCU test keys and retained `build/installer-tests/` fixtures,
-test both scope rules, malformed/mismatched identities, unsigned numeric ordering, equal/nested/aliased
-paths, unavailable profiles and the shared installer/uninstaller lock. The
-optional non-elevated CurrentUser integration refuses existing registration,
-installs the real offline installer, supplies coherent synthetic older/newer
-PE/registry/marker identities in its own fixture, checks repair/path reuse and
-English/Russian shortcut cleanup, then uninstalls only that verified fixture.
-The test waits for each installer process tree before restoring fixture state.
-Real application data and migrations are never accessed. Read-only HKU and
-all-users audits exercise host registry discovery, not an actual system install.
-Actual AllUsers scope-conflict/installation, multiple sessions/ACLs, actual old
-releases and GUI/clean-machine behavior need separate acceptance evidence.
-Production CMake and normal builds remain independent.
+production local installation policy. Fixtures cover local version comparison,
+repairable missing evidence, nonempty unrelated destinations, nested/aliased
+paths, personal-data overlap, and installer/uninstaller mutual exclusion.
+Root-level and nested proposed folders exercise repeated canonicalization and
+the wizard's pre-install policy sequence in both scopes without creating those
+destinations. Existing empty folders remain covered; drive-root destinations
+are rejected separately from resolving a root for path checks.
+Tests must exercise the selected directory without requiring a global copy
+catalog or every Windows profile. Synthetic version metadata establishes policy
+behavior, not genuine historical application/database compatibility.
 
 ~~~powershell
 pwsh -NoProfile -File tests/deployment/Test-InstallationPolicy.ps1 -InstallerPath $installerSetup -ManifestPath $installerMetadata -WorkDirectory "$installerFixtureRoot/policy" -IsccPath $installerIscc
 ~~~
 
-Opt-in real CurrentUser integration, only after confirming the environment and
-absence of another owned/personal registration:
+For the interactive Browse regression, select a writable local drive, use New
+Folder, name a fresh direct child, and accept the path. Preparation must reach
+normal installation without an invalid-path error or duplicate separators.
+Repeat with a typed new path, nested missing folders, and an existing empty
+folder. The dialog selects a proposed folder; validation must not create it.
+
+Use real installation integration to check two separate copies, same-folder
+repair/update, known-newer same-folder downgrade rejection, and a separate
+older-version destination. Remove owned fixture files to exercise missing EXE,
+INI, uninstaller, and uninstall-data repair. Place unrelated sentinels inside
+and outside the selected folder and verify their hashes afterward. Normal
+repair must retain valid uninstall history; reconstructed history must not
+claim unknown files.
+With a missing ownership ledger, verify exact current-payload hash recognition
+and preservation/incomplete reporting for modified files whose ownership cannot
+be proved. Unverified history backups remain `.preserved-n` files.
+
+Copy/move/rename only fixture installations. Invoke the relocated uninstaller
+and verify the source files and shortcuts remain intact, then repair at the new
+location and verify that its local removal affects only that copy. Check stale
+and user-retargeted shortcuts, different scopes, and a disconnected other volume
+in disposable Windows environments. Never use an old source-location uninstall
+record as a fixture-cleanup shortcut.
+
+## Shortcut Scope And Desktop Lifecycle
+
+`Test-ShortcutLifecycle.ps1` compiles small native fixture Setups from the
+current production lifecycle sources. Its default run uses a private test copy
+with scope and user/common Start Menu/desktop destinations substituted by
+disposable folders. This executes installation, reinstall, reconciliation,
+failure/retry, and uninstall behavior while keeping the scope distinction
+simulated; it is not evidence of Windows elevation or real shell placement.
+Test substitutions remain outside production sources.
+Both modes use synthetic payloads and a private prerequisite stub; they do not
+execute the real MSVC prerequisite or establish UAC-dialog/credential-switch
+behavior.
 
 ~~~powershell
-pwsh -NoProfile -File tests/deployment/Test-InstallationPolicy.ps1 -InstallerPath $installerSetup -ManifestPath $installerMetadata -WorkDirectory "$installerFixtureRoot/policy-integration" -IsccPath $installerIscc -RunCurrentUserIntegration
+pwsh -NoProfile -File tests/deployment/Test-ShortcutLifecycle.ps1 -WorkDirectory "$installerFixtureRoot/shortcut-source" -IsccPath $installerIscc
 ~~~
 
-## Manual Closure
-
-`Test-ManualClose.ps1`, `ManualCloseHarness.iss` and
-`RunningApplicationFixture.cs` consume the production manual-close policy. The
-fixture is a real x64 mapped executable with the release version; it waits for
-a test-owned stop file and exits normally. It does not load Qt/JobTracker or
-read personal data. Tests check the exact file while running/closed, an unrelated
-same-name copy, unavailable write access, EN/RU silent cancellation with
-`/SUPPRESSMSGBOXES`, post-preflight starts, and rejection of automatic-close
-options. The per-file cancellation case requires exit 5, native acknowledgement,
-rollback logs, surviving process and unchanged protected files. Optional real
-CurrentUser integration verifies install/reinstall/uninstall and preserved
-sentinels, then removes its owned registration using the existing fixture helper.
-Silent native uninstall and late-copy cancellation also run without message-box
-suppression. Setup preparation failures require `/SUPPRESSMSGBOXES` to suppress
-Inno's own error summary. The installed executable is temporarily replaced by
-the coherent synthetic process fixture and restored before successful
-reinstall/uninstall checks.
-
-Rerunning after cooperative closure is not an interactive Retry-button test.
-The late-uninstall case directly invokes the production guard in a test Setup;
-real uninstall covers the early running/closed gates, not a delayed native
-uninstaller event. Cross-session/AllUsers, GUI/VM and concurrent-start races
-require separate verification. Native rollback does not establish restoration of all previously
-overwritten upgrade binaries. Do not claim transactional upgrade rollback.
-Revalidate the cancellation sequence when upgrading Inno Setup: Check and
-BeforeInstall exceptions alone cannot abort its native file loop.
+Run the actual Windows scope mode from an already elevated disposable-account
+session. If that token/environment is unavailable, the affected cases are
+`NOT_RUN` with a reason; do not substitute policy-only scope combinations for
+this evidence.
 
 ~~~powershell
-pwsh -NoProfile -File tests/deployment/Test-ManualClose.ps1 -InstallerPath $installerSetup -ManifestPath $installerMetadata -WorkDirectory "$installerFixtureRoot/manual-close" -IsccPath $installerIscc
+pwsh -NoProfile -File tests/deployment/Test-ShortcutLifecycle.ps1 -RunWindowsScopeIntegration -WorkDirectory "$installerFixtureRoot/shortcut-windows" -IsccPath $installerIscc
 ~~~
 
-Opt-in real CurrentUser integration with a separate fresh fixture:
+Cover both CurrentUser to AllUsers and AllUsers to CurrentUser in the same
+directory, with reinstall and uninstall after each transition. Verify actual
+resulting Start Menu and selected desktop locations, safe removal of old owned
+links, preservation of retargeted/other-copy links, and retry records after
+creation or verified-owned deletion fails. Cover desktop checked to unchecked
+and back, including retargeting and deletion denial. A shortcut read failure
+must preserve the link and its record and report incomplete work. Only an absent,
+successfully removed, or verified foreign link can release the old record.
+New-path intent must survive failed creation, and each shortcut kind retains
+its own result if the other kind fails.
+
+## Running Applications And Actual Filesystem Failures
+
+`Test-InstallOperations.ps1` and `InstallOperationsHarness.iss` exercise actual
+Windows replacement/removal failures without starting the real app against a
+personal profile, using a synthetic mapped executable or native exclusive
+file handle. Verify that installation to a different folder succeeds while
+another fixture copy runs and that a same-folder attempt reaches the operation
+rather than a process/idle gate. The process must remain alive and must not be
+restarted or terminated by Setup/uninstall.
+
+Record the actual locked/denied path, Windows error, remaining owned files, and
+installer/uninstaller exit/log results. Check cancellation and interruption,
+then repair where local evidence remains identifiable. Do not equate a failed
+operation with complete rollback or a successful process exit with removal of
+every file. A failed owned-program removal must produce native failure and
+retain local uninstall metadata, log, and EXE for retry/repair. Confirm that the
+data-choice/cleanup callback ran before the program attempt, independent of its
+outcome. Program-removal results and confirmed data-cleanup results must be
+reported independently. UI, another Windows session, and real running-app cases
+require the separate acceptance matrix.
 
 ~~~powershell
-pwsh -NoProfile -File tests/deployment/Test-ManualClose.ps1 -InstallerPath $installerSetup -ManifestPath $installerMetadata -WorkDirectory "$installerFixtureRoot/manual-integration" -IsccPath $installerIscc -RunCurrentUserIntegration
+pwsh -NoProfile -File tests/deployment/Test-InstallOperations.ps1 -InstallerPath $installerSetup -ManifestPath $installerMetadata -WorkDirectory "$installerFixtureRoot/operations" -IsccPath $installerIscc
 ~~~
+
+The policy and operations suites accept `-RunCurrentUserIntegration` for
+explicit real installation with a separate fresh fixture. Run from a
+non-elevated Windows session; the synthetic harnesses do not establish real
+AllUsers, UAC, or interactive-dialog behavior.
 
 ## Personal Data Safety
 
-`Test-PersonalData.ps1`, `PersonalDataHarness.iss`,
-`PersonalDataStateHarness.iss` and `PersonalDataPolicyHarness.iss` verify the
-retained production cleanup policy for the offline installer. All three native
-harnesses require Inno 7, request x64 and are checked for AMD64/PE32+ output.
-Only fresh synthetic `build/installer-tests/` trees are eligible for fixture
-cleanup; production has no test path/consent override. Tests check native handle
-deletion, Unicode CV names, all-tree preflight on locks/read-only files, SID comparison, hardlinks,
-ancestor/root/child junctions, unsafe roots, access denial, and real helper-
-uninstaller complete and partial removal. The ACL case denies a directly
-requested attribute-read right as well as deletion and restores the original
-ACL in finally; parent deletion rights cannot invalidate the refusal test.
-The owner case compares a real fixture handle against an
-alternate valid SID; it does not change the file owner or emulate a real UAC
-account switch. The lifecycle cases exercise silent preservation and separately
-assert the residual-program gate; they do not redirect the production data path.
+`Test-PersonalData.ps1` and the native personal-data harnesses consume the
+production cleanup and consent policy using fresh synthetic fixture trees.
+The ordinary standalone run records the current `PersonalData.iss` source hash,
+executes its native cleanup/identity checks, and exercises consent branches
+through test-only dialog/identity substitutions. It does not validate or run a
+supplied Setup EXE and does not establish real interactive or UAC behavior.
+Production has no test-only data path or consent switch. Preserve outside
+sentinels, including files in the parent `JobTracker` directory, so a regression
+from `JobTracker\Data` to the parent is observable. Missing `Data` is success.
+Use safe disposable data for every destructive case.
 
-The callback harness compiles a private policy copy with exact-count substitutions
-only for process scope/elevation, silence, known-folder resolution, registration
-reads and dialog responses. Native path/ownership/handle deletion code is kept.
-All folder results are compiled beneath the fresh fixture, and arbitrary scenario
-names fail closed. Both languages check default No/window-close/Yes, silent and
-AllUsers/elevated refusal, invalid/missing account identity, reboot/incomplete
-removal, both registry views, access-denied state, and renewed guards after
-consent. AllUsers/elevated cases assert zero account/registry/data-folder queries.
-These are native policy simulations, not actual interactive dialogs or UAC.
+Cover native deletion, Unicode names, path/ancestor/child reparse points,
+hardlinks, access denial, read-only files, and real file locks. Include
+user-owned Data, an Administrators-owned Data root, and Administrators-owned
+children inside a user-owned root. Positive administrative-ownership fixtures
+must retain and verify that ownership while Windows permissions allow deletion;
+do not normalize them to the test user's SID. Give the empty-Data fixture an
+explicit, verified owner and expected result. Access-denied fixtures must remain
+denied during the cleanup attempt. Preserve parent, outside, and other-profile
+sentinels in every case.
+Verify complete versus incomplete cleanup and retained diagnostics; do not
+promise restoration of files already deleted. A path-safety rejection is
+separate from a Windows operation failure.
 
-Optional non-elevated CurrentUser integration uses the real installer and the
-existing owned fixture helper. Private offline build JSON is validated through
-`OfflineInstallerEvidence.ps1` before fixture creation. It checks actual
-registration identity, another installation path being refused, presence-based shared-data protection, default
-uninstall and registration removal, plus repair and unchanged synthetic sibling
-data. It never resolves/reads the account's real
-JobTracker data. All real test installations must be uninstalled afterward.
-Test helper installations without registrations/shortcuts remain as retained
-fixtures. Production CMake/packaging do not depend on these tests.
-
-If a real maintenance failure leaves an incomplete fixture, the helper refuses
-blind uninstall; retain its state/logs and recover
-only after verifying its exact ownership and contents before another real suite.
-
-Interactive EN/RU consent/default No/cancellation, true AllUsers/UAC account
-mismatch, dual-scope uninstall, registry ACL denial, concurrent mutation and
-clean-VM behavior remain manual acceptance checks. Direct EN/RU calls of the
-cleanup core do not verify the prompt. AllUsers/elevated uninstall intentionally
-preserves data; optional deletion is limited to verified non-elevated CurrentUser.
+The consent policy must preserve on No, dismissal, or silent uninstall and
+invoke cleanup immediately on affirmative confirmation, before program removal.
+Running/remaining copies, disconnected volumes, leftover program files, and elevation are not
+cleanup gates. Test-only callback substitutions can exercise policy branches,
+but they do not establish that actual dialogs, UAC account changes, or known-
+folder resolution work in a real session.
 
 ~~~powershell
-pwsh -NoProfile -File tests/deployment/Test-PersonalData.ps1 -InstallerPath $installerSetup -ManifestPath $installerMetadata -WorkDirectory "$installerFixtureRoot/data" -IsccPath $installerIscc
+pwsh -NoProfile -File tests/deployment/Test-PersonalData.ps1 -WorkDirectory "$installerFixtureRoot/data-source" -IsccPath $installerIscc
 ~~~
 
-Opt-in real CurrentUser integration with a separate fresh fixture:
+To additionally validate the supplied Setup/build JSON and run that exact
+candidate's CurrentUser install, reinstall, and silent-uninstall lifecycle,
+use a separate fresh fixture from a non-elevated Windows session:
 
 ~~~powershell
-pwsh -NoProfile -File tests/deployment/Test-PersonalData.ps1 -InstallerPath $installerSetup -ManifestPath $installerMetadata -WorkDirectory "$installerFixtureRoot/data-integration" -IsccPath $installerIscc -RunCurrentUserIntegration
+pwsh -NoProfile -File tests/deployment/Test-PersonalData.ps1 -RunCurrentUserIntegration -InstallerPath $installerSetup -ManifestPath $installerMetadata -WorkDirectory "$installerFixtureRoot/data-integration" -IsccPath $installerIscc
 ~~~
+
+This integration mode records the validated `installerSha256` and checks the
+real uninstaller's silent-retention path. It still does not authorize deletion
+of the account's real JobTracker data or replace interactive/UAC acceptance.
+If administrative ownership, elevation, or another required environment cannot
+be established, record the affected cases as `NOT_RUN` with the reason.
+
+Interactive EN/RU default-No prompts, exact account/profile/path display,
+same-account elevation, alternate-credential UAC, actual filesystem permission
+failures, and another running real copy require execution in disposable Windows
+accounts/VMs. The target must never silently become the administrator's
+Local AppData. Cover both desktop-token resolution and the explicit default-No
+execution-account fallback selection when desktop identity cannot be resolved.
+Do not enumerate every profile or touch the developer's real
+JobTracker data to obtain this evidence.
 
 ## Acceptance Beyond Local Suites
 
 Use the [checklist](../../tests/deployment/Windows-Release-Checklist.md) for
-interactive EN/RU prompts/icons/Retry, real AllUsers/UAC and prerequisite
+interactive EN/RU prompts/icons, real AllUsers/UAC and prerequisite
 skip/run/failure/cancel/reboot, multiple accounts/sessions, actual
 SQLite/CV/settings preservation, graphics, and disconnected clean Windows 10/11
 x64 without Qt/Visual Studio. Synthetic version identities do not verify genuine

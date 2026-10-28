@@ -1,6 +1,6 @@
-; TEST ONLY. All deletion fixtures are confined to TestOutput, never LocalAppData.
+; TEST ONLY. Every deletion target is a fresh fixture below TestOutput.
 #if Ver < EncodeVer(7, 0, 0)
-  #error Inno Setup 7 or newer is required to verify native x64 personal-data handles.
+  #error Inno Setup 7 or newer is required.
 #endif
 #define JobTrackerExecutableName "JobTrackerApp.exe"
 #include "../../Installer/Windows/PayloadSafety.iss"
@@ -35,19 +35,29 @@ Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 Source: "{#TestOutput}\program.txt"; DestDir: "{app}\bin"; Flags: ignoreversion
 
 [Code]
-function TestSid(const Text: String; var Sid: THandle): Longint;
-  external 'ConvertStringSidToSidW@advapi32.dll stdcall';
-
 procedure RequireTest(const Condition: Boolean; const Detail: String);
 begin
   if not Condition then RaiseException('TEST FAILURE: ' + Detail);
   Log('TEST PASS: ' + Detail);
 end;
 
+procedure TestCurrentSid(var Identity: TPersonalDataIdentity);
+var Needed: Cardinal;
+begin
+  ClearPersonalDataIdentity(Identity);
+  RequireTest(DataOpenProcessToken(THandle(-1), 8, Identity.Token) <> 0, 'query fixture account token');
+  Needed := 256;
+  Identity.SidBuffer := DataAllocate($40, Needed);
+  RequireTest(Identity.SidBuffer <> 0, 'allocate fixture SID buffer');
+  RequireTest(DataTokenInformation(Identity.Token, 1, Identity.SidBuffer, Needed, Needed) <> 0,
+    'read fixture account SID');
+  DataReadPointer(Identity.Sid, Identity.SidBuffer, SizeOf(Identity.Sid));
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   CaseName, LocalData, Root, Expected, Failure: String;
-  Sid, Handle: THandle;
+  Identity: TPersonalDataIdentity;
 begin
   Result := '';
   try
@@ -59,35 +69,25 @@ begin
     RequireTest(Pos(AddBackslash('{#TestOutput}'), LocalData) = 1, 'isolated LocalData fixture');
     RequireTest(Pos(AddBackslash('{#TestOutput}'), Root) = 1, 'isolated root fixture');
     if CaseName = 'delete' then begin
-      Failure := '';
-      try DeleteConfirmedPersonalData(LocalData, Root);
-      except Failure := GetExceptionMessage; end;
-      if Expected = '' then RequireTest(Failure = '', 'native explicit cleanup: ' + Failure)
-      else begin
-        Log('Expected cleanup refusal: ' + Failure);
-        RequireTest(Pos(Expected, Failure) > 0, 'refusal reason: ' + Expected);
-      end;
-    end else if CaseName = 'owner-mismatch' then begin
-      Sid := 0;
-      Handle := THandle(-1);
+      TestCurrentSid(Identity);
       try
-        RequireTest(TestSid('S-1-5-18', Sid) <> 0, 'valid alternate account SID');
-        Handle := PolicyCreateFile(Root + '\settings.json', $20080, 7, 0, 3, $200000, 0);
-        RequireTest(Handle <> THandle(-1), 'open synthetic owned file');
         Failure := '';
-        try RequireDataOwner(Handle, Sid);
+        try DeleteConfirmedPersonalData(LocalData, Root, Identity.Sid);
         except Failure := GetExceptionMessage; end;
-        RequireTest(Pos('owner differs', Failure) > 0, 'native SID mismatch refused');
+        if Expected = '' then RequireTest(Failure = '', 'native explicit cleanup: ' + Failure)
+        else begin
+          Log('Expected cleanup failure: ' + Failure);
+          RequireTest(Pos(Expected, Failure) > 0, 'failure reason: ' + Expected + ' (' + Failure + ')');
+        end;
       finally
-        if Handle <> THandle(-1) then PolicyCloseHandle(Handle);
-        if Sid <> 0 then DataFree(Sid);
+        ReleasePersonalDataIdentity(Identity);
       end;
-    end else if CaseName = 'silent' then begin
-      // Calling the production callback in Setup cannot authorize a cleanup:
-      // it sees UninstallSilent=false, but account verification remains false.
-      // Real silent lifecycle is exercised by the generated uninstaller below.
-      PersonalDataAfterUninstall(usUninstall);
-      RequireTest(DirExists(Root), 'pre-completion callback preserved data');
+    end else if CaseName = 'invalid-account' then begin
+      Failure := '';
+      try DeleteConfirmedPersonalData(LocalData, Root, 0);
+      except Failure := GetExceptionMessage; end;
+      RequireTest(Pos('Invalid confirmed account SID', Failure) > 0,
+        'missing confirmed account identity refused');
     end;
   except
     Result := GetExceptionMessage;
@@ -95,17 +95,13 @@ begin
 end;
 
 procedure CurUninstallStepChanged(CurStep: TUninstallStep);
-var Failure, Expected: String;
+var Expected: String;
 begin
+  PersonalDataAfterUninstall(CurStep);
   if CurStep <> usDone then Exit;
   Expected := ExpandConstant('{param:Expected}');
-  Failure := '';
-  try RequireProgramRemovalComplete;
-  except Failure := GetExceptionMessage; end;
-  if Expected = 'complete' then begin
-    RequireTest(DataRestartCheckReached, 'native no-restart event observed');
-    RequireTest(Failure = '', 'native program removal complete: ' + Failure);
-  end else
-    RequireTest(Failure <> '', 'native partial removal refused');
+  RequireTest(FileExists(ExpandConstant('{app}\bin\program.txt')) = (Expected = 'partial'),
+    'actual native program-removal result');
+  RequireTest(DataChoiceHandled, 'silent preservation policy executed independently of removal');
   RequireTest(SaveStringToFile(ExpandConstant('{param:Result}'), 'PASS', False), 'lifecycle result');
 end;

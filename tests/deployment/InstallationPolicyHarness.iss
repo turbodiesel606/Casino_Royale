@@ -1,4 +1,4 @@
-; TEST ONLY: no application registration, shortcuts, data access or prerequisites.
+; TEST ONLY: consumes production policy without application registration/data access.
 #if Ver < EncodeVer(7, 0, 0)
   #error Inno Setup 7 or newer is required to verify the native x64 policy ABI.
 #endif
@@ -39,8 +39,7 @@ begin
 end;
 
 procedure CheckVersion(const Text: String; const Expected: Boolean);
-var
-  Version: Int64;
+var Version: Int64;
 begin
   RequireTest(ParseInstallVersion(Text, Version) = Expected, 'parse ' + Text);
 end;
@@ -52,14 +51,12 @@ end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
-  CaseName, Expected, AlternativeExpected, Path, Key, Scope, ErrorMessage: String;
+  CaseName, Expected, Path, ErrorMessage: String;
   First, Second: Int64;
-  Found: Boolean;
 begin
   Result := '';
   CaseName := ExpandConstant('{param:Case}');
   Expected := ExpandConstant('{param:Expected}');
-  AlternativeExpected := ExpandConstant('{param:AlternativeExpected}');
   try
     if CaseName = 'parse' then begin
       CheckVersion('0.0.0', True);
@@ -84,34 +81,27 @@ begin
     end else if CaseName = 'path' then begin
       Path := CanonicalInstallPath(ExpandConstant('{param:Path}'));
       RequireTest(CompareText(Path, ExpandConstant('{param:Canonical}')) = 0, 'canonical path');
+      RequireTest(CompareText(CanonicalInstallPath(Path), Path) = 0, 'canonical path remains stable');
     end else if CaseName = 'shortpath' then begin
       Path := ExpandConstant('{param:Path}');
       RequireTest(CompareText(CanonicalInstallPath(GetShortName(Path)),
         CanonicalInstallPath(Path)) = 0, 'short-name path alias');
-    end else if CaseName = 'record' then begin
-      Key := ExpandConstant('{param:Key}');
-      // A test fixture cannot name real application registration.
-      RequireTest(Pos('Software\JobTrackerInstallerTests\', Key) = 1, 'isolated registry fixture');
-      Scope := ExpandConstant('{param:Scope}');
-      RequireTest(ParseInstallVersion(ExpandConstant('{param:Incoming}'), First), 'incoming version');
-      Found := False;
-      CheckInstallRecord(HKCU64, Key, Scope, CanonicalInstallPath(ExpandConstant('{param:Path}')),
-        First, ExpandConstant('{param:SameScope}') = 'yes', Found);
-      RequireTest(Found, 'installed record was found');
-    end else if CaseName = 'unloaded-profile' then begin
-      CheckProfileInstall('S-1-5-21-0-0-0-99999', ExpandConstant('{app}'), 0);
-    end else if CaseName = 'loaded-profile' then begin
-      RequireTest(ParseInstallVersion('0.1.0', First), 'profile version');
-      CheckProfileInstall(ExpandConstant('{param:Sid}'), ExpandConstant('{app}'), First);
-    end else if CaseName = 'allusers-audit' then begin
-      CheckInstallationPolicy(True, ExpandConstant('{app}'), '0.1.0');
+    end else if CaseName = 'policy' then begin
+      Path := CanonicalInstallPath(ExpandConstant('{param:Path}'));
+      CheckInstallationPolicy(ExpandConstant('{param:AllUsers}') = 'yes',
+        Path, ExpandConstant('{param:Incoming}'));
+    end else if CaseName = 'identity' then begin
+      RequireTest(HasLocalInstallIdentity(ExpandConstant('{param:Path}')) =
+        (ExpandConstant('{param:Identified}') = 'yes'), 'local identity evidence');
+    end else if CaseName = 'overlap' then begin
+      RequireTest(PathsOverlap(CanonicalInstallPath(ExpandConstant('{param:Path}')),
+        CanonicalInstallPath(ExpandConstant('{param:Other}'))) =
+        (ExpandConstant('{param:Overlap}') = 'yes'), 'directory overlap contract');
     end else if CaseName = 'empty' then begin
       RequireEmptyInstallDirectory(ExpandConstant('{param:Path}'));
     end else if CaseName = 'lock' then begin
       AcquireInstallPolicyLock;
       AcquireInstallPolicyLock;
-    end else if CaseName = 'current-policy' then begin
-      CheckInstallationPolicy(False, ExpandConstant('{app}'), '{#TestVersion}');
     end else RaiseException('TEST FAILURE: unknown case');
     if Expected <> '' then RaiseException('TEST FAILURE: expected rejection ' + Expected);
     Log('TEST PASS: ' + CaseName);
@@ -119,9 +109,6 @@ begin
     ErrorMessage := GetExceptionMessage;
     if (Expected <> '') and (Pos(CustomMessage(Expected), ErrorMessage) = 1) then
       Log('TEST PASS: rejected ' + Expected)
-    else if (AlternativeExpected <> '') and
-      (Pos(CustomMessage(AlternativeExpected), ErrorMessage) = 1) then
-      Log('TEST PASS: rejected ' + AlternativeExpected)
     else begin
       Result := ErrorMessage;
       Log(Result);

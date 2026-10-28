@@ -28,7 +28,7 @@ function Get-OfflineInstallerEvidence {
     }
     $installerSource = Join-Path $PSScriptRoot '../../Installer/Windows'
     foreach ($name in @('JobTracker.iss', 'Build-Installer.ps1', 'PayloadValidation.ps1',
-            'PayloadSafety.iss', 'InstallationPolicy.iss', 'ManualClose.iss', 'PersonalData.iss',
+            'PayloadSafety.iss', 'InstallationPolicy.iss', 'InstallOwnership.iss', 'PersonalData.iss',
             'MsvcRuntime.iss', 'Prepare-MsvcRuntime.ps1', 'MsvcRuntime.lock.json',
             'MSVC-NOTICE.txt', 'payload-files.txt')) {
         if ($evidence.sourceHashes.$name -ine
@@ -37,4 +37,62 @@ function Get-OfflineInstallerEvidence {
         }
     }
     return $evidence
+}
+
+# WScript.Shell uses an ANSI shortcut interface on some Windows versions. Use
+# IShellLinkW for independent verification of arbitrary Unicode installation paths.
+function Get-InstallerShortcutInfo([string]$Path) {
+    if (-not ('JobTrackerInstallerTests.ShortcutReader' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.ComTypes;
+namespace JobTrackerInstallerTests {
+    [ComImport, Guid("00021401-0000-0000-C000-000000000046")]
+    internal class ShellLink { }
+    [ComImport, Guid("000214F9-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IShellLinkW {
+        [PreserveSig] int GetPath([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder path, int size, IntPtr findData, uint flags);
+        [PreserveSig] int GetIDList(out IntPtr value);
+        [PreserveSig] int SetIDList(IntPtr value);
+        [PreserveSig] int GetDescription([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder value, int size);
+        [PreserveSig] int SetDescription([MarshalAs(UnmanagedType.LPWStr)] string value);
+        [PreserveSig] int GetWorkingDirectory([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder value, int size);
+        [PreserveSig] int SetWorkingDirectory([MarshalAs(UnmanagedType.LPWStr)] string value);
+        [PreserveSig] int GetArguments([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder value, int size);
+        [PreserveSig] int SetArguments([MarshalAs(UnmanagedType.LPWStr)] string value);
+        [PreserveSig] int GetHotkey(out short value);
+        [PreserveSig] int SetHotkey(short value);
+        [PreserveSig] int GetShowCmd(out int value);
+        [PreserveSig] int SetShowCmd(int value);
+        [PreserveSig] int GetIconLocation([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder path, int size, out int index);
+    }
+    public sealed class ShortcutInfo {
+        public string Target { get; internal set; }
+        public string WorkingDirectory { get; internal set; }
+        public string IconFilename { get; internal set; }
+        public int IconIndex { get; internal set; }
+    }
+    public static class ShortcutReader {
+        public static ShortcutInfo Read(string path) {
+            object instance = new ShellLink();
+            try {
+                ((IPersistFile)instance).Load(path, 0);
+                var link = (IShellLinkW)instance;
+                var target = new StringBuilder(32768);
+                var directory = new StringBuilder(32768);
+                var icon = new StringBuilder(32768);
+                int index;
+                Marshal.ThrowExceptionForHR(link.GetPath(target, target.Capacity, IntPtr.Zero, 4));
+                Marshal.ThrowExceptionForHR(link.GetWorkingDirectory(directory, directory.Capacity));
+                Marshal.ThrowExceptionForHR(link.GetIconLocation(icon, icon.Capacity, out index));
+                return new ShortcutInfo { Target=target.ToString(), WorkingDirectory=directory.ToString(), IconFilename=icon.ToString(), IconIndex=index };
+            } finally { Marshal.FinalReleaseComObject(instance); }
+        }
+    }
+}
+'@
+    }
+    return [JobTrackerInstallerTests.ShortcutReader]::Read($Path)
 }

@@ -1,9 +1,7 @@
-; TEST ONLY: execute the production callback against synthetic process state,
-; dialog answers, registration and known folders. No host profile is resolved.
-; Test-PersonalData.ps1 creates the private include by substituting only these
-; boundary calls. The production source and native deletion core are unchanged.
+; TEST ONLY. Only dialog/silent/identity boundaries are replaced in a private
+; include. The production cleanup core deletes disposable native fixtures.
 #if Ver < EncodeVer(7, 0, 0)
-  #error Inno Setup 7 or newer is required for native x64 personal-data checks.
+  #error Inno Setup 7 or newer is required.
 #endif
 #define JobTrackerExecutableName "JobTrackerApp.exe"
 #include "../../Installer/Windows/PayloadSafety.iss"
@@ -35,8 +33,8 @@ Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 
 [Code]
 var
-  TestCase, TestBase, TestRoot, TestApp, TestFailure: String;
-  TestPrompts, TestDataResolutions, TestAccountReads, TestRegistryReads: Integer;
+  TestCase, TestBase, TestRoot, TestFailure, TestLastAction: String;
+  TestPrompts, TestIdentityReads, TestCleanups, TestNotifications: Integer;
 
 procedure RequirePolicyTest(const Condition: Boolean; const Detail: String);
 begin
@@ -47,78 +45,37 @@ begin
   Log('TEST PASS: ' + Detail);
 end;
 
-function TestIsAdmin: Boolean;
-begin
-  Result := (TestCase = 'elevated') or (TestCase = 'core-elevated');
-end;
-
-function TestIsAdminInstallMode: Boolean;
-begin
-  Result := (TestCase = 'allusers') or (TestCase = 'core-allusers');
-end;
-
 function TestUninstallSilent: Boolean;
 begin
   Result := TestCase = 'silent';
 end;
 
-function TestExpandConstant(const Value: String): String;
-begin
-  if Value = '{localappdata}' then begin
-    TestDataResolutions := TestDataResolutions + 1;
-    Result := TestBase;
-  end else if Value = '{app}' then Result := TestApp
-  else if Value = '{autoprograms}\JobTracker' then Result := TestBase + '\programs\JobTracker'
-  else if Value = '{autodesktop}' then Result := TestBase + '\desktop'
-  else RequirePolicyTest(False, 'unexpected known-folder request: ' + Value);
-end;
-
-function TestReadInstallRecord(const Root: Integer; const Key, Scope: String;
-  var Path: String; var Version: Int64): Boolean;
-begin
-  TestAccountReads := TestAccountReads + 1;
-  RequirePolicyTest((Root = HKCU64) and (Key = InstallUninstallKey + 'CurrentUser_is1') and
-    (Scope = 'CurrentUser'), 'account check is current-user only');
-  if TestCase = 'account-invalid' then RaiseException('Synthetic account access denied.');
-  Result := TestCase <> 'account-missing';
-  Path := TestApp;
-  if TestCase = 'account-mismatch' then Path := TestBase + '\another-installation';
-  Version := 0;
-end;
-
-function TestInstallKeyExists(const Root: Integer; const Key: String): Boolean;
-begin
-  TestRegistryReads := TestRegistryReads + 1;
-  RequirePolicyTest(((Root = HKCU64) or (Root = HKCU32)) and
-    (Key = InstallUninstallKey + 'CurrentUser_is1') or
-    ((Root = HKLM64) or (Root = HKLM32)) and
-    (Key = InstallUninstallKey + 'AllUsers_is1'), 'no other profile registry request');
-  if TestCase = 'registry-denied' then RaiseException('Synthetic registry access denied.');
-  Result := ((TestCase = 'shared-cu64') and (Root = HKCU64)) or
-    ((TestCase = 'shared-cu32') and (Root = HKCU32)) or
-    ((TestCase = 'shared-lm64') and (Root = HKLM64)) or
-    ((TestCase = 'shared-lm32') and (Root = HKLM32)) or
-    ((TestCase = 'late-shared') and (TestPrompts > 0) and (Root = HKLM64));
-end;
-
 function TestSuppressibleMsgBox(const Text: String; Kind: TMsgBoxType;
   Buttons, DefaultResult: Integer): Integer;
+var IsIdentityPrompt: Boolean;
 begin
   if Kind = mbConfirmation then begin
     TestPrompts := TestPrompts + 1;
     RequirePolicyTest((Buttons = (MB_YESNO or MB_DEFBUTTON2)) and (DefaultResult = IDNO),
       'consent defaults to No, including suppressed dialogs');
-    RequirePolicyTest(Pos(TestRoot, Text) > 0, 'consent names exact synthetic root');
-    Result := IDNO;
-    if TestCase = 'close' then Result := IDCANCEL;
-    if (TestCase = 'yes') or (TestCase = 'late-shared') or (TestCase = 'late-program') then
-      Result := IDYES;
-    if TestCase = 'late-program' then
-      RequirePolicyTest(ForceDirectories(TestApp), 'simulate incomplete removal after consent');
+    RequirePolicyTest(Pos(TestRoot, Text) > 0, 'consent names exact synthetic Data path');
+    RequirePolicyTest(Pos(TestBase + '\profile', Text) > 0, 'consent names exact synthetic profile');
+    RequirePolicyTest(Pos('fixture-user', Text) > 0, 'consent names exact target account');
+    IsIdentityPrompt := (Pos('fallback-', TestCase) = 1) and (TestPrompts = 1);
+    if not IsIdentityPrompt then
+      RequirePolicyTest(Pos('fixture-execution-account', Text) > 0, 'consent distinguishes execution account');
+    Result := IDYES;
+    if (TestCase = 'no') or (TestCase = 'fallback-no') or
+       ((TestCase = 'fallback-keep') and not IsIdentityPrompt) then Result := IDNO;
+    if (TestCase = 'close') or (TestCase = 'fallback-close') then Result := IDCANCEL;
+    if not IsIdentityPrompt and (Result = IDYES) then TestLastAction := 'consent';
   end else begin
     RequirePolicyTest((Kind = mbInformation) and (Buttons = MB_OK) and (DefaultResult = IDOK),
-      'preservation notification cannot authorize deletion');
-    Log('Synthetic policy notification: ' + Text);
+      'information cannot authorize deletion');
+    TestNotifications := TestNotifications + 1;
+    if TestCase = 'locked-data' then
+      RequirePolicyTest(Pos('Windows error 32', Text) > 0, 'actual native sharing failure reported');
+    Log('Policy result notification: ' + Text);
     Result := IDOK;
   end;
 end;
@@ -127,48 +84,46 @@ end;
 
 [Code]
 function PrepareToInstall(var NeedsRestart: Boolean): String;
-var PromptExpected: Boolean; Failure: String;
+var ShouldDelete, ShouldPrompt: Boolean; ExpectedPrompts: Integer;
 begin
   Result := '';
   try
     TestCase := ExpandConstant('{param:Case}');
     RequirePolicyTest(Pos('|' + TestCase + '|',
-      '|no|close|yes|silent|allusers|elevated|core-allusers|core-elevated|' +
-      'account-missing|account-invalid|account-mismatch|restart-required|incomplete|' +
-      'shared-cu64|shared-cu32|shared-lm64|shared-lm32|registry-denied|' +
-      'late-shared|late-program|pre-completion|') > 0, 'known bounded scenario');
+      '|no|close|yes|silent|allusers|elevated|running-copy|remaining-copy|' +
+      'incomplete-program|disconnected-copy|alternate-account|identity-error|' +
+      'fallback-no|fallback-close|fallback-yes|fallback-keep|pre-uninstall|' +
+      'repeat-callback|locked-data|absent|') > 0, 'known bounded scenario');
     RequirePolicyTest((TestCase <> '') and (Pos('|', TestCase) = 0), 'single scenario');
-    RequirePolicyTest((ActiveLanguage = 'english') or (ActiveLanguage = 'russian'), 'known language');
     TestBase := '{#TestOutput}\callback-' + ActiveLanguage + '-' + TestCase;
-    TestRoot := TestBase + '\JobTracker';
-    TestApp := TestBase + '\program';
-    RequirePolicyTest(DirExists(TestRoot), 'synthetic data already prepared');
-    if (TestCase = 'core-allusers') or (TestCase = 'core-elevated') then begin
-      Failure := '';
-      try DeleteConfirmedPersonalData(TestBase, TestRoot);
-      except Failure := GetExceptionMessage; end;
-      RequirePolicyTest(Pos('Elevated/all-users cleanup is disabled.', Failure) > 0,
-        'native core refuses unsafe scope before opening data');
-    end else begin
-      InitializePersonalDataPolicy;
-      if TestCase <> 'restart-required' then NeedsRestart := PersonalDataRestartCheck;
-      if TestCase = 'incomplete' then
-        RequirePolicyTest(ForceDirectories(TestApp), 'simulate incomplete program removal');
-      if TestCase = 'pre-completion' then PersonalDataAfterUninstall(usUninstall)
-      else PersonalDataAfterUninstall(usDone);
-    end;
-    RequirePolicyTest(TestFailure = '', 'callback completed without hidden assertions: ' + TestFailure);
-    PromptExpected := (TestCase = 'no') or (TestCase = 'close') or (TestCase = 'yes') or
-      (TestCase = 'late-shared') or (TestCase = 'late-program');
-    RequirePolicyTest(TestPrompts = Ord(PromptExpected), 'expected consent prompt count');
-    RequirePolicyTest(TestDataResolutions = Ord(PromptExpected), 'data path is resolved only for eligible cleanup');
-    if TestIsAdmin or TestIsAdminInstallMode then
-      RequirePolicyTest((TestAccountReads = 0) and (TestRegistryReads = 0),
-        'AllUsers/elevated cleanup never inspects account registrations or profiles');
-    RequirePolicyTest(DirExists(TestRoot) <> (TestCase = 'yes'), 'only explicit Yes removes synthetic data');
+    TestRoot := TestBase + '\JobTracker\Data';
+    RequirePolicyTest(DirExists(TestBase), 'synthetic fixture already prepared');
+    if (TestCase = 'incomplete-program') or (TestCase = 'running-copy') or
+       (TestCase = 'remaining-copy') then
+      RequirePolicyTest(ForceDirectories(TestBase + '\remaining-program'), 'program remains independently');
+    InitializePersonalDataPolicy;
+    if TestCase = 'pre-uninstall' then PersonalDataAfterUninstall(usPostUninstall)
+    else PersonalDataAfterUninstall(usUninstall);
+    if TestCase = 'repeat-callback' then PersonalDataAfterUninstall(usUninstall);
+    RequirePolicyTest(TestFailure = '', 'callback had no hidden assertion failure: ' + TestFailure);
+    ShouldPrompt := (TestCase <> 'silent') and (TestCase <> 'identity-error') and (TestCase <> 'pre-uninstall');
+    ExpectedPrompts := Ord(ShouldPrompt);
+    if (TestCase = 'fallback-yes') or (TestCase = 'fallback-keep') then ExpectedPrompts := 2;
+    RequirePolicyTest(TestPrompts = ExpectedPrompts, 'expected prompt count');
+    RequirePolicyTest(TestIdentityReads = Ord((TestCase <> 'silent') and (TestCase <> 'pre-uninstall')),
+      'identity is resolved only for interactive uninstall');
+    ShouldDelete := ShouldPrompt and (TestCase <> 'no') and (TestCase <> 'close') and
+      (TestCase <> 'fallback-no') and (TestCase <> 'fallback-close') and (TestCase <> 'fallback-keep');
+    RequirePolicyTest(TestCleanups = Ord(ShouldDelete), 'exactly one cleanup immediately follows deletion consent');
+    if TestCase = 'locked-data' then
+      RequirePolicyTest(FileExists(TestRoot + '\database.sqlite') and not FileExists(TestRoot + '\database.sqlite-wal'),
+        'locked file preserved and unlocked sibling removed')
+    else if TestCase <> 'absent' then
+      RequirePolicyTest(DirExists(TestRoot) <> ShouldDelete, 'only confirmed target data removed');
+    RequirePolicyTest(FileExists(TestBase + '\JobTracker\settings.json'), 'JobTracker sibling preserved');
+    RequirePolicyTest(FileExists(TestBase + '\outside.txt'), 'outside file preserved');
     RequirePolicyTest(SaveStringToFile(TestBase + '\callback.txt',
-      Format('PASS prompts=%d dataResolutions=%d accountReads=%d registryReads=%d', [
-        TestPrompts, TestDataResolutions, TestAccountReads, TestRegistryReads]), False), 'callback result');
+      Format('PASS prompts=%d identityReads=%d cleanups=%d notifications=%d', [TestPrompts, TestIdentityReads, TestCleanups, TestNotifications]), False), 'callback result');
   except
     Result := GetExceptionMessage;
   end;

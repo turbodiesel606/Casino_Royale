@@ -33,6 +33,7 @@ from outside the production dependency chain.
 | Worker runtime, thread affinity, queued delivery, shared mutation serialization, cancellation, or shutdown | [threading.md](threading.md) |
 | Job deletion, CV archive/restore/permanent deletion, bulk removal, or linked-CV safety | [removal.md](removal.md) |
 | QML/backend contracts, Qt model roles and notifications, filtering/sorting projections, or selection tracking | [qml-contracts.md](qml-contracts.md) |
+| Windows deployment, local installation ownership, repair/uninstall boundaries, shortcuts, or shared-data cleanup | [installer.md](installer.md) |
 
 For a task that clearly belongs to one row, go directly to that document. Read
 this index first only when the subsystem is unclear or the task explicitly needs

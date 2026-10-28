@@ -57,7 +57,8 @@ for ($index = 0; $index -lt $verified.Files.Count; ++$index) {
     $relative = $file.path.Replace('/', '\')
     Assert-Check ($entry[1].Value -ceq (Join-Path $metadata.payloadDirectory $relative) -and
         $entry[2].Value -ceq ('{app}\' + [IO.Path]::GetDirectoryName($relative)) -and
-        $entry[3].Value -ceq $file.sha256 -and $entry[4].Value -ceq 'ignoreversion') 'Generated payload entry must embed its exact local file/hash/destination.'
+        $entry[3].Value -ceq $file.sha256 -and $entry[4].Value -ceq 'ignoreversion uninsneveruninstall') 'Generated payload entry must embed its exact local file/hash/destination and use local ownership for removal.'
+    Assert-Check ($payloadText.Contains("AfterInstall: RecordInstalledFile('$relative')")) "Missing successful-write ownership hook: $relative"
 }
 Record-Pass 'direct-file-embedding' $payloadEntries.Count
 
@@ -78,8 +79,23 @@ foreach ($file in $runtimeFiles) {
     Assert-Check ((Get-Item -LiteralPath $path).Length -eq $file.size -and (Get-Sha256 $path) -ceq $file.sha256) "Runtime input mismatch: $($file.name)"
     $entries = @($runtimeEntries | Where-Object { $_.Groups[1].Value -ceq $path })
     Assert-Check ($entries.Count -eq 1 -and $entries[0].Value.Contains('Hash: "' + $file.sha256 + '"')) "Runtime embedding mismatch: $($file.name)"
+    if ($file.name -ne 'vc_redist.x64.exe') {
+        Assert-Check ($entries[0].Value.Contains('Flags: ignoreversion uninsneveruninstall; AfterInstall: RecordInstalledFile(') -and
+            $entries[0].Value -notmatch 'Check:|IsAdminInstallMode') "Every scope must install and own its App-Local runtime: $($file.name)"
+    }
 }
 Record-Pass 'pinned-local-runtime-embedding' $runtimeFiles.Count
+
+$ownedCandidates = [regex]::Matches($payloadText, "(?m)^  RegisterOwnedCandidate\('([^']+)', '([a-f0-9]{64})'\);")
+$expectedOwned = @($metadata.files | ForEach-Object { [pscustomobject]@{ path=$_.path.Replace('/', '\'); sha256=$_.sha256 } }) +
+    @($metadata.msvcRuntime.files | ForEach-Object { [pscustomobject]@{ path="bin\$($_.name)"; sha256=$_.sha256 } }) +
+    @([pscustomobject]@{ path='licenses\MSVC-NOTICE.txt'; sha256=(Get-Sha256 (Join-Path $repository 'Installer/Windows/MSVC-NOTICE.txt')) })
+Assert-Check ($ownedCandidates.Count -eq $expectedOwned.Count) 'Ownership catalogue must cover exactly the installed payload, CRT and notice.'
+foreach ($file in $expectedOwned) {
+    $candidate = @($ownedCandidates | Where-Object { $_.Groups[1].Value -ceq $file.path })
+    Assert-Check ($candidate.Count -eq 1 -and $candidate[0].Groups[2].Value -ceq $file.sha256) "Ownership catalogue mismatch: $($file.path)"
+}
+Record-Pass 'complete-local-ownership-catalogue' $expectedOwned.Count
 
 # Static guard over active Inno sources and generated file entries. The lock's
 # official URL is provenance only and is deliberately outside this executable scan.
@@ -93,6 +109,14 @@ foreach ($entry in @($payloadEntries) + @($runtimeEntries)) {
     Assert-Check ($entry.Groups[1].Value -match '^[A-Za-z]:[\\/][^*?]+$') 'Setup inputs must be concrete local drive files, never network paths or wildcards.'
 }
 Record-Pass 'no-network-or-external-payload' 'Static executable-source and generated-entry check; disconnected VM remains separate.'
+
+$setupSource = Get-Content -LiteralPath (Join-Path $repository 'Installer/Windows/JobTracker.iss') -Raw
+Assert-Check ($setupSource -match '(?m)^CreateUninstallRegKey=no\r?$' -and
+    $setupSource -match '(?m)^Uninstallable=yes\r?$' -and
+    $setupSource -match '(?m)^UninstallLogMode=append\r?$') 'Setup must preserve a local uninstaller/history without creating installed-apps registration.'
+Assert-Check ($setupSource -match '(?m)^CloseApplications=no\r?$' -and $setupSource -match '(?m)^RestartApplications=no\r?$' -and
+    $scan -notmatch 'RequireClosedJobTracker|CanInstallWithManualClose|RequireIdleInstallationFile|InstallUninstallKey|CheckAllUserProfiles') 'Discarded registry/global-profile/application-close policy remains active.'
+Record-Pass 'variant-a-registration-and-process-contract' 'Static contract plus separate installation/uninstall execution tests.'
 
 foreach ($scenario in @('kind', 'hash', 'size', 'version', 'source', 'filename')) {
     $changed = Get-Content -LiteralPath $MetadataPath -Raw | ConvertFrom-Json

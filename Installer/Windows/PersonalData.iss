@@ -1,20 +1,17 @@
-// Optional cleanup is separate from Inno's program-file uninstall log.
-// No Setup path, silent switch, or Deinitialize event authorizes data deletion.
+// Personal-data cleanup is independent of program removal and never runs in Setup.
 [CustomMessages]
 english.DataKeep=JobTracker personal data has been preserved.
 russian.DataKeep=Личные данные JobTracker сохранены.
-english.DataAccount=Personal data is preserved because the original Windows account could not be verified. All-users and elevated uninstall always preserve data. No other account's folders are inspected.
-russian.DataAccount=Личные данные сохранены: исходную учётную запись Windows не удалось подтвердить. Удаление для всех пользователей и удаление с повышенными правами всегда сохраняют данные. Папки других пользователей не проверяются.
-english.DataShared=Personal data is preserved because another JobTracker installation remains, or installation registration could not be checked safely.
-russian.DataShared=Личные данные сохранены: осталась другая установка JobTracker либо не удалось безопасно проверить сведения об установках.
-english.DataIncomplete=Personal data is preserved because removal of this installation and its shortcuts could not be confirmed complete.
-russian.DataIncomplete=Личные данные сохранены: полное удаление этой установки и её ярлыков не подтверждено.
-english.DataConfirm=The program has been uninstalled. Keep your personal data by choosing No (recommended).%n%nPermanently delete ALL JobTracker personal data for this Windows account in:%n%1%n%nThis includes the SQLite database, imported CVs, and any other files in this folder. It cannot be undone. If you use any other manually copied or older JobTracker copy, choose No. Choose Yes only to delete this data.
-russian.DataConfirm=Программа удалена. Чтобы сохранить личные данные, выберите «Нет» (рекомендуется).%n%nБезвозвратно удалить ВСЕ личные данные JobTracker этой учётной записи Windows из папки:%n%1%n%nБудут удалены база SQLite, импортированные резюме и все остальные файлы этой папки. Отменить это действие нельзя. Если вы используете другую скопированную вручную или старую копию JobTracker, выберите «Нет». Выберите «Да» только для удаления этих данных.
-english.DataUnsafe=Personal-data cleanup was stopped because ownership, access, or path safety could not be verified. No links are followed and no deletion is scheduled for restart. Files already removed after your confirmation cannot be restored; any remaining data is preserved.%n%1
-russian.DataUnsafe=Очистка личных данных остановлена: не удалось подтвердить владельца, доступ или безопасность пути. Переход по ссылкам и удаление после перезагрузки не выполняются. Файлы, уже удалённые после вашего подтверждения, восстановить нельзя; оставшиеся данные сохранены.%n%1
-english.DataDeleted=The confirmed JobTracker personal-data folder was deleted.
-russian.DataDeleted=Подтверждённая папка личных данных JobTracker удалена.
+english.DataAccount=Personal data is preserved because the target Windows account or its Local AppData folder could not be resolved safely.%n%1
+russian.DataAccount=Личные данные сохранены: не удалось безопасно определить целевую учётную запись Windows или её папку Local AppData.%n%1
+english.DataIdentityFallback=The original desktop account could not be resolved. This uninstaller is running as:%n%1%n%nUse this execution account as the data-cleanup target?%nProfile: %2%nData: %3%n%nChoose No to keep personal data. Choosing Yes only selects this account; a separate deletion confirmation follows.
+russian.DataIdentityFallback=Не удалось определить исходную учётную запись рабочего стола. Деинсталлятор запущен от имени:%n%1%n%nВыбрать эту учётную запись для очистки данных?%nПрофиль: %2%nДанные: %3%n%nВыберите «Нет», чтобы сохранить личные данные. «Да» только выбирает учётную запись; удаление потребует отдельного подтверждения.
+english.DataConfirm=Keep personal data by choosing No (recommended).%n%nPermanently delete the shared JobTracker Data directory?%nTarget account: %1%nProfile: %2%nData: %3%nUninstaller account: %4%n%nAll JobTracker copies used by the target Windows user share this directory. Deletion affects every such copy, including running copies. Cleanup begins immediately after Yes, regardless of program-removal results. Windows may refuse locked or inaccessible files; files already deleted cannot be restored. Original CV files outside Data are not deleted.
+russian.DataConfirm=Чтобы сохранить личные данные, выберите «Нет» (рекомендуется).%n%nБезвозвратно удалить общую папку Data программы JobTracker?%nЦелевая учётная запись: %1%nПрофиль: %2%nДанные: %3%nУчётная запись деинсталлятора: %4%n%nВсе копии JobTracker, используемые целевым пользователем Windows, используют эту папку. Удаление затронет каждую такую копию, включая работающие. Очистка начнётся сразу после «Да», независимо от результата удаления программы. Windows может запретить удаление занятых или недоступных файлов; уже удалённые файлы восстановить нельзя. Исходные файлы резюме вне Data не удаляются.
+english.DataUnsafe=Personal-data cleanup is incomplete. Remaining failures are listed below. Files already deleted cannot be restored. No deletion is scheduled for restart.%n%1
+russian.DataUnsafe=Очистка личных данных завершена не полностью. Ниже перечислены оставшиеся ошибки. Уже удалённые файлы восстановить нельзя. Удаление после перезагрузки не запланировано.%n%1
+english.DataDeleted=The confirmed JobTracker Data directory is absent. Cleanup is complete at this time; a running application may create new files later.
+russian.DataDeleted=Подтверждённая папка Data программы JobTracker отсутствует. На данный момент очистка завершена; работающая программа может позже создать новые файлы.
 
 [Code]
 type
@@ -30,10 +27,19 @@ type
     Name: array[0..259] of Char;
     AlternateName: array[0..13] of Char;
   end;
+  TDataGuid = record
+    Data1: Cardinal;
+    Data2, Data3: Word;
+    Data4: array[0..7] of Byte;
+  end;
   TDataHandles = array of THandle;
+  TPersonalDataIdentity = record
+    Token, SidBuffer, Sid: THandle;
+    Account, SidText, Profile, LocalData, ExecutionAccount: String;
+    FallbackToExecutionAccount: Boolean;
+  end;
 var
-  DataAccountVerified: Boolean;
-  DataRestartCheckReached: Boolean;
+  DataChoiceHandled: Boolean;
 
 function DataOpenProcessToken(Process: THandle; Access: Cardinal; var Token: THandle): Longint;
   external 'OpenProcessToken@advapi32.dll stdcall';
@@ -46,11 +52,28 @@ function DataFree(Memory: THandle): THandle;
   external 'LocalFree@kernel32.dll stdcall';
 procedure DataReadPointer(var Destination: THandle; Source: THandle; Size: THandle);
   external 'RtlMoveMemory@kernel32.dll stdcall';
-function DataSecurityInfo(Handle: THandle; Kind, Information: Cardinal;
-  var Owner: THandle; Group, Dacl, Sacl: THandle; var Descriptor: THandle): Cardinal;
-  external 'GetSecurityInfo@advapi32.dll stdcall';
-function DataEqualSid(First, Second: THandle): Longint;
-  external 'EqualSid@advapi32.dll stdcall';
+procedure DataReadWideString(Destination: String; Source: THandle; Size: THandle);
+  external 'RtlMoveMemory@kernel32.dll stdcall';
+function DataStringLength(Text: THandle): Integer;
+  external 'lstrlenW@kernel32.dll stdcall';
+function DataSidString(Sid: THandle; var Text: THandle): Longint;
+  external 'ConvertSidToStringSidW@advapi32.dll stdcall';
+function DataAccountName(SystemName: THandle; Sid: THandle; Name: String;
+  var NameSize: Cardinal; Domain: String; var DomainSize: Cardinal; var Kind: Integer): Longint;
+  external 'LookupAccountSidW@advapi32.dll stdcall';
+function DataUserProfile(Token: THandle; Path: String; var Size: Cardinal): Longint;
+  external 'GetUserProfileDirectoryW@userenv.dll stdcall';
+function DataKnownFolder(var Folder: TDataGuid; Flags: Cardinal; Token: THandle;
+  var Path: THandle): Longint;
+  external 'SHGetKnownFolderPath@shell32.dll stdcall';
+procedure DataFreeKnownFolder(Path: THandle);
+  external 'CoTaskMemFree@ole32.dll stdcall';
+function DataShellWindow: THandle;
+  external 'GetShellWindow@user32.dll stdcall';
+function DataWindowProcess(Window: THandle; var ProcessId: Cardinal): Cardinal;
+  external 'GetWindowThreadProcessId@user32.dll stdcall';
+function DataOpenProcess(Access: Cardinal; Inherit: Boolean; ProcessId: Cardinal): THandle;
+  external 'OpenProcess@kernel32.dll stdcall';
 function DataValidSid(Sid: THandle): Longint;
   external 'IsValidSid@advapi32.dll stdcall';
 function DataFileInformation(Handle: THandle; var Info: TDataFileInfo): Longint;
@@ -63,10 +86,172 @@ function DataFindNext(Handle: THandle; var Info: TDataFindInfo): Longint;
   external 'FindNextFileW@kernel32.dll stdcall';
 function DataFindClose(Handle: THandle): Longint;
   external 'FindClose@kernel32.dll stdcall';
+function DataAttributes(const Path: String): Cardinal;
+  external 'GetFileAttributesW@kernel32.dll stdcall';
 
 procedure RequireDataCondition(const Condition: Boolean; const Detail: String);
 begin
   if not Condition then RaiseException(Detail);
+end;
+
+function DataWindowsError(const Operation, Path: String; const ErrorCode: Cardinal): String;
+begin
+  Result := Format('%s: %s (Windows error %d: %s)', [Operation, Path, ErrorCode, SysErrorMessage(ErrorCode)]);
+end;
+
+function DataStringFromPointer(const Pointer: THandle): String;
+var Count: Integer;
+begin
+  RequireDataCondition(Pointer <> 0, 'Missing Windows string.');
+  Count := DataStringLength(Pointer);
+  RequireDataCondition((Count > 0) and (Count < 32768), 'Invalid Windows string length.');
+  Result := StringOfChar(#0, Count);
+  DataReadWideString(Result, Pointer, Count * 2);
+end;
+
+procedure ReleasePersonalDataIdentity(var Identity: TPersonalDataIdentity);
+begin
+  if Identity.SidBuffer <> 0 then DataFree(Identity.SidBuffer);
+  if Identity.Token <> 0 then PolicyCloseHandle(Identity.Token);
+  Identity.SidBuffer := 0;
+  Identity.Sid := 0;
+  Identity.Token := 0;
+end;
+
+procedure ClearPersonalDataIdentity(var Identity: TPersonalDataIdentity);
+begin
+  Identity.Token := 0;
+  Identity.SidBuffer := 0;
+  Identity.Sid := 0;
+  Identity.Account := '';
+  Identity.SidText := '';
+  Identity.Profile := '';
+  Identity.LocalData := '';
+  Identity.ExecutionAccount := '';
+  Identity.FallbackToExecutionAccount := False;
+end;
+
+procedure ReadPersonalDataIdentity(var Identity: TPersonalDataIdentity);
+var
+  Needed, NameSize, DomainSize: Cardinal;
+  Name, Domain, Buffer: String;
+  Text, FolderPath: THandle;
+  Kind, Status: Integer;
+  Folder: TDataGuid;
+begin
+  Needed := 0;
+  DataTokenInformation(Identity.Token, 1, 0, 0, Needed);
+  RequireDataCondition((Needed > 0) and (Needed <= 65536), 'Cannot size Windows account SID.');
+  Identity.SidBuffer := DataAllocate($40, Needed);
+  RequireDataCondition(Identity.SidBuffer <> 0, 'Cannot allocate token information.');
+  if DataTokenInformation(Identity.Token, 1, Identity.SidBuffer, Needed, Needed) = 0 then
+    RaiseException(DataWindowsError('Cannot read Windows account SID', '', DLLGetLastError));
+  DataReadPointer(Identity.Sid, Identity.SidBuffer, SizeOf(Identity.Sid));
+  RequireDataCondition((Identity.Sid <> 0) and (DataValidSid(Identity.Sid) <> 0), 'Invalid Windows account SID.');
+  Text := 0;
+  try
+    RequireDataCondition(DataSidString(Identity.Sid, Text) <> 0, 'Cannot format Windows account SID.');
+    Identity.SidText := DataStringFromPointer(Text);
+  finally
+    if Text <> 0 then DataFree(Text);
+  end;
+  NameSize := 1024;
+  DomainSize := 1024;
+  Name := StringOfChar(#0, NameSize);
+  Domain := StringOfChar(#0, DomainSize);
+  if DataAccountName(0, Identity.Sid, Name, NameSize, Domain, DomainSize, Kind) = 0 then
+    RaiseException(DataWindowsError('Cannot resolve Windows account name', Identity.SidText, DLLGetLastError));
+  SetLength(Name, NameSize);
+  SetLength(Domain, DomainSize);
+  Identity.Account := Name + ' [' + Identity.SidText + ']';
+  if Domain <> '' then Identity.Account := Domain + '\' + Identity.Account;
+  Needed := 32768;
+  Buffer := StringOfChar(#0, Needed);
+  if DataUserProfile(Identity.Token, Buffer, Needed) = 0 then
+    RaiseException(DataWindowsError('Cannot resolve Windows profile', Identity.Account, DLLGetLastError));
+  RequireDataCondition((Needed > 1) and (Needed <= 32768), 'Invalid Windows profile path.');
+  SetLength(Buffer, Needed - 1);
+  Identity.Profile := RemoveBackslashUnlessRoot(Buffer);
+  // FOLDERID_LocalAppData; request the token's known folder without creating it.
+  Folder.Data1 := $F1B32785; Folder.Data2 := $6FBA; Folder.Data3 := $4FCF;
+  Folder.Data4[0] := $9D; Folder.Data4[1] := $55; Folder.Data4[2] := $7B; Folder.Data4[3] := $8E;
+  Folder.Data4[4] := $7F; Folder.Data4[5] := $15; Folder.Data4[6] := $70; Folder.Data4[7] := $91;
+  FolderPath := 0;
+  try
+    Status := DataKnownFolder(Folder, $4000, Identity.Token, FolderPath);
+    RequireDataCondition(Status = 0, Format('Cannot resolve Local AppData for %s (HRESULT %x).', [Identity.Account, Status]));
+    Identity.LocalData := RemoveBackslashUnlessRoot(DataStringFromPointer(FolderPath));
+    RequireDataCondition(CompareText(CanonicalInstallPath(Identity.LocalData), Identity.LocalData) = 0,
+      'Ambiguous Local AppData path.');
+    RequireDataCondition(CompareText(CanonicalInstallPath(Identity.Profile), Identity.Profile) = 0,
+      'Ambiguous Windows profile path.');
+  finally
+    if FolderPath <> 0 then DataFreeKnownFolder(FolderPath);
+  end;
+end;
+
+procedure ResolveExecutionPersonalDataIdentity(var Identity: TPersonalDataIdentity);
+begin
+  ClearPersonalDataIdentity(Identity);
+  try
+    if DataOpenProcessToken(THandle(-1), $E, Identity.Token) = 0 then
+      RaiseException(DataWindowsError('Cannot read execution account token', '', DLLGetLastError));
+    ReadPersonalDataIdentity(Identity);
+    Identity.ExecutionAccount := Identity.Account;
+  except
+    ReleasePersonalDataIdentity(Identity);
+    RaiseException(GetExceptionMessage);
+  end;
+end;
+
+procedure ResolvePersonalDataIdentity(var Identity: TPersonalDataIdentity);
+var
+  Execution: TPersonalDataIdentity;
+  Window, Process: THandle;
+  ProcessId: Cardinal;
+  ExecutionAccount: String;
+begin
+  ClearPersonalDataIdentity(Identity);
+  ResolveExecutionPersonalDataIdentity(Execution);
+  ExecutionAccount := Execution.Account;
+  ReleasePersonalDataIdentity(Execution);
+  if IsAdmin then begin
+    Process := 0;
+    try
+      try
+        // The shell token identifies this desktop's user across UAC credentials.
+        // This is a single identity lookup, never an application-process check.
+        Window := DataShellWindow;
+        RequireDataCondition(Window <> 0, 'No desktop shell is available.');
+        RequireDataCondition(DataWindowProcess(Window, ProcessId) <> 0, 'Cannot identify desktop shell.');
+        Process := DataOpenProcess($1000, False, ProcessId);
+        if Process = 0 then RaiseException(DataWindowsError('Cannot query desktop shell identity', '', DLLGetLastError));
+        if DataOpenProcessToken(Process, $E, Identity.Token) = 0 then
+          RaiseException(DataWindowsError('Cannot read desktop account token', '', DLLGetLastError));
+        ReadPersonalDataIdentity(Identity);
+      except
+        Log('Desktop account resolution: ' + GetExceptionMessage);
+        ReleasePersonalDataIdentity(Identity);
+        ResolveExecutionPersonalDataIdentity(Identity);
+        Identity.FallbackToExecutionAccount := True;
+      end;
+    finally
+      if Process <> 0 then PolicyCloseHandle(Process);
+    end;
+  end else
+    ResolveExecutionPersonalDataIdentity(Identity);
+  Identity.ExecutionAccount := ExecutionAccount;
+end;
+
+procedure ResolvePersonalDataLocations(var ExecutionLocalData, TargetLocalData: String);
+var Identity: TPersonalDataIdentity;
+begin
+  ResolveExecutionPersonalDataIdentity(Identity);
+  ExecutionLocalData := Identity.LocalData;
+  ReleasePersonalDataIdentity(Identity);
+  ResolvePersonalDataIdentity(Identity);
+  TargetLocalData := Identity.LocalData;
+  ReleasePersonalDataIdentity(Identity);
 end;
 
 procedure CloseDataHandles(var Handles: TDataHandles);
@@ -85,241 +270,207 @@ begin
   Handles[Count] := Handle;
 end;
 
-procedure RequireDataOwner(const Handle: THandle; const UserSid: THandle);
-var Owner, Descriptor: THandle;
-begin
-  Descriptor := 0;
-  Owner := 0;
-  try
-    RequireDataCondition(DataSecurityInfo(Handle, 1, 1, Owner, 0, 0, 0, Descriptor) = 0,
-      'Cannot read personal-data ownership.');
-    RequireDataCondition((Owner <> 0) and (DataValidSid(Owner) <> 0), 'Invalid personal-data owner.');
-    RequireDataCondition(DataEqualSid(Owner, UserSid) <> 0, 'Personal-data owner differs from the Windows token.');
-  finally
-    if Descriptor <> 0 then DataFree(Descriptor);
-  end;
-end;
-
-// OPEN_REPARSE_POINT prevents leaf traversal. Retaining every ancestor handle
-// without FILE_SHARE_DELETE prevents rename/redirection of the validated path.
-// Files are exclusive; directories allow enumeration but not rename/deletion.
-function OpenDataHandle(const Path: String; const Deleting, Directory: Boolean;
-  const UserSid: THandle): THandle;
+// Pin directories against rename/redirection; leaf files use normal Windows
+// delete sharing. These are operation handles, not profile/application locks.
+function OpenDataHandle(const Path: String; const Deleting, Directory: Boolean): THandle;
 var Access, Sharing, Count: Cardinal; Info: TDataFileInfo; FinalPath: String;
 begin
   RequireDataCondition((Length(Path) <= 240) and not PathHasInvalidCharacters(Path, True),
-    'Unsupported personal-data path.');
-  Access := $20080; // READ_CONTROL | FILE_READ_ATTRIBUTES
-  if Deleting then Access := Access or $10000; // DELETE
-  if Directory then Sharing := 3 else Sharing := 0;
+    'Unsupported personal-data path: ' + Path);
+  Access := $80;
+  if Deleting then Access := Access or $10000;
+  if Directory then Sharing := 3 else Sharing := 7;
   Result := PolicyCreateFile(Path, Access, Sharing, 0, 3, $02200000, 0);
-  RequireDataCondition(Result <> THandle(-1), 'Cannot lock personal-data path: ' + Path);
+  if Result = THandle(-1) then
+    RaiseException(DataWindowsError('Cannot open personal-data path for the requested operation', Path, DLLGetLastError));
   try
-    RequireDataCondition(DataFileInformation(Result, Info) <> 0, 'Cannot inspect personal-data handle.');
-    RequireDataCondition((Info.Attributes and $400) = 0, 'Reparse point in personal-data path.');
-    RequireDataCondition(((Info.Attributes and $10) <> 0) = Directory, 'Personal-data path type changed.');
-    if Deleting then begin
-      RequireDataCondition((Info.Attributes and 1) = 0, 'Read-only personal data is preserved.');
-      if not Directory then RequireDataCondition(Info.Links = 1, 'Hard-linked personal data is preserved.');
-      RequireDataOwner(Result, UserSid);
-    end;
+    if DataFileInformation(Result, Info) = 0 then
+      RaiseException(DataWindowsError('Cannot inspect personal-data handle', Path, DLLGetLastError));
+    RequireDataCondition((Info.Attributes and $400) = 0, 'Reparse point in personal-data path: ' + Path);
+    RequireDataCondition(((Info.Attributes and $10) <> 0) = Directory, 'Personal-data path type changed: ' + Path);
+    if Deleting and not Directory then
+      RequireDataCondition(Info.Links = 1, 'Hard-linked personal data is preserved: ' + Path);
     FinalPath := StringOfChar(#0, 32768);
     Count := PolicyFinalPath(Result, FinalPath, Length(FinalPath), 0);
-    RequireDataCondition((Count > 0) and (Count < Cardinal(Length(FinalPath))), 'Cannot resolve personal-data handle.');
+    RequireDataCondition((Count > 0) and (Count < Cardinal(Length(FinalPath))), 'Cannot resolve personal-data handle: ' + Path);
     SetLength(FinalPath, Count);
     RequireDataCondition(CompareText(FinalPath, '\\?\' + Path) = 0,
-      'Personal-data path alias or redirection is not supported.');
+      'Personal-data path alias or redirection is not supported: ' + Path);
   except
     PolicyCloseHandle(Result);
     RaiseException(GetExceptionMessage);
   end;
 end;
 
-procedure LockDataTree(const Path: String; const Directory: Boolean; const Depth: Integer;
-  const UserSid: THandle; var Handles: TDataHandles);
+procedure DeleteDataTree(const Path: String; const Directory: Boolean; const Depth: Integer;
+  const Failures: TStringList; var Visited, Deleted: Integer);
 var
+  Handle, Search: THandle;
   Find: TDataFindInfo;
-  Search: THandle;
   More: Boolean;
   ErrorCode: Cardinal;
   Name: String;
   I: Integer;
+  Delete: Byte;
 begin
-  RequireDataCondition((Depth <= 32) and (GetArrayLength(Handles) < 8192),
-    'Personal-data tree exceeds the safe cleanup limit.');
-  KeepDataHandle(Handles, OpenDataHandle(Path, True, Directory, UserSid));
-  if not Directory then Exit;
-  // Use native enumeration so DLLGetLastError distinguishes completion from
-  // errors. Inno's built-in FindNext does not update DLLGetLastError.
-  Search := DataFindFirst(AddBackslash(Path) + '*', Find);
-  if Search = THandle(-1) then begin
-    ErrorCode := DLLGetLastError;
-    RequireDataCondition(ErrorCode = 2, 'Cannot enumerate personal-data directory.');
-    Exit;
-  end;
+  Handle := THandle(-1);
   try
-    repeat
-      Name := '';
-      for I := 0 to 259 do begin
-        if Find.Name[I] = #0 then Break;
-        Name := Name + Find.Name[I];
+    try
+      RequireDataCondition((Depth <= 32) and (Visited < 65536), 'Personal-data tree exceeds the safe cleanup limit: ' + Path);
+      Visited := Visited + 1;
+      Handle := OpenDataHandle(Path, True, Directory);
+      if Directory then begin
+        Search := DataFindFirst(AddBackslash(Path) + '*', Find);
+        if Search = THandle(-1) then begin
+          ErrorCode := DLLGetLastError;
+          if ErrorCode <> 2 then RaiseException(DataWindowsError('Cannot enumerate personal-data directory', Path, ErrorCode));
+        end else begin
+          try
+            repeat
+              Name := '';
+              for I := 0 to 259 do begin
+                if Find.Name[I] = #0 then Break;
+                Name := Name + Find.Name[I];
+              end;
+              if (Name <> '.') and (Name <> '..') then begin
+                RequireDataCondition((Name <> '') and (Trim(Name) = Name) and
+                  (Copy(Name, Length(Name), 1) <> '.'), 'Ambiguous personal-data filename: ' + Path + '\' + Name);
+                DeleteDataTree(AddBackslash(Path) + Name, (Find.Attributes and $10) <> 0,
+                  Depth + 1, Failures, Visited, Deleted);
+              end;
+              More := DataFindNext(Search, Find) <> 0;
+              if not More then begin
+                ErrorCode := DLLGetLastError;
+                if ErrorCode <> 18 then RaiseException(DataWindowsError('Personal-data enumeration did not finish', Path, ErrorCode));
+              end;
+            until not More;
+          finally
+            DataFindClose(Search);
+          end;
+        end;
       end;
-      if (Name <> '.') and (Name <> '..') then begin
-        RequireDataCondition((Name <> '') and (Trim(Name) = Name) and
-          (Copy(Name, Length(Name), 1) <> '.'), 'Ambiguous personal-data filename.');
-        LockDataTree(AddBackslash(Path) + Name, (Find.Attributes and $10) <> 0,
-          Depth + 1, UserSid, Handles);
-      end;
-      More := DataFindNext(Search, Find) <> 0;
-      if not More then begin
-        ErrorCode := DLLGetLastError;
-        RequireDataCondition(ErrorCode = 18, 'Personal-data enumeration did not finish.');
-      end;
-    until not More;
+      Delete := 1;
+      if DataSetDisposition(Handle, 4, Delete, 1) = 0 then
+        RaiseException(DataWindowsError('Windows refused personal-data deletion', Path, DLLGetLastError));
+      Deleted := Deleted + 1;
+    except
+      Name := GetExceptionMessage;
+      if Pos(Path, Name) = 0 then Name := Path + ': ' + Name;
+      Failures.Add(Name);
+      Log('Personal-data failure: ' + Name);
+    end;
   finally
-    DataFindClose(Search);
+    if Handle <> THandle(-1) then PolicyCloseHandle(Handle);
   end;
 end;
 
-// The caller supplies the resolved Windows Local AppData folder, never a path
-// from a command-line deletion switch. Root must be its exact JobTracker child.
-// All checks finish before any disposition is set. Only already-open handles
-// are deleted, bottom-up; no recursive pathname delete or reboot cleanup exists.
-procedure DeleteConfirmedPersonalData(const LocalData, Root: String);
-var
-  Guards, Handles: TDataHandles;
-  Token: THandle;
-  Buffer, UserSid: THandle;
-  Needed: Cardinal;
-  Parent: String;
-  I: Integer;
-  Delete: Byte;
+function PersonalDataPathAbsent(const Path: String): Boolean;
+var Attributes, ErrorCode: Cardinal;
 begin
-  Token := 0;
-  Buffer := 0;
+  Attributes := DataAttributes(Path);
+  Result := Attributes = $FFFFFFFF;
+  if Result then begin
+    ErrorCode := DLLGetLastError;
+    if (ErrorCode <> 2) and (ErrorCode <> 3) then
+      RaiseException(DataWindowsError('Cannot inspect personal-data path', Path, ErrorCode));
+  end;
+end;
+
+procedure DeleteConfirmedPersonalData(const LocalData, Root: String; const UserSid: THandle);
+var
+  Guards: TDataHandles;
+  Failures: TStringList;
+  Parent: String;
+  I, Visited, Deleted: Integer;
+begin
+  // LocalData and UserSid come from the explicitly selected token's known
+  // folder resolution. Filesystem ownership is not user identity: restored or
+  // elevated-created data may legitimately be owned by Administrators.
+  // The exact root/handle checks define the boundary; Windows DELETE access
+  // and disposition decide whether each operation is permitted.
+  RequireDataCondition((Length(LocalData) > 3) and
+    (CompareText(Root, AddBackslash(LocalData) + 'JobTracker\Data') = 0), 'Unexpected personal-data root.');
+  RequireDataCondition((UserSid <> 0) and (DataValidSid(UserSid) <> 0), 'Invalid confirmed account SID.');
+  RequireDataCondition(CompareText(CanonicalInstallPath(LocalData), LocalData) = 0,
+    'Ambiguous Local AppData path.');
+  if PersonalDataPathAbsent(Root) then begin
+    Log('Personal-data cleanup: Data is already absent.');
+    Exit;
+  end;
+  Failures := TStringList.Create;
+  Visited := 0;
+  Deleted := 0;
   try
-    RequireDataCondition(not IsAdmin and not IsAdminInstallMode, 'Elevated/all-users cleanup is disabled.');
-    RequireDataCondition((Length(LocalData) > 3) and
-      (CompareText(Root, AddBackslash(LocalData) + 'JobTracker') = 0), 'Unexpected personal-data root.');
-    RequireDataCondition(CompareText(CanonicalInstallPath(LocalData), LocalData) = 0,
-      'Ambiguous Local AppData path.');
-    RequireDataCondition(DataOpenProcessToken(THandle(-1), 8, Token) <> 0, 'Cannot read Windows account token.');
-    Buffer := DataAllocate($40, 256);
-    RequireDataCondition(Buffer <> 0, 'Cannot allocate token information.');
-    RequireDataCondition(DataTokenInformation(Token, 1, Buffer, 256, Needed) <> 0, 'Cannot read Windows account SID.');
-    DataReadPointer(UserSid, Buffer, SizeOf(UserSid));
-    RequireDataCondition((UserSid <> 0) and (DataValidSid(UserSid) <> 0), 'Invalid Windows account SID.');
-    // Pin top-down; never follow an ancestor before its parent is pinned.
+    // Pin only ancestors of the exact target. Never delete the JobTracker parent.
     Parent := Copy(LocalData, 1, 3);
-    KeepDataHandle(Guards, OpenDataHandle(Parent, False, True, UserSid));
+    KeepDataHandle(Guards, OpenDataHandle(Parent, False, True));
     for I := 4 to Length(LocalData) + 1 do
       if (I > Length(LocalData)) or (Copy(LocalData, I, 1) = '\') then begin
         Parent := Copy(LocalData, 1, I - 1);
-        KeepDataHandle(Guards, OpenDataHandle(Parent, False, True, UserSid));
+        KeepDataHandle(Guards, OpenDataHandle(Parent, False, True));
       end;
-    RequireDataOwner(Guards[GetArrayLength(Guards) - 1], UserSid);
-    LockDataTree(Root, True, 0, UserSid, Handles);
-    Delete := 1;
-    for I := GetArrayLength(Handles) - 1 downto 0 do begin
-      RequireDataCondition(DataSetDisposition(Handles[I], 4, Delete, 1) <> 0,
-        'Windows refused personal-data deletion; remaining handles are released without deletion.');
-      PolicyCloseHandle(Handles[I]);
-      Handles[I] := 0;
-    end;
+    KeepDataHandle(Guards, OpenDataHandle(AddBackslash(LocalData) + 'JobTracker', False, True));
+    DeleteDataTree(Root, True, 0, Failures, Visited, Deleted);
+    if not PersonalDataPathAbsent(Root) then
+      Failures.Add('The confirmed Data path still exists (files may be locked, inaccessible, or newly created): ' + Root);
+    Log(Format('Personal-data cleanup: deletion accepted for %d entries; %d failures.', [Deleted, Failures.Count]));
+    if Failures.Count > 0 then RaiseException(Failures.Text);
   finally
-    CloseDataHandles(Handles);
     CloseDataHandles(Guards);
-    if Buffer <> 0 then DataFree(Buffer);
-    if Token <> 0 then PolicyCloseHandle(Token);
+    Failures.Free;
   end;
 end;
 
 procedure InitializePersonalDataPolicy;
-var Path: String; Version: Int64;
 begin
-  DataAccountVerified := False;
-  if IsAdminInstallMode or IsAdmin then Exit;
-  try
-    DataAccountVerified := ReadInstallRecord(HKCU64,
-      InstallUninstallKey + 'CurrentUser_is1', 'CurrentUser', Path, Version);
-    DataAccountVerified := DataAccountVerified and
-      (CompareText(Path, CanonicalInstallPath(ExpandConstant('{app}'))) = 0);
-  except
-    DataAccountVerified := False;
-    Log('Personal-data account check: ' + GetExceptionMessage);
-  end;
+  DataChoiceHandled := False;
 end;
 
-procedure RequireNoRemainingInstallation;
-begin
-  // Presence alone blocks deletion, including malformed or older records.
-  // Check only this account and machine scope, never enumerate other profiles.
-  if InstallKeyExists(HKCU64, InstallUninstallKey + 'CurrentUser_is1') or
-     InstallKeyExists(HKCU32, InstallUninstallKey + 'CurrentUser_is1') or
-     InstallKeyExists(HKLM64, InstallUninstallKey + 'AllUsers_is1') or
-     InstallKeyExists(HKLM32, InstallUninstallKey + 'AllUsers_is1') then
-    RaiseException(CustomMessage('DataShared'));
-end;
-
-procedure RequireProgramRemovalComplete;
-var I, J: Integer; Folder, Path: String;
-begin
-  // usDone also runs after incomplete native removal. Require the whole program
-  // directory to be gone: even unknown leftovers conservatively preserve data.
-  Path := ExpandConstant('{app}');
-  RequireSafePayloadPath(Path);
-  if DirExists(Path) or FileExists(Path) then RaiseException(CustomMessage('DataIncomplete'));
-  for I := 0 to 1 do begin
-    if I = 0 then Folder := ExpandConstant('{autoprograms}\JobTracker')
-    else Folder := ExpandConstant('{autodesktop}');
-    for J := 0 to 1 do begin
-      Path := AddBackslash(Folder) + PolicyShortcutName(IsAdminInstallMode, J = 1) + '.lnk';
-      RequireSafePayloadPath(Path);
-      if FileExists(Path) or DirExists(Path) then RaiseException(CustomMessage('DataIncomplete'));
-    end;
-  end;
-end;
-
-// Inno calls this only when native removal has not already required a restart.
-// It is an additional completion gate, not a replacement for residual checks.
-<event('UninstallNeedRestart')>
-function PersonalDataRestartCheck: Boolean;
-begin
-  DataRestartCheckReached := True;
-  Result := False;
-end;
-
-<event('CurUninstallStepChanged')>
 procedure PersonalDataAfterUninstall(CurStep: TUninstallStep);
-var LocalData, Root, Message: String;
+var Identity: TPersonalDataIdentity; Root, Message: String;
 begin
-  if CurStep <> usDone then Exit;
-  Log(CustomMessage('DataKeep'));
-  // Silence is never consent, including unrecognized /DELETE... switches.
-  if UninstallSilent then Exit;
+  if (CurStep <> usUninstall) or DataChoiceHandled then Exit;
+  DataChoiceHandled := True;
+  // Silence and command-line flags never constitute deletion consent.
+  if UninstallSilent then begin
+    Log(CustomMessage('DataKeep'));
+    Exit;
+  end;
+  ClearPersonalDataIdentity(Identity);
   try
-    if not DataAccountVerified then RaiseException(CustomMessage('DataAccount'));
-    if not DataRestartCheckReached then RaiseException(CustomMessage('DataIncomplete'));
-    RequireProgramRemovalComplete;
-    RequireNoRemainingInstallation;
-    LocalData := RemoveBackslashUnlessRoot(ExpandConstant('{localappdata}'));
-    Root := AddBackslash(LocalData) + 'JobTracker';
-    RequireSafePayloadPath(Root);
-    if not DirExists(Root) then Exit;
-    if SuppressibleMsgBox(FmtMessage(CustomMessage('DataConfirm'), [Root]),
-      mbConfirmation, MB_YESNO or MB_DEFBUTTON2, IDNO) <> IDYES then Exit;
-    // Consent never bypasses a fresh coexistence/completion check.
-    RequireProgramRemovalComplete;
-    RequireNoRemainingInstallation;
     try
-      DeleteConfirmedPersonalData(LocalData, Root);
+      try
+        ResolvePersonalDataIdentity(Identity);
+      except
+        RaiseException(FmtMessage(CustomMessage('DataAccount'), [GetExceptionMessage]));
+      end;
+      Root := AddBackslash(Identity.LocalData) + 'JobTracker\Data';
+      if Identity.FallbackToExecutionAccount then
+        if SuppressibleMsgBox(FmtMessage(CustomMessage('DataIdentityFallback'), [Identity.Account, Identity.Profile, Root]), mbConfirmation,
+          MB_YESNO or MB_DEFBUTTON2, IDNO) <> IDYES then begin
+          Log(CustomMessage('DataKeep'));
+          Exit;
+        end;
+      if SuppressibleMsgBox(FmtMessage(CustomMessage('DataConfirm'), [Identity.Account, Identity.Profile, Root, Identity.ExecutionAccount]),
+        mbConfirmation, MB_YESNO or MB_DEFBUTTON2, IDNO) <> IDYES then begin
+        Log(CustomMessage('DataKeep'));
+        Exit;
+      end;
+      // No application, installation, profile-idle, or program-removal gate follows consent.
+      try
+        DeleteConfirmedPersonalData(Identity.LocalData, Root, Identity.Sid);
+        Message := CustomMessage('DataDeleted');
+      except
+        Message := FmtMessage(CustomMessage('DataUnsafe'), [GetExceptionMessage]);
+      end;
+      Log(Message);
+      SuppressibleMsgBox(Message, mbInformation, MB_OK, IDOK);
     except
-      RaiseException(FmtMessage(CustomMessage('DataUnsafe'), [GetExceptionMessage]));
+      Message := GetExceptionMessage;
+      Log(Message);
+      SuppressibleMsgBox(Message, mbInformation, MB_OK, IDOK);
     end;
-    Log(CustomMessage('DataDeleted'));
-  except
-    Message := GetExceptionMessage;
-    Log(Message);
-    SuppressibleMsgBox(Message, mbInformation, MB_OK, IDOK);
+  finally
+    ReleasePersonalDataIdentity(Identity);
   end;
 end;

@@ -130,7 +130,7 @@ $include.Add('#define MsvcRedistSize ' + $lock.redistributable.size)
 $include.Add('[Files]')
 $include.Add(('Source: "{0}"; DestName: "vc_redist.x64.exe"; Hash: "{1}"; Flags: dontcopy' -f $redistSnapshot, $lock.redistributable.sha256))
 foreach ($file in $lock.files) {
-    $include.Add(('Source: "{0}\{1}"; DestDir: "{{app}}\bin"; Hash: "{2}"; Flags: ignoreversion; Check: not IsAdminInstallMode and CanInstallWithManualClose(ExpandConstant(''{{app}}\bin\{1}''))' -f $destination, $file.name, $file.sha256))
+    $include.Add(('Source: "{0}\{1}"; DestDir: "{{app}}\bin"; Hash: "{2}"; Flags: ignoreversion uninsneveruninstall; AfterInstall: RecordInstalledFile(''bin\{1}'')' -f $destination, $file.name, $file.sha256))
 }
 $include.Add('[Code]')
 $include.Add('function MsvcFileCompatible(const FileName: String): Boolean; forward;')

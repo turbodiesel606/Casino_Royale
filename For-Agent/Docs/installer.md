@@ -2,7 +2,7 @@
 
 This reference describes the existing native x64 installer for Windows 10/11.
 It produces one offline Setup containing the
-Release application, Qt/QML/plugins/SQLite, scope-specific MSVC inputs, and the
+Release application, Qt/QML/plugins/SQLite, per-copy MSVC inputs, and the
 runtime notice. Installation requires no Qt/Visual Studio SDK, application
 archive, remote manifest, or dependency download.
 
@@ -17,6 +17,8 @@ commands. The Release build and installer sequence is below.
 Use [installer-testing.md](installer-testing.md) for standalone verification and
 the reusable acceptance checklist. These are procedures and implementation
 contracts, not a record of results for any particular candidate.
+The [installer architecture](architecture/installer.md) describes ownership and
+the boundary with unchanged application behavior.
 
 ## Implementation Files
 
@@ -33,9 +35,9 @@ Use [Installer/README.md](../../Installer/README.md) for shared platform navigat
 | `PayloadSafety.iss` | Native destination/local-file safety checks used by Setup. |
 | `Prepare-MsvcRuntime.ps1`, `MsvcRuntime.lock.json` | Verify and snapshot pinned local Microsoft inputs against the selected toolset; generate runtime include/evidence. |
 | `MsvcRuntime.iss`, `MSVC-NOTICE.txt` | App-Local/system runtime policy and delivered Microsoft runtime notice. |
-| `InstallationPolicy.iss` | Registration/version/path validation, maintenance/coexistence rules, and shared install/uninstall lock. |
-| `ManualClose.iss` | Exact installed-executable closure checks and native cancellation gates; never terminates or restarts JobTracker. |
-| `PersonalData.iss` | Default-preserve uninstall and guarded optional CurrentUser data cleanup. |
+| `InstallationPolicy.iss` | Local installation identity, version/path/ownership validation, repair/coexistence rules, and installer/uninstaller mutual exclusion. |
+| `InstallOwnership.iss` | Relative owned-file ledger, local uninstall-history validation/reconstruction, preserved conflicting files, and per-copy shortcut ownership. |
+| `PersonalData.iss` | Default-preserve uninstall, explicit target-account confirmation, and optional cleanup of that user's shared `Data` directory. |
 | `JobTracker.rc.in`, `JobTrackerIdentity.cmake.in`, `JobTrackerIdentity.iss.in` | CMake-generated Windows resource and packaging identity templates. |
 | `JobTracker.ico` | Current temporary seven-size application/Setup/shortcut icon. |
 | `output/` | Ignored generated customer Setup executables; source files above remain versionable. |
@@ -175,10 +177,13 @@ non-SQLite SQL drivers. `NO_COMPILER_RUNTIME` leaves CRT delivery to the
 installer. Debug installs and the development-runtime target are not Release
 stages. Linux staging uses its separate Linux wrapper.
 
-The reviewed inventory lists 148 application/Qt files. Embedded QML resources
-are allowed; loose C++ sources/headers, tests, PDBs, CMake files and internal
+The reviewed inventory lists 150 application/Qt files, including
+`d3dcompiler_47.dll`, `dxcompiler.dll`, and `dxil.dll` deployed by `windeployqt`.
+These graphics dependencies are separate from the MSVC CRT excluded by
+`NO_COMPILER_RUNTIME`. Embedded QML resources are allowed; loose C++
+sources/headers, tests, PDBs, CMake files and internal
 documents must not ship. Keep probes and logs outside the payload. The common
-stage alone lacks the scope-specific MSVC inputs of the finished installer.
+stage alone lacks the per-copy MSVC inputs of the finished installer.
 
 ### Compile Setup
 
@@ -256,56 +261,186 @@ dated reports cannot prove that current bytes match.
 
 ## Scope, Runtime, And Maintenance
 
-| Scope | Default location / registration | MSVC behavior |
+| Scope | Default location / shortcuts | MSVC behavior |
 |---|---|---|
-| CurrentUser (default) | `%LocalAppData%/Programs/JobTracker`; HKCU; `JobTracker.CurrentUser` | Ten verified App-Local x64 Release DLLs beside the EXE; no machine prerequisite or admin rights. |
-| AllUsers | `%ProgramFiles%/JobTracker`; HKLM; `JobTracker.AllUsers`; UAC | Check system x64 registry/DLL identity; extract and run the embedded official redistributable only when insufficient. |
+| CurrentUser (default) | `%LocalAppData%/Programs/JobTracker`; user shortcuts | Ten verified App-Local x64 Release DLLs beside the EXE; no machine prerequisite or admin rights. |
+| AllUsers | `%ProgramFiles%/JobTracker`; common shortcuts; UAC | The same per-copy App-Local DLLs; check the system x64 runtime and install the embedded official redistributable when insufficient. |
 
 Runtime failure/cancellation stops before application copying. Restart-required
 results require reboot and rerunning Setup. A later installation failure or
 JobTracker uninstall does not roll back/remove the shared machine runtime.
+Removing one program folder does not remove another copy's Qt or App-Local CRT.
 
-Fresh destinations are editable. EN/RU UI includes a language-selection dialog,
-system-language selection with English fallback, Start Menu shortcuts, and an
-unchecked desktop option. Same-scope newer-version upgrades and same-version
-repair retain the validated registered directory, stable AppId, and personal
-data. Downgrade, missing/inconsistent registry/PE/marker versions, unsafe paths,
-and relocation fail closed.
+Destinations are editable in both scopes. Choose any suitable regular local
+folder on an available local drive, subject to actual permissions and the path
+guards. Example drive letters are not a supported-drive list. EN/RU UI includes
+a language-selection dialog, system-language selection with English fallback,
+Start Menu shortcuts, and an unchecked desktop option.
 
-An opposite-scope copy blocks every version, including equal versions.
-Switch scope by manual uninstall with data preserved, then reinstall; existing
-dual-scope layouts must remove the other copy first. AllUsers checks available
-profiles/hives and rejects unreadable state without loading offline hives.
-Separate AppIds do not isolate per-account SQLite/CV data.
+The Browse dialog's New Folder action selects a proposed path; it does not
+create the folder on disk before installation. Typed and dialog-selected new
+folders, including direct children of a drive root, use the same validation.
+Canonicalization preserves one separator when appending missing components and
+remains stable when repeated. Drive roots can be resolved for path checks but
+cannot be selected as the installation folder.
 
-Close JobTracker manually and keep it closed during install/repair/upgrade/
-uninstall. Gates check the exact selected executable and recheck later
-boundaries; Retry rechecks, and Setup never force-closes or restarts it.
-Unattended Setup requires both `/VERYSILENT` and `/SUPPRESSMSGBOXES`;
-unsafe automatic-close/INF overrides are refused. These guards are not a
-transaction-wide file lock or a guarantee of full upgrade rollback.
+No JobTracker uninstall entry is created in the registry:
+`Uninstallable=yes` retains a local uninstaller and `CreateUninstallRegKey=no`
+keeps JobTracker out of Windows Installed apps. Run `unins000.exe` inside the
+selected copy's folder. Local installation metadata and file ownership govern
+maintenance; installation does not enumerate all Windows profiles, discover
+copies on disconnected volumes, or recover a manually removed old registration.
+Registry use for Windows identity or Microsoft prerequisites is separate.
+
+| Selected destination | Maintenance behavior |
+|---|---|
+| Empty or new folder | Install a new independent copy. |
+| Separate folder, including another scope or available volume | Install without changing other copies. An inaccessible/disconnected other copy is not a prerequisite. |
+| Identified same-version copy | Reinstall/repair its owned files and local uninstaller. |
+| Identified older copy | Update only the selected copy. |
+| Reliably identified newer copy | Reject overwriting it with an older version. An older version remains installable in a separate folder. |
+| Whole program folder manually deleted | Install again normally; no previous EXE, INI, log, or registry entry is required. |
+| Partially deleted copy or missing uninstaller | Use remaining local evidence to repair the copy. Missing files alone do not impose a permanent block. |
+| Missing/damaged uninstall bookkeeping | Reconstruct records for identifiable owned files; unavailable historical ownership is not invented. |
+| Unrelated nonempty folder | Refuse silent adoption; choose an empty folder or restore enough genuine local evidence to identify a repair. |
+
+Normal same-directory maintenance retains valid uninstall history so that
+previous-version owned files remain accounted for. Unrelated files are not
+claimed or deleted. Installation folders must not contain one another and must
+not overlap the personal-data directory. Existing local path, alias, and
+reparse-point safety restrictions remain; network paths and junction/symlink
+installations are not supported by this change.
+
+`JobTracker.install.ini` records the local installation and
+`JobTracker.ownership.ini` records owned relative file paths. The ownership
+ledger uses `[Identity]` (`Product=JobTracker-2`, `Path`, `Count`) and numeric
+entries under `[Files]`. A hash-verified same-location Inno `.dat` history is
+appended during normal maintenance. Unverified, moved, or scope-changed history
+is renamed with a `.preserved-n` suffix and bookkeeping is reconstructed from
+the current payload and available relative ownership ledger. Unowned files
+colliding with payload paths are also preserved under such suffixes. These
+preserved files are not a claim that unavailable historical uninstall records
+have been recovered.
+
+If the relative ownership ledger is missing during uninstall, reconstruction
+recognizes only files whose hashes match the current payload. Changed files
+whose ownership cannot be proved are preserved and reported as incomplete
+removal. Reinstall/repair can establish current bookkeeping without claiming
+unavailable historical ownership.
+
+No application-closure prerequisite is imposed. Installation and uninstallation
+attempt the requested operations while JobTracker or another copy runs. They
+do not poll, wait for, terminate, restart, or coordinate with application
+processes. Installer/uninstaller mutual exclusion remains. Windows may refuse
+an actual replacement/removal because a file is locked, access is denied, or
+another filesystem condition applies. Retain the reported path/operation and
+logs; cancellation or interruption does not guarantee atomic rollback, but
+remaining identifiable local files can be repaired. Setup never resets,
+restores, deletes, or migrates personal data on any success or failure path.
+Program-root and ancestor directory handles pin paths against redirection while
+operations run; they are filesystem safety guards, not application/profile idle
+locks or a prerequisite that applications exit.
+
+### Manual Deletion, Copying, Moving, And Shortcuts
+
+Deleting a program folder in Explorer leaves personal data untouched and shows
+no data-choice dialog. Reinstalling restores a local uninstaller even if every
+old uninstaller was deleted. Copying binaries to another machine does not copy
+the original machine's personal data; another Windows account continues to use
+its own application-resolved per-user data location.
+
+A copied, moved, or renamed folder must be repaired with Setup at its new
+location before its uninstaller is used. Path-mismatched local metadata or
+uninstall records are not executed against their source location. Repair
+establishes local ownership and new bookkeeping; it cannot recover unavailable
+historical records. The source installation and its shortcuts remain separate.
+
+Shortcut identities distinguish installations. Installing another copy does not
+replace another copy's shortcut, and uninstall removes only shortcuts still
+owned by the selected copy. A stale shortcut does not block a new installation;
+a user-retargeted shortcut is preserved. These rules apply to user/common Start
+Menu links and the optional desktop links.
+
+A successful scope change in the same directory places the active Start Menu
+shortcut and any selected desktop shortcut in the newly selected user or common
+shell folder.
+A recorded link is reused only when its copy identity, executable target, and
+shell-folder location are appropriate for that scope. Old verified owned links
+are removed explicitly. A verified retargeted link is preserved and released
+from this copy's records; an unreadable/unverifiable link is preserved with its
+record and reported as incomplete. Pending old locations remain recorded until
+handled, so a Windows removal/creation
+failure is reported as incomplete and can be retried or repaired without
+orphaning known shortcuts.
+
+The desktop task also applies on reinstall. Checked to unchecked removes the
+previously owned desktop link and creates no replacement; unchecked to checked
+creates or safely reuses the appropriate link. A failed deletion of a verified
+owned link keeps its recorded location for retry. Retargeting a link does not
+authorize Setup to delete it.
+Each new shortcut's intended path is recorded before creation, and Start Menu
+and desktop results are retained independently if a later step fails. Repair
+can therefore retry a missing or partial shortcut using the recorded location.
 
 ## Personal Data
 
-The usual per-account store is `%LocalAppData%/JobTracker/Data`, including
-`database.sqlite` and `Resumes/`, independent of installation directory/scope.
-Setup never starts JobTracker, opens its database, or performs migrations.
+The existing per-account store is `%LOCALAPPDATA%\JobTracker\Data`, including
+`database.sqlite` and `Resumes`, independent of installation directory/scope.
+Windows resolves the account's actual profile and Local AppData path; no drive,
+volume label, or account name is hard-coded. Setup never starts JobTracker,
+opens its database, performs migrations, or restores missing/damaged user data.
+Application startup, schema validation, CV handling, concurrency, and recovery
+remain unchanged. Different versions can share this data; the installer adds no
+database compatibility or concurrent-access guarantee.
 
-Uninstall preserves personal data by default. Only verified non-elevated
-CurrentUser removal can offer EN/RU default-No cleanup after complete
-program/shortcut removal and the no-restart gate. Explicit Yes permanently
-deletes the entire verified owned `%LocalAppData%/JobTracker` tree, including
-SQLite sidecars, CVs, and other files there. There is no command-line data path
-or data-delete switch.
+Program removal and personal-data cleanup have separate results. Program
+removal targets the selected copy's owned files, metadata, and still-owned
+shortcuts; unrelated leftovers do not have to disappear before the data choice.
+Other copies and their shortcuts remain untouched.
 
-Silent, elevated/AllUsers, remaining-registration/shared, incomplete,
-inaccessible, or ambiguous cases preserve data. AllUsers cleanup never resolves
-a data folder or enumerates other profiles. The cleanup core pins ancestors,
-checks SID ownership, and rejects reparse points, hardlinks, locked/read-only/
-inaccessible files before setting deletion disposition. Removal uses validated
-handles and never schedules reboot deletion. It is irreversible and
-nontransactional: a late failure may leave partial deletion. Unknown manually
-copied applications cannot be discovered exhaustively.
+After the data choice and any confirmed cleanup, program removal is attempted
+immediately. If an owned file or shortcut cannot be removed, detailed failures
+are logged and native uninstall ends with failure before destroying its local
+uninstaller/log. The remaining local metadata and uninstaller support retry or
+repair. Partial program removal is not reported as complete, and successful
+data cleanup is not rolled back because later program removal failed.
+
+Keep personal data is the default. Silent uninstall preserves it. At the start
+of interactive program removal, uninstall offers EN/RU default-No confirmation
+naming the exact target account, SID, profile, and `Data` path and explaining
+that every copy used by that user shares it. The executing account is also
+shown. No, dismissal, or lack of affirmative consent preserves data.
+
+Elevation alone does not disable the choice. An elevated uninstaller resolves
+the desktop shell's Windows token and known folders so another account's UAC
+credentials do not silently substitute the administrator's Local AppData. If
+that desktop identity cannot be resolved, a separate default-No account-choice
+confirmation explicitly selects the displayed execution account before the
+data-deletion confirmation. Declining preserves data. An unverifiable target is
+reported without guessing or enumerating all profiles.
+
+After affirmative confirmation, cleanup starts immediately, before program-file
+removal, even if the selected copy or another copy runs, other copies remain installed or are
+disconnected, or some program files could not be removed. There is no last-copy
+auto-deletion, profile-idle gate, process check, or wait. The application may
+recreate files while running; the installer adds no coordination or recovery.
+
+Only the explicitly confirmed user's `Data` directory is targeted. The parent
+`%LOCALAPPDATA%\JobTracker`, originals outside `Data`, unrelated outside files,
+and other users' data are preserved. Missing `Data` is already complete.
+The Windows account/token and known-folder path identify the target; object
+ownership is not a substitute for that identity or for filesystem permissions.
+A correctly targeted Data root or child owned by `BUILTIN\Administrators` is
+eligible for cleanup when Windows allows deletion. This does not authorize
+cleanup of other Administrators-owned paths. Cleanup never changes owners or
+ACLs, enables extra privileges, or takes ownership to overcome denial.
+
+Ordinary path safety and actual Windows errors still apply. Reparse/hardlink,
+access, read-only, or sharing failures are reported with remaining paths and
+Windows error codes. Cleanup continues with other safe entries after
+an individual failure; incomplete cleanup is not reported as complete. Deletion is
+irreversible and nontransactional: files already deleted are not restored and
+remaining files are not scheduled for reboot deletion.
 
 ## Changes And Common Failures
 
@@ -313,9 +448,8 @@ When Qt, the MSVC toolset, runtime inputs, Inno Setup, or payload dependencies
 change, review the affected inventory/identity/lock and source contracts
 explicitly. Do not bypass validation or silently repin inputs. Rebuild matching
 evidence and select the relevant [installer suites](installer-testing.md).
-Recheck native cancellation behavior after an Inno upgrade; Check/BeforeInstall
-exceptions alone do not abort its file-copy loop. Review required notices,
-provenance, and entitlement separately from functional tests.
+Recheck native error/cancellation behavior after an Inno upgrade. Review required
+notices, provenance, and entitlement separately from functional tests.
 
 | Failure | Existing handling / next diagnosis |
 |---|---|
@@ -324,8 +458,11 @@ provenance, and entitlement separately from functional tests.
 | Missing/mismatched runtime or incompatible toolset | Preparation reports required paths/version/integrity; supply authorized matching local inputs or explicitly review the lock/toolset. Discovery does not guarantee a usable input. |
 | Existing or unsafe run directory | Wrapper refuses collisions and reparse points. Each invocation selects a fresh run directory, so earlier same-version Setup files remain unchanged. |
 | Inno compilation or native identity failure | Retain `compile.log` and candidate state under private work; inspect compiler diagnostics and native x64 support. |
-| Opposite scope, damaged identity, relocation, unreadable profile | Policy fails closed; resolve the actual installation state without weakening guards. |
-| Running application or late sharing failure | Stop safely, retain logs and owned fixture state, and close the app cooperatively. A retry is not proof of a root-cause fix or atomic rollback. |
+| Unrelated nonempty folder, nested copies, data overlap, or unsafe path | Choose a suitable destination or repair the identifiable selected copy; unrelated files are not adopted. |
+| Missing local files or damaged bookkeeping | Reinstall into the selected copy; only identifiable ownership can be reconstructed. Valid same-location history is retained. |
+| Copied/moved uninstaller | Repair at the new location before removal; never run source-location records. |
+| Actual sharing/access/space failure, cancellation, or interruption | Retain logs and local evidence. Incomplete owned-program removal fails and keeps local uninstall bookkeeping for retry/repair. Correct the reported condition; there is no application-close gate or guaranteed full rollback. |
+| Confirmed data cleanup is incomplete | Report remaining failures independently of program removal. Already deleted files are not rolled back; other copies may recreate data. |
 | DXC/DXIL deployment warnings | Investigate affected graphics/runtime dependencies and clean-host behavior; a successful developer-host probe alone is insufficient. |
 
 Earlier local documentation recorded an intermittent Windows sharing error 32
@@ -335,13 +472,11 @@ Do not force-close processes, blindly retry, or reuse historical recovery script
 
 ## Distribution Review And Unavailable History
 
-Existing repository documentation identified unresolved questions about Lottie
-licensing, complete notices/source/replacement materials, ICU/Mesa/D3D binary
-provenance, Inno redistribution, and owner entitlement. The former
-`LICENSE_ISSUES.md` and `REDISTRIBUTION.md` reports and their referenced
-supporting evidence are absent from this checkout. Their detailed conclusions
-cannot be reconstructed from missing links; this cleanup does not resolve them.
-Keep these concerns for a release-specific review before publication.
+Release review must resolve Lottie licensing, complete notices/source/replacement
+materials, ICU/Mesa/D3D binary provenance, Inno redistribution, and owner
+entitlement against the actual release inputs. Historical supporting evidence
+is unavailable in this checkout, so detailed prior conclusions cannot be
+reconstructed. Keep these concerns for a release-specific review before publication.
 The included MSVC notice is not a complete Qt/third-party notice bundle.
 
 Technical checks, owner-tested installer operation, and signatures are distinct

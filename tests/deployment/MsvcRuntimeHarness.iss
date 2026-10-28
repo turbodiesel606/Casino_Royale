@@ -3,9 +3,6 @@
   #error Inno Setup 7 or newer is required to verify the native x64 installer ABI.
 #endif
 #include PipelineFile
-#define JobTrackerExecutableName "JobTrackerApp.exe"
-#include "..\..\Installer\Windows\InstallationPolicy.iss"
-#include "..\..\Installer\Windows\ManualClose.iss"
 #include RuntimeInput
 #include RuntimeCode
 
@@ -34,6 +31,12 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 
 [Code]
+// Test consumer records successful CRT writes without importing installation state.
+procedure RecordInstalledFile(const Relative: String);
+begin
+  Log('TEST installed CRT: ' + Relative);
+end;
+
 procedure RequireTest(const Condition: Boolean; const Message: String);
 begin
   if not Condition then RaiseException('TEST FAILURE: ' + Message);
@@ -100,7 +103,10 @@ begin
       // Read-only detection only. Calling the all-users orchestration could race
       // an external runtime uninstall and unexpectedly execute the prerequisite.
       RequireTest(MsvcSystemCompatible, 'host has compatible x64 registry and system files');
-    end else if (CaseName = 'destination-conflict') or (CaseName = 'reparse') then begin
+    end else if CaseName = 'local-runtime' then begin
+      CheckMsvcDestination;
+      RequireTest(True, 'existing App-Local runtime is compatible with all-users packaging');
+    end else if CaseName = 'reparse' then begin
       CheckMsvcDestination;
       RaiseException('TEST FAILURE: unsafe destination was accepted');
     end else if (CaseName = 'integrity') or (CaseName = 'corrupt') then begin

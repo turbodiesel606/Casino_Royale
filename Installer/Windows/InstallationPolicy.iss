@@ -1,30 +1,19 @@
-// Installer-owned identity, version and scope policy. Never opens app data.
+// Local copy identity and path policy. No JobTracker registry discovery.
 [CustomMessages]
-english.InstallStateInvalid=The installation path or existing JobTracker metadata cannot be verified. Choose a regular local folder. If the existing executable or its metadata is missing or damaged, uninstall that copy while preserving personal data before reinstalling.
-russian.InstallStateInvalid=Не удалось проверить путь установки или данные существующей установки JobTracker. Выберите обычную локальную папку. Если программа или данные её установки отсутствуют либо повреждены, удалите эту копию с сохранением личных данных перед повторной установкой.
-english.InstallDowngrade=A newer JobTracker version is already installed in this mode. Downgrades are blocked to protect your data.
-russian.InstallDowngrade=В этом режиме уже установлена более новая версия JobTracker. Установка старой версии заблокирована для защиты данных.
-english.InstallScopeConflict=JobTracker is already installed in the other installation mode. To change modes, first uninstall the other copy manually while preserving personal data, then run Setup again. If both modes are already installed, remove the other copy before repairing or upgrading this one. Setup does not switch modes automatically.
-russian.InstallScopeConflict=JobTracker уже установлен в другом режиме. Чтобы сменить режим, сначала вручную удалите другую копию с сохранением личных данных, затем снова запустите установщик. Если уже установлены обе копии, удалите другую копию перед восстановлением или обновлением этой. Установщик не меняет режим автоматически.
-english.InstallPathConflict=Installation folders must be separate and must not contain one another. Choose a different folder.
-russian.InstallPathConflict=Папки установок должны быть раздельными и не должны находиться одна внутри другой. Выберите другую папку.
-english.InstallMove=To change the folder of an existing installation, first uninstall that copy while preserving personal data, then install into the new folder. This prevents an old executable or uninstaller from remaining active.
-russian.InstallMove=Чтобы изменить папку существующей установки, сначала удалите эту копию с сохранением личных данных, затем установите её в новую папку. Это предотвращает сохранение старой программы или деинсталлятора.
-english.InstallFolderNotEmpty=A new installation requires an empty folder outside any existing JobTracker installation. Existing files will not be adopted or deleted.
-russian.InstallFolderNotEmpty=Для новой установки нужна пустая папка вне существующей установки JobTracker. Существующие файлы не будут присвоены установщиком или удалены.
-english.InstallProfileUnavailable=All-users installation cannot safely check another Windows profile. Sign in to that profile and keep its session open, then retry, or use current-user installation. No offline registry hive will be loaded or changed.
-russian.InstallProfileUnavailable=Не удалось безопасно проверить другой профиль Windows для установки всем пользователям. Войдите в этот профиль и оставьте сеанс открытым, затем повторите попытку, либо установите только для текущего пользователя. Реестр неактивного профиля не будет загружен или изменён.
-english.InstallBusy=Another JobTracker installer or uninstaller is active, or its installation lock is inaccessible. Finish it before retrying.
-russian.InstallBusy=Другой установщик или деинсталлятор JobTracker уже работает либо блокировка установки недоступна. Завершите его работу и повторите попытку.
-english.InstallShortcutConflict=A JobTracker shortcut belongs to another target or cannot be verified. Move that shortcut yourself before retrying.
-russian.InstallShortcutConflict=Ярлык JobTracker указывает на другую программу либо не может быть проверен. Переместите этот ярлык вручную перед повторной попыткой.
-english.InstallSharedDataInfo=To change installation modes, first uninstall the existing copy manually while preserving personal data, then reinstall in the desired mode. Setup preserves personal data and never opens or migrates the database.
-russian.InstallSharedDataInfo=Чтобы сменить режим установки, сначала вручную удалите существующую копию с сохранением личных данных, затем установите программу в нужном режиме. Установщик сохраняет личные данные, не открывает и не обновляет базу данных.
+english.InstallStateInvalid=The local installation path or metadata is unsafe or inaccessible. Choose a regular local folder and check its permissions.
+russian.InstallStateInvalid=Локальный путь или сведения об установке небезопасны либо недоступны. Выберите обычную локальную папку и проверьте права доступа.
+english.InstallDowngrade=This folder contains a reliably identified newer JobTracker version. Choose a separate folder for the older version.
+russian.InstallDowngrade=В этой папке обнаружена более новая версия JobTracker. Для старой версии выберите отдельную папку.
+english.InstallPathConflict=Installation folders must not contain one another or overlap the personal-data directory.
+russian.InstallPathConflict=Папки установок не должны находиться одна внутри другой или пересекаться с папкой личных данных.
+english.InstallFolderNotEmpty=This nonempty folder cannot be identified as JobTracker. Choose an empty folder. Existing unknown files will not be adopted.
+russian.InstallFolderNotEmpty=Эта непустая папка не распознана как установка JobTracker. Выберите пустую папку. Неизвестные файлы не будут присвоены установщику.
+english.InstallBusy=Another JobTracker installer or uninstaller is active, or its installation mutex is inaccessible.
+russian.InstallBusy=Другой установщик или деинсталлятор JobTracker уже работает либо его мьютекс недоступен.
+english.InstallSharedDataInfo=Copies in separate folders share this Windows user's existing personal data. Setup does not open, reset, restore or migrate that data. Windows may reject replacement of locked or inaccessible files.
+russian.InstallSharedDataInfo=Копии в разных папках используют общие личные данные пользователя Windows. Установщик не открывает, не сбрасывает, не восстанавливает и не переносит эти данные. Windows может отказать в замене занятых или недоступных файлов.
 
 [Code]
-const
-  InstallUninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\JobTracker.';
-  InstallProfileKey = 'Software\Microsoft\Windows NT\CurrentVersion\ProfileList';
 var
   InstallPolicyLock: THandle;
 
@@ -37,11 +26,6 @@ function PolicyCloseHandle(Handle: THandle): Boolean;
   external 'CloseHandle@kernel32.dll stdcall';
 function PolicyCreateMutex(Security: THandle; Owned: Boolean; const Name: String): THandle;
   external 'CreateMutexW@kernel32.dll stdcall';
-function PolicyRegOpen(Root: THandle; const Key: String; Options, Access: Cardinal;
-  var Handle: THandle): Longint;
-  external 'RegOpenKeyExW@advapi32.dll stdcall';
-function PolicyRegClose(Handle: THandle): Longint;
-  external 'RegCloseKey@advapi32.dll stdcall';
 
 procedure AcquireInstallPolicyLock;
 var
@@ -56,6 +40,40 @@ begin
     InstallPolicyLock := 0;
     RaiseException(CustomMessage('InstallBusy'));
   end;
+end;
+
+function PolicyVersionSize(const FileName: String; var Ignored: Cardinal): Cardinal;
+  external 'GetFileVersionInfoSizeW@version.dll stdcall';
+function PolicyVersionRead(const FileName: String; Ignored, Size: Cardinal; Buffer: String): Boolean;
+  external 'GetFileVersionInfoW@version.dll stdcall';
+function PolicyVersionQuery(Buffer: String; const Name: String; var Value: THandle;
+  var Size: Cardinal): Boolean;
+  external 'VerQueryValueW@version.dll stdcall';
+procedure PolicyCopyText(Destination: String; Source: THandle; Size: THandle);
+  external 'RtlMoveMemory@kernel32.dll stdcall';
+
+function LocalProductExecutable(const Path: String; var Version: Int64): Boolean;
+var
+  Size, Ignored, Count: Cardinal;
+  Buffer, Product, Original: String;
+  Value: THandle;
+begin
+  Result := False;
+  RequireSafePayloadPath(Path);
+  Size := PolicyVersionSize(Path, Ignored);
+  if (Size = 0) or (Size > 1048576) then Exit;
+  Buffer := StringOfChar(#0, (Size + 1) div 2);
+  if not PolicyVersionRead(Path, 0, Size, Buffer) then Exit;
+  if not PolicyVersionQuery(Buffer, '\StringFileInfo\040904B0\ProductName', Value, Count) or
+     (Count < 2) or (Count > 128) then Exit;
+  Product := StringOfChar(#0, Count - 1);
+  PolicyCopyText(Product, Value, (Count - 1) * 2);
+  if not PolicyVersionQuery(Buffer, '\StringFileInfo\040904B0\OriginalFilename', Value, Count) or
+     (Count < 2) or (Count > 128) then Exit;
+  Original := StringOfChar(#0, Count - 1);
+  PolicyCopyText(Original, Value, (Count - 1) * 2);
+  Result := (Product = 'JobTracker') and (Original = '{#JobTrackerExecutableName}') and
+    GetPackedVersion(Path, Version);
 end;
 
 procedure ReleaseInstallPolicyLock;
@@ -115,13 +133,15 @@ begin
     RaiseException(CustomMessage('InstallStateInvalid'));
   Path := RemoveBackslashUnlessRoot(Path);
   Start := 4;
-  for I := 4 to Length(Path) + 1 do begin
-    if (I > Length(Path)) or (Copy(Path, I, 1) = '\') then begin
-      Part := Copy(Path, Start, I - Start);
-      if (Part = '') or (Part = '.') or (Part = '..') or
-         (Trim(Part) <> Part) or (Copy(Part, Length(Part), 1) = '.') then
-        RaiseException(CustomMessage('InstallStateInvalid'));
-      Start := I + 1;
+  if Length(Path) > 3 then begin
+    for I := 4 to Length(Path) + 1 do begin
+      if (I > Length(Path)) or (Copy(Path, I, 1) = '\') then begin
+        Part := Copy(Path, Start, I - Start);
+        if (Part = '') or (Part = '.') or (Part = '..') or
+           (Trim(Part) <> Part) or (Copy(Part, Length(Part), 1) = '.') then
+          RaiseException(CustomMessage('InstallStateInvalid'));
+        Start := I + 1;
+      end;
     end;
   end;
   RequireSafePayloadPath(Path);
@@ -144,214 +164,172 @@ begin
     SetLength(Buffer, Count);
     if (Copy(Buffer, 1, 4) <> '\\?\') or (Copy(Buffer, 6, 2) <> ':\') then
       RaiseException(CustomMessage('InstallStateInvalid'));
-    Result := RemoveBackslashUnlessRoot(Copy(Buffer, 5, MaxInt)) + Suffix;
+    Result := RemoveBackslashUnlessRoot(Copy(Buffer, 5, MaxInt));
+    if Suffix <> '' then
+      Result := AddBackslash(Result) + Copy(Suffix, 2, MaxInt);
   finally
     PolicyCloseHandle(Handle);
   end;
 end;
 
-// Native open distinguishes an absent key from access denied. Treat unreadable
-// registry state as a conflict, not as proof that no installation exists.
-function InstallKeyExists(const Root: Integer; const Key: String): Boolean;
-var
-  NativeRoot: Integer;
-  Handle: THandle;
-  Access: Cardinal;
-  Status: Longint;
+function PathsOverlap(const First, Second: String): Boolean;
 begin
-  Access := $20019;
-  if (Root = HKLM64) or (Root = HKCU64) or (Root = HKU64) then
-    Access := Access or $100
-  else
-    Access := Access or $200;
-  if (Root = HKLM64) or (Root = HKLM32) then NativeRoot := HKLM
-  else if (Root = HKCU64) or (Root = HKCU32) then NativeRoot := HKCU
-  else NativeRoot := HKU;
-  // Native HKEY outputs are pointer-sized. Predefined roots require sign extension.
-  Status := PolicyRegOpen(THandle(Int64(NativeRoot)), Key, 0, Access, Handle);
-  if Status = 0 then PolicyRegClose(Handle)
-  else if (Status <> 2) and (Status <> 3) then
-    RaiseException(CustomMessage('InstallStateInvalid') + #13#10 + Key);
-  Result := Status = 0;
+  Result := (CompareText(First, Second) = 0) or
+    (Pos(Lowercase(AddBackslash(First)), Lowercase(AddBackslash(Second))) = 1) or
+    (Pos(Lowercase(AddBackslash(Second)), Lowercase(AddBackslash(First))) = 1);
 end;
 
-function ReadInstallRecord(const Root: Integer; const Key, Scope: String;
-  var Path: String; var Version: Int64): Boolean;
-var
-  Text, InnoPath, Marker, Exe: String;
-  FileVersion: Int64;
+function InstallMarker(const Path: String): String;
 begin
-  Result := InstallKeyExists(Root, Key);
-  if not Result then Exit;
-  if not RegQueryStringValue(Root, Key, 'DisplayVersion', Text) or
-     not ParseInstallVersion(Text, Version) or
-     not RegQueryStringValue(Root, Key, 'InstallLocation', Path) or
-     not RegQueryStringValue(Root, Key, 'Inno Setup: App Path', InnoPath) then
-    RaiseException(CustomMessage('InstallStateInvalid'));
-  Path := CanonicalInstallPath(Path);
-  if CompareText(Path, CanonicalInstallPath(InnoPath)) <> 0 then
-    RaiseException(CustomMessage('InstallStateInvalid'));
-  Marker := AddBackslash(Path) + 'JobTracker.install.ini';
-  Exe := AddBackslash(Path) + 'bin\{#JobTrackerExecutableName}';
+  Result := AddBackslash(Path) + 'JobTracker.install.ini';
+end;
+
+function HasLocalInstallIdentity(const Path: String): Boolean;
+var Marker: String; Version: Int64;
+begin
+  Marker := InstallMarker(Path);
   RequireSafePayloadPath(Marker);
-  RequireSafePayloadPath(Exe);
-  if (GetIniString('Installation', 'Scope', '', Marker) <> Scope) or
-     not GetPackedVersion(Exe, FileVersion) then
-    RaiseException(CustomMessage('InstallStateInvalid'));
-  if CompareInstallVersion(Version, FileVersion) <> 0 then
-    RaiseException(CustomMessage('InstallStateInvalid'));
-  // Offline installations always write Version; missing metadata is not repairable identity.
-  Text := GetIniString('Installation', 'Version', '', Marker);
-  if not ParseInstallVersion(Text, FileVersion) then
-    RaiseException(CustomMessage('InstallStateInvalid'));
-  if CompareInstallVersion(Version, FileVersion) <> 0 then
-    RaiseException(CustomMessage('InstallStateInvalid'));
+  Result := ((GetIniString('Installation', 'Product', '', Marker) = 'JobTracker') and
+    (GetIniString('Installation', 'Format', '', Marker) = '2')) or
+    LocalProductExecutable(AddBackslash(Path) + 'bin\{#JobTrackerExecutableName}', Version);
+  // An interrupted install can retain its versioned relative ownership ledger
+  // even when the final marker or executable has not yet been written.
+  if not Result then
+    Result := GetIniString('Identity', 'Product', '',
+      AddBackslash(Path) + 'JobTracker.ownership.ini') = 'JobTracker-2';
 end;
 
-procedure CheckInstallRecord(const Root: Integer; const Key, Scope, Destination: String;
-  const Incoming: Int64; const SameScope: Boolean; var Found: Boolean);
-var
-  Path: String;
-  Version: Int64;
+type
+  TPolicyFindInfo = record
+    Attributes: Cardinal;
+    CreationTime, AccessTime, WriteTime: TFileTime;
+    SizeHigh, SizeLow, Reserved0, Reserved1: Cardinal;
+    Name: array[0..259] of Char;
+    AlternateName: array[0..13] of Char;
+  end;
+function PolicyFindFirst(const Pattern: String; var Info: TPolicyFindInfo): THandle;
+  external 'FindFirstFileW@kernel32.dll stdcall';
+function PolicyFindNext(Handle: THandle; var Info: TPolicyFindInfo): Boolean;
+  external 'FindNextFileW@kernel32.dll stdcall';
+function PolicyFindClose(Handle: THandle): Boolean;
+  external 'FindClose@kernel32.dll stdcall';
+
+function PolicyFindName(const Info: TPolicyFindInfo): String;
+var I: Integer;
 begin
-  if not ReadInstallRecord(Root, Key, Scope, Path, Version) then Exit;
-  Found := True;
-  if SameScope then begin
-    if CompareInstallVersion(Incoming, Version) < 0 then
-      RaiseException(CustomMessage('InstallDowngrade'));
-    if CompareText(Destination, Path) <> 0 then
-      RaiseException(CustomMessage('InstallMove'));
-  end else begin
-    RaiseException(CustomMessage('InstallScopeConflict') + #13#10 + Path);
+  Result := '';
+  for I := 0 to 259 do begin
+    if Info.Name[I] = #0 then Exit;
+    Result := Result + Info.Name[I];
   end;
 end;
 
-function IsRegularInstallProfile(const Sid: String): Boolean;
+procedure RequirePolicyEnumerationEnd(const ErrorCode: Cardinal);
 begin
-  Result := (Pos('S-', Sid) = 1) and (Pos('_', Sid) = 0) and
-    (Sid <> 'S-1-5-18') and (Sid <> 'S-1-5-19') and (Sid <> 'S-1-5-20');
+  if ErrorCode <> 18 then
+    RaiseException(CustomMessage('InstallStateInvalid') + #13#10 +
+      'Directory enumeration: ' + IntToStr(ErrorCode) + ' ' + SysErrorMessage(ErrorCode));
 end;
 
-procedure CheckProfileInstall(const Sid, Destination: String; const Incoming: Int64);
-var
-  Found: Boolean;
+function HasLocalInstallBoundary(const Path: String): Boolean;
+var Find: TPolicyFindInfo; Search: THandle; ErrorCode: Cardinal;
 begin
-  if not IsRegularInstallProfile(Sid) then Exit;
-  if not InstallKeyExists(HKU64, Sid) then
-    RaiseException(CustomMessage('InstallProfileUnavailable') + #13#10 + Sid);
-  Found := False;
-  CheckInstallRecord(HKU64, Sid + '\' + InstallUninstallKey + 'CurrentUser_is1',
-    'CurrentUser', Destination, Incoming, False, Found);
-  CheckInstallRecord(HKU32, Sid + '\' + InstallUninstallKey + 'CurrentUser_is1',
-    'CurrentUser', Destination, Incoming, False, Found);
-end;
-
-procedure CheckAllUserProfiles(const Destination: String; const Incoming: Int64);
-var
-  Profiles, Loaded: TArrayOfString;
-  I: Integer;
-begin
-  if not RegGetSubkeyNames(HKLM64, InstallProfileKey, Profiles) or
-     not RegGetSubkeyNames(HKU64, '', Loaded) then
-    RaiseException(CustomMessage('InstallProfileUnavailable'));
-  for I := 0 to GetArrayLength(Profiles) - 1 do
-    CheckProfileInstall(Profiles[I], Destination, Incoming);
-  // Include loaded profiles not yet represented by ProfileList (e.g. temporary).
-  for I := 0 to GetArrayLength(Loaded) - 1 do
-    CheckProfileInstall(Loaded[I], Destination, Incoming);
+  Result := FileExists(InstallMarker(Path)) or
+    FileExists(AddBackslash(Path) + 'JobTracker.ownership.ini') or
+    FileExists(AddBackslash(Path) + 'bin\{#JobTrackerExecutableName}');
+  if Result or not DirExists(Path) then Exit;
+  Search := PolicyFindFirst(AddBackslash(Path) + 'unins*.dat', Find);
+  if Search <> THandle(-1) then begin
+    PolicyFindClose(Search);
+    Result := True;
+  end else begin
+    ErrorCode := DLLGetLastError;
+    if ErrorCode <> 2 then RequirePolicyEnumerationEnd(ErrorCode);
+  end;
 end;
 
 procedure RequireEmptyInstallDirectory(const Destination: String);
-var
-  Find: TFindRec;
+var Find: TPolicyFindInfo; Search: THandle; Name: String; More: Boolean; ErrorCode: Cardinal;
 begin
   if FileExists(Destination) then RaiseException(CustomMessage('InstallFolderNotEmpty'));
   if not DirExists(Destination) then Exit;
-  if not FindFirst(AddBackslash(Destination) + '*', Find) then
-    RaiseException(CustomMessage('InstallStateInvalid'));
+  Search := PolicyFindFirst(AddBackslash(Destination) + '*', Find);
+  if Search = THandle(-1) then begin
+    ErrorCode := DLLGetLastError;
+    if ErrorCode <> 2 then RequirePolicyEnumerationEnd(ErrorCode);
+    Exit;
+  end;
   try
     repeat
-      if (Find.Name <> '.') and (Find.Name <> '..') then
+      Name := PolicyFindName(Find);
+      if (Name <> '.') and (Name <> '..') then
         RaiseException(CustomMessage('InstallFolderNotEmpty'));
-    until not FindNext(Find);
+      More := PolicyFindNext(Search, Find);
+      if not More then RequirePolicyEnumerationEnd(DLLGetLastError);
+    until not More;
   finally
-    FindClose(Find);
+    PolicyFindClose(Search);
+  end;
+end;
+
+procedure CheckNestedInstallations(const Path: String; Depth: Integer; var Count: Integer);
+var Find: TPolicyFindInfo; Search: THandle; Child, Name: String;
+    More: Boolean; ErrorCode: Cardinal;
+begin
+  if not DirExists(Path) then Exit;
+  if Depth > 64 then RaiseException(CustomMessage('InstallStateInvalid'));
+  Search := PolicyFindFirst(AddBackslash(Path) + '*', Find);
+  if Search = THandle(-1) then begin
+    ErrorCode := DLLGetLastError;
+    if ErrorCode <> 2 then RequirePolicyEnumerationEnd(ErrorCode);
+    Exit;
+  end;
+  try
+    repeat
+      Name := PolicyFindName(Find);
+      if (Name <> '.') and (Name <> '..') and ((Find.Attributes and $10) <> 0) then begin
+        Child := AddBackslash(Path) + Name;
+        RequireSafePayloadPath(Child);
+        Count := Count + 1;
+        if Count > 20000 then RaiseException(CustomMessage('InstallStateInvalid'));
+        if HasLocalInstallBoundary(Child) then
+          RaiseException(CustomMessage('InstallPathConflict') + #13#10 + Child);
+        CheckNestedInstallations(Child, Depth + 1, Count);
+      end;
+      More := PolicyFindNext(Search, Find);
+      if not More then RequirePolicyEnumerationEnd(DLLGetLastError);
+    until not More;
+  finally
+    PolicyFindClose(Search);
   end;
 end;
 
 procedure CheckInstallationPolicy(const AllUsers: Boolean; const SelectedPath, Release: String);
 var
-  Destination, Parent, Scope: String;
-  Incoming: Int64;
-  Found, OtherFound: Boolean;
+  Destination, Parent, Marker: String;
+  Incoming, Existing: Int64;
+  Count: Integer;
 begin
   if not ParseInstallVersion(Release, Incoming) then
     RaiseException(CustomMessage('InstallStateInvalid'));
   Destination := CanonicalInstallPath(SelectedPath);
   if Length(Destination) <= 3 then RaiseException(CustomMessage('InstallFolderNotEmpty'));
-  Found := False;
-  OtherFound := False;
-  if AllUsers then begin
-    Scope := 'AllUsers';
-    CheckInstallRecord(HKLM64, InstallUninstallKey + Scope + '_is1', Scope, Destination, Incoming, True, Found);
-    CheckInstallRecord(HKLM32, InstallUninstallKey + Scope + '_is1', Scope, Destination, Incoming, True, Found);
-    CheckAllUserProfiles(Destination, Incoming);
-  end else begin
-    Scope := 'CurrentUser';
-    CheckInstallRecord(HKCU64, InstallUninstallKey + Scope + '_is1', Scope, Destination, Incoming, True, Found);
-    CheckInstallRecord(HKCU32, InstallUninstallKey + Scope + '_is1', Scope, Destination, Incoming, True, Found);
-    CheckInstallRecord(HKLM64, InstallUninstallKey + 'AllUsers_is1', 'AllUsers', Destination, Incoming, False, OtherFound);
-    CheckInstallRecord(HKLM32, InstallUninstallKey + 'AllUsers_is1', 'AllUsers', Destination, Incoming, False, OtherFound);
-  end;
-  if not Found then RequireEmptyInstallDirectory(Destination);
-  // Also reject nesting in an unregistered/older installation.
+  if not HasLocalInstallIdentity(Destination) then RequireEmptyInstallDirectory(Destination);
   Parent := ExtractFileDir(Destination);
   while Length(Parent) > 3 do begin
-    if FileExists(AddBackslash(Parent) + 'JobTracker.install.ini') or
-       FileExists(AddBackslash(Parent) + 'bin\{#JobTrackerExecutableName}') then
+    if HasLocalInstallBoundary(Parent) then
       RaiseException(CustomMessage('InstallPathConflict'));
     Parent := ExtractFileDir(Parent);
   end;
-  Log('Installation policy passed: ' + Scope + '; version ' + Release + '; ' + Destination);
-end;
-
-function PolicyShortcutName(const AllUsers, Russian: Boolean): String;
-begin
-  if Russian then begin
-    if AllUsers then Result := 'JobTracker (все пользователи)'
-    else Result := 'JobTracker (текущий пользователь)';
-  end else begin
-    if AllUsers then Result := 'JobTracker (all users)'
-    else Result := 'JobTracker (current user)';
-  end;
-end;
-
-// Only inspect/delete the two known localized leaf names in this mode's shell
-// folders, and only when their actual target is this installation's executable.
-procedure CheckInstallShortcuts(const AllUsers, Cleanup: Boolean; const Destination: String);
-var
-  I, J: Integer;
-  Folder, LinkPath, Target, ActiveName: String;
-  Shell, Link: Variant;
-begin
-  ActiveName := PolicyShortcutName(AllUsers, ActiveLanguage = 'russian');
-  for I := 0 to 1 do begin
-    if I = 0 then Folder := ExpandConstant('{autoprograms}\JobTracker')
-    else Folder := ExpandConstant('{autodesktop}');
-    for J := 0 to 1 do begin
-      LinkPath := AddBackslash(Folder) + PolicyShortcutName(AllUsers, J = 1) + '.lnk';
-      RequireSafePayloadPath(LinkPath);
-      if FileExists(LinkPath) then begin
-        Shell := CreateOleObject('WScript.Shell');
-        Link := Shell.CreateShortcut(LinkPath);
-        Target := Link.TargetPath;
-        if CompareText(CanonicalInstallPath(Target),
-          CanonicalInstallPath(AddBackslash(Destination) + 'bin\{#JobTrackerExecutableName}')) <> 0 then
-          RaiseException(CustomMessage('InstallShortcutConflict'));
-        if Cleanup and ((PolicyShortcutName(AllUsers, J = 1) <> ActiveName) or
-           ((I = 1) and not WizardIsTaskSelected('desktopicon'))) then
-          if not DeleteFile(LinkPath) then Log('Could not remove obsolete owned shortcut: ' + LinkPath);
-      end;
-    end;
-  end;
+  Count := 0;
+  CheckNestedInstallations(Destination, 0, Count);
+  Marker := InstallMarker(Destination);
+  if (GetIniString('Installation', 'Product', '', Marker) = 'JobTracker') and
+     ParseInstallVersion(GetIniString('Installation', 'Version', '', Marker), Existing) then
+    if CompareInstallVersion(Incoming, Existing) < 0 then
+      RaiseException(CustomMessage('InstallDowngrade'));
+  if LocalProductExecutable(AddBackslash(Destination) + 'bin\{#JobTrackerExecutableName}', Existing) then
+    if CompareInstallVersion(Incoming, Existing) < 0 then
+      RaiseException(CustomMessage('InstallDowngrade'));
+  Log('Local installation policy passed: ' + Destination + '; incoming version ' + Release);
 end;

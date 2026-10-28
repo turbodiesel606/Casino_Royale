@@ -86,6 +86,35 @@ Portable Linux wrapper invocations use `bash Installer/Linux/Stage.sh ...` and
 `bash Installer/Linux/Package.sh ...`. Preserve script LF line endings; executable
 bits are not required when invoking through Bash.
 
+## Windows installation and removal
+
+The offline Setup supports independent copies in separate user-selected local
+folders, on any suitable local drive with the required permissions. Copies may
+use different installation scopes. Each copy includes its own runtime files and
+local uninstaller; this installer creates no JobTracker entry in Windows
+Installed apps. Run `unins000.exe` inside the selected installation folder to
+remove that copy.
+
+Run Setup again with the same destination to repair or update it, including
+after files or its uninstaller were deleted. A reliably identified newer version
+blocks an older version only in that same folder. A separate folder may hold an
+older version. After manually deleting a whole program folder, install again
+normally. Repair a copied, moved, or renamed folder before using its uninstaller
+so that removal belongs to the new location. See the
+[Windows lifecycle guide](For-Agent/Docs/installer.md#scope-runtime-and-maintenance)
+for directory boundaries and per-copy shortcut ownership.
+
+All copies used by one Windows account share
+`%LOCALAPPDATA%\JobTracker\Data`; installation never restores or migrates this
+data. Uninstall keeps it by default, including silent uninstall. Interactive
+uninstall can delete only that account's `Data` directory after a default-No
+confirmation showing the exact profile and path. Confirmed cleanup starts even
+while copies run or remain installed and can affect those copies. Windows locks
+or permissions can cause incomplete program removal or data cleanup. Incomplete
+program removal reports failure and retains local uninstall bookkeeping for
+retry/repair; already deleted files are not rolled back. See
+[personal-data behavior](For-Agent/Docs/installer.md#personal-data).
+
 ## Guides
 
 - [Shared build workflow and action selection](For-Agent/Docs/build.md).

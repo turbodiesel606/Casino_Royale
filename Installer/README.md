@@ -1,5 +1,34 @@
 # JobTracker Installers
 
+## Windows installation model
+
+The single offline Windows Setup supports independent copies in separate
+user-selected folders on any suitable local drive. Installation scope chooses
+default paths and shortcut scope; another copy or scope does not block the
+selected destination. Each copy has its own runtime, local ownership metadata,
+shortcuts, and `unins000.exe`. No JobTracker uninstall registration is created,
+so remove a copy with its local uninstaller rather than Windows Installed apps.
+
+Same-folder reinstall repairs or updates the selected copy. A reliably known
+newer version rejects a same-folder downgrade; it does not prevent installing
+an older version elsewhere. Reinstall after manual deletion or repair a copied,
+moved, or partially deleted folder to establish correct local bookkeeping.
+Unknown files and other copies are preserved. Folders must not contain one
+another or overlap the shared personal-data directory.
+
+All copies run by one Windows account share
+`%LOCALAPPDATA%\JobTracker\Data`. Setup never changes this data. Uninstall keeps
+it by default and always keeps it silently. An interactive, explicit default-No
+confirmation can delete exactly the displayed user's `Data` folder, including
+when elevated, while copies run, or when program removal was incomplete.
+Cleanup starts after confirmation and reports actual Windows failures; it does
+not delete the parent `JobTracker` folder or originals stored outside `Data`.
+Program removal follows immediately. If owned-file removal is incomplete, it
+reports failure and retains the local uninstaller/bookkeeping for retry or
+repair; this does not change the separately reported data-cleanup result.
+See the [Windows lifecycle and data guide](../For-Agent/Docs/installer.md#scope-runtime-and-maintenance)
+for account identity, moved folders, shortcuts, and partial-removal details.
+
 ## One-command Release installers
 
 The native launchers configure, build `JobTrackerApp` with tests OFF, and call
