@@ -3,6 +3,7 @@
 #include "JobApplicationValidator.hpp"
 #include "JobRepository.hpp"
 #include "common/ExceptionUtils.hpp"
+#include "cvs/CvPersistenceObservation.hpp"
 #include "cvs/CvImportService.hpp"
 #include "cvs/CvManagedFileStore.hpp"
 #include "cvs/CvRepository.hpp"
@@ -23,11 +24,11 @@ namespace {
 
 struct JobSaveExecutor::PipelineContext final
 {
-	PipelineContext(const QString& dataDirectory, CvLockWrapper& cvMutationQueue)
+	PipelineContext(const QString& dataDirectory, CvLockWrapper& cvMutationQueue, LogFact operation)
 		//Resolve worker - local storage paths
-		: storagePaths_{ dataDirectory }
+		: storagePaths_{ dataDirectory, operation, 1 }
 		// Create a worker - thread SQLite connection.
-		, database_{ storagePaths_.databasePath() }
+		, database_{ storagePaths_.databasePath(), operation, 1 }
 		// Every repository wires with that same worker connection.
 		, cvRepository_{ database_.connection() }
 		, companyRepository_{ database_.connection() }
@@ -68,10 +69,15 @@ JobSaveExecutor::~JobSaveExecutor() = default;
 
 AddJobSaveOutcome JobSaveExecutor::process(AddJobRequest request)
 {
+	CvPersistenceObservation observation{LogFact::JobCreation, request.operationId_};
+	if (QThread::currentThread() != thread()) {
+		observation.invariant(LogFact::PersistWrongThread);
+	}
 	Q_ASSERT(QThread::currentThread() == thread());
 	// Reject a malformed request that lacks the required shared
 	// cancellation/correlation identity.
 	if (request.cancellation_ == nullptr) {
+        observation.invariant(LogFact::PersistMissingToken);
 		return saveOutcome(
 			request,
 			addFailure(QStringLiteral(
@@ -80,6 +86,7 @@ AddJobSaveOutcome JobSaveExecutor::process(AddJobRequest request)
 
 	// Fast cooperative-cancellation check before validation or lazy storage initialization.
 	if (request.cancellation_->isCancellationRequested()) {
+        observation.stopped(LogFact::PersistPrepare);
 		return saveOutcome(
 			request,
 			addFailure(QStringLiteral("Job creation was canceled.")));
@@ -89,7 +96,7 @@ AddJobSaveOutcome JobSaveExecutor::process(AddJobRequest request)
 	try {
 		/* Note: PipelineContext can only be created within this function(in this thread)
 	and remains in existence until the program ends. */
-		context = &ensureContext();
+		context = &ensureContext(LogFact::JobCreation);
 	}
 	catch (...) {
 		return saveOutcome(
@@ -108,7 +115,7 @@ AddJobSaveOutcome JobSaveExecutor::process(AddJobRequest request)
 			context->addJobService_.prepareValidated(
 				request.draft_,
 				request.selectedCvUrl_,
-				request.cancellation_),
+				request.cancellation_, request.operationId_),
 			request.cancellation_);
 
 	}
@@ -123,9 +130,13 @@ AddJobSaveOutcome JobSaveExecutor::process(AddJobRequest request)
 
 UpdateJobSaveOutcome JobSaveExecutor::process(UpdateJobRequest request)
 {
+	CvPersistenceObservation observation{LogFact::JobUpdate, request.operationId_};
+	if (QThread::currentThread() != thread()) {
+		observation.invariant(LogFact::PersistWrongThread);
+	}
 	Q_ASSERT(QThread::currentThread() == thread());
-
 	if (request.cancellation_ == nullptr) {
+        observation.invariant(LogFact::PersistMissingToken);
 		return updateOutcome(
 			request,
 			updateFailure(QStringLiteral(
@@ -133,6 +144,7 @@ UpdateJobSaveOutcome JobSaveExecutor::process(UpdateJobRequest request)
 	}
 
 	if (request.cancellation_->isCancellationRequested()) {
+        observation.stopped(LogFact::PersistPrepare);
 		return updateOutcome(
 			request,
 			updateFailure(QStringLiteral("The job update was canceled.")));
@@ -142,7 +154,7 @@ UpdateJobSaveOutcome JobSaveExecutor::process(UpdateJobRequest request)
 	try {
 		/* Note: PipelineContext can only be created within this function(in this thread)
 		and remains in existence until the program ends. */
-		context = &ensureContext();
+		context = &ensureContext(LogFact::JobUpdate);
 	}
 	catch (...) {
 		return updateOutcome(
@@ -163,7 +175,7 @@ UpdateJobSaveOutcome JobSaveExecutor::process(UpdateJobRequest request)
 				request.applicationId_,
 				request.draft_,
 				request.replacementCvUrl_,
-				request.cancellation_),
+				request.cancellation_, request.operationId_),
 			request.cancellation_);
 	}
 	catch (...) {
@@ -181,10 +193,10 @@ void JobSaveExecutor::destroyContext()
 	context_.reset();
 }
 
-JobSaveExecutor::PipelineContext& JobSaveExecutor::ensureContext()
+JobSaveExecutor::PipelineContext& JobSaveExecutor::ensureContext(LogFact operation)
 {
 	if (context_ == nullptr)
-		context_ = std::make_unique<PipelineContext>(dataDirectory_, cvLock_);
+		context_ = std::make_unique<PipelineContext>(dataDirectory_, cvLock_, operation);
 
 	return *context_;
 }

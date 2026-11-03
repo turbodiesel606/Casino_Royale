@@ -1,6 +1,8 @@
 #ifndef JOBTRACKER_SRC_MAINTENANCE_STORAGEMUTATIONGATE_HPP
 #define JOBTRACKER_SRC_MAINTENANCE_STORAGEMUTATIONGATE_HPP
 
+#include "logging/LogEvent.hpp"
+
 #include <QObject>
 #include <QString>
 
@@ -34,13 +36,21 @@ public:
 
 		explicit StorageMutationGate(QObject* parent = nullptr);
 
-	bool reserveImportOrUpdate(int count = 1);
+	bool reserveImportOrUpdate(int count = 1, LogFact action = LogFact::ImportOrUpdate);
 	void releaseImportOrUpdate(int count = 1);
-	bool beginRemoval();
+	bool beginRemoval(LogFact action = LogFact::RemovalWork);
 	void endRemoval();
+
+	static void recordCancellation(StorageMutationGate* gate, int active, int queued) noexcept;
+	qint64 shutdownActiveCancellationCount() const { return shutdownActiveCancellationCount_; }
+	qint64 shutdownQueuedCancellationCount() const { return shutdownQueuedCancellationCount_; }
 
 	Q_INVOKABLE bool checkImportOrUpdateAllowed();
 	Q_INVOKABLE bool checkRemovalAllowed();
+	Q_INVOKABLE bool checkCvImportAllowed();
+	Q_INVOKABLE bool checkJobDeletionAllowed();
+	Q_INVOKABLE bool checkActiveCvRemovalAllowed();
+	Q_INVOKABLE bool checkArchivedCvDeletionAllowed();
 	Q_INVOKABLE void dismissRetryNotice();
 	Q_INVOKABLE void beginShutdown();
 
@@ -93,7 +103,7 @@ private:
 	}
 
 	template<OperationCategory Category>
-	bool checkAllowed()
+	bool checkAllowed(LogFact action)
 	{
 		assertGuiThread();
 		const auto reason = blockingReason(Category);
@@ -102,6 +112,7 @@ private:
 
 		// Suppress new dialogs and retry notices during shutdown.
 		if (reason != BlockReason::Closing) {
+			recordBlockedAttempt(action, Category, reason);
 			/*
 			Remember which operation was blocked so the UI can explain
 			the conflict and later announce when that operation becomes available.
@@ -122,6 +133,7 @@ private:
 	}
 
 	void publishStateChange();
+	void recordBlockedAttempt(LogFact action, OperationCategory category, BlockReason reason) const noexcept;
 
 	template<OperationCategory Category>
 	void clearRetryNotice()
@@ -132,6 +144,9 @@ private:
 
 	int pendingImportsOrUpdates_ = 0;
 	bool removalActive_ = false;
+	LogFact activeRemovalAction_ = LogFact::RemovalWork;
+	qint64 shutdownActiveCancellationCount_ = 0;
+	qint64 shutdownQueuedCancellationCount_ = 0;
 	bool shuttingDown_ = false;
 	OperationCategory lastBlockedCategory_ = OperationCategory::ImportOrUpdate;
 	std::array<RetryNotice, 2> retryNotices_{};

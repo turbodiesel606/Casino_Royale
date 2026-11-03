@@ -10,7 +10,7 @@ DataRemovalWorker::DataRemovalWorker(QString dataDirectory, QObject* parent)
     : Base{
           QStringLiteral("DataRemovalWorkerThread"),
           std::move(dataDirectory),
-          parent}
+          LogFact::RemovalWorkerStorage, parent}
 {
     qRegisterMetaType<DeleteJobsOutcome>();
     qRegisterMetaType<RemoveActiveCvsOutcome>();

@@ -25,11 +25,12 @@
 
 
 // Creates and wires the application's core services, controllers, and QML engine.
-class AppBootstrap final
+class AppBootstrap final : public QObject
 {
+    Q_OBJECT
 public:
     explicit AppBootstrap(QCoreApplication& app);
-    ~AppBootstrap();
+    ~AppBootstrap() override;
 
     int run();
 
@@ -38,6 +39,11 @@ private:
     void connectEngineFailureHandler();
     void configureContextProperties();
     void loadMainQml();
+    void beginShutdown();
+
+private slots:
+    void recordCloseWait();
+    void recordInterruptAndExit();
 
 private:
 
@@ -62,6 +68,8 @@ private:
     ContactDirectoryController contactDirectoryController_; 
     // Destroy QML bindings before the controllers and gate they reference.
     QQmlApplicationEngine engine_;
+    bool shutdownReported_ = false;
+    bool normalExit_ = false;
 };
 
 #endif // JOBTRACKER_SRC_APP_APPBOOTSTRAP_HPP

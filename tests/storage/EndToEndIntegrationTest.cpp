@@ -8,23 +8,63 @@
 #include "cvs/CvFileAccessService.hpp"
 #include "maintenance/DataRemovalWorker.hpp"
 #include "maintenance/StorageMutationGate.hpp"
+#include "logging/ApplicationLog.hpp"
 
 #include "../support/AddJobTestFixture.hpp"
+#include "../support/LogCapture.hpp"
 
 #include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QEvent>
 #include <QSignalSpy>
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QTimer>
+#include <QThread>
 #include <QUrl>
 #include <QVariantMap>
 #include <QtTest/QtTest>
 
 #include <mutex>
+#include <optional>
 
 namespace {
+
+void addLoggingModes()
+{
+    QTest::addColumn<bool>("enableLogging");
+    QTest::addColumn<bool>("blockDirectory");
+    QTest::newRow("disabled") << false << false;
+    QTest::newRow("writable") << true << false;
+    QTest::newRow("unwritable") << true << true;
+}
+
+struct ScenarioLog
+{
+    testsupport::LogCapture capture_;
+    std::optional<ApplicationLogSession> session_;
+
+    bool start(bool enabled, bool blockDirectory)
+    {
+        if (!capture_.isValid())
+            return false;
+        if (blockDirectory) {
+            QFile obstruction{capture_.directory()};
+            if (!obstruction.open(QIODevice::WriteOnly | QIODevice::NewOnly))
+                return false;
+        }
+        if (enabled)
+            session_.emplace();
+        return true;
+    }
+
+    QByteArray finish()
+    {
+        session_.reset();
+        return capture_.contents();
+    }
+};
 
 QStringList persistedJobTitlesInInsertOrder(QSqlDatabase& database)
 {
@@ -69,7 +109,10 @@ private slots:
     void activeCancellationContinuesWithNextQueuedRequest();
     void cancelAllRemovesQueuedWorkAndCleansActiveRequest();
     void controllerShutdownLeavesNoPartialState();
+    void committedJobIsRecordedWhenGuiCallbackIsWithheld();
+    void mutationGateCoversBothQueuesAndCompletionPublication_data();
     void mutationGateCoversBothQueuesAndCompletionPublication();
+    void cancelledQueuesKeepAdmissionUntilActiveOutcomes_data();
     void cancelledQueuesKeepAdmissionUntilActiveOutcomes();
     void metadataUpdateWaitsForSharedCvLock();
 };
@@ -812,8 +855,46 @@ void EndToEndIntegrationTest::controllerShutdownLeavesNoPartialState()
         0);
 }
 
+void EndToEndIntegrationTest::committedJobIsRecordedWhenGuiCallbackIsWithheld()
+{
+    ScenarioLog log;
+    QVERIFY(log.start(true, false));
+    testsupport::AddJobWorkerTestFixture fixture;
+    JobApplicationsController jobs{{}, fixture.worker_};
+    QSignalSpy completed{&jobs, &JobApplicationsController::applicationSaveCompleted};
+    const auto privateTitle = QStringLiteral("Private job for withheld-callback test");
+    jobs.createApplication(testsupport::validJobFormValues(privateTitle),
+        QUrl::fromLocalFile(fixture.storage_.createFile()));
+
+    // Codex Comment: Poll the independent database connection without pumping Qt events on the facade thread.
+    QElapsedTimer deadline;
+    deadline.start();
+    while (!persistedJobTitlesInInsertOrder(fixture.database_.connection()).contains(privateTitle)
+        && deadline.elapsed() < 10000) {
+        QThread::msleep(2);
+    }
+    QCOMPARE(persistedJobTitlesInInsertOrder(fixture.database_.connection()), QStringList{privateTitle});
+    QVERIFY(fixture.worker_.shutdown());
+    QCoreApplication::sendPostedEvents(&fixture.worker_, QEvent::MetaCall);
+    QCOMPARE(completed.count(), 0);
+    QCOMPARE(jobs.applicationCount(), 0);
+    const auto records = log.finish();
+    QCOMPARE(records.count("Job creation committed."), 1);
+    QVERIFY(!records.contains("Discarded a result"));
+    QVERIFY(!records.contains(privateTitle.toUtf8()));
+}
+
+void EndToEndIntegrationTest::mutationGateCoversBothQueuesAndCompletionPublication_data()
+{
+    addLoggingModes();
+}
+
 void EndToEndIntegrationTest::mutationGateCoversBothQueuesAndCompletionPublication()
 {
+    QFETCH(bool, enableLogging);
+    QFETCH(bool, blockDirectory);
+    ScenarioLog log;
+    QVERIFY(log.start(enableLogging, blockDirectory));
     testsupport::AddJobWorkerTestFixture fixture;
     StorageMutationGate gate;
     DataRemovalWorker removal{fixture.storage_.paths().dataDirectory()};
@@ -840,7 +921,7 @@ void EndToEndIntegrationTest::mutationGateCoversBothQueuesAndCompletionPublicati
     connect(&jobs, &JobApplicationsController::applicationDeletionCompleted, &jobs, [&] {
         publicationProtected = !gate.reserveImportOrUpdate() && publicationProtected;
     });
-    const auto source = QUrl::fromLocalFile(fixture.storage_.createFile());
+    const auto source = QUrl::fromLocalFile(fixture.storage_.createFile(QStringLiteral("private-candidate.pdf")));
     std::unique_lock held{fixture.cvLock_.getMutex()};
     jobs.createApplication(testsupport::validJobFormValues(QStringLiteral("First")), source);
     jobs.createApplication(testsupport::validJobFormValues(QStringLiteral("Second")), source);
@@ -853,6 +934,10 @@ void EndToEndIntegrationTest::mutationGateCoversBothQueuesAndCompletionPublicati
     held.unlock();
     QTRY_COMPARE_WITH_TIMEOUT(saved.count(), 2, 10000);
     QTRY_COMPARE_WITH_TIMEOUT(imported.count(), 2, 10000);
+    QVERIFY(saved.at(0).at(2).toBool());
+    QVERIFY(saved.at(1).at(2).toBool());
+    QCOMPARE(imported.at(0).at(2).toBool(), false);
+    QCOMPARE(imported.at(1).at(2).toBool(), true);
     QCOMPARE(deleted.count(), 0);
     QVERIFY(publicationProtected);
     QVERIFY(gate.canBeginRemoval());
@@ -867,10 +952,37 @@ void EndToEndIntegrationTest::mutationGateCoversBothQueuesAndCompletionPublicati
     QVERIFY(gate.retryNoticeVisible());
     QVERIFY(fixture.jobRepository_.findAll().isEmpty());
     QCOMPARE(fixture.cvRepository_.findAll().size(), 1);
+    QCOMPARE(QDir{fixture.storage_.paths().resumesDirectory()}.entryList(QDir::Files).size(), 1);
+    QCOMPARE(jobs.applicationCount(), 0);
+    QCOMPARE(cvs.cvCount(), 1);
+    QCOMPARE(deleted.first().at(0).toInt(), 2);
+    QCOMPARE(deleted.first().at(1).toInt(), 0);
+
+    const auto records = log.finish();
+    if (enableLogging && !blockDirectory) {
+        QCOMPARE(records.count("Job creation committed."), 2);
+        QCOMPARE(records.count("Job deletion committed for 2 applications"), 1);
+        QCOMPARE(records.count("The accepted CV import found"), 1);
+        QVERIFY(!records.contains("private-candidate"));
+        QVERIFY(!records.contains("missing-cv.pdf"));
+        QVERIFY(!records.contains("Example Company"));
+        QVERIFY(!records.contains(fixture.storage_.rootPath().toUtf8()));
+    } else {
+        QVERIFY(records.isEmpty());
+    }
+}
+
+void EndToEndIntegrationTest::cancelledQueuesKeepAdmissionUntilActiveOutcomes_data()
+{
+    addLoggingModes();
 }
 
 void EndToEndIntegrationTest::cancelledQueuesKeepAdmissionUntilActiveOutcomes()
 {
+    QFETCH(bool, enableLogging);
+    QFETCH(bool, blockDirectory);
+    ScenarioLog log;
+    QVERIFY(log.start(enableLogging, blockDirectory));
     testsupport::AddJobWorkerTestFixture fixture;
     StorageMutationGate gate;
     DataRemovalWorker removal{fixture.storage_.paths().dataDirectory()};
@@ -879,6 +991,8 @@ void EndToEndIntegrationTest::cancelledQueuesKeepAdmissionUntilActiveOutcomes()
     JobApplicationsController jobs{{}, fixture.worker_, removal, gate};
     CvLibraryController cvs{jobs.jobApplicationListModel(), {}, fixture.cvRepository_,
         access, importer, removal, gate};
+    QSignalSpy saved{&jobs, &JobApplicationsController::applicationSaveCompleted};
+    QSignalSpy imported{&cvs, &CvLibraryController::cvImportCompleted};
     const auto source = QUrl::fromLocalFile(fixture.storage_.createFile());
     std::unique_lock held{fixture.cvLock_.getMutex()};
     jobs.createApplication(testsupport::validJobFormValues(), source);
@@ -898,6 +1012,20 @@ void EndToEndIntegrationTest::cancelledQueuesKeepAdmissionUntilActiveOutcomes()
     QVERIFY(fixture.jobRepository_.findAll().isEmpty());
     QVERIFY(fixture.cvRepository_.findAll().isEmpty());
     QVERIFY(stagedFileNames(fixture).isEmpty());
+    QCOMPARE(saved.count(), 0);
+    QCOMPARE(imported.count(), 0);
+    QCOMPARE(jobs.applicationCount(), 0);
+    QCOMPARE(cvs.cvCount(), 0);
+    QCOMPARE(QDir{fixture.storage_.paths().resumesDirectory()}.entryList(QDir::Files).size(), 0);
+    const auto records = log.finish();
+    if (enableLogging && !blockDirectory) {
+        QCOMPARE(records.count("Requested cancellation of 1 active operations and removed 1 queued requests."), 2);
+        QCOMPARE(records.count("because cancellation was requested"), 2);
+        QVERIFY(!records.contains("Job creation committed."));
+        QVERIFY(!records.contains("Standalone import committed"));
+    } else {
+        QVERIFY(records.isEmpty());
+    }
 }
 
 void EndToEndIntegrationTest::metadataUpdateWaitsForSharedCvLock()

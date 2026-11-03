@@ -1,7 +1,9 @@
 #include "AppBootstrap.hpp"
 
+#include "logging/ApplicationLog.hpp"
+
 #include <QObject>
-#include <QDebug>
+#include <QWindow>
 #include <QQmlContext>
 #include <QUrl>
 
@@ -13,28 +15,9 @@ namespace {
 	QVector<CvDocument> resolveCvDocuments(
 		CvRepository& repository,
 		CvManagedFileStore& managedFileStore)
-	{	
-
-		/*
-			EXCEPTION_HANDLING
-		*/
-
+	{
 		auto documents = repository.findAll();
-		const auto recovery = managedFileStore.reconcile(documents);
-		if (recovery.removedStagedFileCount_ > 0
-			|| recovery.removedDeletionFileCount_ > 0
-			|| recovery.restoredDeletionFileCount_ > 0
-			|| !recovery.quarantinedFileNames_.isEmpty()) {
-			qInfo() << "Managed CV recovery removed"
-				<< recovery.removedStagedFileCount_
-				<< "staged files, removed"
-				<< recovery.removedDeletionFileCount_
-				<< "deletion tombstones, restored"
-				<< recovery.restoredDeletionFileCount_
-				<< "deletion tombstones, and quarantined"
-				<< recovery.quarantinedFileNames_.size()
-				<< "orphaned files.";
-		}
+		managedFileStore.reconcile(documents);
 		return documents;
 	}
 
@@ -75,7 +58,7 @@ AppBootstrap::AppBootstrap(QCoreApplication& app)
 {
 	QObject::connect(
 		&app_, &QCoreApplication::aboutToQuit,
-		&storageMutationGate_, &StorageMutationGate::beginShutdown);
+		this, &AppBootstrap::beginShutdown);
 	// When a job is created or its CV is replaced, the controller publishes the
 	// committed CV relationship so the library can refresh its linked-job counts.
 	QObject::connect(
@@ -112,9 +95,11 @@ AppBootstrap::~AppBootstrap()
 	// Join persistence work while its gate and controllers still exist. Controller
 	// teardown can then release outstanding reservations without exposing a gap.
 	storageMutationGate_.beginShutdown();
-	jobSaveWorker_.shutdown();
-	cvImportWorker_.shutdown();
-	dataRemovalWorker_.shutdown();
+	const bool jobsClean = jobSaveWorker_.shutdown();
+	const bool importsClean = cvImportWorker_.shutdown();
+	const bool removalClean = dataRemovalWorker_.shutdown();
+	if (normalExit_ && jobsClean && importsClean && removalClean)
+		ApplicationLog::record({LogEventType::ControlledShutdownCompleted});
 }
 
 int AppBootstrap::run()
@@ -123,7 +108,33 @@ int AppBootstrap::run()
 	configureContextProperties();
 	loadMainQml();
 
-	return QCoreApplication::exec();
+	const int result = QCoreApplication::exec();
+	normalExit_ = result == EXIT_SUCCESS;
+	return result;
+}
+
+void AppBootstrap::beginShutdown()
+{
+	if (!shutdownReported_) {
+		const auto active = jobApplicationsController_.activeWorkCount() + cvLibraryController_.activeWorkCount();
+		const auto pending = jobApplicationsController_.pendingSaveCount() + cvLibraryController_.pendingImportCount()
+			+ jobApplicationsController_.pendingDeletionCount() + cvLibraryController_.pendingDeletionCount();
+		ApplicationLog::record({LogEventType::ControlledShutdownStarted, {LogValue::counts(active, pending - active)}});
+		shutdownReported_ = true;
+	}
+	storageMutationGate_.beginShutdown();
+}
+
+void AppBootstrap::recordCloseWait()
+{
+	ApplicationLog::record({LogEventType::CloseDeferredByUser});
+}
+
+void AppBootstrap::recordInterruptAndExit()
+{
+	ApplicationLog::record({LogEventType::InterruptAndExitSelected,
+		{storageMutationGate_.shutdownQueuedCancellationCount(), storageMutationGate_.shutdownActiveCancellationCount()}});
+	shutdownReported_ = true;
 }
 
 void AppBootstrap::connectEngineFailureHandler()
@@ -150,8 +161,17 @@ void AppBootstrap::loadMainQml()
 {	// Load the main QML entry point and fail startup if the root object was not created.
 	engine_.load(QUrl(QStringLiteral("qrc:/JobTracker/qml/Main.qml")));
 
-	if (engine_.rootObjects().isEmpty()) {
-		throw std::runtime_error("Failed to load "
-			"qrc:/JobTracker/qml/Main.qml");
+	const auto roots = engine_.rootObjects();
+	auto* const root = roots.isEmpty() ? nullptr : qobject_cast<QWindow*>(roots.constFirst());
+	if (!root) {
+		ApplicationLog::record({LogEventType::MainWindowCreationFailed,
+			{LogFact::InterfaceLoading, LogFact::RootWindowUnavailable}});
+		if (roots.isEmpty())
+			throw std::runtime_error("Failed to load "
+				"qrc:/JobTracker/qml/Main.qml");
+		return;
 	}
+	QObject::connect(root, SIGNAL(closeWaitSelected()), this, SLOT(recordCloseWait()));
+	QObject::connect(root, SIGNAL(interruptAndExitSelected()), this, SLOT(recordInterruptAndExit()));
+	ApplicationLog::record({LogEventType::ApplicationStarted});
 }

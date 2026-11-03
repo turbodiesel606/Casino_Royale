@@ -4,6 +4,7 @@
 #include "DataRemovalService.hpp"
 #include "DataRemovalTypes.hpp"
 #include "common/ExceptionUtils.hpp"
+#include "logging/ApplicationLog.hpp"
 
 #include <QObject>
 #include <QString>
@@ -36,6 +37,11 @@ public:
         Qt disables it when QT_NO_DEBUG is defined and QT_FORCE_ASSERTS is not defined.
         */
 
+        constexpr auto operation = removalLogOperation(Kind);
+        if (QThread::currentThread() != thread()) {
+            ApplicationLog::record({LogEventType::BackgroundWorkInvariantViolated,
+                {operation, LogFact::RemovalWrongThread, LogFact::RemovalExecution}, request.operationId_});
+        }
         Q_ASSERT(QThread::currentThread() == thread());
 
         // Preserve request id so the GUI can recognize which active batch this result belongs to
@@ -45,9 +51,9 @@ public:
         outcome.cancellation_ = request.cancellation_;
 
         try {
-            outcome.result_ = ensureService().process<Kind>(
+            outcome.result_ = ensureService(operation, request.items_.size()).process<Kind>(
                 request.items_,
-                request.cancellation_);
+                request.cancellation_, request.operationId_);
         } catch (...) {
             outcome = maintenance::detail::failedBatchOutcome(
                 request,
@@ -63,7 +69,7 @@ public:
 private:
     struct PipelineContext;
 
-    DataRemovalService& ensureService();
+    DataRemovalService& ensureService(LogFact operation, qint64 count);
 
     QString dataDirectory_;
     std::unique_ptr<PipelineContext> context_;

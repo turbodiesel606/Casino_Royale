@@ -26,6 +26,9 @@ ApplicationWindow {
     property bool allowUnsavedCloseOnce: false
     property var retainedCvSelection: []
 
+    signal closeWaitSelected()
+    signal interruptAndExitSelected()
+
     function performOpenJobForm() {
         window.previousPage = window.currentPage >= 0 ? window.currentPage : 0
         window.currentPage = -1
@@ -53,7 +56,7 @@ ApplicationWindow {
         } else if (action.kind === "openJobForm") {
             window.performOpenJobForm()
         } else if (action.kind === "openCvPicker") {
-            if (storageMutationGate.checkImportOrUpdateAllowed()) {
+            if (storageMutationGate.checkCvImportAllowed()) {
                 cvFileDialog.currentFiles = window.retainedCvSelection
                 cvFileDialog.open()
             }
@@ -160,6 +163,7 @@ ApplicationWindow {
     }
 
     function waitForPendingWork() {
+        closeWaitSelected()
         closeConfirmation.close()
         resumeNotifications()
     }
@@ -185,6 +189,7 @@ ApplicationWindow {
         cvLibraryController.cancelAllCvImports()
         jobApplicationsController.cancelApplicationDeletion()
         cvLibraryController.cancelCvMutation()
+        interruptAndExitSelected()
         finishCloseIfWorkDrained()
     }
 

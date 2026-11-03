@@ -109,7 +109,7 @@ Item {
                         + jobApplicationsController.checkedApplicationCount + ")"
                 enabled: jobApplicationsController.checkedApplicationCount > 0
                 onClicked: {
-                    if (storageMutationGate.checkRemovalAllowed())
+                    if (storageMutationGate.checkJobDeletionAllowed())
                         deleteConfirmation.open()
                 }
             }

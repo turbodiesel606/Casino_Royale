@@ -78,6 +78,7 @@ public:
     QString resultSummary() const;
     bool saving() const;
     int pendingSaveCount() const;
+    int activeWorkCount() const;
     bool updatingApplication() const;
     QStringList checkedApplicationIds() const;
     int checkedApplicationCount() const;

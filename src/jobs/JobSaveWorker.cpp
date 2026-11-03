@@ -15,7 +15,7 @@ JobSaveWorker::JobSaveWorker(
 		[dataDirectory = std::move(dataDirectory), &cvLock] {
 			return new JobSaveExecutor{dataDirectory, cvLock};
 		},
-		parent }
+		LogFact::JobWorkerStorage, parent }
 {
 	qRegisterMetaType<AddJobSaveOutcome>();
 	qRegisterMetaType<UpdateJobSaveOutcome>();

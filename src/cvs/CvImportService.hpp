@@ -10,6 +10,7 @@
 #include <memory>
 
 class CvRepository;
+struct CvPersistenceObservation;
 
 enum class CvImportDisposition
 {
@@ -41,13 +42,18 @@ public:
 
     CvManagedFilePreparationResult prepareDocument(
         const QUrl& sourceUrl,
-        const std::shared_ptr<CancellationState>& cancellation) const;
+        const std::shared_ptr<CancellationState>& cancellation,
+        LogFact operation = LogFact::CvImport, quint64 operationId = 0) const;
     // Caller holds the shared CV lease and transaction. SQL failures propagate;
     // after rollback, finalFilePath_ identifies any file requiring compensation.
     CvImportResult importPreparedDocument(
         const std::shared_ptr<CvManagedFilePreparation>& preparation,
         const std::shared_ptr<CancellationState>& cancellation) const;
-    bool removeCompletedFile(const QString& completedFilePath) const;
+    CvImportResult importPreparedDocument(
+        const std::shared_ptr<CvManagedFilePreparation>& preparation,
+        const std::shared_ptr<CancellationState>& cancellation,
+        CvPersistenceObservation& observation) const;
+    bool removeCompletedFile(const QString& completedFilePath, LogFact* cleanup = nullptr) const;
 
 private:
     const CvManagedFileStore& managedFileStore_;

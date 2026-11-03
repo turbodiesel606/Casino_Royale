@@ -1,6 +1,7 @@
 #ifndef JOBTRACKER_SRC_CVS_CVMANAGEDPATHRESOLVER_HPP
 #define JOBTRACKER_SRC_CVS_CVMANAGEDPATHRESOLVER_HPP
 
+#include "logging/LogEvent.hpp"
 #include <QString>
 
 struct CvDocument;
@@ -12,6 +13,7 @@ struct CvManagedPathResolution final
     QString message_;
     bool valid_ = false;
     bool exists_ = false;
+    LogFact failure_ = LogFact::None;
 };
 
 // Resolves persisted CV paths only when they name a top-level regular file in

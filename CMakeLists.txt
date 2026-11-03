@@ -23,6 +23,25 @@ endif()
 
 qt_standard_project_setup(REQUIRES ${JOBTRACKER_QT_VERSION})
 
+add_library(JobTrackerLogging STATIC
+    src/logging/ApplicationLog.cpp
+    src/logging/ApplicationLog.hpp
+    src/logging/CommonFacts.inc
+    src/logging/LogCatalog.inc
+    src/logging/LogEvent.cpp
+    src/logging/LogEvent.hpp
+    src/logging/LogFileWriter.cpp
+    src/logging/LogFileWriter.hpp
+    src/logging/LogInbox.cpp
+    src/logging/LogInbox.hpp
+    src/logging/PersistenceFacts.inc
+    src/logging/StorageFacts.inc
+    src/logging/WorkerFacts.inc
+)
+target_link_libraries(JobTrackerLogging PUBLIC Qt6::Core)
+target_include_directories(JobTrackerLogging PUBLIC src)
+target_compile_definitions(JobTrackerLogging PRIVATE JOBTRACKER_LOG_VERSION="${PROJECT_VERSION}")
+
 if(QT_KNOWN_POLICY_QTP0004)
     qt_policy(SET QTP0004 NEW)
 endif()
@@ -88,6 +107,8 @@ set(JOBTRACKER_JOB_SOURCES
 )
 
 set(JOBTRACKER_CV_PERSISTENCE_SOURCES
+    src/cvs/CvPersistenceObservation.cpp
+    src/cvs/CvPersistenceObservation.hpp
     src/cvs/CvImportService.cpp
     src/cvs/CvImportService.hpp
     src/cvs/CvImportExecutor.cpp
@@ -231,11 +252,7 @@ if(WIN32)
         "${JOBTRACKER_IDENTITY_DIR}/$<CONFIG>/JobTracker.rc")
 endif()
 
-qt_add_qml_module(JobTrackerApp
-    URI JobTracker
-    VERSION 1.0
-    RESOURCE_PREFIX /
-    QML_FILES
+set(JOBTRACKER_QML_FILES
         qml/Main.qml
         qml/components/NeonCard.qml
         qml/components/DangerButton.qml
@@ -266,8 +283,15 @@ qt_add_qml_module(JobTrackerApp
         qml/pages/SettingsPage.qml
 )
 
+qt_add_qml_module(JobTrackerApp
+    URI JobTracker
+    VERSION 1.0
+    RESOURCE_PREFIX /
+    QML_FILES ${JOBTRACKER_QML_FILES}
+)
+
 target_link_libraries(JobTrackerApp
-    PRIVATE Qt6::Quick Qt6::Sql
+    PRIVATE JobTrackerLogging Qt6::Quick Qt6::Sql
 )
 
 target_compile_definitions(JobTrackerApp PRIVATE
@@ -370,6 +394,7 @@ if(JOBTRACKER_BUILD_TESTS)
     endfunction()
 
     function(jobtracker_register_test target_name)
+        target_link_libraries(${target_name} PRIVATE JobTrackerLogging)
         set(test_log "${CMAKE_CURRENT_BINARY_DIR}/test-logs/$<CONFIG>/${target_name}.txt")
         if(CMAKE_CONFIGURATION_TYPES)
             foreach(config IN LISTS CMAKE_CONFIGURATION_TYPES)
@@ -447,6 +472,16 @@ if(JOBTRACKER_BUILD_TESTS)
         src/common/BulkIdSelectionTracker.hpp
         src/common/StableIdSelectionTracker.cpp
         src/common/StableIdSelectionTracker.hpp
+    )
+
+    jobtracker_add_backend_test(
+        JobTrackerLogCatalogTests
+        tests/logging/LogCatalogTest.cpp
+    )
+
+    jobtracker_add_backend_test(
+        JobTrackerLogWriterTests
+        tests/logging/LogWriterTest.cpp
     )
 
     jobtracker_add_backend_test(
@@ -606,10 +641,21 @@ if(JOBTRACKER_BUILD_TESTS)
     jobtracker_add_backend_test(
         JobTrackerMutationFeedbackTests
         tests/maintenance/StorageMutationFeedbackTest.cpp
-        src/maintenance/StorageMutationGate.cpp
-        src/maintenance/StorageMutationGate.hpp
+        src/app/AppBootstrap.cpp
+        src/app/AppBootstrap.hpp
+        ${JOBTRACKER_COMMON_SOURCES}
+        ${JOBTRACKER_CV_SOURCES}
+        ${JOBTRACKER_DASHBOARD_SOURCES}
+        ${JOBTRACKER_DIRECTORY_SOURCES}
+        ${JOBTRACKER_JOB_SOURCES}
+        ${JOBTRACKER_MAINTENANCE_SOURCES}
+        ${JOBTRACKER_PERSISTENCE_SOURCES}
     )
     target_link_libraries(JobTrackerMutationFeedbackTests PRIVATE Qt6::Quick)
+    qt_add_resources(JobTrackerMutationFeedbackTests startup_qml
+        PREFIX "/JobTracker"
+        FILES ${JOBTRACKER_QML_FILES}
+    )
     set_tests_properties(JobTrackerMutationFeedbackTests PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
         TIMEOUT 30

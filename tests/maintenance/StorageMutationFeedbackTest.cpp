@@ -1,4 +1,14 @@
 #include "maintenance/StorageMutationGate.hpp"
+#include "../support/AddJobTestFixture.hpp"
+#include "../support/LogCapture.hpp"
+#include "app/AppBootstrap.hpp"
+#include "logging/ApplicationLog.hpp"
+#include "cvs/CvFileAccessService.hpp"
+#include "cvs/CvLibraryController.hpp"
+#include "dashboard/DashboardController.hpp"
+#include "directory/CompanyDirectoryController.hpp"
+#include "directory/ContactDirectoryController.hpp"
+#include "jobs/JobApplicationsController.hpp"
 
 #include <QDir>
 #include <QFileInfo>
@@ -6,10 +16,16 @@
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QQmlEngine>
+#include <QQuickItem>
+#include <QQuickWindow>
 #include <QSignalSpy>
+#include <QScopeGuard>
+#include <QTimer>
 #include <QtTest/QtTest>
 
 #include <memory>
+#include <mutex>
+#include <optional>
 
 class StorageMutationFeedbackTest final : public QObject
 {
@@ -17,6 +33,9 @@ class StorageMutationFeedbackTest final : public QObject
 
 private slots:
     void repeatedAttemptsReopenDialogAndBannerStaysCurrent();
+    void pendingWorkDialogReportsOnlyExplicitCloseChoices();
+    void bootstrapOpensAndExits_data();
+    void bootstrapOpensAndExits();
 };
 
 void StorageMutationFeedbackTest::repeatedAttemptsReopenDialogAndBannerStaysCurrent()
@@ -87,6 +106,155 @@ void StorageMutationFeedbackTest::repeatedAttemptsReopenDialogAndBannerStaysCurr
     gate.beginShutdown();
     QTRY_VERIFY(!dialog->property("visible").toBool());
     QVERIFY2(warnings.isEmpty(), qPrintable(warnings.join(QLatin1Char('\n'))));
+}
+
+void StorageMutationFeedbackTest::pendingWorkDialogReportsOnlyExplicitCloseChoices()
+{
+    testsupport::AddJobWorkerTestFixture fixture;
+    QVERIFY(fixture.isValid());
+    const auto& paths = fixture.storage_.paths();
+    StorageMutationGate gate;
+    DataRemovalWorker removal{paths.dataDirectory()};
+    CvImportWorker imports{paths.dataDirectory(), fixture.cvLock_};
+    CvFileAccessService access{paths};
+    JobApplicationsController jobs{{}, fixture.worker_, removal, gate};
+    CvLibraryController cvs{jobs.jobApplicationListModel(), {}, fixture.cvRepository_, access, imports, removal, gate};
+    DashboardController dashboard{jobs.jobApplicationListModel(), cvs.cvListModel()};
+    ContactListModel contactModel;
+    CompanyDirectoryController companies{jobs.jobApplicationListModel(), contactModel};
+    ContactDirectoryController contacts{contactModel};
+    QQmlEngine engine;
+    auto* context = engine.rootContext();
+    context->setContextProperty(QStringLiteral("jobApplicationsController"), &jobs);
+    context->setContextProperty(QStringLiteral("cvLibraryController"), &cvs);
+    context->setContextProperty(QStringLiteral("dashboardController"), &dashboard);
+    context->setContextProperty(QStringLiteral("companyDirectoryController"), &companies);
+    context->setContextProperty(QStringLiteral("contactDirectoryController"), &contacts);
+    context->setContextProperty(QStringLiteral("storageMutationGate"), &gate);
+
+    const auto mainPath = QFINDTESTDATA("../../qml/Main.qml");
+    QVERIFY(!mainPath.isEmpty());
+    QQmlComponent component{&engine, QUrl::fromLocalFile(mainPath)};
+    QTRY_VERIFY_WITH_TIMEOUT(component.status() != QQmlComponent::Loading, 5000);
+    QVERIFY2(component.isReady(), qPrintable(component.errorString()));
+    std::unique_ptr<QObject> root{component.create()};
+    auto* window = qobject_cast<QQuickWindow*>(root.get());
+    QVERIFY2(window != nullptr, qPrintable(component.errorString()));
+    QVERIFY(QTest::qWaitForWindowExposed(window));
+    QSignalSpy waits{window, SIGNAL(closeWaitSelected())};
+    QSignalSpy interrupts{window, SIGNAL(interruptAndExitSelected())};
+    QVERIFY(waits.isValid() && interrupts.isValid());
+    QObject* dialog = nullptr;
+    QQuickItem* waitButton = nullptr;
+    QQuickItem* interruptButton = nullptr;
+    for (auto* child : window->findChildren<QObject*>()) {
+        if (child->metaObject()->indexOfProperty("opened") >= 0
+            && child->property("title").toString() == QStringLiteral("Work in progress"))
+            dialog = child;
+        if (child->metaObject()->indexOfSignal("clicked()") < 0)
+            continue;
+        if (child->property("text").toString() == QStringLiteral("Wait"))
+            waitButton = qobject_cast<QQuickItem*>(child);
+        if (child->property("text").toString() == QStringLiteral("Interrupt and Exit"))
+            interruptButton = qobject_cast<QQuickItem*>(child);
+    }
+    QVERIFY(dialog && waitButton && interruptButton);
+    const auto click = [](QQuickItem* item) {
+        const auto center = item->mapToScene(item->boundingRect().center()).toPoint();
+        QTest::mouseClick(item->window(), Qt::LeftButton, Qt::NoModifier, center);
+    };
+    const auto source = QUrl::fromLocalFile(fixture.storage_.createFile());
+
+    // Codex Comment: Hold the production CV mutex to keep a real import pending across each close attempt.
+    std::unique_lock holdImport{fixture.cvLock_.getMutex()};
+    QVERIFY(cvs.addCvs({source}));
+    QVERIFY(!window->close());
+    QTRY_VERIFY(dialog->property("opened").toBool());
+    click(waitButton);
+    QTRY_COMPARE(waits.count(), 1);
+    QCOMPARE(interrupts.count(), 0);
+    QVERIFY(window->isVisible());
+    QVERIFY(!gate.shuttingDown());
+    QTRY_VERIFY(!dialog->property("visible").toBool());
+
+    QVERIFY(!window->close());
+    QTRY_VERIFY(dialog->property("opened").toBool());
+    holdImport.unlock();
+    QTRY_COMPARE(cvs.pendingImportCount(), 0);
+    QTRY_VERIFY(!dialog->property("visible").toBool());
+    QCOMPARE(waits.count(), 1);
+    QCOMPARE(interrupts.count(), 0);
+    QVERIFY(window->isVisible());
+
+    holdImport.lock();
+    QVERIFY(cvs.addCvs({source, source, source}));
+    QVERIFY(!window->close());
+    QTRY_VERIFY(dialog->property("opened").toBool());
+    click(interruptButton);
+    QTRY_COMPARE(interrupts.count(), 1);
+    QCOMPARE(waits.count(), 1);
+    QVERIFY(gate.shuttingDown());
+    QCOMPARE(gate.shutdownActiveCancellationCount(), 1);
+    QCOMPARE(gate.shutdownQueuedCancellationCount(), 2);
+    holdImport.unlock();
+    QTRY_COMPARE(cvs.pendingImportCount(), 0);
+    QTRY_VERIFY(!window->isVisible());
+}
+
+void StorageMutationFeedbackTest::bootstrapOpensAndExits_data()
+{
+    QTest::addColumn<bool>("startLogger");
+    QTest::addColumn<bool>("blockOutput");
+    QTest::newRow("disabled") << false << false;
+    QTest::newRow("writable") << true << false;
+    QTest::newRow("unwritable") << true << true;
+}
+
+void StorageMutationFeedbackTest::bootstrapOpensAndExits()
+{
+    QFETCH(bool, startLogger);
+    QFETCH(bool, blockOutput);
+    testsupport::LogCapture capture;
+    QVERIFY(capture.isValid());
+    const auto data = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    QCOMPARE(QDir{data}.dirName(), QCoreApplication::applicationName());
+    const auto businessData = QDir{data}.filePath(QStringLiteral("Data"));
+    QVERIFY(!QFileInfo::exists(businessData));
+    const auto cleanup = qScopeGuard([&] { QDir{businessData}.removeRecursively(); });
+    if (blockOutput) {
+        QFile obstruction{capture.directory()};
+        QVERIFY(obstruction.open(QIODevice::WriteOnly | QIODevice::NewOnly));
+    }
+    {
+        std::optional<ApplicationLogSession> session;
+        if (startLogger)
+            session.emplace();
+        AppBootstrap bootstrap{*qApp};
+        bool closedWindow = false;
+        QTimer::singleShot(0, &bootstrap, [&] {
+            for (auto* window : QGuiApplication::topLevelWindows()) {
+                if (window->title() == QStringLiteral("JobTracker") && window->isVisible()) {
+                    closedWindow = window->close();
+                    break;
+                }
+            }
+            if (!closedWindow)
+                QCoreApplication::exit(EXIT_FAILURE);
+        });
+        QTimer::singleShot(3000, &bootstrap, [] { QCoreApplication::exit(EXIT_FAILURE); });
+        QCOMPARE(bootstrap.run(), EXIT_SUCCESS);
+        QVERIFY(closedWindow);
+    }
+    QVERIFY(QFileInfo::exists(QDir{businessData}.filePath(QStringLiteral("database.sqlite"))));
+    const auto log = capture.contents();
+    if (startLogger && !blockOutput) {
+        const auto started = log.indexOf("Startup completed");
+        const auto closing = log.indexOf("Controlled shutdown began");
+        const auto completed = log.indexOf("Controlled shutdown and required background cleanup completed");
+        QVERIFY2(started >= 0 && closing > started && completed > closing, log.constData());
+    } else {
+        QVERIFY(log.isEmpty());
+    }
 }
 
 QTEST_MAIN(StorageMutationFeedbackTest)

@@ -30,6 +30,7 @@ from outside the production dependency chain.
 | Add Job, edit/save/discard, job validation, job-save queueing, or job model publication | [jobs.md](jobs.md) |
 | Add CV, CV identity/reuse/restore, import publication, or CV import cancellation | [cvs.md](cvs.md) |
 | SQLite schema, migrations, repositories, managed files, transactions, or recovery | [storage.md](storage.md) |
+| Operational events, diagnostic privacy, log files, retention, or shutdown draining | [logging.md](logging.md) |
 | Worker runtime, thread affinity, queued delivery, shared mutation serialization, cancellation, or shutdown | [threading.md](threading.md) |
 | Job deletion, CV archive/restore/permanent deletion, bulk removal, or linked-CV safety | [removal.md](removal.md) |
 | QML/backend contracts, Qt model roles and notifications, filtering/sorting projections, or selection tracking | [qml-contracts.md](qml-contracts.md) |

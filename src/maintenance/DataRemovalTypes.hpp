@@ -2,6 +2,7 @@
 #define JOBTRACKER_SRC_MAINTENANCE_DATAREMOVALTYPES_HPP
 
 #include "cvs/CvDocument.hpp"
+#include "logging/LogEvent.hpp"
 
 #include <QMetaType>
 #include <QString>
@@ -19,6 +20,17 @@ enum class DataRemovalKind
     RestoreArchivedCvs,
     DeleteArchivedCvs
 };
+
+constexpr LogFact removalLogOperation(DataRemovalKind kind) noexcept
+{
+    switch (kind) {
+    case DataRemovalKind::DeleteJobs: return LogFact::JobDeletion;
+    case DataRemovalKind::RemoveActiveCvs: return LogFact::ActiveCvRemoval;
+    case DataRemovalKind::RestoreArchivedCvs: return LogFact::CvRestore;
+    case DataRemovalKind::DeleteArchivedCvs: return LogFact::CvDeletion;
+    }
+    return LogFact::Unknown;
+}
 
 // Constrain the public protocol and typed service/executor entry points.
 template<DataRemovalKind Kind>

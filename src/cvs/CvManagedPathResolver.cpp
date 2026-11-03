@@ -30,6 +30,11 @@ bool isPathWithinDirectory(const QString& directoryPath, const QString& filePath
         && !relativePath.startsWith(QStringLiteral("../"));
 }
 
+CvManagedPathResolution invalidReference(LogFact category)
+{
+    return {{}, QStringLiteral("The CV has an invalid managed file path."), false, false, category};
+}
+
 }
 
 CvManagedPathResolver::CvManagedPathResolver(const StoragePaths& paths)
@@ -48,17 +53,17 @@ CvManagedPathResolution CvManagedPathResolver::resolve(
 
     if (relativePath.isEmpty()
         || document.storedFileName_.isEmpty()
-        || QFileInfo{ document.storedFileName_ }.fileName() != document.storedFileName_
-        || isAbsoluteOnSupportedPlatform(relativePath)
-        || containsTraversalSegment(relativePath))
-        return { {}, QStringLiteral("The CV has an invalid managed file path."), false, false };
+        || QFileInfo{ document.storedFileName_ }.fileName() != document.storedFileName_)
+        return invalidReference(LogFact::MismatchedReference);
+    if (isAbsoluteOnSupportedPlatform(relativePath) || containsTraversalSegment(relativePath))
+        return invalidReference(LogFact::OutsideStorage);
     
 
     const auto canonicalResumesDirectory =
         QFileInfo{ paths_.resumesDirectory() }.canonicalFilePath();
 
     if ( canonicalResumesDirectory.isEmpty())
-        return { {}, QStringLiteral("JobTracker's managed data directory is unavailable."), false, false };
+        return { {}, QStringLiteral("JobTracker's managed data directory is unavailable."), false, false, LogFact::StorageUnavailable };
     
 
     const auto canonicalDataDirectory =
@@ -75,26 +80,28 @@ CvManagedPathResolution CvManagedPathResolver::resolve(
         || resumeRelativePath == QStringLiteral("..")
         || resumeRelativePath.contains(QLatin1Char('\\'))
         || resumeRelativePath != document.storedFileName_)
-        return { {}, QStringLiteral("The CV has an invalid managed file path."), false, false };
+        return invalidReference(resumeRelativePath == QStringLiteral("..")
+            || resumeRelativePath.startsWith(QStringLiteral("../")) || QDir::isAbsolutePath(resumeRelativePath)
+            ? LogFact::OutsideStorage : LogFact::MismatchedReference);
     
 
     const QFileInfo candidateInfo{ candidatePath };
 
     // A dangling symlink must be rejected before exists() classifies it as missing.
     if (candidateInfo.isSymLink())
-        return { {}, QStringLiteral("The CV has an invalid managed file path."), false, false };
+        return invalidReference(LogFact::SymlinkReference);
 
     if (!candidateInfo.exists())
         return { candidatePath, {}, true, false };
 
     if (!candidateInfo.isFile()) {
-        return { {}, QStringLiteral("The CV has an invalid managed file path."), false, false };
+        return invalidReference(LogFact::NonFileReference);
     }
 
     const auto canonicalFilePath = candidateInfo.canonicalFilePath();
     if (canonicalFilePath.isEmpty()
         || !isPathWithinDirectory(canonicalResumesDirectory, canonicalFilePath)) {
-        return { {}, QStringLiteral("The CV has an invalid managed file path."), false, false };
+        return invalidReference(LogFact::OutsideStorage);
     }
 
     return { canonicalFilePath, {}, true, true };

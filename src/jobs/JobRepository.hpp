@@ -2,6 +2,7 @@
 #define JOBTRACKER_SRC_JOBS_JOBREPOSITORY_HPP
 
 #include "JobApplication.hpp"
+#include "logging/LogEvent.hpp"
 
 #include <optional>
 #include <QVector>
@@ -18,8 +19,8 @@ public:
 
     QVector<JobApplication> findAll() const;
     std::optional<JobApplication> findById(const QString& applicationId) const;
-    void insert(const JobApplication& application) const;
-    bool update(const JobApplication& application) const;
+    void insert(const JobApplication& application, LogFact* stage = nullptr) const;
+    bool update(const JobApplication& application, LogFact* stage = nullptr) const;
     bool remove(const QString& applicationId) const;
 
 private:

@@ -7,6 +7,11 @@
 #include "cvs/CvLockWrapper.hpp"
 #include "directory/CompanyRepository.hpp"
 #include "storage/SqlTransaction.hpp"
+#include "storage/SqlQuery.hpp"
+#include "cvs/CvPersistenceObservation.hpp"
+#include "logging/ApplicationLog.hpp"
+
+#include <QScopeGuard>
 
 #include <QSqlDatabase>
 #include <QThread>
@@ -39,20 +44,20 @@ UpdateJobPreparationResult UpdateJobService::prepare(
 		applicationId,
 		draft,
 		replacementCvUrl,
-		cancellation);
+		cancellation, 0);
 }
 
 UpdateJobPreparationResult UpdateJobService::prepareValidated(
 	const QString& applicationId,
 	const NormalizedJobApplicationDraft& draft,
 	const QUrl& replacementCvUrl,
-	const std::shared_ptr<CancellationState>& cancellation) const
+	const std::shared_ptr<CancellationState>& cancellation, quint64 operationId) const
 {
 	return prepareImpl<DraftValidationMode::AlreadyValidated>(
 		applicationId,
 		draft,
 		replacementCvUrl,
-		cancellation);
+		cancellation, operationId);
 }
 
 UpdateJobResult UpdateJobService::complete(
@@ -65,38 +70,49 @@ UpdateJobResult UpdateJobService::complete(
 		result.message_ = preparation.message_;
 		return result;
 	}
+	CvPersistenceObservation observation{LogFact::JobUpdate, preparation.operationId_};
 	if (QThread::currentThread() != owningThread_) {
+        observation.invariant(LogFact::PersistWrongThread);
 		result.message_ = QStringLiteral("Job update persistence must run on its owning thread.");
 		return result;
 	}
 	if (cancellation != nullptr && cancellation->isCancellationRequested()) {
+        observation.stopped(LogFact::PersistPrepare);
 		result.message_ = QStringLiteral("The job update was canceled.");
 		return result;
 	}
 
 	std::unique_lock<std::mutex> cvLock{ cvLock_.getMutex() };
+    const auto report = qScopeGuard([&] {
+        if (observation.reportFailure_) observation.recordFailure();
+    });
 	try {
 		if (preparation.replacementCvRequested_) {
 			if (cancellation != nullptr && cancellation->isCancellationRequested()) {
+                observation.stopped(LogFact::PersistAfterLock);
 				result.message_ = QStringLiteral("The job update was canceled.");
 				return result;
 			}
 		}
 
-		SqlTransaction transaction{ database_, QStringLiteral("Update Job persistence") };
+		observation.stage_ = LogFact::PersistBegin;
+		SqlTransaction transaction{ database_, QStringLiteral("Update Job persistence"),
+            observation.operation_, &observation.rollback_, observation.operationId_ };
 
 		std::optional<CvImportResult> cvImport;
 		const CvDocument* replacementCv = nullptr;
 		if (preparation.replacementCvRequested_) {
 			cvImport = cvImportService_.importPreparedDocument(
 				preparation.cvPreparation_,
-				cancellation);
+				cancellation, observation);
 			if (!cvImport->success_) {
+            observation.reportFailure_ = true;
 				result.message_ = cvImport->message_;
 				return result;
 			}
 			replacementCv = &cvImport->document_;
 		}
+		observation.stage_ = LogFact::PersistCompany;
 		const auto company = companyRepository_.findOrCreateByName(
 			preparation.draft_.companyName_);
 
@@ -105,7 +121,10 @@ UpdateJobResult UpdateJobService::complete(
 			preparation.draft_,
 			company,
 			replacementCv);
-		if (!jobRepository_.update(application)) {
+		observation.stage_ = LogFact::PersistUpdateJob;
+		if (!jobRepository_.update(application, &observation.stage_)) {
+            observation.stage_ = LogFact::PersistLookupJob;
+            observation.cause_ = LogFact::Missing;
 			throw std::runtime_error("The job application no longer exists.");
 		}
 
@@ -117,15 +136,31 @@ UpdateJobResult UpdateJobService::complete(
 			result.replacementCvDocument_ = cvImport->document_;
 			result.cvImportDisposition_ = cvImport->disposition_;
 		}
-		transaction.commit();
-		result.success_ = true;
+        observation.stage_ = LogFact::PersistCommit;
+        const bool cancellationRequested = cancellationObservedBeforeCommit(cancellation);
+        transaction.commit();
+        result.success_ = true;
+        const bool replaced = preparation.replacementCvRequested_;
+        const bool changed = result.previousCvId_ != result.application_.cvId_;
+        const auto disposition = replaced ? cvDispositionFact(result.cvImportDisposition_) : LogFact::None;
+        if (cancellationRequested) {
+            ApplicationLog::record({LogEventType::OperationCommittedAfterCancellationRequest,
+                {observation.operation_, LogValue::jobUpdate(replaced, changed, disposition)}, observation.operationId_});
+        } else {
+            ApplicationLog::record({LogEventType::JobApplicationUpdated,
+                {replaced ? LogFact::Yes : LogFact::No, changed ? LogFact::Yes : LogFact::No, disposition},
+                observation.operationId_});
+        }
 	}
 	catch (...) {
+        if (observation.cause_ == LogFact::CauseUnavailable)
+            observation.cause_ = storage::sql::currentFailureCause();
+        observation.reportFailure_ = true;
 		result.message_ = common::exceptionMessage(
 			std::current_exception(), QStringLiteral("An unexpected job update error occurred."));
 		// Rollback precedes file compensation, and the lease outlives both.
 		if (preparation.cvPreparation_ != nullptr
-			&& !cvImportService_.removeCompletedFile(preparation.cvPreparation_->finalFilePath_)) {
+			&& !cvImportService_.removeCompletedFile(preparation.cvPreparation_->finalFilePath_, &observation.cleanup_)) {
 			result.message_.append(QStringLiteral(
 				" The managed CV file could not be cleaned up and will be quarantined on restart."));
 		}

@@ -56,6 +56,12 @@ for publication and must never complete or replace another active operation.
 Controller correlation and GUI publication still precede release of removal
 admission.
 
+The facade observes the return values of request and result posting. A failed
+post records the delivery stage and the persistence outcome known at that
+point. Shutdown reports whether executor-context cleanup and thread joins
+completed. Bootstrap uses those results before the independent log consumer
+drains its inbox. See [application logging](logging.md).
+
 ## Cross-Worker Mutation Coordination
 
 The application-owned `CvLockWrapper` contains one `std::mutex`, exposed by

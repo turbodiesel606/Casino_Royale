@@ -1,34 +1,85 @@
 #include "SqlQuery.hpp"
+#include "logging/ApplicationLog.hpp"
 
 #include <QSqlDatabase>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QString>
 
+#include <exception>
 #include <stdexcept>
 
 namespace {
 
-	[[noreturn]] void throwSqlError(const QString& operationContext, const QString& errorText)
+	[[noreturn]] void throwSqlError(const QString& operationContext, const QSqlError& error)
 	{
-		throw std::runtime_error(
+		throw storage::sql::Failure(
 			QStringLiteral("Failed to %1: %2")
-			.arg(operationContext, errorText)
-			.toStdString());
+			.arg(operationContext, error.text())
+			.toStdString(), storage::sql::failureCause(error));
 	}
 
 } // namespace
 
 namespace storage::sql {
 
+	Failure::Failure(const std::string& message, LogFact cause)
+		: std::runtime_error{message}, cause_{cause}
+	{
+	}
+
+	LogFact Failure::cause() const noexcept
+	{
+		return cause_;
+	}
+
+	LogFact failureCause(const QSqlError& error) noexcept
+	{
+		// Codex Comment: SQLite extended codes retain the primary result in their low byte.
+		switch (error.nativeErrorCode().toInt() & 0xff) {
+		case 3: return LogFact::PermissionDenied;
+		case 5:
+		case 6: return LogFact::DbBusy;
+		case 7: return LogFact::DbNoMemory;
+		case 8: return LogFact::DbReadOnly;
+		case 10: return LogFact::DbIo;
+		case 11:
+		case 26: return LogFact::DbCorrupt;
+		case 13: return LogFact::DbFull;
+		case 14: return LogFact::DbCannotOpen;
+		case 19: return LogFact::DbConstraint;
+		default: return LogFact::DatabaseError;
+		}
+	}
+
+    void recordDatasetReadError(const QSqlQuery& query, LogFact dataset) noexcept
+    {
+        const auto error = query.lastError();
+        if (error.isValid()) {
+            ApplicationLog::record({LogEventType::SavedDatasetLoadFailed, {dataset, failureCause(error)}});
+        }
+    }
+
+	LogFact currentFailureCause() noexcept
+	{
+		const auto error = std::current_exception();
+		if (error) {
+			try { std::rethrow_exception(error); }
+			catch (const Failure& failure) { return failure.cause(); }
+			catch (const std::bad_alloc&) { return LogFact::DbNoMemory; }
+			catch (...) {}
+		}
+		return LogFact::CauseUnavailable;
+	}
+
 	void throwDatabaseError(const QSqlDatabase& database, const QString& operationContext)
 	{
-		throwSqlError(operationContext, database.lastError().text());
+		throwSqlError(operationContext, database.lastError());
 	}
 
 	void throwQueryError(const QSqlQuery& query, const QString& operationContext)
 	{
-		throwSqlError(operationContext, query.lastError().text());
+		throwSqlError(operationContext, query.lastError());
 	}
 
 	void execute(

@@ -1,6 +1,8 @@
 #ifndef JOBTRACKER_SRC_CVS_CVLIBRARYCONTROLLER_HPP
 #define JOBTRACKER_SRC_CVS_CVLIBRARYCONTROLLER_HPP
 
+#include "logging/ApplicationLog.hpp"
+
 #include "CvLibraryController.hpp"
 
 #include "CvFileAccessService.hpp"
@@ -118,6 +120,7 @@ public:
 	QString resultSummary() const;
 	bool importing() const;
 	int pendingImportCount() const;
+	int activeWorkCount() const;
 	LibraryView libraryView() const;
 	QStringList checkedCvIds() const;
 	int checkedCvCount() const;
@@ -225,7 +228,7 @@ private:
 			return;
 		}
 
-		if (!mutationGate_->beginRemoval())
+		if (!mutationGate_->beginRemoval(removalLogOperation(Kind)))
 			return;
 
 		// get vector with id and originalFileName for selected CVs
@@ -233,6 +236,7 @@ private:
 
 		activeMutationOperationId_ = ++nextMutationOperationId_;
 		activeMutationCancellation_ = std::make_shared<CancellationState>();
+		ApplicationLog::record({LogEventType::RemovalOperationAccepted, {removalLogOperation(Kind), items.size()}});
 
 		/*
 		Publish pending state before dispatch so the UI and
@@ -257,6 +261,10 @@ private:
 			|| activeMutationCancellation_ == nullptr
 			|| outcome.operationId_ != activeMutationOperationId_
 			|| outcome.cancellation_ != activeMutationCancellation_) {
+			if (!shuttingDown_ && (!mutationGate_ || !mutationGate_->shuttingDown())) {
+				ApplicationLog::record({LogEventType::UnexpectedBackgroundResultDiscarded,
+					{removalLogOperation(Kind), activeMutationCancellation_ ? LogFact::CorrelationMismatch : LogFact::NoActiveOperation}});
+			}
 			return;
 		}
 

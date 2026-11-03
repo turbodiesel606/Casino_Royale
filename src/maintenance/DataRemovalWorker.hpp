@@ -9,10 +9,21 @@
 #include <QObject>
 #include <QString>
 
+#include <algorithm>
+
 template<DataRemovalKind Kind>
     requires SupportedDataRemovalKind<Kind>
 struct SingleActiveWorkerRequestTraits<DataRemovalRequest<Kind>>
 {
+    static constexpr auto operation = removalLogOperation(Kind);
+    static qsizetype itemCount(const DataRemovalRequest<Kind>& request) noexcept { return request.items_.size(); }
+    static bool hasCommittedChange(const DataRemovalBatchOutcome<Kind>& outcome) noexcept
+    {
+        return std::ranges::any_of(outcome.result_.items_, [](const auto& item) {
+            return item.status_ == DataRemovalItemStatus::Deleted || item.status_ == DataRemovalItemStatus::Archived
+                || item.status_ == DataRemovalItemStatus::Restored;
+        });
+    }
     static constexpr auto errorMessage =
         QLatin1StringView{"An unexpected deletion worker error occurred."};
     static constexpr auto shuttingDownMessage =

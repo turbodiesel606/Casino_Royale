@@ -49,12 +49,12 @@ QVector<LegacyJobCompany> legacyJobCompanies(QSqlDatabase& database)
         company.updatedAt_ = query.value(QStringLiteral("updated_at")).toString();
 
         if (company.normalizedName_.isEmpty()) {
-            throw std::runtime_error(
+            throw storage::sql::Failure(
                 QStringLiteral(
                     "Cannot migrate the JobTracker database to schema version 3: "
                     "job '%1' has a blank company name.")
                     .arg(company.jobId_)
-                    .toStdString());
+                    .toStdString(), LogFact::SchemaBlankCompany);
         }
         companies.append(std::move(company));
     }
@@ -118,9 +118,9 @@ void copyVersionTwoJobs(
             sourceQuery.value(QStringLiteral("company_name")).toString());
         const auto companyId = companyIds.value(normalizedName);
         if (companyId.isEmpty()) {
-            throw std::runtime_error(
+            throw storage::sql::Failure(
                 "Cannot migrate the JobTracker database to schema version 3: "
-                "a company identity could not be resolved.");
+                "a company identity could not be resolved.", LogFact::SchemaCompanyUnresolved);
         }
 
         insertQuery.bindValue(0, sourceQuery.value(QStringLiteral("id")));

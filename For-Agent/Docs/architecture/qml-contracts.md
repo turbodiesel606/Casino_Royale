@@ -85,6 +85,11 @@ silent. Availability checks used by the picker and deletion confirmations
 reserve nothing; commands always perform final backend admission. Form
 validation runs first.
 
+The main window emits `closeWaitSelected()` when the user chooses Wait and
+`interruptAndExitSelected()` after the interrupt action blocks admission and
+requests cancellation. Automatic dismissal when work drains emits neither
+signal. Bootstrap consumes these signals for [application logging](logging.md).
+
 `StorageMutationFeedback` renders one modal dialog and a persistent banner. The
 gate tracks which categories were attempted, announces availability after their
 blocking work finishes, and keeps an announced notice current when work resumes.

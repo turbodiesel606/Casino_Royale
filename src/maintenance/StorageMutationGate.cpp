@@ -1,4 +1,5 @@
 #include "StorageMutationGate.hpp"
+#include "logging/ApplicationLog.hpp"
 
 #include <QStringList>
 #include <QThread>
@@ -10,17 +11,19 @@ StorageMutationGate::StorageMutationGate(QObject* parent)
 {
 }
 
-bool StorageMutationGate::reserveImportOrUpdate(int count)
+bool StorageMutationGate::reserveImportOrUpdate(int count, LogFact action)
 {
 	assertGuiThread();
-	Q_ASSERT(count >= 0 && count <= std::numeric_limits<int>::max() - pendingImportsOrUpdates_);
 	if (count < 0 || count > std::numeric_limits<int>::max() - pendingImportsOrUpdates_) {
+		ApplicationLog::record({LogEventType::BackgroundWorkInvariantViolated,
+			{action, LogFact::InvalidPendingCount, LogFact::PendingAccounting}});
+		Q_ASSERT(count >= 0 && count <= std::numeric_limits<int>::max() - pendingImportsOrUpdates_);
 		return false;
 	}
 	if (count == 0) {
 		return true;
 	}
-	if (!checkImportOrUpdateAllowed()) {
+	if (!checkAllowed<OperationCategory::ImportOrUpdate>(action)) {
 		return false;
 	}
 	pendingImportsOrUpdates_ += count;
@@ -32,7 +35,11 @@ bool StorageMutationGate::reserveImportOrUpdate(int count)
 void StorageMutationGate::releaseImportOrUpdate(int count)
 {
 	assertGuiThread();
-	Q_ASSERT(count >= 0 && count <= pendingImportsOrUpdates_);
+	if (count < 0 || count > pendingImportsOrUpdates_) {
+		ApplicationLog::record({LogEventType::BackgroundWorkInvariantViolated,
+			{LogFact::ImportOrUpdate, LogFact::InvalidPendingCount, LogFact::PendingAccounting}});
+		Q_ASSERT(count >= 0 && count <= pendingImportsOrUpdates_);
+	}
 	if (count <= 0 || count > pendingImportsOrUpdates_) {
 		return;
 	}
@@ -40,13 +47,14 @@ void StorageMutationGate::releaseImportOrUpdate(int count)
 	publishStateChange();
 }
 
-bool StorageMutationGate::beginRemoval()
+bool StorageMutationGate::beginRemoval(LogFact action)
 {
 	assertGuiThread();
-	if (!checkRemovalAllowed())
+	if (!checkAllowed<OperationCategory::Removal>(action))
 		return false;
 
 	removalActive_ = true;
+	activeRemovalAction_ = action;
 
 	/*
 	clear the old retry notification for deletion, archiving, or restoration 
@@ -67,14 +75,58 @@ void StorageMutationGate::endRemoval()
 	publishStateChange();
 }
 
+void StorageMutationGate::recordCancellation(StorageMutationGate* gate, int active, int queued) noexcept
+{
+	if (active == 0 && queued == 0)
+		return;
+
+	if (gate && gate->shuttingDown_) {
+		// Codex Comment: The explicit interrupt choice reports these actual counts together after the last controller call.
+		gate->shutdownActiveCancellationCount_ += active;
+		gate->shutdownQueuedCancellationCount_ += queued;
+		return;
+	}
+	ApplicationLog::record({LogEventType::PendingWorkCancellationRequested, {active, queued}});
+}
+
 bool StorageMutationGate::checkImportOrUpdateAllowed()
 {
-	return checkAllowed<OperationCategory::ImportOrUpdate>();
+	return checkAllowed<OperationCategory::ImportOrUpdate>(LogFact::ImportOrUpdate);
 }
 
 bool StorageMutationGate::checkRemovalAllowed()
 {
-	return checkAllowed<OperationCategory::Removal>();
+	return checkAllowed<OperationCategory::Removal>(LogFact::RemovalWork);
+}
+
+bool StorageMutationGate::checkCvImportAllowed()
+{
+	return checkAllowed<OperationCategory::ImportOrUpdate>(LogFact::CvImport);
+}
+
+bool StorageMutationGate::checkJobDeletionAllowed()
+{
+	return checkAllowed<OperationCategory::Removal>(LogFact::JobDeletion);
+}
+
+bool StorageMutationGate::checkActiveCvRemovalAllowed()
+{
+	return checkAllowed<OperationCategory::Removal>(LogFact::ActiveCvRemoval);
+}
+
+bool StorageMutationGate::checkArchivedCvDeletionAllowed()
+{
+	return checkAllowed<OperationCategory::Removal>(LogFact::CvDeletion);
+}
+
+void StorageMutationGate::recordBlockedAttempt(LogFact action, OperationCategory category, BlockReason reason) const noexcept
+{
+	if (category == OperationCategory::ImportOrUpdate) {
+		ApplicationLog::record({LogEventType::MutationBlockedByRemoval, {action, activeRemovalAction_, LogFact::None}});
+	} else {
+		const auto blocker = reason == BlockReason::RemovalActive ? activeRemovalAction_ : LogFact::ImportOrUpdate;
+		ApplicationLog::record({LogEventType::RemovalBlockedByPendingWork, {action, blocker}});
+	}
 }
 
 bool StorageMutationGate::canBeginImportOrUpdate() const

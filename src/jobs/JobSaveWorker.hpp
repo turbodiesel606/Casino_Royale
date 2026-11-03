@@ -14,6 +14,8 @@
 
 struct JobSaveWorkerRequestMessages
 {
+	static constexpr qsizetype itemCount(const auto&) noexcept { return 1; }
+	static bool hasCommittedChange(const auto& outcome) noexcept { return outcome.result_.success_; }
 	static constexpr auto errorMessage =
 		QLatin1StringView{"An unexpected job-save worker error occurred."};
 
@@ -28,6 +30,7 @@ template<>
 struct SingleActiveWorkerRequestTraits<AddJobRequest>
 	: JobSaveWorkerRequestMessages
 {
+	static constexpr auto operation = LogFact::JobCreation;
 	static AddJobSaveOutcome unavailableOutcome(
 		const AddJobRequest& request,
 		QString message)
@@ -47,6 +50,7 @@ template<>
 struct SingleActiveWorkerRequestTraits<UpdateJobRequest>
 	: JobSaveWorkerRequestMessages
 {
+	static constexpr auto operation = LogFact::JobUpdate;
 	static UpdateJobSaveOutcome unavailableOutcome(
 		const UpdateJobRequest& request,
 		QString message)

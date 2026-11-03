@@ -10,9 +10,9 @@
 
 struct DataRemovalExecutor::PipelineContext final
 {
-    explicit PipelineContext(const QString& dataDirectory)
-        : storagePaths_{dataDirectory}
-        , database_{storagePaths_.databasePath()}
+    PipelineContext(const QString& dataDirectory, LogFact operation, qint64 count)
+        : storagePaths_{dataDirectory, operation, count}
+        , database_{storagePaths_.databasePath(), operation, count}
         , jobRepository_{database_.connection()}
         , cvRepository_{database_.connection()}
         , managedFileStore_{storagePaths_}
@@ -45,11 +45,11 @@ void DataRemovalExecutor::destroyContext()
     context_.reset();
 }
 
-DataRemovalService& DataRemovalExecutor::ensureService()
+DataRemovalService& DataRemovalExecutor::ensureService(LogFact operation, qint64 count)
 {
     Q_ASSERT(QThread::currentThread() == thread());
     if (context_ == nullptr)
-        context_ = std::make_unique<PipelineContext>(dataDirectory_);
+        context_ = std::make_unique<PipelineContext>(dataDirectory_, operation, count);
     
     return context_->service_;
 }

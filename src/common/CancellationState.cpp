@@ -13,3 +13,12 @@ bool CancellationState::isCancellationRequested() const
     const std::scoped_lock lock{mutex_};
     return cancellationRequested_;
 }
+
+bool cancellationObservedBeforeCommit(const std::shared_ptr<CancellationState>& cancellation) noexcept
+{
+    try {
+        return cancellation && cancellation->isCancellationRequested();
+    } catch (...) {
+        return false;
+    }
+}

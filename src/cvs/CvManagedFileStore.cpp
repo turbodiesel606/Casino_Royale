@@ -1,6 +1,7 @@
 #include "CvManagedFileStore.hpp"
 
 #include "storage/StoragePaths.hpp"
+#include "logging/ApplicationLog.hpp"
 
 #include <QCryptographicHash>
 #include <QDateTime>
@@ -21,6 +22,13 @@
 namespace {
 
 	constexpr qint64 copyBufferSize = 1024 * 1024;
+
+    LogFact fileCause(QFileDevice::FileError error) noexcept
+    {
+        if (error == QFileDevice::PermissionsError) return LogFact::PermissionDenied;
+        if (error == QFileDevice::ResourceError) return LogFact::PersistResources;
+        return LogFact::FileError;
+    }
 
 	bool isCancelled(const std::shared_ptr<CancellationState>& cancellation)
 	{
@@ -73,18 +81,33 @@ namespace {
 CvManagedFilePreparation::~CvManagedFilePreparation()
 {
 	// An unfinalized .part file is removed when preparation ownership ends.
-	if (!stagedFilePath_.isEmpty())
-		QFile::remove(stagedFilePath_);
+    if (!stagedFilePath_.isEmpty() && !QFile::remove(stagedFilePath_)) {
+        ApplicationLog::record({LogEventType::FailedOperationFileCleanupIncomplete,
+            {cleanupOperation_, LogFact::PersistPartialFile, LogFact::FileError}, cleanupOperationId_});
+    }
 }
 
 CvManagedFileRemovalPreparation::~CvManagedFileRemovalPreparation()
 {
+	restoreRetainedFile();
+}
+
+LogFact CvManagedFileRemovalPreparation::restoreRetainedFile() noexcept
+{
+	if (restorationChecked_)
+		return LogFact::NotAttempted;
+	restorationChecked_ = true;
 	if (!databaseCommitted_
 		&& !tombstoneFilePath_.isEmpty()
 		&& QFileInfo::exists(tombstoneFilePath_)
 		&& !QFileInfo::exists(originalFilePath_)) {
-		QFile::rename(tombstoneFilePath_, originalFilePath_);
+		if (QFile::rename(tombstoneFilePath_, originalFilePath_))
+			return LogFact::Succeeded;
+		ApplicationLog::record({LogEventType::RetainedCvFileRestoreFailed,
+			{LogFact::RemovalRenamingFailed}, operationId_});
+		return LogFact::Failed;
 	}
+	return LogFact::NotAttempted;
 }
 
 bool CvManagedFilePreparationResult::succeeded() const
@@ -117,7 +140,8 @@ CvManagedFilePreparationResult CvManagedFileStore::prepare(
 
 	// Only local files can enter managed storage.
 	if (!sourceUrl.isLocalFile())
-		return { {}, QStringLiteral("Select a local CV file.") };
+		return { {}, QStringLiteral("Select a local CV file."), false,
+            LogFact::PersistSourceInspection, LogFact::PersistNotLocal };
 
 	// convert into a native filesystem path
 	const QFileInfo sourceInfo{ sourceUrl.toLocalFile() };
@@ -128,21 +152,25 @@ CvManagedFilePreparationResult CvManagedFileStore::prepare(
 	const auto extension = sourceInfo.suffix().toLower();
 
 	// Source must exist, be a regular file, and be readable
-	if (!sourceInfo.exists() || !sourceInfo.isFile())
-		return { {}, QStringLiteral("The selected CV file is not readable.") };
+	const bool exists = sourceInfo.exists();
+	if (!exists || !sourceInfo.isFile())
+		return { {}, QStringLiteral("The selected CV file is not readable."), false,
+            LogFact::PersistSourceInspection, exists ? LogFact::PersistNotFile : LogFact::Missing };
 
 	// Allow only supported CV document formats.
 	/* Add the required file formats in the future. */
 	if (extension != QStringLiteral("pdf")
 		&& extension != QStringLiteral("doc")
 		&& extension != QStringLiteral("docx")) {
-		return { {}, QStringLiteral("The CV must be a PDF, DOC, or DOCX file.") };
+		return { {}, QStringLiteral("The CV must be a PDF, DOC, or DOCX file."), false,
+            LogFact::PersistSourceInspection, LogFact::PersistUnsupported };
 	}
 	// Open the user-selected CV for streaming reads.
 	QFile source{ sourceInfo.absoluteFilePath() };
 
 	if (!source.open(QIODevice::ReadOnly))
-		return { {}, QStringLiteral("The selected CV file could not be opened.") };
+		return { {}, QStringLiteral("The selected CV file could not be opened."), false,
+            LogFact::PersistSourceOpen, fileCause(source.error()) };
 
 	auto preparation = std::make_shared<CvManagedFilePreparation>();
 	preparation->originalFileName_ = sourceInfo.fileName();
@@ -159,7 +187,8 @@ CvManagedFilePreparationResult CvManagedFileStore::prepare(
 
 		// Prevent arithmetic overflow before extending buffer.
 		if (offset > std::numeric_limits<qsizetype>::max() - copyBufferSize)
-			return { {}, QStringLiteral("The selected CV file cannot fit in memory.") };
+			return { {}, QStringLiteral("The selected CV file cannot fit in memory."), false,
+            LogFact::PersistSourceBuffer, LogFact::PersistMemoryLimit };
 
 		bytes.resize(offset + copyBufferSize);
 
@@ -177,7 +206,8 @@ CvManagedFilePreparationResult CvManagedFileStore::prepare(
 		const auto bytesRead = source.read(bytes.data() + offset, copyBufferSize);
 
 		if (bytesRead < 0)
-			return { {}, QStringLiteral("The selected CV file could not be read.") };
+			return { {}, QStringLiteral("The selected CV file could not be read."), false,
+            LogFact::PersistSourceRead, fileCause(source.error()) };
 
 		bytes.resize(offset + bytesRead);
 
@@ -201,7 +231,7 @@ CvManagedFilePreparationResult CvManagedFileStore::prepare(
 CvManagedFileStageResult CvManagedFileStore::stageAndFinalize(
 	CvManagedFilePreparation& preparation,
 	// cancellation is stub, delete later
-	const std::shared_ptr<CancellationState>& cancellation) const
+	const std::shared_ptr<CancellationState>& cancellation, LogFact operation, quint64 operationId) const
 {
 	/*	Cancellation checks were turned off intentionally in this method!	*/
 
@@ -212,7 +242,8 @@ CvManagedFileStageResult CvManagedFileStore::stageAndFinalize(
 
 	// maybe this is unnecessary check...
 	if (!preparation.stagedFilePath_.isEmpty() || !preparation.finalFilePath_.isEmpty())
-		return { QStringLiteral("The prepared CV has already been staged.") };
+		return { QStringLiteral("The prepared CV has already been staged."), false,
+            LogFact::PersistCreateStage, LogFact::PersistAlreadyStaged };
 	
 	preparation.storedFileName_ = managedStoredName(QFileInfo{ preparation.originalFileName_ });
 	preparation.relativePath_ = QStringLiteral("Resumes/%1").arg(preparation.storedFileName_);
@@ -224,17 +255,22 @@ CvManagedFileStageResult CvManagedFileStore::stageAndFinalize(
 	QFile staged{ stagedPath };
 	// create and open file
 	if (!staged.open(QIODevice::WriteOnly | QIODevice::NewOnly)) 
-		return { QStringLiteral("The CV could not be staged in JobTracker storage.") };
+		return { QStringLiteral("The CV could not be staged in JobTracker storage."), false,
+            LogFact::PersistCreateStage, fileCause(staged.error()) };
 	
-	preparation.stagedFilePath_ = stagedPath;
+    preparation.stagedFilePath_ = stagedPath;
+    // Codex Comment: The shared preparation can outlive this transaction. Keep only values for its final cleanup.
+    preparation.cleanupOperation_ = operation;
+    preparation.cleanupOperationId_ = operationId;
 
 	// if we return early, delete unfinished .part file
 	const auto cleanup = qScopeGuard([&] {
 		staged.close();
-		if (!preparation.stagedFilePath_.isEmpty()
-			&& QFile::remove(preparation.stagedFilePath_)) {
-			preparation.stagedFilePath_.clear();
-		}
+		if (!preparation.stagedFilePath_.isEmpty()) {
+            const bool removed = QFile::remove(preparation.stagedFilePath_);
+            preparation.stagedCleanup_ = removed ? LogFact::Succeeded : LogFact::PersistCleanupRetry;
+            if (removed) preparation.stagedFilePath_.clear();
+        }
 		});
 
 
@@ -267,14 +303,16 @@ CvManagedFileStageResult CvManagedFileStore::stageAndFinalize(
 
 		const auto bytesWritten = staged.write(bytes.constData() + written, count);
 		if (bytesWritten <= 0) 
-			return { QStringLiteral("The CV could not be staged in JobTracker storage.") };
+			return { QStringLiteral("The CV could not be staged in JobTracker storage."), false,
+            LogFact::PersistWriteStage, fileCause(staged.error()) };
 		
 		written += bytesWritten;
 	}
 
 	// Ensure buffered data reaches filesystem.
 	if (!staged.flush()) 
-		return { QStringLiteral("The CV could not be staged in JobTracker storage.") };
+		return { QStringLiteral("The CV could not be staged in JobTracker storage."), false,
+            LogFact::PersistFlushStage, fileCause(staged.error()) };
 	
 	staged.close();
 
@@ -284,7 +322,8 @@ CvManagedFileStageResult CvManagedFileStore::stageAndFinalize(
 #endif // 0
 	
 	if (QFileInfo::exists(finalPath) || !QFile::rename(stagedPath, finalPath))
-		return { QStringLiteral("The staged CV could not be finalized in JobTracker storage.") };
+		return { QStringLiteral("The staged CV could not be finalized in JobTracker storage."), false,
+            LogFact::PersistRenameStage, LogFact::FileError };
 	
 
 	// Final rename is the cancellation boundary. The caller must now commit
@@ -293,11 +332,13 @@ CvManagedFileStageResult CvManagedFileStore::stageAndFinalize(
 	preparation.stagedFilePath_.clear();
 	return {};
 }
-bool CvManagedFileStore::removeCompletedFile(const QString& completedFilePath) const
+bool CvManagedFileStore::removeCompletedFile(const QString& completedFilePath, LogFact* cleanup) const
 {
-	return completedFilePath.isEmpty()
-		|| !QFileInfo::exists(completedFilePath)
-		|| QFile::remove(completedFilePath);
+	if (completedFilePath.isEmpty() || !QFileInfo::exists(completedFilePath))
+        return true;
+    const bool removed = QFile::remove(completedFilePath);
+    if (cleanup) *cleanup = removed ? LogFact::Succeeded : LogFact::Failed;
+    return removed;
 }
 
 CvManagedFileRemovalPreparationResult CvManagedFileStore::prepareRemoval(
@@ -308,6 +349,7 @@ CvManagedFileRemovalPreparationResult CvManagedFileStore::prepareRemoval(
 
 	if (!resolution.valid_) {
 		result.message_ = resolution.message_;
+		result.failure_ = resolution.failure_;
 		return result;
 	}
 
@@ -325,9 +367,11 @@ CvManagedFileRemovalPreparationResult CvManagedFileStore::prepareRemoval(
 	if (QFileInfo::exists(result.preparation_->tombstoneFilePath_)
 		|| !QFile::rename(
 			result.preparation_->originalFilePath_,
-			result.preparation_->tombstoneFilePath_))
+			result.preparation_->tombstoneFilePath_)) {
+		result.failure_ = LogFact::RemovalRenamingFailed;
 		result.message_ = QStringLiteral(
 			"The managed CV file could not be prepared for deletion. Renaming error");
+	}
 
 	return result;
 }
@@ -351,7 +395,18 @@ CvManagedFileRecoveryReport CvManagedFileStore::reconcile(
 	const QVector<CvDocument>& documents) const
 {	// Reconciles managed CV files with persisted CV records during application startup
 
-	CvManagedFileRecoveryReport report;
+    CvManagedFileRecoveryReport report;
+    auto stage = LogFact::PersistPrepare;
+    int quarantined = 0;
+    bool finished = false;
+    const auto reportFailure = qScopeGuard([&] {
+        if (!finished) {
+            ApplicationLog::record({LogEventType::ManagedCvRecoveryFailed,
+                {stage, LogFact::CauseUnavailable,
+                 LogValue::counts(report.restoredDeletionFileCount_,
+                    report.removedStagedFileCount_ + report.removedDeletionFileCount_, quarantined)}});
+        }
+    });
 	QSet<QString> referencedStoredNames;
 	for (const auto& document : documents) {
 		referencedStoredNames.insert(document.storedFileName_);
@@ -368,12 +423,14 @@ CvManagedFileRecoveryReport CvManagedFileStore::reconcile(
 		const auto originalPath = resumesDirectory.filePath(storedFileName);
 		if (referencedStoredNames.contains(storedFileName)
 			&& !QFileInfo::exists(originalPath)) {
+			stage = LogFact::PersistRestoreRetained;
 			if (!QFile::rename(fileInfo.absoluteFilePath(), originalPath)) {
 				throw std::runtime_error("A referenced managed CV deletion tombstone could not be restored.");
 			}
 			++report.restoredDeletionFileCount_;
 		}
 		else {
+			stage = LogFact::PersistRemoveRetained;
 			if (!QFile::remove(fileInfo.absoluteFilePath())) {
 				throw std::runtime_error("A managed CV deletion tombstone could not be removed.");
 			}
@@ -391,6 +448,7 @@ CvManagedFileRecoveryReport CvManagedFileStore::reconcile(
 	while (stagedFiles.hasNext()) {
 		const auto stagedPath = stagedFiles.next();
 
+		stage = LogFact::PersistRemoveStage;
 		if (!QFile::remove(stagedPath))
 			throw std::runtime_error("A stale staged CV file could not be removed during startup recovery.");
 
@@ -398,6 +456,7 @@ CvManagedFileRecoveryReport CvManagedFileStore::reconcile(
 	}
 	// Create quarantine directory
 	const auto quarantinePath = quarantineDirectory();
+	stage = LogFact::PersistCreateQuarantine;
 	if (!QDir().mkpath(quarantinePath))
 		throw std::runtime_error("The managed CV quarantine directory could not be created.");
 
@@ -416,12 +475,23 @@ CvManagedFileRecoveryReport CvManagedFileStore::reconcile(
 		const auto destination = uniqueQuarantinePath(quarantinePath, fileInfo.fileName());
 
 		// move from Resumes/ to Quarantine/
+		stage = LogFact::PersistMoveQuarantine;
 		if (!QFile::rename(fileInfo.absoluteFilePath(), destination))
 			throw std::runtime_error("An orphaned managed CV file could not be moved to quarantine.");
 
+		++quarantined;
 		report.quarantinedFileNames_.append(QFileInfo{ destination }.fileName());
 	}
-	return report;
+    finished = true;
+    const int removed = report.removedStagedFileCount_ + report.removedDeletionFileCount_;
+    if (quarantined > 0) {
+        ApplicationLog::record({LogEventType::UnreferencedCvFilesQuarantined,
+            {quarantined, report.restoredDeletionFileCount_, removed}});
+    } else if (removed || report.restoredDeletionFileCount_) {
+        ApplicationLog::record({LogEventType::ManagedCvFilesRecovered,
+            {report.restoredDeletionFileCount_, removed}});
+    }
+    return report;
 }
 
 QString CvManagedFileStore::quarantineDirectory() const

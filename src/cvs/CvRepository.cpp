@@ -2,6 +2,7 @@
 #include "CvRepository.hpp"
 
 #include "storage/SqlQuery.hpp"
+#include "logging/ApplicationLog.hpp"
 
 #include <QHash>
 #include <QSqlDatabase>
@@ -105,8 +106,25 @@ QVector<CvDocument> CvRepository::findAll() const
 	query.prepare(FIXED_QSTRING(
 		joinedCvSelect
 		+ "ORDER BY cvs.created_at DESC, jobs.created_at ASC"));
-	storage::sql::execute(query, QStringLiteral("load CVs and linked job applications"));
-	return readJoinedDocuments(query);
+    try {
+        storage::sql::execute(query, QStringLiteral("load CVs and linked job applications"));
+    } catch (...) {
+        ApplicationLog::record({LogEventType::SavedDatasetLoadFailed,
+            {LogFact::PersistCvsAndLinks, storage::sql::currentFailureCause()}});
+        throw;
+    }
+    auto documents = readJoinedDocuments(query);
+    storage::sql::recordDatasetReadError(query, LogFact::PersistCvsAndLinks);
+    qsizetype badArchive = 0, badDate = 0;
+    for (const auto& document : std::as_const(documents)) {
+        badArchive += document.isArchived_ && !document.archivedAt_.isValid();
+        badDate += !document.createdAt_.isValid() || !document.updatedAt_.isValid();
+    }
+    if (badArchive || badDate) {
+        ApplicationLog::record({LogEventType::SavedFieldFallbacksApplied,
+            {LogValue::counts(0, 0, badDate, badArchive)}});
+    }
+    return documents;
 }
 
 std::optional<CvDocument> CvRepository::findById(

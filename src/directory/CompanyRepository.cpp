@@ -1,9 +1,11 @@
 #include "CompanyRepository.hpp"
 
+#include "logging/ApplicationLog.hpp"
 #include "storage/SqlQuery.hpp"
 
 #include <QDateTime>
 #include <QSqlDatabase>
+#include <QSqlError>
 #include <QSqlQuery>
 #include <QUuid>
 
@@ -46,13 +48,23 @@ QVector<Company> CompanyRepository::findAll() const
     if (!query.exec(
             companySelectProjection
             + QStringLiteral("FROM companies ORDER BY normalized_name"))) {
+        ApplicationLog::record({LogEventType::SavedDatasetLoadFailed,
+            {LogFact::Companies, storage::sql::failureCause(query.lastError())}});
         storage::sql::throwQueryError(query, QStringLiteral("load companies"));
     }
 
     QVector<Company> companies;
+    int invalidRequiredTime = 0;
     while (query.next()) {
         companies.append(companyFromQuery(query));
+        const auto& company = companies.constLast();
+        if (!company.createdAt_.isValid() || !company.updatedAt_.isValid())
+            ++invalidRequiredTime;
     }
+    storage::sql::recordDatasetReadError(query, LogFact::Companies);
+    if (invalidRequiredTime)
+        ApplicationLog::record({LogEventType::SavedFieldFallbacksApplied,
+            {LogValue::counts(0, 0, invalidRequiredTime, 0)}});
     return companies;
 }
 

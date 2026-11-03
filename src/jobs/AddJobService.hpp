@@ -33,6 +33,7 @@ struct AddJobResult
 
 struct AddJobPreparationResult final
 {
+    quint64 operationId_ = 0;
     bool success_ = false;
     bool cancelled_ = false;
     QVariantMap fieldErrors_;
@@ -64,7 +65,7 @@ public:
     AddJobPreparationResult prepareValidated(
         const NormalizedJobApplicationDraft& draft,
         const QUrl& selectedCvUrl,
-        const std::shared_ptr<CancellationState>& cancellation) const;
+        const std::shared_ptr<CancellationState>& cancellation, quint64 operationId = 0) const;
     AddJobResult complete(
         AddJobPreparationResult preparation,
         const std::shared_ptr<CancellationState>& cancellation = {}) const;

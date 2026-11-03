@@ -1,6 +1,11 @@
 #include "CvImportExecutor.hpp"
 
 #include "CvImportService.hpp"
+#include "CvPersistenceObservation.hpp"
+#include "logging/ApplicationLog.hpp"
+#include "storage/SqlQuery.hpp"
+
+#include <QScopeGuard>
 #include "CvManagedFileStore.hpp"
 #include "cvs/CvLockWrapper.hpp"
 #include "CvRepository.hpp"
@@ -18,8 +23,8 @@
 struct CvImportExecutor::PipelineContext final
 {
 	explicit PipelineContext(const QString& dataDirectory)
-		: storagePaths_{ dataDirectory }
-		, database_{ storagePaths_.databasePath() }
+		: storagePaths_{ dataDirectory, LogFact::CvImport, 1 }
+		, database_{ storagePaths_.databasePath(), LogFact::CvImport, 1 }
 		, repository_{ database_.connection() }
 		, managedFileStore_{ storagePaths_ }
 		, importService_{ managedFileStore_, repository_ }
@@ -43,9 +48,13 @@ CvImportExecutor::~CvImportExecutor() = default;
 
 CvImportSaveOutcome CvImportExecutor::process(CvImportRequest request)
 {
+	CvPersistenceObservation observation{LogFact::CvImport, request.operationId_};
+	if (QThread::currentThread() != thread()) {
+		observation.invariant(LogFact::PersistWrongThread);
+	}
 	Q_ASSERT(QThread::currentThread() == thread());
-
 	if (request.cancellation_ == nullptr) {
+        observation.invariant(LogFact::PersistMissingToken);
 		return failureOutcome(
 			request,
 			QStringLiteral(
@@ -53,6 +62,7 @@ CvImportSaveOutcome CvImportExecutor::process(CvImportRequest request)
 	}
 
 	if (request.cancellation_->isCancellationRequested()) {
+        observation.stopped(LogFact::PersistPrepare);
 		return failureOutcome(
 			request,
 			QStringLiteral("CV import was canceled."));
@@ -72,7 +82,7 @@ CvImportSaveOutcome CvImportExecutor::process(CvImportRequest request)
 	try {
 		preparation = context->importService_.prepareDocument(
 			request.sourceUrl_,
-			request.cancellation_);
+			request.cancellation_, LogFact::CvImport, request.operationId_);
 	}
 	catch (...) {
 		return failureOutcome(
@@ -91,27 +101,36 @@ CvImportSaveOutcome CvImportExecutor::process(CvImportRequest request)
 	}
 
 	if (request.cancellation_->isCancellationRequested()) {
+        observation.stopped(LogFact::PersistPrepare);
 		preparation.preparation_.reset();
 		return failureOutcome(
 			request,
 			QStringLiteral("CV import was canceled."));
 	}
 
-	std::unique_lock<std::mutex> cvLock{ cvLock_.getMutex() };
+    std::unique_lock<std::mutex> cvLock{ cvLock_.getMutex() };
+    const auto report = qScopeGuard([&] {
+        if (observation.reportFailure_) observation.recordFailure();
+    });
 	try {
 		if (request.cancellation_ != nullptr && request.cancellation_->isCancellationRequested()) {
+            observation.stopped(LogFact::PersistAfterLock);
 			preparation.preparation_.reset();
 			return failureOutcome(request, QStringLiteral("CV import was canceled."));
 		}
 
+		observation.stage_ = LogFact::PersistBegin;
 		SqlTransaction transaction{
-			context->database_.connection(), QStringLiteral("CV import persistence") };
+			context->database_.connection(), QStringLiteral("CV import persistence"),
+            observation.operation_, &observation.rollback_, observation.operationId_ };
 		auto result = context->importService_.importPreparedDocument(
 			preparation.preparation_,
-			request.cancellation_);
+			request.cancellation_, observation);
 
-		if (!result.success_)
+		if (!result.success_) {
+            observation.reportFailure_ = true;
 			return failureOutcome(request, result.message_);
+        }
 		
 		CvImportSaveOutcome outcome;
 		outcome.operationId_ = request.operationId_;
@@ -121,13 +140,26 @@ CvImportSaveOutcome CvImportExecutor::process(CvImportRequest request)
 		outcome.success_ = true;
 		outcome.disposition_ = result.disposition_;
 		outcome.message_ = cvImportSuccessMessage(result.disposition_);
-		transaction.commit();
+        observation.stage_ = LogFact::PersistCommit;
+        const bool cancellationRequested = cancellationObservedBeforeCommit(request.cancellation_);
+        transaction.commit();
+        if (cancellationRequested) {
+            ApplicationLog::record({LogEventType::OperationCommittedAfterCancellationRequest,
+                {LogFact::CvImport, cvDispositionFact(result.disposition_)}, request.operationId_});
+        } else {
+            const auto type = result.disposition_ == CvImportDisposition::Inserted ? LogEventType::StandaloneCvImported :
+                result.disposition_ == CvImportDisposition::ExistingActive ? LogEventType::ActiveCvReusedOnImport :
+                LogEventType::ArchivedCvRestoredOnImport;
+            ApplicationLog::record({type, {}, request.operationId_});
+        }
 		return outcome;
 	}
 	catch (...) {
+        observation.cause_ = storage::sql::currentFailureCause();
+        observation.reportFailure_ = true;
 		auto message = importExceptionMessage(std::current_exception());
 		// The transaction has rolled back, but no later CV ticket can run yet.
-		if (!context->importService_.removeCompletedFile(preparation.preparation_->finalFilePath_)) {
+		if (!context->importService_.removeCompletedFile(preparation.preparation_->finalFilePath_, &observation.cleanup_)) {
 			message.append(QStringLiteral(
 				" The managed CV file could not be cleaned up and will be quarantined on restart."));
 		}

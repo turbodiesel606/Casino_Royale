@@ -1,12 +1,14 @@
 #ifndef JOBTRACKER_SRC_STORAGE_STORAGEPATHS_HPP
 #define JOBTRACKER_SRC_STORAGE_STORAGEPATHS_HPP
 
+#include "logging/LogEvent.hpp"
 #include <QString>
 
 class StoragePaths final
 {
 public:
-    explicit StoragePaths(QString dataDirectory = {});
+    explicit StoragePaths(QString dataDirectory = {}, LogFact operation = LogFact::Startup,
+                          qint64 affectedCount = 0);
 
     const QString& dataDirectory() const;
     const QString& resumesDirectory() const;

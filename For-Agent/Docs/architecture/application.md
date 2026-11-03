@@ -9,9 +9,11 @@ ownership, context-property exposure, module inventory, or QML reachability.
 `App::start(argc, argv)`.
 
 `src/app/App.hpp` and `src/app/App.cpp` own the process-level startup boundary.
-`App::start()` creates `QGuiApplication`, sets the application name, constructs
-`AppBootstrap`, runs it, catches startup exceptions, logs failures, and returns a
-non-zero exit code on startup failure.
+`App::start()` creates `QGuiApplication`, sets the application name and starts
+the asynchronous log session before constructing `AppBootstrap`. The session
+outlives bootstrap teardown. Startup failures retain their non-zero exit code
+and the responsible subsystem records the specific cause.
+See [application logging](logging.md).
 
 `src/app/AppBootstrap.hpp` and `src/app/AppBootstrap.cpp` own the application
 graph and QML startup wiring. `AppBootstrap` creates and owns the

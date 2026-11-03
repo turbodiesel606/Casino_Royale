@@ -1,6 +1,7 @@
 #ifndef JOBTRACKER_SRC_STORAGE_SQLITEDATABASE_HPP
 #define JOBTRACKER_SRC_STORAGE_SQLITEDATABASE_HPP
 
+#include "logging/LogEvent.hpp"
 #include <QSqlDatabase>
 #include <QString>
 
@@ -9,7 +10,8 @@
 class SqliteDatabase final
 {
 public:
-    explicit SqliteDatabase(const QString& databasePath);
+    explicit SqliteDatabase(const QString& databasePath, LogFact operation = LogFact::Startup,
+                            qint64 affectedCount = 0);
     ~SqliteDatabase();
 
     SqliteDatabase(const SqliteDatabase&) = delete;

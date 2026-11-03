@@ -7,6 +7,8 @@
 #include "cvs/CvLockWrapper.hpp"
 #include "directory/CompanyRepository.hpp"
 #include "storage/SqlTransaction.hpp"
+#include "storage/SqlQuery.hpp"
+#include "cvs/CvPersistenceObservation.hpp"
 
 //
 #include "JobApplication.hpp"
@@ -30,6 +32,7 @@
 
 struct UpdateJobPreparationResult final
 {
+    quint64 operationId_ = 0;
     bool success_ = false;
     bool cancelled_ = false;
     bool replacementCvRequested_ = false;
@@ -74,7 +77,7 @@ public:
         const QString& applicationId,
         const NormalizedJobApplicationDraft& draft,
         const QUrl& replacementCvUrl,
-        const std::shared_ptr<CancellationState>& cancellation) const;
+        const std::shared_ptr<CancellationState>& cancellation, quint64 operationId = 0) const;
 
     UpdateJobResult complete(
         UpdateJobPreparationResult preparation,
@@ -93,32 +96,47 @@ private:
         const QString& applicationId,
         const NormalizedJobApplicationDraft& draft,
         const QUrl& replacementCvUrl,
-        const std::shared_ptr<CancellationState>& cancellation) const
+        const std::shared_ptr<CancellationState>& cancellation, quint64 operationId) const
     {
         UpdateJobPreparationResult result;
+        CvPersistenceObservation observation{LogFact::JobUpdate, operationId};
+        result.operationId_ = operationId;
         result.draft_ = draft;
         result.replacementCvRequested_ = !replacementCvUrl.isEmpty();
 
         if (QThread::currentThread() != owningThread_) {
+            observation.invariant(LogFact::PersistWrongThread);
             result.message_ =
                 QStringLiteral("Job update preparation must run on its owning thread.");
             return result;
         }
 
         if (cancellation == nullptr) {
+            observation.invariant(LogFact::PersistMissingToken);
             result.message_ =
                 QStringLiteral("The job update cancellation state is unavailable.");
             return result;
         }
 
         if (cancellation->isCancellationRequested()) {
+            observation.stopped(LogFact::PersistPrepare);
             result.cancelled_ = true;
             result.message_ = QStringLiteral("The job update was canceled.");
             return result;
         }
 
-        const auto existing = jobRepository_.findById(applicationId);
+        observation.stage_ = LogFact::PersistLookupJob;
+        std::optional<JobApplication> existing;
+        try {
+            existing = jobRepository_.findById(applicationId);
+        } catch (...) {
+            observation.cause_ = storage::sql::currentFailureCause();
+            observation.recordFailure();
+            throw;
+        }
         if (!existing) {
+            observation.cause_ = LogFact::Missing;
+            observation.recordFailure();
             result.message_ =
                 QStringLiteral("The job application no longer exists.");
             return result;
@@ -147,7 +165,7 @@ private:
         }
 
         const auto cvPreparation =
-            cvImportService_.prepareDocument(replacementCvUrl, cancellation);
+            cvImportService_.prepareDocument(replacementCvUrl, cancellation, LogFact::JobUpdate, operationId);
 
         result.cancelled_ = cvPreparation.cancelled_;
         result.message_ = cvPreparation.message_;

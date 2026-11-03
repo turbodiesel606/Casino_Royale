@@ -14,7 +14,7 @@ CvImportWorker::CvImportWorker(
 		[dataDirectory = std::move(dataDirectory), &cvMutationQueue] {
 			return new CvImportExecutor{dataDirectory, cvMutationQueue};
 		},
-		parent }
+		LogFact::CvWorkerStorage, parent }
 {
 	qRegisterMetaType<CvImportSaveOutcome>();
 

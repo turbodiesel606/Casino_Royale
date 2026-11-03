@@ -4,6 +4,7 @@
 #include "CancellationState.hpp"
 #include "ExceptionUtils.hpp"
 #include "SingleActiveWorkerRuntime.hpp"
+#include "logging/ApplicationLog.hpp"
 
 #include <QMetaObject>
 #include <QObject>
@@ -73,10 +74,12 @@ public:
 	explicit SingleActiveWorkerFacade(
 		QString threadName,
 		QString dataDirectory,
+		LogFact storageArea,
 		QObject* parent = nullptr)
 		: SingleActiveWorkerFacade{ // Delegating constructor
 			std::move(threadName),
 			[dataDirectory = std::move(dataDirectory)]() { return new Executor{dataDirectory}; },
+			storageArea,
 			parent}
 	{
 	}
@@ -86,6 +89,7 @@ public:
 	explicit SingleActiveWorkerFacade(
 		QString threadName,
 		ExecutorFactory executorFactory,
+		LogFact storageArea,
 		QObject* parent = nullptr)
 		: QObject{ parent }
 		, runtime_{
@@ -100,7 +104,7 @@ public:
 				see e.g. DataRemovalWorker::DataRemovalWorker() */
 					Q_ASSERT(executor_ != nullptr);
 					executor_->destroyContext();
-				} } }
+				}, storageArea } }
 	{
 	}
 
@@ -116,11 +120,12 @@ public:
 		submitRequest(std::move(request));
 	}
 
-	void shutdown()
+	bool shutdown()
 	{
 		Q_ASSERT(QThread::currentThread() == thread());
-		runtime_.shutdown();
+		const auto cleanedUp = runtime_.shutdown();
 		executor_ = nullptr;
+		return cleanedUp;
 	}
 
 	[[nodiscard]]
@@ -141,6 +146,7 @@ private:
 	{
 		using RequestType = std::remove_cvref_t<Request>;
 		using Traits = SingleActiveWorkerRequestTraits<RequestType>;
+		const auto operationId = request.operationId_;
 
 		// Admission and correlation state belong to the GUI facade thread.
 		Q_ASSERT(QThread::currentThread() == thread());
@@ -152,6 +158,8 @@ private:
 				request.cancellation_);
 		}
 		catch (...) {
+			ApplicationLog::record({LogEventType::BackgroundWorkStartFailed,
+				{Traits::operation, LogFact::WorkerInitialization, LogFact::CauseUnavailable, Traits::itemCount(request)}, operationId});
 			//Convert executor / runtime initialization exceptions into
 			// an asynchronous domain result instead of crossing the Qt boundary.
 			queueUnavailableOutcome(
@@ -163,6 +171,8 @@ private:
 		}
 
 		if (admission == SingleActiveWorkerAdmission::ShuttingDown) {
+			ApplicationLog::record({LogEventType::BackgroundWorkStartFailed,
+				{Traits::operation, LogFact::WorkerAdmission, LogFact::WorkerShuttingDown, Traits::itemCount(request)}, operationId});
 			queueUnavailableOutcome(
 				request,
 				Traits::shuttingDownMessage);
@@ -172,6 +182,8 @@ private:
 		//Only one executor request may run at a time.
 		// The controller FIFO should normally prevent this branch.
 		if (admission == SingleActiveWorkerAdmission::Busy) {
+			ApplicationLog::record({LogEventType::BackgroundWorkInvariantViolated,
+				{Traits::operation, LogFact::UnexpectedBusy, LogFact::WorkerAdmission}, operationId});
 			queueUnavailableOutcome(
 				request,
 				Traits::busyMessage);
@@ -182,23 +194,31 @@ private:
 		auto* const executor = executor_;
 
 		//Queue the request to the executor's worker thread.
-		QMetaObject::invokeMethod(
+		const bool dispatched = QMetaObject::invokeMethod(
 			executor,
-			[this, executor, request = std::forward<Request>(request)]() mutable
+			[this, executor, operationId, request = std::forward<Request>(request)]() mutable
 			// maybe std::move, cuz we pass request to other thread
 			{
 				// process() starts operation in other thread.
-				Outcome outcome{ executor->process(std::move(request)) };
+				auto result = executor->process(std::move(request));
+				const auto verified = Traits::hasCommittedChange(result) ? LogFact::CommittedNotDelivered : LogFact::OutcomeNotDelivered;
+				Outcome outcome{std::move(result)};
 				// Queue the completed value back to this GUI facade.
-				QMetaObject::invokeMethod(
+				const bool posted = QMetaObject::invokeMethod(
 					this,
 					[this, outcome = std::move(outcome)]() mutable {
 						// Note: This lambda executes in GUI thread.
-						deliverOutcome(std::move(outcome));
+						deliverOutcome(std::move(outcome), Traits::operation);
 					},
 					Qt::QueuedConnection);
+				if (!posted)
+					ApplicationLog::record({LogEventType::BackgroundWorkDeliveryFailed,
+						{Traits::operation, LogFact::ResultPosting, verified}, operationId});
 			},
 			Qt::QueuedConnection);
+		if (!dispatched)
+			ApplicationLog::record({LogEventType::BackgroundWorkDeliveryFailed,
+				{Traits::operation, LogFact::RequestDispatch, LogFact::RequestNotDelivered}, operationId});
 	}
 
 	template<typename Request> // Maybe Concept needed
@@ -215,7 +235,7 @@ private:
 				std::move(message))
 		};
 
-		QMetaObject::invokeMethod(
+		const bool posted = QMetaObject::invokeMethod(
 			this,
 			[
 				this,
@@ -224,9 +244,12 @@ private:
 				dispatchOutcome(std::move(outcome));
 			},
 			Qt::QueuedConnection);
+		if (!posted)
+			ApplicationLog::record({LogEventType::BackgroundWorkDeliveryFailed,
+				{Traits::operation, LogFact::ResultPosting, LogFact::RequestNotDelivered}, request.operationId_});
 	}
 
-	void deliverOutcome(Outcome outcome)
+	void deliverOutcome(Outcome outcome, LogFact operation)
 	{
 		Q_ASSERT(QThread::currentThread() == thread());
 
@@ -238,8 +261,12 @@ private:
 			},
 			outcome);
 
-		if (!isActive)
+		if (!isActive) {
+			if (!runtime_.isShuttingDown())
+				ApplicationLog::record({LogEventType::UnexpectedBackgroundResultDiscarded,
+					{operation, runtime_.isBusy() ? LogFact::CorrelationMismatch : LogFact::NoActiveOperation}});
 			return;
+		}
 
 		runtime_.completeOperation();
 		dispatchOutcome(std::move(outcome));

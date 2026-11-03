@@ -133,12 +133,12 @@ Item {
                     onRowCheckToggled: row => cvLibraryController.toggleCvChecked(row)
                     onAllVisibleCheckedRequested: checked => cvLibraryController.setAllVisibleCvsChecked(checked)
                     onRemoveRequested: {
-                        if (storageMutationGate.checkRemovalAllowed())
+                        if (storageMutationGate.checkActiveCvRemovalAllowed())
                             removeConfirmation.open()
                     }
                     onRestoreRequested: cvLibraryController.restoreCheckedCvs()
                     onPermanentDeleteRequested: {
-                        if (storageMutationGate.checkRemovalAllowed())
+                        if (storageMutationGate.checkArchivedCvDeletionAllowed())
                             permanentDeleteConfirmation.open()
                     }
                 }

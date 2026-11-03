@@ -6,6 +6,8 @@
 #include "common/CancellationState.hpp"
 
 #include "../support/StorageTestFixtures.hpp"
+#include "../support/LogCapture.hpp"
+#include "logging/ApplicationLog.hpp"
 
 #include <QCryptographicHash>
 #include <QDir>
@@ -31,6 +33,7 @@ private slots:
     void stagingFinishesWithCancelledToken();
     void reportsUnavailablePreparation();
     void reconcilesStaleStagesAndQuarantinesOrphans();
+    void reportsPartialRecoveryBeforeQuarantineFailure();
     void reusesCvWithSameIdentity();
     void restoresArchivedExactDuplicate();
 
@@ -186,6 +189,30 @@ void CvFileStoreImportTest::reportsUnavailablePreparation()
     QVERIFY(!result.success_);
     QVERIFY(!result.cancelled_);
     QVERIFY(!result.message_.isEmpty());
+}
+
+void CvFileStoreImportTest::reportsPartialRecoveryBeforeQuarantineFailure()
+{
+    testsupport::LogCapture capture;
+    QVERIFY(capture.isValid());
+    testsupport::TemporaryStorageFixture storage;
+    QVERIFY(storage.isValid());
+    CvManagedFileStore fileStore{storage.paths()};
+    const auto directory = storage.paths().resumesDirectory();
+    const auto obsolete = storage.createFile(QStringLiteral("PrivateStage.part"), "test", directory);
+    const auto blocker = storage.createFile(QStringLiteral("Quarantine"), "test", directory);
+    QVERIFY(!obsolete.isEmpty());
+    QVERIFY(!blocker.isEmpty());
+    {
+        ApplicationLogSession session;
+        QVERIFY_THROWS_EXCEPTION(std::runtime_error, fileStore.reconcile({}));
+    }
+    QVERIFY(!QFileInfo::exists(obsolete));
+    QVERIFY(QFileInfo{blocker}.isFile());
+    const auto log = capture.contents();
+    QCOMPARE(log.count("Startup CV recovery failed at quarantine directory creation"), 1);
+    QVERIFY(log.contains("restored 0, removed 1, quarantined 0."));
+    QVERIFY(!log.contains("PrivateStage"));
 }
 
 void CvFileStoreImportTest::reconcilesStaleStagesAndQuarantinesOrphans()

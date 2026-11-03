@@ -1,12 +1,11 @@
 #include "App.hpp"
 
 #include "AppBootstrap.hpp"
+#include "logging/ApplicationLog.hpp"
 
-#include <QDebug>
 #include <QGuiApplication>
 
 #include <cstdlib>
-#include <exception>
 
 #if defined(Q_OS_WIN) && defined(QT_DEBUG)
 #include <cstdio>
@@ -32,16 +31,18 @@ int App::start(int argc, char* argv[])
 		initializeDevelopmentConsole();
 		QGuiApplication app{ argc, argv };
 		QCoreApplication::setApplicationName(QStringLiteral("JobTracker"));
-		AppBootstrap bootstrap{ app };
-		
-		return bootstrap.run();
-	}
-	catch (const std::exception& exception) {
-		qCritical() << "Application startup failed:" << exception.what();
+		ApplicationLogSession logging;
+		ApplicationLog::record({LogEventType::ApplicationStartupBegan});
+		try {
+			AppBootstrap bootstrap{ app };
+			return bootstrap.run();
+		}
+		catch (...) {
+			// Codex Comment: Storage, recovery and QML report their own specific failures.
+			return EXIT_FAILURE;
+		}
 	}
 	catch (...) {
-		qCritical() << "Application startup failed with an unknown exception.";
+		return EXIT_FAILURE;
 	}
-
-	return EXIT_FAILURE;
 }

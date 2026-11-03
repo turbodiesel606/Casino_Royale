@@ -1,4 +1,6 @@
 #include "../support/AddJobTestFixture.hpp"
+#include "../support/LogCapture.hpp"
+#include "logging/ApplicationLog.hpp"
 #include "common/CancellationState.hpp"
 #include "jobs/JobApplicationValidator.hpp"
 #include "storage/SqlTransaction.hpp"
@@ -22,6 +24,7 @@ class AddJobServiceTest final : public QObject
 private slots:
     void createsJobAndCopiesCv();
     void restoresArchivedCv();
+    void reportsFailedGuardRollbackWithoutChangingJobOutcome();
     void rollsBackArchivedRestorationWhenJobInsertFails();
     void removesFinalizedCvWhenCvInsertFails();
     void reusesNormalizedCompanyIdentity();
@@ -76,6 +79,40 @@ void AddJobServiceTest::createsJobAndCopiesCv()
     invalidCompany.addBindValue(QStringLiteral("missing-company"));
     invalidCompany.addBindValue(result.application_.id_);
     QVERIFY(!invalidCompany.exec());
+}
+
+void AddJobServiceTest::reportsFailedGuardRollbackWithoutChangingJobOutcome()
+{
+    testsupport::LogCapture capture;
+    QVERIFY(capture.isValid());
+    testsupport::AddJobTestFixture fixture;
+    QSqlQuery trigger{fixture.database_.connection()};
+    QVERIFY(trigger.exec(QStringLiteral(
+        "CREATE TRIGGER reject_job BEFORE INSERT ON jobs "
+        "BEGIN SELECT RAISE(ROLLBACK, 'PrivateTriggerText'); END")));
+    const auto source = QUrl::fromLocalFile(fixture.storage_.createFile(QStringLiteral("PrivateResume.pdf")));
+    auto draft = testsupport::validJobDraft();
+    draft.companyName_ = QStringLiteral("PrivateCompany");
+    const auto checked = JobApplicationValidator::preflight(draft, true);
+    QVERIFY(checked.isValid());
+    auto cancellation = std::make_shared<CancellationState>();
+    {
+        ApplicationLogSession session;
+        auto preparation = fixture.service_.prepareValidated(checked.draft_, source, cancellation, 761);
+        const auto result = fixture.service_.complete(std::move(preparation), cancellation);
+        QVERIFY(!result.success_);
+        QVERIFY(result.message_.contains(QStringLiteral("PrivateTriggerText")));
+    }
+    QVERIFY(fixture.jobRepository_.findAll().isEmpty());
+    QVERIFY(fixture.cvRepository_.findAll().isEmpty());
+    QVERIFY(fixture.companyRepository_.findAll().isEmpty());
+    QVERIFY(QDir{fixture.storage_.paths().resumesDirectory()}.entryList(QDir::Files).isEmpty());
+    const auto log = capture.contents();
+    QCOMPARE(log.count("Rollback failed during job creation"), 1);
+    QCOMPARE(log.count("Job creation failed at job insertion"), 1);
+    QVERIFY(log.contains("Rollback: failed, file cleanup: succeeded"));
+    QCOMPARE(log.count("(operation 761)"), 2);
+    QVERIFY(!log.contains("Private"));
 }
 
 void AddJobServiceTest::restoresArchivedCv()

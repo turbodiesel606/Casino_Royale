@@ -1,9 +1,11 @@
 #include "../support/AddJobTestFixture.hpp"
+#include "../support/LogCapture.hpp"
 
 #include "common/CancellationState.hpp"
 #include "maintenance/DataRemovalService.hpp"
 #include "maintenance/DataRemovalWorker.hpp"
 #include "maintenance/StorageMutationGate.hpp"
+#include "logging/ApplicationLog.hpp"
 #include "storage/SqlTransaction.hpp"
 
 #include <QCoreApplication>
@@ -19,6 +21,8 @@
 #include <QtTest/QtTest>
 
 #include <mutex>
+#include <future>
+#include <thread>
 
 #include <memory>
 #include <concepts>
@@ -181,6 +185,10 @@ private slots:
     void itemFailureDoesNotStopLaterItems();
     void rejectsUnsafePathsAndDeletesRowsForMissingFiles();
     void restoresFileWhenDatabaseDeleteFails();
+    void rollbackFailureRecordsRestoredFileAndUncertainDatabase();
+    void failedRestorationKeepsTombstoneForRecovery();
+    void committedDeletionReportsPendingFileCleanup_data();
+    void committedDeletionReportsPendingFileCleanup();
     void recoversReferencedAndCommittedTombstones();
     void rejectsSymlinkWhenSupported();
     void mutationGateSerializesAddAndRemovalWork();
@@ -408,6 +416,134 @@ void DataRemovalServiceTest::restoresFileWhenDatabaseDeleteFails()
     QVERIFY(fixture.cvRepository_.findById(imported.document_.id_).has_value());
     QVERIFY(QFileInfo::exists(imported.completedFilePath_));
     QVERIFY(!QFileInfo::exists(imported.completedFilePath_ + QStringLiteral(".delete")));
+}
+
+void DataRemovalServiceTest::rollbackFailureRecordsRestoredFileAndUncertainDatabase()
+{
+    testsupport::AddJobTestFixture fixture;
+    const auto imported = importCv(fixture, QStringLiteral("confidential-source.pdf"));
+    QVERIFY(imported.success_);
+    QSqlQuery trigger{fixture.database_.connection()};
+    QVERIFY(trigger.exec(QStringLiteral("CREATE TRIGGER abort_delete BEFORE DELETE ON cvs "
+        "BEGIN SELECT RAISE(ROLLBACK, 'private trigger details'); END")));
+    testsupport::LogCapture capture;
+    QVERIFY(capture.isValid());
+    {
+        ApplicationLogSession logging;
+        const auto result = removalService(fixture).process<DataRemovalKind::RemoveActiveCvs>(
+            requestFor(imported.document_.id_), {}, 51);
+        QCOMPARE(result.items_.first().status_, DataRemovalItemStatus::Failed);
+        QVERIFY(result.items_.first().message_.contains(QStringLiteral("private trigger details")));
+    }
+    QVERIFY(fixture.cvRepository_.findById(imported.document_.id_));
+    QVERIFY(QFileInfo::exists(imported.completedFilePath_));
+    const auto lines = capture.contents();
+    QVERIFY(lines.contains("Rollback failed during active CV removal"));
+    QVERIFY(lines.contains("Database state is uncertain (operation 51)."));
+    QVERIFY(lines.contains("Permanent CV deletion failed at record deletion."));
+    QVERIFY(lines.contains("Original file restoration: succeeded (operation 51)."));
+    QVERIFY(!lines.contains("private trigger details"));
+    QVERIFY(!lines.contains("confidential-source"));
+}
+
+void DataRemovalServiceTest::failedRestorationKeepsTombstoneForRecovery()
+{
+    testsupport::AddJobTestFixture fixture;
+    const auto imported = importCv(fixture, QStringLiteral("retained.pdf"));
+    QVERIFY(imported.success_);
+    testsupport::LogCapture capture;
+    QVERIFY(capture.isValid());
+    {
+        ApplicationLogSession logging;
+        auto removal = fixture.fileStore_.prepareRemoval(imported.document_);
+        QVERIFY(removal.succeeded());
+        // Codex Comment: Model an unavailable restoration destination without depending on host permissions.
+        removal.preparation_->originalFilePath_ = QDir{fixture.storage_.rootPath()}.filePath(QStringLiteral("absent/retained.pdf"));
+        removal.preparation_->operationId_ = 52;
+        removal.preparation_.reset();
+    }
+    QVERIFY(fixture.cvRepository_.findById(imported.document_.id_));
+    QVERIFY(!QFileInfo::exists(imported.completedFilePath_));
+    QVERIFY(QFileInfo::exists(imported.completedFilePath_ + QStringLiteral(".delete")));
+    QVERIFY(capture.contents().contains("The database and managed files may be inconsistent (operation 52)."));
+    QCOMPARE(fixture.fileStore_.reconcile(fixture.cvRepository_.findAll()).restoredDeletionFileCount_, 1);
+    QVERIFY(QFileInfo::exists(imported.completedFilePath_));
+}
+
+void DataRemovalServiceTest::committedDeletionReportsPendingFileCleanup_data()
+{
+    QTest::addColumn<bool>("cancel");
+    QTest::newRow("ordinary commit") << false;
+    QTest::newRow("commit after cancellation") << true;
+}
+
+void DataRemovalServiceTest::committedDeletionReportsPendingFileCleanup()
+{
+    QFETCH(bool, cancel);
+    testsupport::AddJobTestFixture fixture;
+    const auto imported = importCv(fixture, QStringLiteral("private-removal.pdf"));
+    QVERIFY(imported.success_);
+    testsupport::TemporaryDatabaseFixture interlock;
+    const auto lockPath = interlock.storage().paths().databasePath();
+    QSqlQuery setup{fixture.database_.connection()};
+    QVERIFY(setup.prepare(QStringLiteral("ATTACH DATABASE ? AS interlock_db")));
+    setup.addBindValue(lockPath);
+    QVERIFY(setup.exec());
+    QVERIFY(setup.exec(QStringLiteral("CREATE TABLE interlock_db.write_gate (value INTEGER)")));
+    QVERIFY(setup.exec(QStringLiteral("CREATE TEMP TRIGGER hold_delete BEFORE DELETE ON main.cvs "
+        "BEGIN INSERT INTO write_gate VALUES (1); END")));
+
+    testsupport::LogCapture capture;
+    QVERIFY(capture.isValid());
+    const auto tombstone = imported.completedFilePath_ + QStringLiteral(".delete");
+    const auto retained = QDir{fixture.storage_.rootPath()}.filePath(QStringLiteral("retained"));
+    const auto cancellation = std::make_shared<CancellationState>();
+    std::promise<void> locked;
+    auto ready = locked.get_future();
+    bool cleanupFault = false;
+    // Codex Comment: The trigger needs a write lock on a separate database before DELETE returns.
+    // The file is already staged, and the service cannot reach its pre-commit observation until release.
+    std::jthread blocker{[&](std::stop_token stop) {
+        try {
+            SqliteDatabase gate{lockPath};
+            SqlTransaction transaction{gate.connection(), QStringLiteral("hold removal trigger")};
+            QSqlQuery write{gate.connection()};
+            if (!write.exec(QStringLiteral("INSERT INTO write_gate VALUES (0)")))
+                throw std::runtime_error("Could not acquire the test write lock");
+            locked.set_value();
+            while (!stop.stop_requested() && !QFileInfo::exists(tombstone))
+                std::this_thread::yield();
+            if (!stop.stop_requested()) {
+                cleanupFault = QFile::rename(tombstone, retained) && QDir{}.mkdir(tombstone);
+                if (cancel) cancellation->requestCancellation();
+            }
+            transaction.commit();
+        } catch (...) {
+            try { locked.set_exception(std::current_exception()); } catch (const std::future_error&) {}
+        }
+    }};
+    ready.get();
+    {
+        ApplicationLogSession logging;
+        const auto result = removalService(fixture).process<DataRemovalKind::RemoveActiveCvs>(
+            requestFor(imported.document_.id_), cancellation, 53);
+        blocker.request_stop();
+        blocker.join();
+        QVERIFY(cleanupFault);
+        QCOMPARE(result.items_.first().status_, DataRemovalItemStatus::Deleted);
+        QVERIFY(result.items_.first().message_.contains(QStringLiteral("retried on restart")));
+    }
+    QVERIFY(!fixture.cvRepository_.findById(imported.document_.id_));
+    const auto lines = capture.contents();
+    QVERIFY(lines.contains("CV record deletion committed for 1 items."));
+    QVERIFY(lines.contains("Final file cleanup failed and remains pending for startup recovery (operation 53)."));
+    QCOMPARE(lines.contains("committed after cancellation had been requested. Deleted: 1"), cancel);
+    if (cancel) QVERIFY(lines.contains("already missing files: 0, pending cleanup: 1 (operation 53)."));
+    QVERIFY(!lines.contains("Permanently deleted"));
+    QVERIFY(!lines.contains("private-removal"));
+    QVERIFY(QDir{}.rmdir(tombstone));
+    QVERIFY(QFile::rename(retained, tombstone));
+    QCOMPARE(fixture.fileStore_.reconcile(fixture.cvRepository_.findAll()).removedDeletionFileCount_, 1);
 }
 
 void DataRemovalServiceTest::recoversReferencedAndCommittedTombstones()

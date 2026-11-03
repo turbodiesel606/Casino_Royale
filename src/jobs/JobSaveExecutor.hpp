@@ -30,7 +30,7 @@ public:
 private:
 	struct PipelineContext;
 
-	PipelineContext& ensureContext();
+	PipelineContext& ensureContext(LogFact operation);
 
 	static AddJobResult addFailure(
 		QString message,

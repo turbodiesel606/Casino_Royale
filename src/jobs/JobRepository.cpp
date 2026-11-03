@@ -1,6 +1,9 @@
 #include "JobRepository.hpp"
 
 #include "storage/SqlQuery.hpp"
+#include "logging/ApplicationLog.hpp"
+
+#include <QSqlError>
 
 #include <QHash>
 #include <QSqlDatabase>
@@ -119,6 +122,8 @@ QVector<JobApplication> JobRepository::findAll() const
 {
     QSqlQuery jobsQuery{database_};
     if (!jobsQuery.exec(baseJobSelect() + QStringLiteral(" ORDER BY jobs.created_at DESC"))) {
+        ApplicationLog::record({LogEventType::SavedDatasetLoadFailed,
+            {LogFact::PersistJobs, storage::sql::failureCause(jobsQuery.lastError())}});
         storage::sql::throwQueryError(
             jobsQuery,
             QStringLiteral("load job applications"));
@@ -126,12 +131,17 @@ QVector<JobApplication> JobRepository::findAll() const
 
     QVector<JobApplication> applications;
     QHash<QString, qsizetype> applicationIndexes;
+    qsizetype badStatus = 0, badFormat = 0, badDate = 0;
     while (jobsQuery.next()) {
         auto application = convertToJobApplication(jobsQuery);
+        badStatus += application.status_ == JobStatus::Unknown;
+        badFormat += application.workFormat_ == WorkFormat::Unknown;
+        badDate += !application.appliedDate_.isValid() || !application.createdAt_.isValid() || !application.updatedAt_.isValid();
         applicationIndexes.insert(application.id_, applications.size());
         applications.append(std::move(application));
     }
 
+    storage::sql::recordDatasetReadError(jobsQuery, LogFact::PersistJobs);
     if (applications.isEmpty()) {
         return applications;
     }
@@ -141,6 +151,8 @@ QVector<JobApplication> JobRepository::findAll() const
             "SELECT job_id, technology "
             "FROM job_technologies "
             "ORDER BY job_id, position"))) {
+        ApplicationLog::record({LogEventType::SavedDatasetLoadFailed,
+            {LogFact::PersistTechnologies, storage::sql::failureCause(technologiesQuery.lastError())}});
         storage::sql::throwQueryError(
             technologiesQuery,
             QStringLiteral("load job application technologies"));
@@ -153,6 +165,11 @@ QVector<JobApplication> JobRepository::findAll() const
             applications[*indexIt].techStack_.append(
                 technologiesQuery.value(QStringLiteral("technology")).toString());
         }
+    }
+    storage::sql::recordDatasetReadError(technologiesQuery, LogFact::PersistTechnologies);
+    if (badStatus || badFormat || badDate) {
+        ApplicationLog::record({LogEventType::SavedFieldFallbacksApplied,
+            {LogValue::counts(badStatus, badFormat, badDate, 0)}});
     }
     return applications;
 }
@@ -183,7 +200,7 @@ std::optional<JobApplication> JobRepository::findById(
     return application;
 }
 
-void JobRepository::insert(const JobApplication& application) const
+void JobRepository::insert(const JobApplication& application, LogFact* stage) const
 {
     QSqlQuery query{database_};
     query.prepare(QStringLiteral(
@@ -203,10 +220,11 @@ void JobRepository::insert(const JobApplication& application) const
         application.updatedAt_.toUTC().toString(Qt::ISODate));
     storage::sql::execute(query, QStringLiteral("insert a job application"));
 
+    if (stage) *stage = LogFact::PersistTechnologies;
     insertTechnologies(database_, application);
 }
 
-bool JobRepository::update(const JobApplication& application) const
+bool JobRepository::update(const JobApplication& application, LogFact* stage) const
 {
     QSqlQuery query{database_};
     query.prepare(QStringLiteral(
@@ -225,6 +243,7 @@ bool JobRepository::update(const JobApplication& application) const
         return false;
     }
 
+    if (stage) *stage = LogFact::PersistTechnologies;
     QSqlQuery deleteTechnologies{database_};
     deleteTechnologies.prepare(QStringLiteral(
         "DELETE FROM job_technologies WHERE job_id = :job_id"));

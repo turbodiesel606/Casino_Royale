@@ -2,6 +2,7 @@
 #define JOBTRACKER_SRC_COMMON_SINGLEACTIVEWORKERRUNTIME_HPP
 
 #include "CancellationState.hpp"
+#include "logging/LogEvent.hpp"
 
 #include <QObject>
 #include <QString>
@@ -30,6 +31,7 @@ struct SingleActiveWorkerExecutorLifecycle final
 {
 	std::function<QObject* ()> create_;
 	std::function<void(QObject&)> destroyContext_;
+	LogFact storageArea_ = LogFact::WorkerStorage;
 	/* stub param (QObject&) is needed for compatibility with other caller code,
 	   see e.g. DataRemovalWorker::DataRemovalWorker() */
 };
@@ -79,7 +81,7 @@ public:
 	 * Idempotently cancels active work, destroys domain context on the worker
 	 * thread, quits and joins that thread, and clears active correlation.
 	 */
-	void shutdown();
+	bool shutdown();
 
 private:
 	void assertFacadeThread() const;
@@ -94,6 +96,7 @@ private:
 	quint64 activeOperationId_ = 0;
 	bool busy_ = false;
 	bool shuttingDown_ = false;
+	bool cleanupCompleted_ = true;
 };
 
 #endif // JOBTRACKER_SRC_COMMON_SINGLEACTIVEWORKERRUNTIME_HPP

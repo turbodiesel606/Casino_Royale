@@ -2,16 +2,21 @@
 
 #include "SqlQuery.hpp"
 
-#include <QDebug>
+#include "logging/ApplicationLog.hpp"
 #include <QSqlDatabase>
 #include <QSqlError>
 
 #include <utility>
 
-SqlTransaction::SqlTransaction(QSqlDatabase& database, QString operationContext)
+SqlTransaction::SqlTransaction(QSqlDatabase& database, QString operationContext,
+    LogFact operation, LogFact* rollback, quint64 operationId)
     : database_(database)
     , operationContext_(std::move(operationContext))
+    , operation_{operation}
+    , rollback_{rollback}
+    , operationId_{operationId}
 {
+    if (rollback_) *rollback_ = LogFact::NotAttempted;
     if (!database_.transaction()) {
         storage::sql::throwDatabaseError(database_,
             QStringLiteral("start %1").arg(operationContext_));
@@ -21,10 +26,12 @@ SqlTransaction::SqlTransaction(QSqlDatabase& database, QString operationContext)
 
 SqlTransaction::~SqlTransaction()
 {
-    if (active_ && !database_.rollback()) {
-        qWarning().noquote()
-            << QStringLiteral("Failed to roll back %1: %2")
-                   .arg(operationContext_, database_.lastError().text());
+    if (!active_) return;
+    const bool rolledBack = database_.rollback();
+    if (rollback_) *rollback_ = rolledBack ? LogFact::Succeeded : LogFact::Failed;
+    if (!rolledBack) {
+        ApplicationLog::record({LogEventType::DatabaseRollbackFailed,
+            {operation_, storage::sql::failureCause(database_.lastError())}, operationId_});
     }
 }
 

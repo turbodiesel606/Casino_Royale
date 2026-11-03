@@ -2,16 +2,15 @@
 #define JOBTRACKER_SRC_MAINTENANCE_DATAREMOVALSERVICE_HPP
 
 #include "DataRemovalTypes.hpp"
-#include "DataRemovalService.hpp"
-
 #include "common/CancellationState.hpp"
 #include "common/ExceptionUtils.hpp"
 #include "cvs/CvManagedFileStore.hpp"
 #include "cvs/CvRepository.hpp"
 #include "jobs/JobRepository.hpp"
 #include "storage/SqlTransaction.hpp"
-#include<thread>
-#include<chrono>
+#include "storage/SqlQuery.hpp"
+
+#include <utility>
 class CancellationState;
 class CvManagedFileStore;
 class CvRepository;
@@ -45,10 +44,12 @@ public:
 		requires SupportedDataRemovalKind<Kind>
 	DataRemovalBatchResult process(
 		const QVector<DataRemovalItemRequest>& items,
-		const std::shared_ptr<CancellationState>& cancellation) const
+		const std::shared_ptr<CancellationState>& cancellation,
+		quint64 operationId = 0) const
 	{
 		DataRemovalBatchResult result;
 		result.items_.reserve(items.size());
+		BatchFacts batch;
 
 		for (const auto& item : items) {
 			/* Cancellation stops before the next item work. */
@@ -58,23 +59,26 @@ public:
 				break;
 			}
 
+			ItemFacts facts{removalLogOperation(Kind), operationId, cancellation};
 			try {
-				result.items_.append([this, &item]() {
+				result.items_.append([this, &item, &facts]() {
 					if constexpr (Kind == DataRemovalKind::DeleteJobs)
-						return deleteJob(item);
+						return deleteJob(item, facts);
 
 					else if constexpr (Kind == DataRemovalKind::RemoveActiveCvs)
-						return removeActiveCv(item);
+						return removeActiveCv(item, facts);
 
 					else if constexpr (Kind == DataRemovalKind::RestoreArchivedCvs)
-						return restoreArchivedCv(item);
+						return restoreArchivedCv(item, facts);
 
 					else
-						return deleteArchivedCv(item);
+						return deleteArchivedCv(item, facts);
 
 					}());
 			}
 			catch (...) {
+				if (facts.cause_ == LogFact::CauseUnavailable)
+					facts.cause_ = storage::sql::currentFailureCause();
 				result.items_.append(
 					failureOutcome(
 						item,
@@ -83,20 +87,56 @@ public:
 							QStringLiteral(
 								"An unexpected deletion error occurred."))));
 			}
+			batch.observe(facts, result.items_.last().status_);
 		}
-
+		batch.report(removalLogOperation(Kind), operationId, items.size(), result);
 		return result;
 	}
 
 private:
-	DataRemovalItemOutcome deleteJob(const DataRemovalItemRequest& item) const;
-	DataRemovalItemOutcome removeActiveCv(const DataRemovalItemRequest& item) const;
-	DataRemovalItemOutcome restoreArchivedCv(const DataRemovalItemRequest& item) const;
-	DataRemovalItemOutcome deleteArchivedCv(const DataRemovalItemRequest& item) const;
+	struct ItemFacts
+	{
+		LogFact operation_;
+		quint64 id_;
+		const std::shared_ptr<CancellationState>& cancellation_;
+		LogFact stage_ = LogFact::TransactionBegin;
+		LogFact cause_ = LogFact::CauseUnavailable;
+		LogFact mismatch_ = LogFact::None;
+		LogFact invalidReference_ = LogFact::None;
+		LogFact restoration_ = LogFact::NotAttempted;
+		bool fileMissing_ = false;
+		bool cleanupPending_ = false;
+		bool cancelledBeforeCommit_ = false;
+
+		void commit(SqlTransaction& transaction);
+	};
+	struct CommittedCounts
+	{
+		qint64 deleted_ = 0;
+		qint64 archived_ = 0;
+		qint64 restored_ = 0;
+		qint64 missing_ = 0;
+		qint64 pending_ = 0;
+	};
+	struct BatchFacts
+	{
+		CommittedCounts ordinary_;
+		CommittedCounts afterCancellation_;
+		qint64 protected_ = 0;
+		qint64 failedJobs_ = 0;
+		LogFact firstJobFailureStage_ = LogFact::Unknown;
+		LogFact firstJobFailureCause_ = LogFact::CauseUnavailable;
+		void observe(const ItemFacts& item, DataRemovalItemStatus status) noexcept;
+		void report(LogFact operation, quint64 id, qint64 selected, const DataRemovalBatchResult& result) const noexcept;
+	};
+	DataRemovalItemOutcome deleteJob(const DataRemovalItemRequest& item, ItemFacts& facts) const;
+	DataRemovalItemOutcome removeActiveCv(const DataRemovalItemRequest& item, ItemFacts& facts) const;
+	DataRemovalItemOutcome restoreArchivedCv(const DataRemovalItemRequest& item, ItemFacts& facts) const;
+	DataRemovalItemOutcome deleteArchivedCv(const DataRemovalItemRequest& item, ItemFacts& facts) const;
 	DataRemovalItemOutcome deleteUnlinkedCv(
 		const DataRemovalItemRequest& item,
 		const CvDocument& document,
-		SqlTransaction& transaction) const;
+		SqlTransaction& transaction, ItemFacts& facts) const;
 
 	QSqlDatabase& database_;
 	JobRepository& jobRepository_;

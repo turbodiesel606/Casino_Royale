@@ -29,6 +29,9 @@ template<>
 struct SingleActiveWorkerRequestTraits<CvImportRequest>
 	: CvImportWorkerRequestMessages
 {
+	static constexpr auto operation = LogFact::CvImport;
+	static constexpr qsizetype itemCount(const CvImportRequest&) noexcept { return 1; }
+	static bool hasCommittedChange(const CvImportSaveOutcome& outcome) noexcept { return outcome.success_; }
 	static CvImportSaveOutcome unavailableOutcome(
 		const CvImportRequest& request,
 		QString message)

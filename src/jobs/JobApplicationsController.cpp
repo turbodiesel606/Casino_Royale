@@ -5,6 +5,7 @@
 #include "common/ModelRoleUtils.hpp"
 #include "maintenance/DataRemovalWorker.hpp"
 #include "maintenance/StorageMutationGate.hpp"
+#include "logging/ApplicationLog.hpp"
 
 #include <QMetaType>
 
@@ -205,6 +206,11 @@ int JobApplicationsController::pendingSaveCount() const
 	return saveQueue_.pendingCount();
 }
 
+int JobApplicationsController::activeWorkCount() const
+{
+	return static_cast<int>(saveQueue_.hasActive()) + pendingDeletionCount();
+}
+
 bool JobApplicationsController::updatingApplication() const
 {
 	return pendingUpdateOperationId_ != 0;
@@ -338,7 +344,7 @@ void JobApplicationsController::createApplication(
 
 	// Cross - operation admission guard.
 	// A job save cannot begin while destructive storage work is active.
-	if (mutationGate_ != nullptr && !mutationGate_->reserveImportOrUpdate()) {
+	if (mutationGate_ != nullptr && !mutationGate_->reserveImportOrUpdate(1, LogFact::JobCreation)) {
 		return;
 	}
 
@@ -351,6 +357,7 @@ void JobApplicationsController::createApplication(
 	const auto operationId = saveQueue_.enqueue(QueuedCreateApplication{
 		preflight.draft_,
 		selectedCvUrl });
+	ApplicationLog::record({LogEventType::BackgroundSaveOrImportAccepted, {LogFact::JobCreation, 1}});
 	publishPendingSaveStateChange(previousCount);
 
 	// Notify QML that the request was accepted into the FIFO.
@@ -374,6 +381,7 @@ void JobApplicationsController::updateApplication(
 	const auto normalizedId = applicationId.trimmed();
 	const auto* const existing = sourceApplicationById(normalizedId);
 	if (existing == nullptr) {
+		ApplicationLog::record({LogEventType::RequestedRecordStateMismatch, {LogFact::JobUpdate, LogFact::Missing}});
 		emit applicationUpdateRejected(
 			0,
 			normalizedId,
@@ -382,6 +390,7 @@ void JobApplicationsController::updateApplication(
 		return;
 	}
 	if (updatingApplication()) {
+		ApplicationLog::record({LogEventType::JobUpdateAlreadyPending});
 		emit applicationUpdateRejected(
 			0,
 			normalizedId,
@@ -401,7 +410,7 @@ void JobApplicationsController::updateApplication(
 			preflight.message_);
 		return;
 	}
-	if (mutationGate_ != nullptr && !mutationGate_->reserveImportOrUpdate()) {
+	if (mutationGate_ != nullptr && !mutationGate_->reserveImportOrUpdate(1, LogFact::JobUpdate)) {
 		emit applicationUpdateBlocked(normalizedId);
 		return;
 	}
@@ -413,6 +422,7 @@ void JobApplicationsController::updateApplication(
 		replacementCvUrl });
 	pendingUpdateOperationId_ = operationId;
 	pendingUpdateApplicationId_ = normalizedId;
+	ApplicationLog::record({LogEventType::BackgroundSaveOrImportAccepted, {LogFact::JobUpdate, 1}});
 	emit updatingApplicationChanged();
 	publishPendingSaveStateChange(previousCount);
 	emit applicationUpdateQueued(operationId, normalizedId);
@@ -458,7 +468,8 @@ void JobApplicationsController::cancelCreateApplication()
 	const auto* const active = saveQueue_.active();
 	if (active != nullptr
 		&& std::holds_alternative<QueuedCreateApplication>(active->payload_)) {
-		saveQueue_.requestActiveCancellation(false);
+		const bool requested = saveQueue_.requestActiveCancellation(false);
+		StorageMutationGate::recordCancellation(mutationGate_, requested, 0);
 	}
 }
 
@@ -472,7 +483,8 @@ void JobApplicationsController::cancelAllJobSaves()
 	if (!activeUpdate) {
 		clearPendingUpdate();
 	}
-	saveQueue_.requestActiveCancellation();
+	const bool requested = saveQueue_.requestActiveCancellation();
+	StorageMutationGate::recordCancellation(mutationGate_, requested, clearedCount);
 	publishPendingSaveStateChange(previousCount);
 	if (mutationGate_ != nullptr) {
 		mutationGate_->releaseImportOrUpdate(clearedCount);
@@ -515,8 +527,14 @@ void JobApplicationsController::handleAddJobSave(const AddJobSaveOutcome& outcom
 
 void JobApplicationsController::handleUpdateJobSave(const UpdateJobSaveOutcome& outcome)
 {
-	if (!isActiveSaveOutcome(outcome.operationId_, outcome.cancellation_, true)
-		|| outcome.applicationId_ != pendingUpdateApplicationId_) {
+	if (!isActiveSaveOutcome(outcome.operationId_, outcome.cancellation_, true)) {
+		return;
+	}
+	if (outcome.applicationId_ != pendingUpdateApplicationId_) {
+		if (!mutationGate_ || !mutationGate_->shuttingDown()) {
+			ApplicationLog::record({LogEventType::UnexpectedBackgroundResultDiscarded,
+				{LogFact::JobUpdate, LogFact::TargetRecordMismatch}});
+		}
 		return;
 	}
 
@@ -536,6 +554,8 @@ void JobApplicationsController::handleUpdateJobSave(const UpdateJobSaveOutcome& 
 			}
 		}
 		else {
+			ApplicationLog::record({LogEventType::CommittedChangePublicationFailed,
+				{LogFact::JobUpdate, LogFact::ModelRecordUnavailable}});
 			message = QStringLiteral(
 				"The update was saved, but the application could not be refreshed in the current view.");
 		}
@@ -563,13 +583,20 @@ bool JobApplicationsController::isActiveSaveOutcome(
 	const std::shared_ptr<CancellationState>& cancellation,
 	bool expectUpdate) const
 {
-	if (shuttingDown_
-		|| !saveQueue_.matches(operationId, cancellation)) {
+	if (shuttingDown_)
 		return false;
-	}
 
-	return std::holds_alternative<QueuedUpdateApplication>(
-		saveQueue_.active()->payload_) == expectUpdate;
+	const bool matches = saveQueue_.matches(operationId, cancellation);
+	if (matches && std::holds_alternative<QueuedUpdateApplication>(saveQueue_.active()->payload_) == expectUpdate)
+		return true;
+
+	if (!mutationGate_ || !mutationGate_->shuttingDown()) {
+		const auto mismatch = !saveQueue_.hasActive() ? LogFact::NoActiveOperation
+			: (matches ? LogFact::WorkKindMismatch : LogFact::CorrelationMismatch);
+		ApplicationLog::record({LogEventType::UnexpectedBackgroundResultDiscarded,
+			{expectUpdate ? LogFact::JobUpdate : LogFact::JobCreation, mismatch}});
+	}
+	return false;
 }
 
 void JobApplicationsController::releaseActiveJobSave()
@@ -624,7 +651,7 @@ void JobApplicationsController::deleteCheckedApplications()
 		return;
 	}
 
-	if (!mutationGate_->beginRemoval())
+	if (!mutationGate_->beginRemoval(LogFact::JobDeletion))
 		return;
 
 	QVector<DataRemovalItemRequest> items;
@@ -636,6 +663,7 @@ void JobApplicationsController::deleteCheckedApplications()
 
 	activeDeletionOperationId_ = ++nextDeletionOperationId_;
 	activeDeletionCancellation_ = std::make_shared<CancellationState>();
+	ApplicationLog::record({LogEventType::RemovalOperationAccepted, {LogFact::JobDeletion, items.size()}});
 	emit deletingApplicationsChanged();
 	emit pendingDeletionCountChanged();
 	emit deletionAvailabilityChanged();
@@ -649,6 +677,7 @@ void JobApplicationsController::cancelApplicationDeletion()
 {
 	if (activeDeletionCancellation_ != nullptr) {
 		activeDeletionCancellation_->requestCancellation();
+		StorageMutationGate::recordCancellation(mutationGate_, 1, 0);
 	}
 }
 
@@ -659,6 +688,10 @@ void JobApplicationsController::handleRemovalCompleted(
 		|| activeDeletionCancellation_ == nullptr
 		|| outcome.operationId_ != activeDeletionOperationId_
 		|| outcome.cancellation_ != activeDeletionCancellation_) {
+		if (!shuttingDown_ && (!mutationGate_ || !mutationGate_->shuttingDown())) {
+			ApplicationLog::record({LogEventType::UnexpectedBackgroundResultDiscarded,
+				{LogFact::JobDeletion, activeDeletionCancellation_ ? LogFact::CorrelationMismatch : LogFact::NoActiveOperation}});
+		}
 		return;
 	}
 

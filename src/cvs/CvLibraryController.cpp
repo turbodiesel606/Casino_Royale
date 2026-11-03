@@ -8,6 +8,7 @@
 #include "jobs/JobApplicationListModel.hpp"
 #include "maintenance/DataRemovalWorker.hpp"
 #include "maintenance/StorageMutationGate.hpp"
+#include "storage/SqlQuery.hpp"
 
 #include <QScopeGuard>
 
@@ -319,6 +320,11 @@ int CvLibraryController::pendingImportCount() const
 	return importQueue_.pendingCount();
 }
 
+int CvLibraryController::activeWorkCount() const
+{
+	return static_cast<int>(importQueue_.hasActive()) + pendingDeletionCount();
+}
+
 CvLibraryController::LibraryView CvLibraryController::libraryView() const
 {
 	return libraryView_;
@@ -505,12 +511,13 @@ void CvLibraryController::toggleFavorite(const QString& cvId)
 	}
 	const auto* cv = cvModel_.cvById(cvId);
 	if (cv == nullptr) {
+		ApplicationLog::record({LogEventType::RequestedRecordStateMismatch, {LogFact::FavoriteChange, LogFact::Missing}});
 		emit operationFailed(QStringLiteral("CV was not found."));
 		return;
 	}
 
 	const bool isFavorite = !cv->isFavorite_;
-	if (mutationGate_ != nullptr && !mutationGate_->reserveImportOrUpdate()) {
+	if (mutationGate_ != nullptr && !mutationGate_->reserveImportOrUpdate(1, LogFact::FavoriteChange)) {
 		return;
 	}
 	const auto releaseReservation = qScopeGuard([this] {
@@ -522,21 +529,26 @@ void CvLibraryController::toggleFavorite(const QString& cvId)
 	try {
 		updatedAt = repository_.updateFavorite(cvId, isFavorite);
 		if (!updatedAt) {
+			ApplicationLog::record({LogEventType::RequestedRecordStateMismatch, {LogFact::FavoriteChange, LogFact::Missing}});
 			emit operationFailed(QStringLiteral("CV was not found."));
 			return;
 		}
 	}
 	catch (const std::exception& error) {
+		ApplicationLog::record({LogEventType::CvFavoriteSaveFailed, {storage::sql::currentFailureCause()}});
 		emit operationFailed(QStringLiteral("The favorite state could not be saved: %1")
 			.arg(QString::fromUtf8(error.what())));
 		return;
 	}
 	catch (...) {
+		ApplicationLog::record({LogEventType::CvFavoriteSaveFailed, {LogFact::CauseUnavailable}});
 		emit operationFailed(QStringLiteral("The favorite state could not be saved."));
 		return;
 	}
 
 	if (!cvModel_.setFavorite(cvId, isFavorite, *updatedAt)) {
+		ApplicationLog::record({LogEventType::CommittedChangePublicationFailed,
+			{LogFact::FavoriteChange, LogFact::ModelRecordUnavailable}});
 		emit operationFailed(QStringLiteral("The favorite state was saved but the CV model could not be updated."));
 		return;
 	}
@@ -546,6 +558,7 @@ void CvLibraryController::openCv(const QString& cvId)
 {
 	const auto* cv = cvModel_.cvById(cvId);
 	if (cv == nullptr) {
+		ApplicationLog::record({LogEventType::RequestedRecordStateMismatch, {LogFact::OpenDocument, LogFact::Missing}});
 		emit operationFailed(QStringLiteral("CV was not found."));
 		return;
 	}
@@ -570,7 +583,7 @@ bool CvLibraryController::addCvs(const QList<QUrl>& sourceUrls)
 	if (validUrlCount == 0) {
 		return false;
 	}
-	if (mutationGate_ != nullptr && !mutationGate_->reserveImportOrUpdate(validUrlCount)) {
+	if (mutationGate_ != nullptr && !mutationGate_->reserveImportOrUpdate(validUrlCount, LogFact::CvImport)) {
 		return false;
 	}
 
@@ -581,6 +594,7 @@ bool CvLibraryController::addCvs(const QList<QUrl>& sourceUrls)
 		}
 	}
 
+	ApplicationLog::record({LogEventType::BackgroundSaveOrImportAccepted, {LogFact::CvImport, validUrlCount}});
 	publishPendingImportStateChange(previousCount);
 	startNextCvImport();
 	return true;
@@ -590,7 +604,8 @@ void CvLibraryController::cancelAllCvImports()
 {
 	const auto previousCount = pendingImportCount();
 	const auto clearedCount = importQueue_.clearWaiting();
-	importQueue_.requestActiveCancellation();
+	const bool requested = importQueue_.requestActiveCancellation();
+	StorageMutationGate::recordCancellation(mutationGate_, requested, clearedCount);
 	publishPendingImportStateChange(previousCount);
 	if (mutationGate_ != nullptr) {
 		mutationGate_->releaseImportOrUpdate(clearedCount);
@@ -678,6 +693,9 @@ void CvLibraryController::permanentlyDeleteCheckedCvs()
 	/* Reject a selection with no eligible unlinked CVs
     mixed selection is allowed. worker will skip linked members.*/
 	if (checkedUnlinkedCvCount() == 0) {
+		const int protectedCount = checkedCvCount();
+		ApplicationLog::record({LogEventType::LinkedCvPermanentDeletionSkipped,
+			{LogFact::SelectionDeclined, protectedCount, protectedCount}});
 		emit operationFailed(
 			QStringLiteral("Every selected CV is still used by a job application."));
 		return;
@@ -689,6 +707,7 @@ void CvLibraryController::cancelCvMutation()
 {
 	if (activeMutationCancellation_ != nullptr) {
 		activeMutationCancellation_->requestCancellation();
+		StorageMutationGate::recordCancellation(mutationGate_, 1, 0);
 	}
 }
 
@@ -812,6 +831,10 @@ void CvLibraryController::handleCvImport(const CvImportSaveOutcome& outcome)
 {
 	if (shuttingDown_
 		|| !importQueue_.matches(outcome.operationId_, outcome.cancellation_)) {
+		if (!shuttingDown_ && (!mutationGate_ || !mutationGate_->shuttingDown())) {
+			ApplicationLog::record({LogEventType::UnexpectedBackgroundResultDiscarded,
+				{LogFact::CvImport, importQueue_.hasActive() ? LogFact::CorrelationMismatch : LogFact::NoActiveOperation}});
+		}
 		return;
 	}
 

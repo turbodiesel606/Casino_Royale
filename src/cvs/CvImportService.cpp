@@ -1,6 +1,7 @@
 #include "CvImportService.hpp"
 
 #include "CvRepository.hpp"
+#include "CvPersistenceObservation.hpp"
 #include "common/TimeUtils.hpp"
 
 #include <QFileInfo>
@@ -65,20 +66,50 @@ CvImportService::CvImportService(
 
 CvManagedFilePreparationResult CvImportService::prepareDocument(
 	const QUrl& sourceUrl,
-	const std::shared_ptr<CancellationState>& cancellation) const
+    const std::shared_ptr<CancellationState>& cancellation,
+    LogFact operation, quint64 operationId) const
 {
-	return managedFileStore_.prepare(sourceUrl, cancellation);
+    CvPersistenceObservation observation{operation, operationId};
+    try {
+        auto result = managedFileStore_.prepare(sourceUrl, cancellation);
+        if (result.cancelled_) {
+            observation.stopped(LogFact::PersistSourceBuffer);
+        } else if (!result.succeeded()) {
+            observation.stage_ = result.stage_;
+            observation.cause_ = result.cause_;
+            observation.recordFailure();
+        }
+        return result;
+    } catch (const std::bad_alloc&) {
+        observation.stage_ = LogFact::PersistSourceBuffer;
+        observation.cause_ = LogFact::PersistMemoryLimit;
+        observation.recordFailure();
+        throw;
+    } catch (...) {
+        observation.stage_ = LogFact::PersistSourceRead;
+        observation.recordFailure();
+        throw;
+    }
 }
 
 CvImportResult CvImportService::importPreparedDocument(
 	const std::shared_ptr<CvManagedFilePreparation>& preparation,
-	// cancellation is stub, delete later
-	const std::shared_ptr<CancellationState>& cancellation) const
+    const std::shared_ptr<CancellationState>& cancellation) const
+{
+    CvPersistenceObservation observation{LogFact::CvImport};
+    return importPreparedDocument(preparation, cancellation, observation);
+}
+
+CvImportResult CvImportService::importPreparedDocument(
+    const std::shared_ptr<CvManagedFilePreparation>& preparation,
+    const std::shared_ptr<CancellationState>& cancellation,
+    CvPersistenceObservation& observation) const
 {
 	/*	Cancellation checks were turned off intentionally in this method!	*/
 	
 	// check for prepared CV file aviability
 	if (preparation == nullptr) {
+        observation.cause_ = LogFact::PersistMissingPrepared;
 		return { {}, {}, CvImportDisposition::ExistingActive, false, false,
 			QStringLiteral("The prepared CV file is unavailable.") };
 	}
@@ -92,6 +123,7 @@ CvImportResult CvImportService::importPreparedDocument(
 	/* check for exact SHA - 256 + 
 	exact original filename, including filename case.*/
 
+	observation.stage_ = LogFact::PersistLookupCv;
 	auto existing = repository_.findByIdentity(
 		preparation->sha256_,
 		preparation->originalFileName_);
@@ -99,6 +131,7 @@ CvImportResult CvImportService::importPreparedDocument(
 	if (existing) {
 		// Every exact archived duplicate is now restored.
 		if (existing->isArchived_) {
+			observation.stage_ = LogFact::PersistRestoreCv;
 			const auto updatedAt = repository_.updateArchived(existing->id_, false);
 
 			if (!updatedAt)
@@ -114,17 +147,24 @@ CvImportResult CvImportService::importPreparedDocument(
 	
 	/* if really miss in DB, create new file */
 	
-	const auto staged = managedFileStore_.stageAndFinalize(*preparation, cancellation);
+	observation.stage_ = LogFact::PersistCreateStage;
+	const auto staged = managedFileStore_.stageAndFinalize(*preparation, cancellation,
+        observation.operation_, observation.operationId_);
 	if (!staged.succeeded()) {
+        observation.stage_ = staged.stage_;
+        observation.cause_ = staged.cause_;
+        if (staged.cause_ != LogFact::PersistAlreadyStaged)
+            observation.cleanup_ = preparation->stagedCleanup_;
 		return { {}, {}, CvImportDisposition::ExistingActive, false,
 			staged.cancelled_, staged.message_ };
 	}
+	observation.stage_ = LogFact::PersistInsertCv;
 	auto document = buildCvDocument(*preparation);
 	repository_.insert(document);
 	return { std::move(document), preparation->finalFilePath_, CvImportDisposition::Inserted, true };
 }
 
-bool CvImportService::removeCompletedFile(const QString& completedFilePath) const
+bool CvImportService::removeCompletedFile(const QString& completedFilePath, LogFact* cleanup) const
 {
-	return managedFileStore_.removeCompletedFile(completedFilePath);
+	return managedFileStore_.removeCompletedFile(completedFilePath, cleanup);
 }

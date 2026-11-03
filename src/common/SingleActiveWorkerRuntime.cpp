@@ -1,4 +1,5 @@
 #include "SingleActiveWorkerRuntime.hpp"
+#include "logging/ApplicationLog.hpp"
 
 #include <QMetaObject>
 #include <QThread>
@@ -94,11 +95,11 @@ void SingleActiveWorkerRuntime::completeOperation()
     clearActiveOperation();
 }
 
-void SingleActiveWorkerRuntime::shutdown()
+bool SingleActiveWorkerRuntime::shutdown()
 {
     assertFacadeThread();
     if (shuttingDown_) {
-        return;
+        return cleanupCompleted_;
     }
 
     shuttingDown_ = true;
@@ -120,14 +121,24 @@ void SingleActiveWorkerRuntime::shutdown()
                 }
             },
             Qt::BlockingQueuedConnection);
+        if (!invoked) {
+            cleanupCompleted_ = false;
+            ApplicationLog::record({LogEventType::BackgroundShutdownCleanupFailed,
+                {LogFact::ShutdownContextDispatch, executorLifecycle_.storageArea_, LogFact::RequestDispatch}});
+        }
         Q_ASSERT(invoked);
 
         workerThread_.quit();
-        workerThread_.wait();
+        if (!workerThread_.wait()) {
+            cleanupCompleted_ = false;
+            ApplicationLog::record({LogEventType::BackgroundShutdownCleanupFailed,
+                {LogFact::WorkerThreadJoin, executorLifecycle_.storageArea_, LogFact::CauseUnavailable}});
+        }
         executor_ = nullptr;
     }
 
     clearActiveOperation();
+    return cleanupCompleted_;
 }
 
 void SingleActiveWorkerRuntime::assertFacadeThread() const

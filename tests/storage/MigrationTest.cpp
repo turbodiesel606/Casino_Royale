@@ -1,8 +1,10 @@
 #include "cvs/CvRepository.hpp"
 #include "directory/CompanyRepository.hpp"
 #include "jobs/JobRepository.hpp"
+#include "logging/ApplicationLog.hpp"
 #include "storage/SchemaMigrator.hpp"
 
+#include "../support/LogCapture.hpp"
 #include "../support/StorageTestFixtures.hpp"
 
 #include <QSqlDatabase>
@@ -392,7 +394,10 @@ void MigrationTest::constructorFailureUnregistersNamedConnection()
 
     const auto initialConnectionCount = QSqlDatabase::connectionNames().size();
     QString constructionError;
+    testsupport::LogCapture capture;
+    QVERIFY(capture.isValid());
     try {
+        ApplicationLogSession logging;
         SqliteDatabase database{databasePath};
     }
     catch (const std::exception& error) {
@@ -401,6 +406,10 @@ void MigrationTest::constructorFailureUnregistersNamedConnection()
 
     QVERIFY(constructionError.contains(QStringLiteral("newer")));
     QCOMPARE(QSqlDatabase::connectionNames().size(), initialConnectionCount);
+    const auto diagnostic = capture.contents();
+    QCOMPARE(diagnostic.count('\n'), 1);
+    QVERIFY(diagnostic.contains("Schema version check failed during compatibility check. Detected version: 5."));
+    QVERIFY(diagnostic.contains("Supported version: 4, reason: unsupported schema version."));
 }
 
 void MigrationTest::migratesVersionOneAndPreservesLinks()
@@ -534,13 +543,21 @@ void MigrationTest::rejectsBlankLegacyCompanyTransactionally()
     QSqlQuery pragmas{database};
     QVERIFY(pragmas.exec(QStringLiteral("PRAGMA foreign_keys = ON")));
 
+    testsupport::LogCapture capture;
+    QVERIFY(capture.isValid());
     QString migrationError;
     try {
+        ApplicationLogSession logging;
         SchemaMigrator::migrate(database);
     } catch (const std::exception& error) {
         migrationError = QString::fromUtf8(error.what());
     }
     QVERIFY(migrationError.contains(QStringLiteral("blank company name")));
+    const auto diagnostic = capture.contents();
+    QCOMPARE(diagnostic.count('\n'), 2);
+    QVERIFY(diagnostic.contains("Database upgrade from version 2 to 4 began."));
+    QVERIFY(diagnostic.contains("Schema change from 2 to 4 failed at migration from version 2 to version 3."));
+    QVERIFY(diagnostic.contains("Reason: blank company name. Rollback: succeeded."));
 
     QSqlQuery version{database};
     QVERIFY(version.exec(QStringLiteral("PRAGMA user_version")));
