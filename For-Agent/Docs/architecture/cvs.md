@@ -17,9 +17,13 @@ managed name or file. Only a missing identity stages and inserts a CV.
 Preparation and stage failures are structured results; SQL failures propagate to
 the workflow transaction boundary, which rolls back before file cleanup. Add
 Job, Add CV, and replacement updates all hold the shared mutex through that
-cleanup. Cancellation is observed while preparing the source and at explicit
-pre-persistence checks, but the import/staging methods do not consult it after
-persistence begins. A process crash after finalization but before commit can
+cleanup. Their catch paths pass the completed path, cleanup fact and existing
+error message to `CvImportService::compensateCompletedFile()`. The file store
+sets the cleanup fact when it attempts removal. An empty or absent path leaves
+the prior fact intact. A failed removal appends the quarantine warning to the
+caller's message. Cancellation is observed while preparing the source and at
+explicit pre-persistence checks, but the import/staging methods do not consult
+it after persistence begins. A process crash after finalization but before commit can
 leave a completed orphan that startup recovery quarantines.
 
 ## Add CV Flow
@@ -68,6 +72,12 @@ token, but checks it after acquiring the mutex and returns before the
 transaction. Staging and import persistence currently ignore later cancellation
 and must complete or roll back and compensate. Worker shutdown destroys its SQL
 graph on the worker thread before quitting and waiting.
+
+## Library Document Icon
+
+The CV browser cards and preview each size the shared `CvDocumentIcon` in QML.
+It displays the literal PDF label for every supported input format, including
+when the empty preview has no document.
 
 ## Favorite Updates And Feedback
 

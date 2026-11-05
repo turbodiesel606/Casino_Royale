@@ -159,10 +159,8 @@ CvImportSaveOutcome CvImportExecutor::process(CvImportRequest request)
         observation.reportFailure_ = true;
 		auto message = importExceptionMessage(std::current_exception());
 		// The transaction has rolled back, but no later CV ticket can run yet.
-		if (!context->importService_.removeCompletedFile(preparation.preparation_->finalFilePath_, &observation.cleanup_)) {
-			message.append(QStringLiteral(
-				" The managed CV file could not be cleaned up and will be quarantined on restart."));
-		}
+		context->importService_.compensateCompletedFile(
+			preparation.preparation_->finalFilePath_, observation.cleanup_, message);
 		return failureOutcome(request, std::move(message));
 	}
 }

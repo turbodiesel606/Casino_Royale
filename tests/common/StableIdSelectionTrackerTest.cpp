@@ -184,6 +184,10 @@ void StableIdSelectionTrackerTest::bulkSelectionUsesVisibleStableIdsAndSurvivesS
     tracker.setAllVisibleSelected(true);
     QCOMPARE(tracker.selectedCount(), 3);
     QVERIFY(tracker.allVisibleSelected());
+    QCOMPARE(tracker.selectedIds(), QStringList({QStringLiteral("c"), QStringLiteral("b"), QStringLiteral("a")}));
+    QCOMPARE(changedSpy.count(), 2);
+    tracker.setAllVisibleSelected(true);
+    QCOMPARE(changedSpy.count(), 2);
 
     proxy.setSearchText(QStringLiteral("Gamma"));
     QCOMPARE(tracker.selectedIds(), QStringList{QStringLiteral("c")});

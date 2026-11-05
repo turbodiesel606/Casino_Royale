@@ -74,72 +74,11 @@ private:
 		bool requested_ = false;
 		bool announced_ = false;
 	};
-	// template needed for microoptimization. Yes, it is stupid...
-	template<OperationCategory Category>
-	StorageMutationGate::BlockReason blockingReason() const
-	{
-		if (shuttingDown_)
-			return BlockReason::Closing;
-
-		if (removalActive_)
-			return BlockReason::RemovalActive;
-
-		if constexpr (Category == OperationCategory::Removal) {
-			if (pendingImportsOrUpdates_ > 0)
-				return BlockReason::ImportsOrUpdatesPending;
-		}
-
-		return BlockReason::None;
-	}
-
-	constexpr BlockReason blockingReason(OperationCategory category) const
-	{
-		switch (category) {
-		case OperationCategory::ImportOrUpdate:
-			return blockingReason<OperationCategory::ImportOrUpdate>();
-		case OperationCategory::Removal:
-			return blockingReason<OperationCategory::Removal>();
-		}
-	}
-
-	template<OperationCategory Category>
-	bool checkAllowed(LogFact action)
-	{
-		assertGuiThread();
-		const auto reason = blockingReason(Category);
-		if (reason == BlockReason::None)
-			return true;
-
-		// Suppress new dialogs and retry notices during shutdown.
-		if (reason != BlockReason::Closing) {
-			recordBlockedAttempt(action, Category, reason);
-			/*
-			Remember which operation was blocked so the UI can explain
-			the conflict and later announce when that operation becomes available.
-			*/
-			// This stores notification interest, not a request for automatic retry.
-			lastBlockedCategory_ = Category;
-			retryNotices_[static_cast<std::size_t>(Category)].requested_ = true;
-			// Refresh QML bindings that display the feedback state.
-			emit feedbackChanged();
-
-			/*
-				Report every rejected attempt so the UI can show the
-				blocking dialog again, even when the category and reason are unchanged.
-			*/
-			emit operationBlocked(Category, reason);
-		}
-		return false;
-	}
-
+	BlockReason blockingReason(OperationCategory category) const;
+	bool checkAllowed(OperationCategory category, LogFact action);
+	void clearRetryNotice(OperationCategory category);
 	void publishStateChange();
 	void recordBlockedAttempt(LogFact action, OperationCategory category, BlockReason reason) const noexcept;
-
-	template<OperationCategory Category>
-	void clearRetryNotice()
-	{
-		retryNotices_[static_cast<std::size_t>(Category)] = {};
-	}
 	void assertGuiThread() const;
 
 	int pendingImportsOrUpdates_ = 0;

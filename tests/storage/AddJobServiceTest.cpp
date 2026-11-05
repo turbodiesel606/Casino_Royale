@@ -6,6 +6,7 @@
 #include "storage/SqlTransaction.hpp"
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QSqlQuery>
 #include <QUrl>
@@ -27,6 +28,7 @@ private slots:
     void reportsFailedGuardRollbackWithoutChangingJobOutcome();
     void rollsBackArchivedRestorationWhenJobInsertFails();
     void removesFinalizedCvWhenCvInsertFails();
+    void failedFileCompensationPreservesRowsAndExtendsTheOriginalError();
     void reusesNormalizedCompanyIdentity();
     void removesCopiedCvWhenJobInsertFails();
     void rejectsInvalidInputWithoutWriting();
@@ -112,6 +114,83 @@ void AddJobServiceTest::reportsFailedGuardRollbackWithoutChangingJobOutcome()
     QCOMPARE(log.count("Job creation failed at job insertion"), 1);
     QVERIFY(log.contains("Rollback: failed, file cleanup: succeeded"));
     QCOMPARE(log.count("(operation 761)"), 2);
+    QVERIFY(!log.contains("Private"));
+}
+
+void AddJobServiceTest::failedFileCompensationPreservesRowsAndExtendsTheOriginalError()
+{
+    testsupport::AddJobTestFixture fixture;
+    QVERIFY(fixture.isValid());
+    testsupport::LogCapture capture;
+    QVERIFY(capture.isValid());
+    const QByteArray bytes = QByteArrayLiteral("Private disposable CV contents");
+    const auto source = QUrl::fromLocalFile(fixture.storage_.createFile(QStringLiteral("PrivateResume.pdf"), bytes));
+    const auto original = fixture.service_.create(testsupport::validJobDraft(), source);
+    QVERIFY2(original.success_, qPrintable(original.message_));
+    const QDir resumes{fixture.storage_.paths().resumesDirectory()};
+    const auto originalName = original.cvDocument_.storedFileName_;
+    QSqlQuery reject{fixture.database_.connection()};
+    QVERIFY(reject.exec(QStringLiteral("CREATE TRIGGER reject_job BEFORE INSERT ON jobs "
+        "BEGIN SELECT RAISE(FAIL, 'PrivateCompensationFailure'); END")));
+    auto draft = testsupport::validJobDraft();
+    draft.companyName_ = QStringLiteral("Private Rolled Back Company");
+    const auto preflight = JobApplicationValidator::preflight(draft, true);
+    QVERIFY(preflight.isValid());
+    const auto token = std::make_shared<CancellationState>();
+    QString blockedPath;
+    {
+        ApplicationLogSession session;
+        auto control = fixture.service_.prepareValidated(preflight.draft_, source, token, 910);
+        QVERIFY(control.success_);
+        const auto noFile = fixture.service_.complete(std::move(control), token);
+        QVERIFY(!noFile.success_);
+        QVERIFY(noFile.message_.contains(QStringLiteral("PrivateCompensationFailure")));
+        QVERIFY(!noFile.message_.contains(QStringLiteral("quarantined")));
+
+        auto prepared = fixture.service_.prepareValidated(preflight.draft_, source, token, 911);
+        QVERIFY(prepared.success_ && prepared.cvPreparation_);
+        // Codex Comment: Reuse the existing CV identity so complete() reaches job insertion with this finalized copy.
+        const auto staged = fixture.fileStore_.stageAndFinalize(*prepared.cvPreparation_, token);
+        QVERIFY2(staged.succeeded(), qPrintable(staged.message_));
+        blockedPath = prepared.cvPreparation_->finalFilePath_;
+        QVERIFY(blockedPath != resumes.filePath(originalName));
+        QFile copy{blockedPath};
+        QVERIFY(copy.open(QIODevice::ReadOnly));
+        QCOMPARE(copy.readAll(), bytes);
+        copy.close();
+        QVERIFY(copy.remove());
+        QVERIFY(QDir{}.mkdir(blockedPath));
+        QFile marker{QDir{blockedPath}.filePath(QStringLiteral("marker"))};
+        QVERIFY(marker.open(QIODevice::WriteOnly | QIODevice::NewOnly));
+        QCOMPARE(marker.write(bytes), bytes.size());
+        marker.close();
+        const auto blocked = fixture.service_.complete(std::move(prepared), token);
+        QVERIFY(!blocked.success_);
+        QCOMPARE(blocked.message_, noFile.message_ + QStringLiteral(
+            " The managed CV file could not be cleaned up and will be quarantined on restart."));
+        QVERIFY(marker.open(QIODevice::ReadOnly));
+        QCOMPARE(marker.readAll(), bytes);
+    }
+    const auto companies = fixture.companyRepository_.findAll();
+    const auto jobs = fixture.jobRepository_.findAll();
+    const auto cvs = fixture.cvRepository_.findAll();
+    QCOMPARE(companies.size(), 1);
+    QCOMPARE(companies.first().id_, original.company_.id_);
+    QCOMPARE(jobs.size(), 1);
+    QCOMPARE(jobs.first().id_, original.application_.id_);
+    QCOMPARE(cvs.size(), 1);
+    QCOMPARE(cvs.first().id_, original.cvDocument_.id_);
+    QCOMPARE(resumes.entryList(QDir::Files), QStringList{originalName});
+    QCOMPARE(resumes.entryList(QDir::Dirs | QDir::NoDotAndDotDot), QStringList{QFileInfo{blockedPath}.fileName()});
+    QFile retained{resumes.filePath(originalName)};
+    QVERIFY(retained.open(QIODevice::ReadOnly));
+    QCOMPARE(retained.readAll(), bytes);
+    const auto log = capture.contents();
+    QVERIFY2(log.contains("Rollback: succeeded, file cleanup: not attempted (operation 910)."), log.constData());
+    QVERIFY2(log.contains("Rollback: succeeded, file cleanup: failed (operation 911)."), log.constData());
+    QVERIFY(log.contains("Cleanup after job creation failed to remove an unreferenced managed copy."));
+    QCOMPARE(log.count("(operation 910)"), 1);
+    QCOMPARE(log.count("(operation 911)"), 2);
     QVERIFY(!log.contains("Private"));
 }
 

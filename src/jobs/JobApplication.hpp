@@ -3,9 +3,13 @@
 
 #include <QDate>
 #include <QDateTime>
+#include <QLatin1StringView>
 #include <QString>
 #include <QStringList>
 #include <QUrl>
+
+#include <array>
+#include <cstddef>
 
 // Closed domain choices stored by their existing schema-v3 text values.
 enum class JobStatus
@@ -54,5 +58,44 @@ struct JobApplication
     QDateTime createdAt_;
     QDateTime updatedAt_;
 };
+
+namespace jobs::detail {
+
+	template<typename Enum>
+	struct EnumText final
+	{
+		Enum value_;
+		QLatin1StringView text_;
+	};
+
+	template<typename Enum, std::size_t Size>
+	constexpr Enum enumFromString(
+		const QString& value,
+		const std::array<EnumText<Enum>, Size>& mappings,
+		Enum fallback)
+	{
+		const auto normalized = value.trimmed();
+		for (const auto& mapping : mappings) {
+			if (normalized.compare(mapping.text_, Qt::CaseInsensitive) == 0) {
+				return mapping.value_;
+			}
+		}
+		return fallback;
+	}
+
+	template<typename Enum, std::size_t Size>
+	constexpr QString enumToString(
+		Enum value,
+		const std::array<EnumText<Enum>, Size>& mappings)
+	{
+		for (const auto& mapping : mappings) {
+			if (mapping.value_ == value) {
+				return QString{ mapping.text_ };
+			}
+		}
+		return {};
+	}
+
+}
 
 #endif // JOBTRACKER_SRC_JOBS_JOBAPPLICATION_HPP

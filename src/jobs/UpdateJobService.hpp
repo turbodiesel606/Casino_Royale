@@ -1,34 +1,27 @@
 #ifndef JOBTRACKER_SRC_JOBS_UPDATEJOBSERVICE_HPP
 #define JOBTRACKER_SRC_JOBS_UPDATEJOBSERVICE_HPP
-#include "JobApplicationFactory.hpp"
-#include "JobApplicationValidator.hpp"
-#include "JobRepository.hpp"
-#include "common/ExceptionUtils.hpp"
-#include "cvs/CvLockWrapper.hpp"
-#include "directory/CompanyRepository.hpp"
-#include "storage/SqlTransaction.hpp"
-#include "storage/SqlQuery.hpp"
-#include "cvs/CvPersistenceObservation.hpp"
-
-//
 #include "JobApplication.hpp"
 #include "JobApplicationDraft.hpp"
+#include "JobApplicationValidator.hpp"
+#include "JobRepository.hpp"
 #include "common/CancellationState.hpp"
 #include "cvs/CvDocument.hpp"
 #include "cvs/CvImportService.hpp"
-#include "cvs/CvManagedFileStore.hpp"
+#include "cvs/CvPersistenceObservation.hpp"
 #include "directory/Company.hpp"
+#include "storage/SqlQuery.hpp"
 
+#include <QThread>
 #include <QUrl>
 #include <QVariantMap>
 
 #include <memory>
 #include <optional>
-#include <QSqlDatabase>
-#include <QThread>
 
-#include <stdexcept>
-#include <utility>
+class CompanyRepository;
+class CvLockWrapper;
+class QSqlDatabase;
+struct CvManagedFilePreparation;
 
 struct UpdateJobPreparationResult final
 {
@@ -90,8 +83,9 @@ private:
         AlreadyValidated
     };
 
+
     // this is last verdict, dont touch choose in compile time!
-    template<DraftValidationMode ValidationMode>
+    template<UpdateJobService::DraftValidationMode ValidationMode>
     UpdateJobPreparationResult prepareImpl(
         const QString& applicationId,
         const NormalizedJobApplicationDraft& draft,
@@ -99,7 +93,7 @@ private:
         const std::shared_ptr<CancellationState>& cancellation, quint64 operationId) const
     {
         UpdateJobPreparationResult result;
-        CvPersistenceObservation observation{LogFact::JobUpdate, operationId};
+        CvPersistenceObservation observation{ LogFact::JobUpdate, operationId };
         result.operationId_ = operationId;
         result.draft_ = draft;
         result.replacementCvRequested_ = !replacementCvUrl.isEmpty();
@@ -129,7 +123,8 @@ private:
         std::optional<JobApplication> existing;
         try {
             existing = jobRepository_.findById(applicationId);
-        } catch (...) {
+        }
+        catch (...) {
             observation.cause_ = storage::sql::currentFailureCause();
             observation.recordFailure();
             throw;

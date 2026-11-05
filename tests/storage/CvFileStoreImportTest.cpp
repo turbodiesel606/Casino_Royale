@@ -32,6 +32,7 @@ private slots:
     void preparedImportFinishesWithCancelledToken();
     void stagingFinishesWithCancelledToken();
     void reportsUnavailablePreparation();
+    void absentCompletedFilePreservesThePriorCleanupFact();
     void reconcilesStaleStagesAndQuarantinesOrphans();
     void reportsPartialRecoveryBeforeQuarantineFailure();
     void reusesCvWithSameIdentity();
@@ -189,6 +190,19 @@ void CvFileStoreImportTest::reportsUnavailablePreparation()
     QVERIFY(!result.success_);
     QVERIFY(!result.cancelled_);
     QVERIFY(!result.message_.isEmpty());
+}
+
+void CvFileStoreImportTest::absentCompletedFilePreservesThePriorCleanupFact()
+{
+    testsupport::TemporaryStorageFixture storage;
+    QVERIFY(storage.isValid());
+    CvManagedFileStore store{storage.paths()};
+    LogFact cleanup = LogFact::Failed;
+    QVERIFY(store.removeCompletedFile({}, &cleanup));
+    QCOMPARE(cleanup, LogFact::Failed);
+    const auto missing = QDir{storage.paths().resumesDirectory()}.filePath(QStringLiteral("absent.pdf"));
+    QVERIFY(store.removeCompletedFile(missing, &cleanup));
+    QCOMPARE(cleanup, LogFact::Failed);
 }
 
 void CvFileStoreImportTest::reportsPartialRecoveryBeforeQuarantineFailure()

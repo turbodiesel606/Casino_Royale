@@ -64,11 +64,10 @@ cascade and never removes the referenced company or CV. Its read query joins
 company and CV display roles remain unchanged. It then loads each job's
 technologies from `job_technologies` in `position` order.
 
-`CvRepository` uses the header-only `src/fixed_str` utility to assemble its
-shared joined `SELECT` and CV `INSERT` SQL text at compile time. The resulting
-`QString` uses static-backed text; runtime values such as a CV ID remain bound
-query parameters. Other repository and migration queries continue to use their
-existing query construction.
+`CvRepository` includes `fixed_str/FixedStringQt.hpp` for its shared joined
+`SELECT` and CV `INSERT` statements. `FIXED_QSTRING` exposes their compile-time
+SQL text as a `QString` backed by static UTF-16 storage. The repository binds
+runtime values, such as the CV ID, as query parameters.
 
 Repositories translate the schema's existing ISO text representation into typed
 domain values. Job applied dates use `QDate`; job, CV, and company

@@ -179,7 +179,10 @@ When the update becomes active, `JobSaveWorker` calls
 through `JobRepository::findById()`, trusts the controller-preflighted normalized
 draft, and optionally buffers a PDF, DOC, or DOCX replacement. The separate
 checked `prepare()` entry point retains service-level validation for callers that
-do not already hold a preflight result. Every update currently acquires the
+do not already hold a preflight result. Both entry points instantiate private
+compile-time validation modes defined in `UpdateJobService.hpp`. Both look up the job
+before draft validation, so a missing job takes precedence over field errors.
+Every update currently acquires the
 shared `CvLockWrapper` mutex before starting its transaction, including
 metadata-only updates. Replacement updates recheck cancellation after
 acquisition, resolve/import the CV, then resolve the company and update the job.

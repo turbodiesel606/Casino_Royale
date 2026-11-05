@@ -99,8 +99,9 @@ for the current file inventory.
   bulk selection, explicit role projection, presentation, timestamp, and error
   helpers, value-level serial queues, and single-active-worker lifecycle
   infrastructure.
-- `src/fixed_str`: header-only C++20 compile-time string composition and Qt
-  adapters, currently used by `CvRepository` for static SQL text.
+- `src/fixed_str` owns the header-only C++20 fixed-string library. Include
+  `fixed_str/FixedString.hpp` for compile-time string composition or
+  `fixed_str/FixedStringQt.hpp` for the core API plus Qt string and view adapters.
 - `src/jobs`: typed job value/draft types, canonical factory and validator, job
   list model, QML controller, repository, shared save worker, and create/update
   services.

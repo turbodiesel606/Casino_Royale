@@ -6,12 +6,9 @@
 
 namespace {
 
-	template<typename Enum>
-	struct EnumText final
-	{
-		Enum value_;
-		QLatin1StringView text_;
-	};
+	using jobs::detail::EnumText;
+	using jobs::detail::enumFromString;
+	using jobs::detail::enumToString;
 
 	constexpr std::array<EnumText<JobStatus>, 5> jobStatusMappings{
 		EnumText{JobStatus::Applied, QLatin1StringView{"Applied"}},
@@ -26,34 +23,6 @@ namespace {
 		EnumText{WorkFormat::Hybrid, QLatin1StringView{"Hybrid"}},
 		EnumText{WorkFormat::OnSite, QLatin1StringView{"On-site"}},
 	 };
-
-	template<typename Enum, std::size_t Size>
-	constexpr Enum enumFromString(
-		const QString& value,
-		const std::array<EnumText<Enum>, Size>& mappings,
-		Enum fallback)
-	{
-		const auto normalized = value.trimmed();
-		for (const auto& mapping : mappings) {
-			if (normalized.compare(mapping.text_, Qt::CaseInsensitive) == 0) {
-				return mapping.value_;
-			}
-		}
-		return fallback;
-	}
-
-	template<typename Enum, std::size_t Size>
-	constexpr QString enumToString(
-		Enum value,
-		const std::array<EnumText<Enum>, Size>& mappings)
-	{
-		for (const auto& mapping : mappings) {
-			if (mapping.value_ == value) {
-				return QString{ mapping.text_ };
-			}
-		}
-		return {};
-	}
 
 } // namespace
 

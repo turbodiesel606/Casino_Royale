@@ -4,7 +4,6 @@
 #include <QObject>
 #include <QSet>
 #include <QStringList>
-#include "common/BulkIdSelectionTracker.hpp"
 
 class QAbstractProxyModel;
 

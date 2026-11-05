@@ -3,8 +3,10 @@
 #include "JobApplicationFactory.hpp"
 #include "JobApplicationValidator.hpp"
 #include "JobRepository.hpp"
+#include "common/CancellationState.hpp"
 #include "common/ExceptionUtils.hpp"
 #include "cvs/CvLockWrapper.hpp"
+#include "cvs/CvManagedFileStore.hpp"
 #include "directory/CompanyRepository.hpp"
 #include "storage/SqlTransaction.hpp"
 #include "storage/SqlQuery.hpp"
@@ -159,10 +161,9 @@ UpdateJobResult UpdateJobService::complete(
 		result.message_ = common::exceptionMessage(
 			std::current_exception(), QStringLiteral("An unexpected job update error occurred."));
 		// Rollback precedes file compensation, and the lease outlives both.
-		if (preparation.cvPreparation_ != nullptr
-			&& !cvImportService_.removeCompletedFile(preparation.cvPreparation_->finalFilePath_, &observation.cleanup_)) {
-			result.message_.append(QStringLiteral(
-				" The managed CV file could not be cleaned up and will be quarantined on restart."));
+		if (preparation.cvPreparation_ != nullptr) {
+			cvImportService_.compensateCompletedFile(
+				preparation.cvPreparation_->finalFilePath_, observation.cleanup_, result.message_);
 		}
 	}
 	return result;

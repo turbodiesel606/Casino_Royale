@@ -55,6 +55,12 @@ business logic belongs in C++; moving existing QML business logic to C++ must
 stay within the requested task scope. Keep `src/main.cpp` limited to bootstrap,
 QML engine setup, type registration, dependency wiring, and startup logic.
 
+All named C++ template definitions and implementations must reside in headers,
+including private and implementation-only templates. Template uses and
+instantiations may appear anywhere, including `.cpp` files. Generic lambdas are
+outside this placement requirement. Follow the
+[complete template placement rules](For-Agent/Docs/coding-style.md#header-conventions).
+
 The dependency direction is strictly `tests -> production`. Production source,
 targets, APIs, and normal configure/build/deploy workflows must never depend on
 or reference test sources, targets, Qt Test, fixtures, mocks, test-only compile

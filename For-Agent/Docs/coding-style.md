@@ -15,12 +15,25 @@ Use `#ifndef` / `#define` include guards instead of `#pragma once` in C++ header
 
 Use the `.hpp` extension for all C++ header files.
 
-Keep reusable template definitions that must be visible across translation units
-in `.hpp` headers, including function templates, class templates, and their members.
-An implementation-private template may be defined in a `.cpp` file when all its
-uses and required instantiations are confined to that translation unit and no
-external consumer needs the definition. Do not expose a private helper in a
-public or shared header solely to satisfy a placement convention.
+All named C++ template definitions and implementations must reside in header
+files (`.h`, `.hpp`, or another header extension); this project uses `.hpp`.
+This requirement has no exceptions for named templates. It covers function
+templates, class templates and their member definitions, member function
+templates, concepts, alias templates, variable templates, template
+specializations, and abbreviated function templates.
+
+This rule governs definitions and implementations, not template usage.
+Templates may be used and instantiated anywhere, including `.cpp` files.
+Generic lambdas are outside this placement requirement and may remain with
+their call sites in any source file.
+
+Do not define or implement named templates in `.cpp` files or any other
+non-header implementation files, even when they are private, implementation-only,
+or used by one translation unit. Keep class-private templates private in the
+corresponding header; place translation-unit-private helpers in a focused
+private header when needed, preserving their linkage and ownership.
+Header definitions must include their required dependencies and remain safe
+across translation units.
 
 ## Compile-Time Computation
 
@@ -64,7 +77,7 @@ Do not hide ownership transfer. Prefer explicit ownership through Qt parentage o
 
 Keep large classes, models, services, controllers, and helpers in focused file pairs when that improves maintainability.
 
-Use `.hpp` / implementation file pairs for non-template C++ code instead of `.h`-based pairs. Apply the template visibility rules above to template definitions.
+Use `.hpp` / implementation file pairs for non-template C++ code instead of `.h`-based pairs. Apply the header-only template rules above to named template definitions.
 
 Prefer small cohesive files over god files and god classes.
 

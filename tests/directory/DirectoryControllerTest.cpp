@@ -172,6 +172,18 @@ void DirectoryControllerTest::companyPublicationPreservesCanonicalValue()
             QStringLiteral("openJobCount"),
             QStringLiteral("website"),
         }));
+
+    Company alpha;
+    alpha.id_ = QStringLiteral("company-alpha");
+    alpha.name_ = QStringLiteral("Alpha");
+    controller.publishCompany(alpha);
+    const auto firstName = [&] { return model->data(model->index(0, 0), CompanyListModel::NameRole).toString(); };
+    // Codex Comment: The initial Name label at R0 keeps publication order until the sort mode changes.
+    QCOMPARE(controller.sortMode(), QStringLiteral("Name"));
+    QCOMPARE(firstName(), QStringLiteral("Published Company"));
+    controller.setSortMode(QStringLiteral("Open Jobs"));
+    controller.setSortMode(QStringLiteral("Name"));
+    QCOMPARE(firstName(), QStringLiteral("Alpha"));
 }
 
 void DirectoryControllerTest::contactModelExposesNamedRoles()
@@ -284,6 +296,23 @@ void DirectoryControllerTest::companySelectionPublishesLinkedViewContracts()
     QCOMPARE(selectedDataSpy.count(), 0);
     QCOMPARE(linkedJobsModel->rowCount(), 2);
     QCOMPARE(linkedContactsModel->rowCount(), 2);
+
+    controller.setSearchText(QStringLiteral("Alpha"));
+    QCOMPARE(controller.selectedCompanyIndex(), 0);
+    int resetNotifications = 0;
+    connect(&controller, &CompanyDirectoryController::searchTextChanged, this, [&] {
+        ++resetNotifications;
+        QCOMPARE(controller.searchText(), QString{});
+        QCOMPARE(controller.sortMode(), QStringLiteral("Contacts"));
+        QCOMPARE(controller.companyCount(), 3);
+        QCOMPARE(controller.selectedCompanyId(), QStringLiteral("company-alpha"));
+        QCOMPARE(controller.selectedCompanyIndex(), 2);
+        QCOMPARE(linkedJobsModel->rowCount(), 2);
+        QCOMPARE(linkedContactsModel->rowCount(), 2);
+    });
+    controller.clearFilters();
+    controller.clearFilters();
+    QCOMPARE(resetNotifications, 1);
 
     controller.setSortMode(QStringLiteral("Name"));
     controller.selectCompany(1);

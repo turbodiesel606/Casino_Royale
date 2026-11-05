@@ -159,10 +159,9 @@ AddJobResult AddJobService::complete(
 		result.message_ = common::exceptionMessage(
 			std::current_exception(), QStringLiteral("An unexpected Add Job error occurred."));
 		// SqlTransaction has rolled back; retain the lease until cleanup finishes.
-		if (preparation.cvPreparation_ != nullptr
-			&& !cvImportService_.removeCompletedFile(preparation.cvPreparation_->finalFilePath_, &observation.cleanup_)) {
-			result.message_.append(QStringLiteral(
-				" The managed CV file could not be cleaned up and will be quarantined on restart."));
+		if (preparation.cvPreparation_ != nullptr) {
+			cvImportService_.compensateCompletedFile(
+				preparation.cvPreparation_->finalFilePath_, observation.cleanup_, result.message_);
 		}
 	}
 	return result;

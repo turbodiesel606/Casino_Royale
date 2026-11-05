@@ -5,6 +5,8 @@
 #include "../support/AddJobTestFixture.hpp"
 #include "../support/JobApplicationTestData.hpp"
 
+#include <QDir>
+#include <QFile>
 #include <QSignalSpy>
 #include <QSqlQuery>
 #include <QUrl>
@@ -47,6 +49,7 @@ private slots:
     void controllerValidatesBeforeQueueAdmission();
     void controllerRejectsInvalidUpdateBeforeQueueAdmission();
     void controllerPublishesSuccessfulUpdateInPlace();
+    void controllerRetainsModelWhenUpdateFails_data();
     void controllerRetainsModelWhenUpdateFails();
     void createAndUpdateShareOneFifo();
     void asyncDeletionRemovesModelAndPreservesCvAndCompany();
@@ -554,13 +557,22 @@ void JobApplicationsControllerTest::controllerPublishesSuccessfulUpdateInPlace()
         QStringLiteral("QML")}));
 }
 
+void JobApplicationsControllerTest::controllerRetainsModelWhenUpdateFails_data()
+{
+    QTest::addColumn<bool>("replaceCv");
+    QTest::newRow("metadata only") << false;
+    QTest::newRow("new CV file") << true;
+}
+
 void JobApplicationsControllerTest::controllerRetainsModelWhenUpdateFails()
 {
+    QFETCH(bool, replaceCv);
     testsupport::AddJobWorkerTestFixture fixture;
     QVERIFY(fixture.isValid());
+    const auto originalBytes = QByteArrayLiteral("%PDF original controller CV");
     const auto created = fixture.service_.create(
         testsupport::validJobDraft(),
-        QUrl::fromLocalFile(fixture.storage_.createFile(QStringLiteral("update-failure.pdf"))));
+        QUrl::fromLocalFile(fixture.storage_.createFile(QStringLiteral("update-failure.pdf"), originalBytes)));
     QVERIFY(created.success_);
     QSqlQuery trigger{fixture.database_.connection()};
     QVERIFY(trigger.exec(QStringLiteral(
@@ -569,22 +581,46 @@ void JobApplicationsControllerTest::controllerRetainsModelWhenUpdateFails()
     JobApplicationsController controller{fixture.jobRepository_.findAll(), fixture.worker_};
     const auto before = controller.selectedApplication();
     QSignalSpy completedSpy{&controller, &JobApplicationsController::applicationUpdateCompleted};
+    QSignalSpy companySpy{&controller, &JobApplicationsController::companyResolved};
+    QSignalSpy replacementSpy{&controller, &JobApplicationsController::cvReplaced};
     QSignalSpy dataChangedSpy{
         &controller.jobApplicationListModel(),
         &QAbstractItemModel::dataChanged};
 
     auto values = testsupport::validJobFormValues(QStringLiteral("Rejected Update"));
-    values.insert(QStringLiteral("companyName"), QStringLiteral("Example Company"));
-    controller.updateApplication(created.application_.id_, values, {});
+    QUrl replacementUrl;
+    if (replaceCv) {
+        values.insert(QStringLiteral("companyName"), QStringLiteral("Uncommitted Company"));
+        const auto path = fixture.storage_.createFile(
+            QStringLiteral("replacement.pdf"), QByteArrayLiteral("%PDF replacement controller CV"));
+        QVERIFY(!path.isEmpty());
+        replacementUrl = QUrl::fromLocalFile(path);
+    }
+    controller.updateApplication(created.application_.id_, values, replacementUrl);
 
     QTRY_COMPARE_WITH_TIMEOUT(completedSpy.count(), 1, 10000);
     QVERIFY(!completedSpy.first().at(3).toBool());
+    QVERIFY(completedSpy.first().at(5).toString().contains(QStringLiteral("forced controller update failure")));
+    QCOMPARE(companySpy.count(), 0);
+    QCOMPARE(replacementSpy.count(), 0);
     QCOMPARE(dataChangedSpy.count(), 0);
     QCOMPARE(controller.selectedApplication(), before);
     QVERIFY(!controller.updatingApplication());
     const auto stored = fixture.jobRepository_.findById(created.application_.id_);
     QVERIFY(stored.has_value());
     QCOMPARE(stored->jobTitle_, created.application_.jobTitle_);
+    QCOMPARE(stored->cvId_, created.cvDocument_.id_);
+    QCOMPARE(fixture.companyRepository_.findAll().size(), 1);
+    const auto cvs = fixture.cvRepository_.findAll();
+    QCOMPARE(cvs.size(), 1);
+    QCOMPARE(cvs.first().id_, created.cvDocument_.id_);
+    QCOMPARE(cvs.first().linkedApplicationIds_, QStringList{created.application_.id_});
+    const QDir resumes{fixture.storage_.paths().resumesDirectory()};
+    QCOMPARE(resumes.entryList(QDir::AllEntries | QDir::Hidden | QDir::NoDotAndDotDot),
+        QStringList{created.cvDocument_.storedFileName_});
+    QFile originalFile{resumes.filePath(created.cvDocument_.storedFileName_)};
+    QVERIFY(originalFile.open(QIODevice::ReadOnly));
+    QCOMPARE(originalFile.readAll(), originalBytes);
 }
 
 void JobApplicationsControllerTest::createAndUpdateShareOneFifo()

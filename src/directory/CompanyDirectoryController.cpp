@@ -175,14 +175,7 @@ void CompanyDirectoryController::setSortMode(const QString& sortMode)
 
 void CompanyDirectoryController::clearFilters()
 {
-    if (searchText().isEmpty()) {
-        return;
-    }
-
-    selectionTracker_.beginModelUpdate();
-    filteredCompanyModel_.setSearchText(QString());
-    selectionTracker_.endModelUpdate();
-    emit searchTextChanged();
+    setSearchText(QString{});
 }
 
 void CompanyDirectoryController::publishCompany(const Company& company)

@@ -1,3 +1,4 @@
+#include "StorageMutationFeedbackTest.hpp"
 #include "maintenance/StorageMutationGate.hpp"
 #include "../support/AddJobTestFixture.hpp"
 #include "../support/LogCapture.hpp"
@@ -26,17 +27,6 @@
 #include <memory>
 #include <mutex>
 #include <optional>
-
-class StorageMutationFeedbackTest final : public QObject
-{
-    Q_OBJECT
-
-private slots:
-    void repeatedAttemptsReopenDialogAndBannerStaysCurrent();
-    void pendingWorkDialogReportsOnlyExplicitCloseChoices();
-    void bootstrapOpensAndExits_data();
-    void bootstrapOpensAndExits();
-};
 
 void StorageMutationFeedbackTest::repeatedAttemptsReopenDialogAndBannerStaysCurrent()
 {
@@ -258,5 +248,3 @@ void StorageMutationFeedbackTest::bootstrapOpensAndExits()
 }
 
 QTEST_MAIN(StorageMutationFeedbackTest)
-
-#include "StorageMutationFeedbackTest.moc"

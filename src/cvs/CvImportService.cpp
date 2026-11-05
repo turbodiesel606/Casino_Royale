@@ -164,7 +164,11 @@ CvImportResult CvImportService::importPreparedDocument(
 	return { std::move(document), preparation->finalFilePath_, CvImportDisposition::Inserted, true };
 }
 
-bool CvImportService::removeCompletedFile(const QString& completedFilePath, LogFact* cleanup) const
+void CvImportService::compensateCompletedFile(
+    const QString& completedFilePath, LogFact& cleanup, QString& failureMessage) const
 {
-	return managedFileStore_.removeCompletedFile(completedFilePath, cleanup);
+    if (!managedFileStore_.removeCompletedFile(completedFilePath, &cleanup)) {
+        failureMessage.append(QStringLiteral(
+            " The managed CV file could not be cleaned up and will be quarantined on restart."));
+    }
 }

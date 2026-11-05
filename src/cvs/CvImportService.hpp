@@ -53,7 +53,8 @@ public:
         const std::shared_ptr<CvManagedFilePreparation>& preparation,
         const std::shared_ptr<CancellationState>& cancellation,
         CvPersistenceObservation& observation) const;
-    bool removeCompletedFile(const QString& completedFilePath, LogFact* cleanup = nullptr) const;
+    void compensateCompletedFile(
+        const QString& completedFilePath, LogFact& cleanup, QString& failureMessage) const;
 
 private:
     const CvManagedFileStore& managedFileStore_;

@@ -1,11 +1,10 @@
 #include "BulkIdSelectionTracker.hpp"
-#include "maintenance/DataRemovalTypes.hpp"
 #include "ModelRoleUtils.hpp"
-#include "cvs/CvListModel.hpp"
+
 #include <QAbstractItemModel>
 #include <QAbstractProxyModel>
-#include "common/RoleFilterProxyModel.hpp"
-#include "common/BulkIdSelectionTracker.hpp"
+#include <QList>
+#include <QModelIndex>
 
 #include <algorithm>
 

@@ -51,7 +51,7 @@ public:
         outcome.cancellation_ = request.cancellation_;
 
         try {
-            outcome.result_ = ensureService(operation, request.items_.size()).process<Kind>(
+            outcome.result_ = ensureService(operation, request.items_.size()).template process<Kind>(
                 request.items_,
                 request.cancellation_, request.operationId_);
         } catch (...) {

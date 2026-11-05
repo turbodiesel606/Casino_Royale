@@ -1,45 +1,34 @@
 #ifndef JOBTRACKER_SRC_CVS_CVLIBRARYCONTROLLER_HPP
 #define JOBTRACKER_SRC_CVS_CVLIBRARYCONTROLLER_HPP
 
-#include "logging/ApplicationLog.hpp"
-
-#include "CvLibraryController.hpp"
-
-#include "CvFileAccessService.hpp"
-#include "CvImportWorker.hpp"
-#include "CvRepository.hpp"
-#include "common/CancellationState.hpp"
-#include "common/ModelRoleUtils.hpp"
-#include "jobs/JobApplicationListModel.hpp"
-#include "maintenance/DataRemovalWorker.hpp"
-#include "maintenance/StorageMutationGate.hpp"
-
-///
 #include "common/RoleFilterProxyModel.hpp"
 #include "common/RelationFilterProxyModel.hpp"
 #include "common/BulkIdSelectionTracker.hpp"
+#include "common/CancellationState.hpp"
 #include "common/SerialOperationQueue.hpp"
 #include "common/StableIdSelectionTracker.hpp"
-#include "CvImportService.hpp"
 #include "CvListModel.hpp"
+#include "logging/ApplicationLog.hpp"
 #include "maintenance/DataRemovalTypes.hpp"
+#include "maintenance/DataRemovalWorker.hpp"
+#include "maintenance/StorageMutationGate.hpp"
 
 #include <QObject>
 #include <QList>
+#include <QStringList>
 #include <QUrl>
 #include <QVariantList>
 #include <QVariantMap>
 
 #include <memory>
+#include <utility>
 
 class QAbstractItemModel;
 class CvFileAccessService;
 class CvImportWorker;
 class CvRepository;
-class DataRemovalWorker;
-class StorageMutationGate;
-class CancellationState;
 class JobApplicationListModel;
+enum class CvImportDisposition;
 struct CvImportSaveOutcome;
 
 // Exposes CV Library presentation state and owns the GUI-thread FIFO that
@@ -236,7 +225,7 @@ private:
 
 		activeMutationOperationId_ = ++nextMutationOperationId_;
 		activeMutationCancellation_ = std::make_shared<CancellationState>();
-		ApplicationLog::record({LogEventType::RemovalOperationAccepted, {removalLogOperation(Kind), items.size()}});
+		ApplicationLog::record({ LogEventType::RemovalOperationAccepted, {removalLogOperation(Kind), items.size()} });
 
 		/*
 		Publish pending state before dispatch so the UI and
@@ -247,7 +236,7 @@ private:
 		emit mutationAvailabilityChanged();
 		// Transfer the request values to the shared removal worker
 		removalWorker_->submit(DataRemovalRequest<Kind>{
-				activeMutationOperationId_,
+			activeMutationOperationId_,
 				std::move(items),
 				activeMutationCancellation_});
 	}
@@ -262,8 +251,8 @@ private:
 			|| outcome.operationId_ != activeMutationOperationId_
 			|| outcome.cancellation_ != activeMutationCancellation_) {
 			if (!shuttingDown_ && (!mutationGate_ || !mutationGate_->shuttingDown())) {
-				ApplicationLog::record({LogEventType::UnexpectedBackgroundResultDiscarded,
-					{removalLogOperation(Kind), activeMutationCancellation_ ? LogFact::CorrelationMismatch : LogFact::NoActiveOperation}});
+				ApplicationLog::record({ LogEventType::UnexpectedBackgroundResultDiscarded,
+					{removalLogOperation(Kind), activeMutationCancellation_ ? LogFact::CorrelationMismatch : LogFact::NoActiveOperation} });
 			}
 			return;
 		}

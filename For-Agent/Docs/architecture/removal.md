@@ -36,10 +36,13 @@ The worker returns `DeleteJobsOutcome`, `RemoveActiveCvsOutcome`,
 `jobsDeletionCompleted`, `activeCvsRemovalCompleted`,
 `archivedCvsRestorationCompleted`, and `archivedCvsDeletionCompleted`,
 respectively. The jobs controller consumes only job outcomes; the CV controller
-uses one templated receiver for its three kinds. Controllers retain runtime
-shutdown, active-token, operation-ID, and token-identity checks because earlier
-requests of the same kind can still have late outcomes. No runtime active-kind
-field is needed. Item statuses and linked/archive eligibility remain runtime
+instantiates the same private submission and completion templates for its three
+CV removal kinds, with their definitions in `CvLibraryController.hpp`. The receiver publishes model and
+checkbox changes before `cvMutationCompleted`, then releases removal admission
+after pending-state notifications. Controllers retain runtime shutdown, active-token, operation-ID,
+and token-identity checks because earlier requests of the same kind can still
+have late outcomes. No runtime active-kind field is needed. Item statuses and
+linked/archive eligibility remain runtime
 data, and QML-facing commands and completion summaries remain unchanged.
 
 Archived CVs stay in the source model so jobs, linked views, and startup recovery

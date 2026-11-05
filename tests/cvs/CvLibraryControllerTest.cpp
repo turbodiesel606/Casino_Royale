@@ -15,7 +15,9 @@
 
 #include "../support/JobApplicationTestData.hpp"
 #include "../support/AddJobTestFixture.hpp"
+#include "../support/LogCapture.hpp"
 #include "jobs/JobApplicationsController.hpp"
+#include "logging/ApplicationLog.hpp"
 
 #include <QDir>
 #include <QFile>
@@ -28,6 +30,7 @@
 #include <mutex>
 
 #include <memory>
+#include <optional>
 
 namespace {
 
@@ -148,6 +151,7 @@ private slots:
     void fileAccessRejectsMissingFiles();
     void openCvPublishesFileAccessFailure();
     void controllerFiltersAndSortsCvs();
+    void categorySummaryIncludesAllSourceCategoriesInTheCurrentView();
     void activeArchivedViewsAndBulkSelectionFollowContracts();
     void selectionPublishesLinkedViewContracts();
     void importsMultipleBatchesInStrictFifo();
@@ -162,6 +166,8 @@ private slots:
     void failedCvInsertRollsBackAndContinuesFifo();
     void workerConnectionClosesOnShutdown();
     void permanentDeletionRetainsSkippedLinkedSelection();
+    void unsuccessfulRemovalRetainsSelection_data();
+    void unsuccessfulRemovalRetainsSelection();
     void typedRemovalActionsIgnoreStaleCompletions();
     void mutationGateRejectsCvImportAdmission();
 };
@@ -467,6 +473,54 @@ void CvLibraryControllerTest::controllerFiltersAndSortsCvs()
         categoryIndex,
         {CvListModel::IsFavoriteRole});
     QCOMPARE(categorySummarySpy.count(), 1);
+}
+
+void CvLibraryControllerTest::categorySummaryIncludesAllSourceCategoriesInTheCurrentView()
+{
+    CvTestStorage storage;
+    JobApplicationListModel jobs;
+    auto documents = makeCvDocuments();
+    documents[0].category_.clear();
+    documents[2].category_ = documents[1].category_;
+    documents[3].isArchived_ = true;
+    documents[3].category_ = QStringLiteral("Archive");
+    CvLibraryController controller{jobs, documents, storage.repository_, storage.fileAccessService_, storage.importWorker_};
+    const auto row = [](const QString& title, int count, bool selected) {
+        return QVariantMap{{QStringLiteral("title"), title}, {QStringLiteral("count"), count},
+                           {QStringLiteral("selected"), selected}};
+    };
+    QVariantList active{row(QStringLiteral("All CVs"), 3, true), row({}, 1, true),
+                        row(QStringLiteral("Engineering"), 2, false)};
+    QCOMPARE(controller.categorySummary(), active);
+    for (const auto& entry : controller.categorySummary()) {
+        const auto values = entry.toMap();
+        QCOMPARE(values.value(QStringLiteral("title")).typeId(), QMetaType::QString);
+        QCOMPARE(values.value(QStringLiteral("count")).typeId(), QMetaType::Int);
+        QCOMPARE(values.value(QStringLiteral("selected")).typeId(), QMetaType::Bool);
+    }
+    controller.setSearchText(QStringLiteral("no matching document"));
+    controller.setLanguageFilter(QStringLiteral("no matching language"));
+    QCOMPARE(controller.cvCount(), 0);
+    QCOMPARE(controller.categorySummary(), active);
+
+    QSignalSpy summaryChanged{&controller, &CvLibraryController::categorySummaryChanged};
+    controller.setCategoryFilter(QStringLiteral("All"));
+    active[1] = row({}, 1, false);
+    QCOMPARE(controller.categorySummary(), active);
+    // Codex Comment: At R0, empty and All coalesce the notification even when the empty category's flag changes.
+    QCOMPARE(summaryChanged.count(), 0);
+    controller.setCategoryFilter(QStringLiteral("Engineering"));
+    controller.setCategoryFilter(QStringLiteral(" Engineering "));
+    QCOMPARE(summaryChanged.count(), 1);
+    QCOMPARE(controller.categorySummary(), QVariantList({row(QStringLiteral("All CVs"), 3, false),
+        row({}, 1, false), row(QStringLiteral("Engineering"), 2, true)}));
+    controller.setLibraryView(CvLibraryController::LibraryView::Archived);
+    QCOMPARE(summaryChanged.count(), 2);
+    QCOMPARE(controller.categorySummary(), QVariantList({row(QStringLiteral("All CVs"), 1, false),
+        row(QStringLiteral("Archive"), 1, false)}));
+
+    CvLibraryController empty{jobs, {}, storage.repository_, storage.fileAccessService_, storage.importWorker_};
+    QCOMPARE(empty.categorySummary(), QVariantList({row(QStringLiteral("All CVs"), 0, true)}));
 }
 
 void CvLibraryControllerTest::activeArchivedViewsAndBulkSelectionFollowContracts()
@@ -942,6 +996,9 @@ void CvLibraryControllerTest::standaloneImportPublishesRestoredArchiveRoles()
 
 void CvLibraryControllerTest::failedCvInsertRollsBackAndContinuesFifo()
 {
+    testsupport::LogCapture capture;
+    QVERIFY(capture.isValid());
+    std::optional<ApplicationLogSession> session{std::in_place};
     CvTestStorage storage;
     QSqlQuery trigger{storage.database_.connection()};
     QVERIFY(trigger.exec(QStringLiteral(
@@ -956,7 +1013,16 @@ void CvLibraryControllerTest::failedCvInsertRollsBackAndContinuesFifo()
         QUrl::fromLocalFile(storage.createSourceFile(QStringLiteral("reject.pdf"))),
         QUrl::fromLocalFile(storage.createSourceFile(QStringLiteral("keep.pdf")))});
     QTRY_COMPARE_WITH_TIMEOUT(completed.count(), 2, 10000);
+    session.reset();
     QVERIFY(!completed.first().at(2).toBool());
+    const auto message = completed.first().at(4).toString();
+    QVERIFY(message.contains(QStringLiteral("forced CV insert failure")));
+    QVERIFY(!message.contains(QStringLiteral("quarantined")));
+    const auto log = capture.contents();
+    QVERIFY(log.contains("Standalone CV import failed at CV record insertion."));
+    const auto failedId = QByteArray::number(completed.first().at(0).toULongLong());
+    QVERIFY2(log.contains("Unreferenced managed file: removed (operation " + failedId + ")."), log.constData());
+    QVERIFY(!log.contains("reject.pdf") && !log.contains("forced CV insert failure"));
     QVERIFY(completed.last().at(2).toBool());
     QCOMPARE(storage.repository_.findAll().size(), 1);
     QCOMPARE(controller.cvListModel().rowCount(), 1);
@@ -1048,18 +1114,87 @@ void CvLibraryControllerTest::permanentDeletionRetainsSkippedLinkedSelection()
     QCOMPARE(controller.checkedCvCount(), 2);
     QCOMPARE(controller.checkedLinkedCvCount(), 1);
     QCOMPARE(controller.checkedUnlinkedCvCount(), 1);
+    QStringList releaseEvents;
+    QObject observer;
+    connect(&controller, &CvLibraryController::cvMutationCompleted, &observer, [&] {
+        QCOMPARE(controller.cvCount(), 1);
+        QCOMPARE(controller.checkedCvIds(), QStringList{linked.document_.id_});
+        QVERIFY(gate.removalActive() && controller.mutatingCvs());
+        releaseEvents.append(QStringLiteral("completed"));
+    });
+    connect(&controller, &CvLibraryController::mutatingCvsChanged, &observer, [&] {
+        if (!controller.mutatingCvs())
+            releaseEvents.append(QStringLiteral("idle"));
+    });
+    connect(&controller, &CvLibraryController::pendingDeletionCountChanged, &observer, [&] {
+        if (controller.pendingDeletionCount() == 0)
+            releaseEvents.append(QStringLiteral("pending zero"));
+    });
+    connect(&controller, &CvLibraryController::mutationAvailabilityChanged, &observer, [&] {
+        if (!releaseEvents.isEmpty() && !controller.mutatingCvs() && gate.removalActive())
+            releaseEvents.append(QStringLiteral("availability"));
+    });
+    connect(&gate, &StorageMutationGate::stateChanged, &observer, [&] {
+        if (!gate.removalActive())
+            releaseEvents.append(QStringLiteral("gate open"));
+    });
     controller.permanentlyDeleteCheckedCvs();
 
     QTRY_COMPARE_WITH_TIMEOUT(completedSpy.count(), 1, 10000);
+    QCOMPARE(releaseEvents, QStringList({QStringLiteral("completed"), QStringLiteral("idle"),
+        QStringLiteral("pending zero"), QStringLiteral("availability"), QStringLiteral("gate open")}));
     QCOMPARE(completedSpy.first().at(0).toInt(), 1);
     QCOMPARE(completedSpy.first().at(3).toInt(), 1);
     QCOMPARE(completedSpy.first().at(4).toInt(), 0);
+    QCOMPARE(completedSpy.first().at(5).toBool(), false);
+    QCOMPARE(completedSpy.first().at(6).toString(), QStringLiteral(
+        "Deleted 1, archived 0, restored 0, skipped 1, failed 0 CV(s). "
+        "linked-archived.pdf: The CV is still used by one or more job applications."));
     QCOMPARE(controller.checkedCvIds(), QStringList{linked.document_.id_});
     QCOMPARE(controller.cvCount(), 1);
     QVERIFY(storage.repository_.findById(linked.document_.id_).has_value());
     QVERIFY(!storage.repository_.findById(unlinked.document_.id_).has_value());
     QVERIFY(QFileInfo::exists(linked.completedFilePath_));
     QVERIFY(!QFileInfo::exists(unlinked.completedFilePath_));
+}
+
+void CvLibraryControllerTest::unsuccessfulRemovalRetainsSelection_data()
+{
+    QTest::addColumn<bool>("cancelOnAdmission");
+    QTest::addColumn<int>("failures");
+    QTest::addColumn<QString>("message");
+    QTest::newRow("missing") << false << 1 << QStringLiteral(
+        "Deleted 0, archived 0, restored 0, skipped 0, failed 1 CV(s). CV_Qt_2026.pdf: The CV was not found.");
+    QTest::newRow("cancelled") << true << 0 << QStringLiteral(
+        "Deleted 0, archived 0, restored 0, skipped 0, failed 0 CV(s). Remaining items were canceled.");
+}
+
+void CvLibraryControllerTest::unsuccessfulRemovalRetainsSelection()
+{
+    QFETCH(bool, cancelOnAdmission);
+    QFETCH(int, failures);
+    QFETCH(QString, message);
+    CvTestStorage storage;
+    JobApplicationListModel jobs;
+    StorageMutationGate gate;
+    DataRemovalWorker removal{storage.paths_.dataDirectory()};
+    const auto document = makeCvDocuments().first();
+    CvLibraryController controller{jobs, {document}, storage.repository_, storage.fileAccessService_,
+        storage.importWorker_, removal, gate};
+    QSignalSpy completed{&controller, &CvLibraryController::cvMutationCompleted};
+    if (cancelOnAdmission) {
+        connect(&controller, &CvLibraryController::mutatingCvsChanged, &controller, [&] {
+            if (controller.mutatingCvs())
+                controller.cancelCvMutation();
+        });
+    }
+    controller.setAllVisibleCvsChecked(true);
+    controller.removeCheckedCvs();
+    QTRY_COMPARE_WITH_TIMEOUT(completed.count(), 1, 10000);
+    QCOMPARE(completed.first(), QVariantList({0, 0, 0, 0, failures, cancelOnAdmission, message}));
+    QCOMPARE(controller.checkedCvIds(), QStringList{document.id_});
+    QCOMPARE(controller.pendingDeletionCount(), 0);
+    QVERIFY(gate.canBeginRemoval());
 }
 
 void CvLibraryControllerTest::typedRemovalActionsIgnoreStaleCompletions()

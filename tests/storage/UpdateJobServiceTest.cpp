@@ -1,7 +1,9 @@
 #include "../support/AddJobTestFixture.hpp"
+#include "../support/LogCapture.hpp"
 
 #include "common/CancellationState.hpp"
 #include "jobs/JobApplicationValidator.hpp"
+#include "logging/ApplicationLog.hpp"
 
 #include <QDir>
 #include <QFileInfo>
@@ -10,6 +12,7 @@
 #include <QtTest/QtTest>
 
 #include <memory>
+#include <optional>
 #include <utility>
 
 namespace {
@@ -298,6 +301,9 @@ void UpdateJobServiceTest::rollsBackDatabaseAndFileOnUpdateFailure()
 
     auto draft = testsupport::validJobDraft();
     draft.jobTitle_ = QStringLiteral("Must Roll Back");
+    testsupport::LogCapture capture;
+    QVERIFY(capture.isValid());
+    std::optional<ApplicationLogSession> session{std::in_place};
     const auto result = updateJob(
         fixture,
         original.application_.id_,
@@ -306,7 +312,13 @@ void UpdateJobServiceTest::rollsBackDatabaseAndFileOnUpdateFailure()
             QStringLiteral("failed-replacement.pdf"),
             QByteArrayLiteral("%PDF failed replacement"))));
 
+    session.reset();
     QVERIFY(!result.success_);
+    QVERIFY(result.message_.contains(QStringLiteral("forced job update failure")));
+    QVERIFY(!result.message_.contains(QStringLiteral("quarantined")));
+    const auto log = capture.contents();
+    QVERIFY(log.contains("Previous state: preserved, rollback: succeeded, file cleanup: succeeded."));
+    QVERIFY(!log.contains("failed-replacement.pdf") && !log.contains("forced job update failure"));
     const auto stored = fixture.jobRepository_.findById(original.application_.id_);
     QVERIFY(stored.has_value());
     QCOMPARE(stored->jobTitle_, original.application_.jobTitle_);
@@ -344,6 +356,12 @@ void UpdateJobServiceTest::rejectsMissingAndInvalidApplicationsWithoutMutation()
     QVERIFY(preflight.fieldErrors_.contains(QStringLiteral("appliedDate")));
 
     const auto cancellation = std::make_shared<CancellationState>();
+    const auto missingWithInvalidDraft = fixture.updateService_.prepare(
+        QStringLiteral("missing-job"), preflight.draft_, {}, cancellation);
+    QVERIFY(!missingWithInvalidDraft.success_);
+    QVERIFY(missingWithInvalidDraft.fieldErrors_.isEmpty());
+    QCOMPARE(missingWithInvalidDraft.message_, QStringLiteral("The job application no longer exists."));
+
     const auto preparation = fixture.updateService_.prepare(
         original.application_.id_,
         preflight.draft_,

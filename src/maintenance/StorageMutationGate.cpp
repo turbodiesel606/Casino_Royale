@@ -23,11 +23,11 @@ bool StorageMutationGate::reserveImportOrUpdate(int count, LogFact action)
 	if (count == 0) {
 		return true;
 	}
-	if (!checkAllowed<OperationCategory::ImportOrUpdate>(action)) {
+	if (!checkAllowed(OperationCategory::ImportOrUpdate, action)) {
 		return false;
 	}
 	pendingImportsOrUpdates_ += count;
-	clearRetryNotice<OperationCategory::ImportOrUpdate>();
+	clearRetryNotice(OperationCategory::ImportOrUpdate);
 	publishStateChange();
 	return true;
 }
@@ -50,7 +50,7 @@ void StorageMutationGate::releaseImportOrUpdate(int count)
 bool StorageMutationGate::beginRemoval(LogFact action)
 {
 	assertGuiThread();
-	if (!checkAllowed<OperationCategory::Removal>(action))
+	if (!checkAllowed(OperationCategory::Removal, action))
 		return false;
 
 	removalActive_ = true;
@@ -60,7 +60,7 @@ bool StorageMutationGate::beginRemoval(LogFact action)
 	clear the old retry notification for deletion, archiving, or restoration 
 	once a new removal request has been accepted.
 	*/
-	clearRetryNotice<OperationCategory::Removal>();
+	clearRetryNotice(OperationCategory::Removal);
 	publishStateChange();
 	return true;
 }
@@ -91,32 +91,32 @@ void StorageMutationGate::recordCancellation(StorageMutationGate* gate, int acti
 
 bool StorageMutationGate::checkImportOrUpdateAllowed()
 {
-	return checkAllowed<OperationCategory::ImportOrUpdate>(LogFact::ImportOrUpdate);
+	return checkAllowed(OperationCategory::ImportOrUpdate, LogFact::ImportOrUpdate);
 }
 
 bool StorageMutationGate::checkRemovalAllowed()
 {
-	return checkAllowed<OperationCategory::Removal>(LogFact::RemovalWork);
+	return checkAllowed(OperationCategory::Removal, LogFact::RemovalWork);
 }
 
 bool StorageMutationGate::checkCvImportAllowed()
 {
-	return checkAllowed<OperationCategory::ImportOrUpdate>(LogFact::CvImport);
+	return checkAllowed(OperationCategory::ImportOrUpdate, LogFact::CvImport);
 }
 
 bool StorageMutationGate::checkJobDeletionAllowed()
 {
-	return checkAllowed<OperationCategory::Removal>(LogFact::JobDeletion);
+	return checkAllowed(OperationCategory::Removal, LogFact::JobDeletion);
 }
 
 bool StorageMutationGate::checkActiveCvRemovalAllowed()
 {
-	return checkAllowed<OperationCategory::Removal>(LogFact::ActiveCvRemoval);
+	return checkAllowed(OperationCategory::Removal, LogFact::ActiveCvRemoval);
 }
 
 bool StorageMutationGate::checkArchivedCvDeletionAllowed()
 {
-	return checkAllowed<OperationCategory::Removal>(LogFact::CvDeletion);
+	return checkAllowed(OperationCategory::Removal, LogFact::CvDeletion);
 }
 
 void StorageMutationGate::recordBlockedAttempt(LogFact action, OperationCategory category, BlockReason reason) const noexcept
@@ -131,7 +131,7 @@ void StorageMutationGate::recordBlockedAttempt(LogFact action, OperationCategory
 
 bool StorageMutationGate::canBeginImportOrUpdate() const
 {
-	return blockingReason<OperationCategory::ImportOrUpdate>() == BlockReason::None;
+	return blockingReason(OperationCategory::ImportOrUpdate) == BlockReason::None;
 }
 
 bool StorageMutationGate::removalActive() const
@@ -141,7 +141,7 @@ bool StorageMutationGate::removalActive() const
 
 bool StorageMutationGate::canBeginRemoval() const
 {
-	return blockingReason<OperationCategory::Removal>() == BlockReason::None;
+	return blockingReason(OperationCategory::Removal) == BlockReason::None;
 }
 
 bool StorageMutationGate::shuttingDown() const
@@ -149,7 +149,6 @@ bool StorageMutationGate::shuttingDown() const
 	return shuttingDown_;
 }
 
-#if 0
 StorageMutationGate::BlockReason StorageMutationGate::blockingReason(OperationCategory category) const
 {
 	if (shuttingDown_)
@@ -163,27 +162,40 @@ StorageMutationGate::BlockReason StorageMutationGate::blockingReason(OperationCa
 
 	return BlockReason::None;
 }
-#endif // 0
-#if 0
 
-
-bool StorageMutationGate::checkAllowed(OperationCategory category)
+bool StorageMutationGate::checkAllowed(OperationCategory category, LogFact action)
 {
 	assertGuiThread();
 	const auto reason = blockingReason(category);
-	if (reason == BlockReason::None) {
+	if (reason == BlockReason::None)
 		return true;
-	}
+
+	// Suppress new dialogs and retry notices during shutdown.
 	if (reason != BlockReason::Closing) {
+		recordBlockedAttempt(action, category, reason);
+		/*
+		Remember which operation was blocked so the UI can explain
+		the conflict and later announce when that operation becomes available.
+		*/
+		// This stores notification interest, not a request for automatic retry.
 		lastBlockedCategory_ = category;
 		retryNotices_[static_cast<std::size_t>(category)].requested_ = true;
+		// Refresh QML bindings that display the feedback state.
 		emit feedbackChanged();
-		// This event is intentional even when neither category nor reason changed.
+
+		/*
+			Report every rejected attempt so the UI can show the
+			blocking dialog again, even when the category and reason are unchanged.
+		*/
 		emit operationBlocked(category, reason);
 	}
 	return false;
 }
-#endif // 0
+
+void StorageMutationGate::clearRetryNotice(OperationCategory category)
+{
+	retryNotices_[static_cast<std::size_t>(category)] = {};
+}
 
 void StorageMutationGate::publishStateChange()
 {

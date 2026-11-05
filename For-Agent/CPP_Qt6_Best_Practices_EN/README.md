@@ -22,5 +22,3 @@ The primary sources are the [C++ Core Guidelines](https://isocpp.github.io/CppCo
 The descriptions are brief summaries of the practices, not verbatim reproductions of the sources. C++ Core Guidelines links include rule identifiers; Qt links point to the relevant documentation sections.
 
 The language and standard library features mentioned are available in C++20 unless stated otherwise. The linked documentation may also describe newer features whose availability depends on the language or library version. In particular, `QSqlDatabase::moveToThread` requires Qt 6.8 or later.
-
-Source verification date stated in the original edition: November 3, 2026.

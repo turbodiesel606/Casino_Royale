@@ -52,7 +52,8 @@ set(JOBTRACKER_FIXED_STR_SOURCES
     src/fixed_str/detail/FixedStringQtDetail.hpp
     src/fixed_str/FixedString.hpp
     src/fixed_str/FixedStringQt.hpp
-
+    src/fixed_str/macros/FixedStringMacros.hpp
+    src/fixed_str/macros/FixedStringQtMacros.hpp
 )
 
 set(JOBTRACKER_COMMON_LEAF_SOURCES
@@ -255,6 +256,7 @@ endif()
 set(JOBTRACKER_QML_FILES
         qml/Main.qml
         qml/components/NeonCard.qml
+        qml/components/CvDocumentIcon.qml
         qml/components/DangerButton.qml
         qml/components/DestructiveConfirmationDialog.qml
         qml/components/StorageMutationFeedback.qml
@@ -641,6 +643,8 @@ if(JOBTRACKER_BUILD_TESTS)
     jobtracker_add_backend_test(
         JobTrackerMutationFeedbackTests
         tests/maintenance/StorageMutationFeedbackTest.cpp
+        tests/maintenance/StorageMutationFeedbackTest.hpp
+        tests/maintenance/ShellBaseline.cpp
         src/app/AppBootstrap.cpp
         src/app/AppBootstrap.hpp
         ${JOBTRACKER_COMMON_SOURCES}

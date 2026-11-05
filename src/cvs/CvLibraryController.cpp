@@ -1,11 +1,13 @@
 #include "CvLibraryController.hpp"
 
 #include "CvFileAccessService.hpp"
+#include "CvImportService.hpp"
 #include "CvImportWorker.hpp"
 #include "CvRepository.hpp"
 #include "common/CancellationState.hpp"
 #include "common/ModelRoleUtils.hpp"
 #include "jobs/JobApplicationListModel.hpp"
+#include "logging/ApplicationLog.hpp"
 #include "maintenance/DataRemovalWorker.hpp"
 #include "maintenance/StorageMutationGate.hpp"
 #include "storage/SqlQuery.hpp"
@@ -16,6 +18,7 @@
 
 #include <exception>
 #include <optional>
+#include <utility>
 
 CvLibraryController::CvLibraryController(
 	const JobApplicationListModel& applicationsModel,
@@ -231,10 +234,12 @@ QVariantList CvLibraryController::categorySummary() const
 			== (libraryView_ == LibraryView::Archived);
 	};
 	int viewCount = 0;
+	QMap<QString, int> categoryCounts;
 	for (int row = 0; row < cvModel_.rowCount(); ++row) {
 		const auto* cv = cvModel_.cvAt(row);
 		if (cv != nullptr && matchesCurrentView(*cv)) {
 			++viewCount;
+			++categoryCounts[cv->category_];
 		}
 	}
 	QVariantList rows;
@@ -243,14 +248,6 @@ QVariantList CvLibraryController::categorySummary() const
 		{QStringLiteral("count"), viewCount},
 		{QStringLiteral("selected"), categoryFilter_.isEmpty() || categoryFilter_ == QStringLiteral("All")},
 		});
-
-	QMap<QString, int> categoryCounts;
-	for (int row = 0; row < cvModel_.rowCount(); ++row) {
-		const auto* cv = cvModel_.cvAt(row);
-		if (cv != nullptr && matchesCurrentView(*cv)) {
-			++categoryCounts[cv->category_];
-		}
-	}
 
 	for (auto it = categoryCounts.cbegin(); it != categoryCounts.cend(); ++it) {
 		rows.append(QVariantMap{

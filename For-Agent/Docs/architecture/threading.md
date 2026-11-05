@@ -91,10 +91,16 @@ publication, completion signals, and pending-state publication. Queue advancemen
 cannot open a gap between accepted items. Removing waiting items releases only
 their reservations; active cancellation retains admission until its outcome.
 
-Every rejected attempt during normal operation emits a typed `operationBlocked`
-event. The gate retains only retry-notice interest, never a rejected payload or
-automatic retry. Pure availability queries do not report attempts; explicit
-checks before confirmation or the picker report conflicts but reserve nothing.
+The gate checks shutdown first, then active removal. Pending imports and updates
+also block removal requests. A zero-count import/update reservation succeeds
+without changing state, including during shutdown.
+
+A normal blocked attempt records its action and blocker, emits `feedbackChanged`,
+then emits the typed `operationBlocked` event on every attempt. Reservation and
+removal state transitions emit `stateChanged` before `feedbackChanged`. The gate
+retains only the interest in a retry notice. Pure availability queries do not
+report attempts. Explicit checks before confirmation or the picker report
+conflicts without reserving work.
 Final commands check again. Once shutdown begins, admission closes and rejected
 attempts are silent. Bootstrap joins all workers before controller teardown
 releases outstanding reservations, and destroys QML before the exposed backend

@@ -51,8 +51,15 @@ applications expose the five newest jobs by typed creation timestamp; recent CVs
 expose the five newest active CVs by typed update timestamp. Both projections use
 the domain ID as a deterministic tie-break and rebuild after relevant source
 structure or data changes. The dashboard's existing QML role names remain
-available, including the `appliedDateLabel` alias. CV category summaries notify
-when rows are inserted, removed, or reset and when category-role data changes.
+available, including the `appliedDateLabel` alias.
+
+The CV category summary computes its total and sorted category counts from
+source documents in the current Active or Archived view. Text and language
+filters do not limit those counts. The first row is always `All CVs`. An empty
+category is its own bucket. Switching the category filter between empty and
+`All` changes that bucket's selected flag without emitting
+`categorySummaryChanged`. Row insertions, removals, resets, and changes to the
+category or archived roles notify the summary.
 
 ## Domain Values And Public Roles
 
