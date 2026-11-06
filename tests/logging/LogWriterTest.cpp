@@ -13,6 +13,10 @@
 #include <latch>
 #include <vector>
 
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#endif
+
 namespace {
 
 constexpr qint64 fiveMiB = 5 * 1024 * 1024;
@@ -62,6 +66,7 @@ private slots:
     void incompleteTailIsRetired();
     void prunesOnlyAboveBudgetAndOnlyOldestRecognizedFiles();
     void rechecksPhysicalUsageBeforeDeleting();
+    void replacedActiveSegmentDoesNotOverstateUsage();
     void skipsSymlinks();
     void replacedLogDirectoryCannotRedirectPruning();
     void retriesWhenDirectoryBecomesUsable();
@@ -233,6 +238,36 @@ void LogWriterTest::rechecksPhysicalUsageBeforeDeleting()
     QCOMPARE(QFileInfo{first}.size(), fiveMiB - 4);
     QCOMPARE(QFileInfo{second}.size(), fiveMiB - 10);
     QCOMPARE(QFileInfo{segmentPath(root.path(), 11)}.size(), 6);
+}
+
+void LogWriterTest::replacedActiveSegmentDoesNotOverstateUsage()
+{
+    QTemporaryDir root;
+    QVERIFY(root.isValid());
+    QVERIFY(seedNearlyFullDirectory(root.path()));
+    const auto first = segmentPath(root.path(), 1);
+    const auto active = segmentPath(root.path(), 11);
+    const auto moved = root.filePath(QStringLiteral("external.log"));
+    LogFileWriter writer{root.path()};
+    writer.write("x\n", true);
+    QCOMPARE(QFileInfo{first}.size(), fiveMiB - 4);
+    QCOMPARE(QFileInfo{active}.size(), 4);
+    std::error_code error;
+    std::filesystem::rename(QFileInfo{active}.filesystemFilePath(), QFileInfo{moved}.filesystemFilePath(), error);
+#ifdef Q_OS_WIN
+    if (error == std::errc::permission_denied || error == std::errc::device_or_resource_busy
+        || error.value() == ERROR_SHARING_VIOLATION)
+        QSKIP("Windows file sharing prevents renaming this open log segment.");
+#endif
+    QVERIFY2(!error, error.message().c_str());
+    QVERIFY(seedSegment(active, 2));
+    writer.write("y\n", true);
+    QCOMPARE(QFileInfo{first}.size(), fiveMiB - 4);
+    QCOMPARE(QFileInfo{active}.size(), 2);
+    QCOMPARE(QFileInfo{moved}.size(), 6);
+    writer.write("z\n", true);
+    QCOMPARE(contents(active).right(2), QByteArray{"z\n"});
+    QCOMPARE(QFileInfo{first}.size(), fiveMiB - 4);
 }
 
 void LogWriterTest::skipsSymlinks()

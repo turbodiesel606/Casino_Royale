@@ -12,7 +12,10 @@ ownership, context-property exposure, module inventory, or QML reachability.
 `App::start()` creates `QGuiApplication`, sets the application name and starts
 the asynchronous log session before constructing `AppBootstrap`. The session
 outlives bootstrap teardown. Startup failures retain their non-zero exit code
-and the responsible subsystem records the specific cause.
+and the responsible subsystem records the specific cause. A dataset cursor
+failure can return partial rows and still allow the window to open. Bootstrap
+records startup success only when the cumulative read status is complete,
+managed-file recovery has returned and the QML root is a window.
 See [application logging](logging.md).
 
 `src/app/AppBootstrap.hpp` and `src/app/AppBootstrap.cpp` own the application
@@ -95,6 +98,7 @@ for the current file inventory.
   engine setup, context properties, and main QML loading.
 - `src/storage`: application data paths, SQLite connection lifetime, and schema
   migration.
+- `src/logging`: [event catalog, bounded inbox, consumer and log files](logging.md).
 - `src/common`: reusable role-based filtering, sorting, search, stable-ID and
   bulk selection, explicit role projection, presentation, timestamp, and error
   helpers, value-level serial queues, and single-active-worker lifecycle
@@ -114,7 +118,7 @@ for the current file inventory.
 - `src/directory`: company/contact value types, durable company repository,
   directory list models and controllers, and linked read models. Contacts remain
   in-memory only.
-- `tests`: common, jobs, CVs, dashboard, directory, maintenance, and storage
+- `tests`: common, jobs, CVs, dashboard, directory, logging, maintenance, and storage
   test suites.
 
 ## Known Architecture Gaps

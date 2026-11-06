@@ -9,11 +9,13 @@ class LogCatalogTest final : public QObject
 {
     Q_OBJECT
 private slots:
-    void rendersEverySpecifiedEvent();
+    void rendersExpectedMessages();
+    void catalogDeterminesSeverity();
+    void rejectsIncompatiblePayloads();
     void omitsUnavailableDetailsAndFormatsCorrelation();
 };
 
-void LogCatalogTest::rendersEverySpecifiedEvent()
+void LogCatalogTest::rendersExpectedMessages()
 {
     struct Example { LogEvent event_; const char* expected_; };
     const Example examples[]{
@@ -27,7 +29,7 @@ void LogCatalogTest::rendersEverySpecifiedEvent()
          "ERROR | Database | Message: Schema change from 1 to 4 failed at transaction commit. Reason: database busy. Rollback: failed."},
         {{LogEventType::SavedDatasetLoadFailed, {LogFact::Companies, LogFact::DbBusy}},
          "ERROR | Storage | Message: Could not load companies. Reason: database busy."},
-        {{LogEventType::ManagedCvRecoveryFailed, {LogFact::PersistRestoreRetained, LogFact::FileError, LogValue::counts(2, 3, 4)}},
+        {{LogEventType::ManagedCvRecoveryFailed, {LogFact::PersistRestoreRetained, LogFact::FileError, LogRecoveryCounts{.restored_ = 2, .removed_ = 3, .quarantined_ = 4}}},
          "ERROR | CvLibrary | Message: Startup CV recovery failed at retained file restoration. Reason: file operation failed. Progress before failure: restored 2, removed 3, quarantined 4."},
         {{LogEventType::MainWindowCreationFailed, {LogFact::InterfaceLoading, LogFact::RootWindowUnavailable}},
          "ERROR | Application | Message: Main-window creation failed at interface loading. Reason: no root window."},
@@ -45,8 +47,10 @@ void LogCatalogTest::rendersEverySpecifiedEvent()
          "ERROR | CvLibrary | Message: Could not save the CV favorite change. Reason: database busy."},
         {{LogEventType::CommittedChangePublicationFailed, {LogFact::JobUpdate, LogFact::DbBusy}},
          "ERROR | ApplicationModel | Message: job update committed successfully. The displayed record could not be updated because database busy."},
-        {{LogEventType::JobApplicationDeletionFailed, {LogFact::TransactionCommit, LogFact::DbBusy, 6, 2}},
+        {{LogEventType::JobApplicationDeletionFailed, {LogFact::TransactionCommit, LogFact::DbBusy, LogDeletionTotals{.committed_ = 6, .failed_ = 2}}},
          "ERROR | JobApplications | Message: Job deletion failed at transaction commit. Reason: database busy. Committed: 6, failed: 2."},
+        {{LogEventType::ActiveCvRemovalStageFailed, {LogFact::RemovalLookup, LogFact::DbBusy, 2}},
+         "ERROR | CvLibrary | Message: Active CV removal could not complete record lookup. Reason: database busy. Affected items: 2."},
         {{LogEventType::LinkedCvArchiveFailed, {LogFact::DbBusy}},
          "ERROR | CvLibrary | Message: Could not archive a linked active CV. Reason: database busy."},
         {{LogEventType::ArchivedCvRestoreFailed, {LogFact::TransactionCommit, LogFact::DbBusy}},
@@ -75,6 +79,8 @@ void LogCatalogTest::rendersEverySpecifiedEvent()
          "WARNING | Storage | Message: Declined CV deletion because imports or updates was pending or active."},
         {{LogEventType::JobUpdateAlreadyPending},
          "WARNING | JobApplications | Message: Declined a job update because another update was pending."},
+        {{LogEventType::JobDeletionRecordsMissing, {1, LogDeletionTotals{.committed_ = 6, .failed_ = 2}}},
+         "WARNING | JobApplications | Message: Missing records during job deletion: 1. Committed: 6, failed: 2."},
         {{LogEventType::RequestedRecordStateMismatch, {LogFact::OpenCv, LogFact::RemovalAlreadyArchived}},
          "WARNING | Storage | Message: Declined open because the requested record was already archived."},
         {{LogEventType::CvImportSourceUnavailable, {LogFact::Missing}},
@@ -89,7 +95,7 @@ void LogCatalogTest::rendersEverySpecifiedEvent()
          "WARNING | CvLibrary | Message: Cleanup after job update failed to remove an unfinished managed copy. Reason: database busy."},
         {{LogEventType::UnreferencedCvFilesQuarantined, {2, 3, 4}},
          "WARNING | CvLibrary | Message: Startup moved 2 unreferenced files into quarantine. Retained CV files restored: 3, temporary files removed: 4."},
-        {{LogEventType::SavedFieldFallbacksApplied, {LogValue::counts(1, 2, 3, 4)}},
+        {{LogEventType::SavedFieldFallbacksApplied, {LogFallbackCounts{.jobStatus_ = 1, .workFormat_ = 2, .requiredDate_ = 3, .archiveTime_ = 4}}},
          "WARNING | Storage | Message: Loading continued with fallback values. Affected records by field category: job status 1, work format 2, required date/time 3, archive timestamp 4."},
         {{LogEventType::UnexpectedBackgroundResultDiscarded, {LogFact::JobUpdate, LogFact::CorrelationMismatch}},
          "WARNING | BackgroundWork | Message: Discarded a result for job update during normal operation. Mismatch: operation or cancellation identity mismatch."},
@@ -129,20 +135,19 @@ void LogCatalogTest::rendersEverySpecifiedEvent()
          "INFO | CvLibrary | Message: Restored 13 archived CVs to the active library."},
         {{LogEventType::PendingWorkCancellationRequested, {2, 3}},
          "INFO | BackgroundWork | Message: Requested cancellation of 2 active operations and removed 3 queued requests."},
-        {{LogEventType::OperationStoppedByCancellation, {LogFact::JobUpdate, LogFact::RemovalBetweenItems, LogValue::counts(2, 4)}},
+        {{LogEventType::OperationStoppedByCancellation, {LogFact::JobUpdate, LogFact::RemovalBetweenItems, LogCompletionCounts{.processed_ = 2, .unprocessed_ = 4}}},
          "INFO | BackgroundWork | Message: job update stopped at the next selected item because cancellation was requested. Processed: 2, unprocessed: 4."},
-        {{LogEventType::OperationCommittedAfterCancellationRequest, {LogFact::JobUpdate, LogValue::jobUpdate(true, false, LogFact::PersistReusedCv)}},
+        {{LogEventType::OperationCommittedAfterCancellationRequest, {LogFact::JobUpdate, LogJobUpdate{.replacement_ = true, .relationshipChanged_ = false, .disposition_ = LogFact::PersistReusedCv}}},
          "INFO | BackgroundWork | Message: job update committed after cancellation had been requested. CV replacement: yes, relationship changed: no, CV outcome: existing active CV reused."},
         {{LogEventType::CloseDeferredByUser},
          "INFO | Application | Message: The user selected Wait while work was pending. The application remains open."},
         {{LogEventType::InterruptAndExitSelected, {3, 2}},
          "INFO | Application | Message: The user selected Interrupt and Exit and new work was blocked. Queued requests removed: 3, active operations asked to stop: 2."},
-        {{LogEventType::ControlledShutdownStarted, {LogValue::counts(3, 4)}},
+        {{LogEventType::ControlledShutdownStarted, {LogPendingCounts{.active_ = 3, .queued_ = 4}}},
          "INFO | Application | Message: Controlled shutdown began. Pending work: active 3, queued 4."},
         {{LogEventType::ControlledShutdownCompleted},
          "INFO | Application | Message: Controlled shutdown and required background cleanup completed."}
     };
-    static_assert(std::size(examples) == static_cast<int>(LogEventType::Count));
     const QByteArray prefix{"1970-01-01 00:00:00.123 | "};
     for (const auto& example : examples) {
         const auto line = formatLogLine(example.event_, 123);
@@ -160,6 +165,24 @@ void LogCatalogTest::rendersEverySpecifiedEvent()
         QVERIFY(!body.contains('{'));
         QVERIFY(body.count(". ") <= 2);
     }
+}
+
+void LogCatalogTest::catalogDeterminesSeverity()
+{
+#define LOG_EVENT(name, severity, component, message) QCOMPARE(logSeverity(LogEventType::name), LogSeverity::severity);
+#include "logging/LogCatalog.inc"
+#undef LOG_EVENT
+}
+
+void LogCatalogTest::rejectsIncompatiblePayloads()
+{
+    static_assert(!std::is_default_constructible_v<LogCount>);
+    static_assert(!std::is_constructible_v<LogValue, QString>);
+    QVERIFY(formatLogLine({LogEventType::ControlledShutdownStarted}, 0).isEmpty());
+    QVERIFY(formatLogLine({LogEventType::ControlledShutdownStarted, {LogCompletionCounts{2, 3}}}, 0).isEmpty());
+    QVERIFY(formatLogLine({LogEventType::JobApplicationDeletionFailed,
+        {LogFact::RemovalDeleteRow, LogDeletionTotals{1, 2}, LogFact::DbBusy}}, 0).isEmpty());
+    QVERIFY(formatLogLine({LogEventType::ApplicationStarted, {1}}, 0).isEmpty());
 }
 
 void LogCatalogTest::omitsUnavailableDetailsAndFormatsCorrelation()

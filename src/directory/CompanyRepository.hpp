@@ -13,7 +13,7 @@ class CompanyRepository final
 public:
     explicit CompanyRepository(QSqlDatabase& database);
 
-    QVector<Company> findAll() const;
+    QVector<Company> findAll(bool* allReadsComplete = nullptr) const;
     Company findOrCreateByName(const QString& name) const;
 
 private:

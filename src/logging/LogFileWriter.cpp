@@ -138,24 +138,18 @@ void LogFileWriter::prune()
 {
     if (closedBytes_ + static_cast<quint64>(activeBytes_) <= retentionLimit)
         return;
-    // Codex Comment: Buffered bytes can overstate usage when a flush fails. Only
-    // the fresh on-disk inventory may authorize deleting a closed segment.
+    // Codex Comment: Closing publishes the segment length on Windows. Count only
+    // the names on disk, even if the open file was renamed and replaced.
     flush();
+    file_.close();
     if (canonicalLogDirectory(directory_) != canonicalDirectory_)
         return;
     const auto segments = scanSegments(directory_);
-    const auto active = segments.sizes_.find(activeNumber_);
-    if (active == segments.sizes_.end())
+    if (!segments.sizes_.contains(activeNumber_))
         return;
-    // Codex Comment: The flushed handle has the current length even when Windows
-    // still reports a cached directory-entry length for the open segment.
-    const auto actualSize = file_.isOpen() ? file_.size() : active->second;
-    if (actualSize < 0)
-        return;
-    activeBytes_ = actualSize;
-    closedBytes_ = segments.total_ - static_cast<quint64>(active->second);
+    auto total = segments.total_;
     for (const auto& [number, size] : segments.sizes_) {
-        if (closedBytes_ + static_cast<quint64>(activeBytes_) <= retentionLimit)
+        if (total <= retentionLimit)
             break;
         if (number == activeNumber_ || size <= 0)
             continue;
@@ -166,7 +160,7 @@ void LogFileWriter::prune()
         if (info.isSymLink() || !info.isFile() || info.size() != size)
             return;
         if (QFile::remove(path))
-            closedBytes_ -= static_cast<quint64>(size);
+            total -= static_cast<quint64>(size);
     }
 }
 

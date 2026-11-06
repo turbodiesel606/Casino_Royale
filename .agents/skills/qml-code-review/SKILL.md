@@ -37,8 +37,8 @@ Read `For-Agent/Docs/qml-to-cpp-extraction.md` when reviewing ownership of QML J
 ## Scope Gate
 
 1. Use the focused final diff or the user's existing-code target as the initial
-   boundary. Inspect worktree state and relevant diffs if present; their absence
-   is not an error or a reason to start a whole-QML audit.
+   boundary. When Git metadata exists, inspect status and relevant diffs. Otherwise
+   inspect the target files directly.
 2. Inspect the target components first, then their direct instantiators,
    bindings, handlers, backend contracts, registration, and directly affected
    tests or manual UI paths.
@@ -67,7 +67,7 @@ Inspect the target QML files and nearby components before broad scans:
 - Related `src/` controllers or models when QML consumes backend state.
 - `CMakeLists.txt` when QML files are added, removed, or renamed.
 
-Use `git diff` and targeted `rg` searches for changed component names, imports, property names, signal handlers, backend object references, model roles, and QML file registration.
+Use targeted `rg` searches for changed component names, imports, property names, signal handlers, backend object references, model roles, and QML file registration.
 
 ## Review Priorities
 

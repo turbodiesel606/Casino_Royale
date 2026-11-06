@@ -127,7 +127,10 @@ top-level managed file without a matching `cvs.stored_file_name` row into
 `Resumes/Quarantine`; completed orphaned user files are never silently deleted.
 
 Bootstrap loads CV documents once, reconciles the managed store against that
-snapshot, and passes the same document values to `CvLibraryController`.
+snapshot, and passes the same document values to `CvLibraryController`. Jobs,
+technologies, CV links and companies all contribute to bootstrap's cumulative
+read status. A terminal cursor error preserves the rows already read and
+prevents a startup-success event. See [logging.md](logging.md).
 
 ## Storage And Transaction Rules
 

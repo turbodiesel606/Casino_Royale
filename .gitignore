@@ -11,4 +11,3 @@ Requirements/
 /Installer/Windows/Create-Installer.local.psd1
 /Installer/Linux/Create-Installer.local.conf
 Tasks/
-For-Agent/Refactor/

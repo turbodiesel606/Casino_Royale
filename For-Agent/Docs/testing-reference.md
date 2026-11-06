@@ -13,6 +13,11 @@ target name from the [test map](testing.md#subsystem-to-test-map), or use
 - `JobTrackerCommonTests` covers shared filtering, limited sorting, and canonical job validation.
 - `JobTrackerRelationProxyTests` covers relation filtering and every relevant source-model mutation.
 - `JobTrackerSelectionTrackerTests` covers stable-ID selection, fallback behavior, and precise change reporting.
+- `JobTrackerLogCatalogTests` checks catalog-derived severity, rendered messages,
+  optional details, correlation IDs, and rejection of incompatible payloads.
+- `JobTrackerLogWriterTests` covers bounded admission, concurrent producers,
+  shutdown drain, append/rotation boundaries, pruning from a fresh inventory,
+  external replacements where filesystem sharing permits them, and write retry.
 - `JobTrackerAsyncInfrastructureTests` covers serial FIFO operation IDs,
   activation, cancellation, completion suppression, stale-result correlation,
   drained state, lazy worker-executor creation, initialization failure, busy and
@@ -35,7 +40,7 @@ target name from the [test map](testing.md#subsystem-to-test-map), or use
 - `JobTrackerMigrationTests` covers schema initialization, supported upgrades,
   rollback, foreign keys, reopen, unsupported newer versions, and named-connection
   cleanup when `SqliteDatabase` construction fails.
-- `JobTrackerRepositoryTests` covers repository persistence plus shared SQL error and transaction infrastructure.
+- `JobTrackerRepositoryTests` covers repository persistence plus shared SQL errors, cursor completion and transaction infrastructure.
 - `JobTrackerCvImportTests` covers exact buffered bytes/hash/size with no early
   managed names or files, staging the snapshot after source removal, exact
   case-sensitive identity, duplicate no-file behavior, archived restoration,
@@ -50,11 +55,15 @@ target name from the [test map](testing.md#subsystem-to-test-map), or use
   state, dismissal, fresh admission, and shutdown suppression.
 - `JobTrackerMutationFeedbackTests` runs the shared QML component offscreen at
   the minimum window width, checks dialog reopening and live banner state, and
-  rejects QML runtime warnings. Its Qt Quick test dependency stays inside the
+  rejects QML runtime warnings. It also runs real bootstrap with complete and
+  partial company reads, checking model hydration, startup diagnostics and normal
+  exit, including with logging disabled. Its Qt Quick test dependency stays inside the
   test-enabled configuration; see [Windows test-runtime details](build-windows.md#test-runtime)
   for offscreen platform plugin and QML dependency deployment.
 - `JobTrackerRemovalTests` covers job/CV deletion, archive/restore, linked-CV
   protection, best-effort outcomes, managed paths/tombstones, and worker cleanup.
+  It compares job summary totals with item results and tests active-CV transaction,
+  lookup and partial-cursor diagnostics alongside the actual persistence outcome.
   Compile-time checks cover supported request/outcome kinds, constant operation
   identity, shared-facade request compatibility, typed executor return values,
   and rejection of unsupported template arguments. Worker cases cover
@@ -97,7 +106,7 @@ target name from the [test map](testing.md#subsystem-to-test-map), or use
 
 Storage-oriented suites reuse the temporary database and filesystem fixtures under `tests/support` so setup and cleanup rules remain consistent.
 
-All 18 suites use `jobtracker_register_test` to retain verbose Qt Test diagnostics
+Registered Qt Test suites use `jobtracker_register_test` to retain verbose Qt Test diagnostics
 in `<build-directory>/test-logs/<configuration>/<test-target>.txt` as well as
 requesting console output. The CMake runner forwards captured output and, when
 stdout is empty, prints this invocation's text log to CTest. Configure creates

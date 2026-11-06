@@ -25,7 +25,9 @@ private:
 
 LogFact failureCause(const QSqlError& error) noexcept;
 LogFact currentFailureCause() noexcept;
-void recordDatasetReadError(const QSqlQuery& query, LogFact dataset) noexcept;
+LogFact cursorFailure(const QSqlQuery& query) noexcept;
+// Codex Comment: A cursor error makes the caller's accumulated completion flag false.
+void finishDatasetRead(const QSqlQuery& query, LogFact dataset, bool* allReadsComplete) noexcept;
 
 [[noreturn]] void throwDatabaseError(
     const QSqlDatabase& database,

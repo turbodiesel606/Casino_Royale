@@ -9,16 +9,16 @@ Use this skill as the integrated incremental final review and validation pass.
 
 ## Incremental Final Verification
 
-Start from the final diff, changed files, and verification evidence. Reuse the instructions, architecture context, source relationships, and contracts already established during implementation. Do not restart repository research, reread unchanged documentation, or retrace understood dependencies merely because implementation ended.
+Start from the changed files and verification evidence. With Git metadata, inspect status and focused diffs. Otherwise inspect the files directly. Reuse the instructions, architecture context, source relationships, and contracts already established during implementation. Do not restart repository research, reread unchanged documentation, or retrace understood dependencies merely because implementation ended.
 
-Expand only when the final diff introduces a new dependency, an implementation assumption changed, an unexpected build or test result occurs, a new risk becomes visible, or a concrete verification question requires broader evidence.
+Expand only when the final changes introduce a new dependency, an implementation assumption changed, an unexpected build or test result occurs, a new risk becomes visible, or a concrete verification question requires broader evidence.
 
 ## Review Checklist
 
-1. Inspect the final diff and changed files. Confirm the change stays within the user's scope and that no unrelated files, comments, or behavior changed.
-2. Check whether `AGENTS.md`, docs, skills, or subagent instructions changed the expected workflow only when those files are part of the final diff or the implementation exposed a workflow conflict.
+1. Inspect the changed files and any available diff. Confirm the change stays within the user's scope and that no unrelated files, comments, or behavior changed.
+2. Check whether `AGENTS.md`, docs, skills, or subagent instructions changed the expected workflow only when those files changed or the implementation exposed a workflow conflict.
 3. Check `For-Agent/Docs/artifacts.md` only when review artifacts were created or reused.
-4. Verify the final diff against the applicable architecture documents already established for the task. Open another document, or reread one, only when the incremental expansion rules require it; use the overview only when routing is unclear or the review is explicitly system-wide.
+4. Verify the changes against the applicable architecture documents already established for the task. Open another document, or reread one, only when the incremental expansion rules require it; use the overview only when routing is unclear or the review is explicitly system-wide.
 5. Verify the test dependency remains strictly `tests -> production`: no production source, target, API, normal build path, or deployment step may depend on test code, Qt Test, fixtures, mocks, test-only settings, or test targets, and production must not be reshaped solely for tests.
 6. Verify affected QML-facing properties, commands, signals, and model roles remain compatible with their consumers.
 7. Confirm added, removed, or renamed C++, QML, and test files are registered correctly in `CMakeLists.txt`.
@@ -42,7 +42,9 @@ Expand only when the final diff introduces a new dependency, an implementation a
     a diagnosed failure. Do not repeat an unchanged successful run without a
     concrete reason.
 11. Include applicable QML/UI runtime and visual evidence in this final pass before reporting completion. Apply `For-Agent/Docs/qml-style.md` for focused inspection when a suitable environment is available. Reuse sufficiently current evidence for the affected behavior; do not repeat a GUI launch or visual inspection merely because the UI workflow also mentions it. When unavailable, identify the specific verification gap and provide focused manual actions and expected results. Keep build success distinct from runtime and visual verification. Report `passed`, `failed`, `not run`, and `no matching tests` under [test outcomes](../../../For-Agent/Docs/testing.md#test-outcomes); do not claim unverified behavior works.
-12. Complete the report below, including any required validation that could not be performed and why.
+12. For each changed behavior, check the [logging policy](../../../For-Agent/Docs/architecture/logging.md#policy-for-new-and-changed-behavior).
+    Verify event ownership, severity, payload privacy, truthful outcomes and relevant regression cases. If existing logging suffices or no additional event is useful, say why in the final report.
+13. Complete the report below, including any required validation that could not be performed and why.
 
 ## Full Independent Review
 

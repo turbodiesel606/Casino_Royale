@@ -7,6 +7,7 @@
 #include <QVector>
 
 class QSqlDatabase;
+enum class LogFact;
 
 // Provides SQLite persistence for CV metadata and linked job applications.
 // Reads and writes DB
@@ -15,8 +16,8 @@ class CvRepository final
 public:
 	explicit CvRepository(QSqlDatabase& database);
 
-	QVector<CvDocument> findAll() const;
-	std::optional<CvDocument> findById(const QString& cvId) const;
+    QVector<CvDocument> findAll(bool* allReadsComplete = nullptr) const;
+	std::optional<CvDocument> findById(const QString& cvId, LogFact* cursorFailure = nullptr) const;
 	std::optional<CvDocument> findByIdentity(
 		const QString& sha256,
 		const QString& originalFileName) const;

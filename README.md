@@ -127,7 +127,7 @@ retry/repair; already deleted files are not rolled back. See
 - [Testing policy and target map](For-Agent/Docs/testing.md) for selecting,
   writing, and assessing tests; [testing reference](For-Agent/Docs/testing-reference.md)
   only for specific suite, fixture, log, or manual-scenario details.
-- [Architecture](For-Agent/Docs/architecture/overview.md).
+- [Architecture](For-Agent/Docs/architecture/overview.md) and [application logging policy](For-Agent/Docs/architecture/logging.md).
 
 DEB presets separate placeholder local-test metadata from explicitly supplied release metadata. An
 extracted-package probe does not replace installation, desktop or package

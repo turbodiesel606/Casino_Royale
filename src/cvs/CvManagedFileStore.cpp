@@ -403,8 +403,9 @@ CvManagedFileRecoveryReport CvManagedFileStore::reconcile(
         if (!finished) {
             ApplicationLog::record({LogEventType::ManagedCvRecoveryFailed,
                 {stage, LogFact::CauseUnavailable,
-                 LogValue::counts(report.restoredDeletionFileCount_,
-                    report.removedStagedFileCount_ + report.removedDeletionFileCount_, quarantined)}});
+                 LogRecoveryCounts{.restored_ = report.restoredDeletionFileCount_,
+                    .removed_ = report.removedStagedFileCount_ + report.removedDeletionFileCount_,
+                    .quarantined_ = quarantined}}});
         }
     });
 	QSet<QString> referencedStoredNames;

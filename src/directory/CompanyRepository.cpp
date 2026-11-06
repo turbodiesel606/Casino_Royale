@@ -42,7 +42,7 @@ CompanyRepository::CompanyRepository(QSqlDatabase& database)
 {
 }
 
-QVector<Company> CompanyRepository::findAll() const
+QVector<Company> CompanyRepository::findAll(bool* allReadsComplete) const
 {
     QSqlQuery query{database_};
     if (!query.exec(
@@ -61,10 +61,11 @@ QVector<Company> CompanyRepository::findAll() const
         if (!company.createdAt_.isValid() || !company.updatedAt_.isValid())
             ++invalidRequiredTime;
     }
-    storage::sql::recordDatasetReadError(query, LogFact::Companies);
+    storage::sql::finishDatasetRead(query, LogFact::Companies, allReadsComplete);
     if (invalidRequiredTime)
         ApplicationLog::record({LogEventType::SavedFieldFallbacksApplied,
-            {LogValue::counts(0, 0, invalidRequiredTime, 0)}});
+            {LogFallbackCounts{.jobStatus_ = 0, .workFormat_ = 0,
+                .requiredDate_ = invalidRequiredTime, .archiveTime_ = 0}}});
     return companies;
 }
 

@@ -101,6 +101,7 @@ private:
 		const std::shared_ptr<CancellationState>& cancellation_;
 		LogFact stage_ = LogFact::TransactionBegin;
 		LogFact cause_ = LogFact::CauseUnavailable;
+		LogFact lookupReadFailure_ = LogFact::None;
 		LogFact mismatch_ = LogFact::None;
 		LogFact invalidReference_ = LogFact::None;
 		LogFact restoration_ = LogFact::NotAttempted;
@@ -110,22 +111,19 @@ private:
 
 		void commit(SqlTransaction& transaction);
 	};
-	struct CommittedCounts
-	{
-		qint64 deleted_ = 0;
-		qint64 archived_ = 0;
-		qint64 restored_ = 0;
-		qint64 missing_ = 0;
-		qint64 pending_ = 0;
-	};
 	struct BatchFacts
 	{
-		CommittedCounts ordinary_;
-		CommittedCounts afterCancellation_;
+		LogRemovalCounts ordinary_;
+		LogRemovalCounts afterCancellation_;
 		qint64 protected_ = 0;
-		qint64 failedJobs_ = 0;
+		qint64 missingJobs_ = 0;
 		LogFact firstJobFailureStage_ = LogFact::Unknown;
 		LogFact firstJobFailureCause_ = LogFact::CauseUnavailable;
+		qint64 activeCvFailures_ = 0;
+		LogFact activeCvFailureStage_ = LogFact::Unknown;
+		LogFact activeCvFailureCause_ = LogFact::CauseUnavailable;
+		void reportActiveCvFailures(quint64 id) const noexcept;
+		void observeActiveCvFailure(LogFact stage, LogFact cause, quint64 id) noexcept;
 		void observe(const ItemFacts& item, DataRemovalItemStatus status) noexcept;
 		void report(LogFact operation, quint64 id, qint64 selected, const DataRemovalBatchResult& result) const noexcept;
 	};

@@ -14,9 +14,10 @@ namespace {
 
 	QVector<CvDocument> resolveCvDocuments(
 		CvRepository& repository,
-		CvManagedFileStore& managedFileStore)
+		CvManagedFileStore& managedFileStore,
+		bool& allReadsComplete)
 	{
-		auto documents = repository.findAll();
+		auto documents = repository.findAll(&allReadsComplete);
 		managedFileStore.reconcile(documents);
 		return documents;
 	}
@@ -37,13 +38,13 @@ AppBootstrap::AppBootstrap(QCoreApplication& app)
 	, storageMutationGate_{}
 	, dataRemovalWorker_{ storagePaths_.dataDirectory() }
 	, jobApplicationsController_{
-		jobRepository_.findAll(),
+		jobRepository_.findAll(&savedDataComplete_),
 		jobSaveWorker_,
 		dataRemovalWorker_,
 		storageMutationGate_ }
 		, cvLibraryController_{
 			jobApplicationsController_.jobApplicationListModel(),
-			resolveCvDocuments(cvRepository_, cvManagedFileStore_),
+			resolveCvDocuments(cvRepository_, cvManagedFileStore_, savedDataComplete_),
 			cvRepository_,
 			cvFileAccessService_,
 			cvImportWorker_,
@@ -51,7 +52,7 @@ AppBootstrap::AppBootstrap(QCoreApplication& app)
 			storageMutationGate_ }
 			, dashboardController_{ jobApplicationsController_.jobApplicationListModel(), cvLibraryController_.cvListModel() }
 	, companyDirectoryController_(
-		companyRepository_.findAll(),
+		companyRepository_.findAll(&savedDataComplete_),
 		jobApplicationsController_.jobApplicationListModel(),
 		contactModel_)
 	, contactDirectoryController_(contactModel_)
@@ -119,7 +120,8 @@ void AppBootstrap::beginShutdown()
 		const auto active = jobApplicationsController_.activeWorkCount() + cvLibraryController_.activeWorkCount();
 		const auto pending = jobApplicationsController_.pendingSaveCount() + cvLibraryController_.pendingImportCount()
 			+ jobApplicationsController_.pendingDeletionCount() + cvLibraryController_.pendingDeletionCount();
-		ApplicationLog::record({LogEventType::ControlledShutdownStarted, {LogValue::counts(active, pending - active)}});
+		ApplicationLog::record({LogEventType::ControlledShutdownStarted,
+			{LogPendingCounts{.active_ = active, .queued_ = pending - active}}});
 		shutdownReported_ = true;
 	}
 	storageMutationGate_.beginShutdown();
@@ -173,5 +175,6 @@ void AppBootstrap::loadMainQml()
 	}
 	QObject::connect(root, SIGNAL(closeWaitSelected()), this, SLOT(recordCloseWait()));
 	QObject::connect(root, SIGNAL(interruptAndExitSelected()), this, SLOT(recordInterruptAndExit()));
-	ApplicationLog::record({LogEventType::ApplicationStarted});
+	if (savedDataComplete_)
+		ApplicationLog::record({LogEventType::ApplicationStarted});
 }

@@ -147,7 +147,8 @@ UpdateJobResult UpdateJobService::complete(
         const auto disposition = replaced ? cvDispositionFact(result.cvImportDisposition_) : LogFact::None;
         if (cancellationRequested) {
             ApplicationLog::record({LogEventType::OperationCommittedAfterCancellationRequest,
-                {observation.operation_, LogValue::jobUpdate(replaced, changed, disposition)}, observation.operationId_});
+                {observation.operation_, LogJobUpdate{.replacement_ = replaced,
+                    .relationshipChanged_ = changed, .disposition_ = disposition}}, observation.operationId_});
         } else {
             ApplicationLog::record({LogEventType::JobApplicationUpdated,
                 {replaced ? LogFact::Yes : LogFact::No, changed ? LogFact::Yes : LogFact::No, disposition},

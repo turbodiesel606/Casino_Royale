@@ -47,7 +47,7 @@ Before broad searching:
    - architecture, maintainability, or duplication research;
    - implementation planning without edits.
 2. State the included boundary and intentional omissions. Honor a direct-call-only request without recursively tracing nested callees.
-3. Run `git status --short --untracked-files=all`. Inspect focused diffs for in-scope files and account for pre-existing modified, deleted, or untracked work.
+3. When Git metadata exists, inspect `git status --short --untracked-files=all` and focused diffs for in-scope files. Otherwise inspect the files directly. Account for pre-existing work.
 4. Start from the smallest relevant entry point. Do not inventory the whole repository unless the requested scope requires it.
 
 ## Search And Stopping Policy
@@ -71,6 +71,7 @@ Before broad searching:
 ## Entry Points
 
 - Startup and dependency wiring: `src/main.cpp`, `src/app/`.
+- Application diagnostics, catalog and writer: `src/logging/`, [logging policy](../../../For-Agent/Docs/architecture/logging.md).
 - Shared backend utilities: `src/common/`.
 - Storage, SQL helpers, transactions, and schema migrations: `src/storage/`.
 - Jobs and Add Job: `src/jobs/`.
@@ -91,7 +92,7 @@ Use targeted `rg` searches for definitions, callers, constructors, connections, 
 4. Cite the file and line for every non-trivial claim, risk, missing contract, and implementation recommendation.
 5. Distinguish relevant evidence levels when they affect the conclusion:
    - live source inspection;
-   - current worktree or diff inspection;
+   - current file inspection and any available worktree/diff evidence;
    - CMake registration inspection;
    - test-source inspection;
    - successful build;

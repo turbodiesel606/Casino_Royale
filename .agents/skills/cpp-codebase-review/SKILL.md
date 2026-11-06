@@ -17,7 +17,7 @@ Each worker need not repeat the whole-backend inventory or unrelated domain read
 
 ## Context And Artifact Selection
 
-1. Apply `AGENTS.md` and record current worktree state.
+1. Apply `AGENTS.md`. Inspect status and scoped diffs when Git metadata exists. Otherwise inspect the current files directly.
 2. For the overall audit, read `For-Agent/Docs/architecture/overview.md`, then load each domain
    architecture document as its module enters the inventory.
    A partition worker starts with its assigned domain and uses the overview only
@@ -69,7 +69,7 @@ context without extra exploration.
 
 Return:
 
-- reviewed scope, worktree state, and modules inventoried;
+- reviewed scope, available worktree evidence, and modules inventoried;
 - findings ordered by severity;
 - architecture and dependency-direction assessment;
 - duplication and responsibility-overlap map grouped by canonical owner;

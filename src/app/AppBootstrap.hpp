@@ -48,6 +48,7 @@ private slots:
 private:
 
     QCoreApplication& app_;
+    bool savedDataComplete_ = true;
     StoragePaths storagePaths_;
     SqliteDatabase database_; 
     CvRepository cvRepository_; 

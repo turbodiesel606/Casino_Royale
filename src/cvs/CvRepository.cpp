@@ -100,7 +100,7 @@ CvRepository::CvRepository(QSqlDatabase& database)
 {
 }
 
-QVector<CvDocument> CvRepository::findAll() const
+QVector<CvDocument> CvRepository::findAll(bool* allReadsComplete) const
 {
 	QSqlQuery query{ database_ };
 	query.prepare(FIXED_QSTRING(
@@ -114,7 +114,7 @@ QVector<CvDocument> CvRepository::findAll() const
         throw;
     }
     auto documents = readJoinedDocuments(query);
-    storage::sql::recordDatasetReadError(query, LogFact::PersistCvsAndLinks);
+    storage::sql::finishDatasetRead(query, LogFact::PersistCvsAndLinks, allReadsComplete);
     qsizetype badArchive = 0, badDate = 0;
     for (const auto& document : std::as_const(documents)) {
         badArchive += document.isArchived_ && !document.archivedAt_.isValid();
@@ -122,13 +122,14 @@ QVector<CvDocument> CvRepository::findAll() const
     }
     if (badArchive || badDate) {
         ApplicationLog::record({LogEventType::SavedFieldFallbacksApplied,
-            {LogValue::counts(0, 0, badDate, badArchive)}});
+            {LogFallbackCounts{.jobStatus_ = 0, .workFormat_ = 0,
+                .requiredDate_ = badDate, .archiveTime_ = badArchive}}});
     }
     return documents;
 }
 
 std::optional<CvDocument> CvRepository::findById(
-	const QString& cvId) const
+	const QString& cvId, LogFact* cursorFailure) const
 {
 	QSqlQuery query{ database_ };
 	query.prepare(FIXED_QSTRING(
@@ -138,26 +139,16 @@ std::optional<CvDocument> CvRepository::findById(
 	query.addBindValue(cvId);
 	storage::sql::execute(query, QStringLiteral("find a CV by ID"));
 
-	// Advance to the first row. No row means this CV does not exist.
-	if (!query.next())
-		return std::nullopt;
-	
-
-	// All returned rows describe this same CV. Read its metadata once.
-	CvDocument document{ convertToCvDocument(query) };
-
-	// Collect job links, including the link from the first row.
-	do {
-		/*
-		do while is important here. We already advanced to the first row before constructing the document, 
-		so we must process that row before advancing again.
-		*/
+	std::optional<CvDocument> document;
+	while (query.next()) {
+		if (!document)
+			document = convertToCvDocument(query);
 		const auto jobId = query.value(QStringLiteral("job_id")).toString();
-		if (!jobId.isEmpty()) {
-			document.linkedApplicationIds_.append(jobId);
-		}
-	} while (query.next());
-
+		if (!jobId.isEmpty())
+			document->linkedApplicationIds_.append(jobId);
+	}
+	if (cursorFailure)
+		*cursorFailure = storage::sql::cursorFailure(query);
 	return document;
 }
 

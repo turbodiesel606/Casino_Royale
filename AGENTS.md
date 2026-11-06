@@ -41,8 +41,8 @@ maintainability, readability, and Windows/Linux compatibility.
 ## Git Rules
 
 Use Git only for read-only inspection; every mutation requires an explicit user
-request. Work without `.git` is supported: inspect files directly when Git
-metadata is absent, and do not initialize a repository to complete a task.
+request. When Git metadata exists, inspect status and focused diffs. Otherwise
+inspect the affected files directly. Do not initialize a repository to complete a task.
 
 ## Architecture Boundaries
 
@@ -70,6 +70,17 @@ existing production contracts.
 Do not add or widen production APIs, alter access control, ownership, lifetime,
 threading, behavior, or architectural boundaries solely to make testing easier.
 
+## Logging for Application Behavior
+
+For every new or changed application behavior, Codex must assess logging impact
+and implement necessary events in the same task. Cover applicable confirmed
+success, technical failure, partial completion, state/concurrency rejection,
+cancellation requested or observed and commit after a request, rollback,
+compensation, recovery, cleanup, request/result delivery, model publication,
+startup and shutdown. Assess meaningful outcomes at their owners. If existing
+events suffice or additional logging is unnecessary, briefly explain why in
+the final response. Apply the [logging policy](For-Agent/Docs/architecture/logging.md#policy-for-new-and-changed-behavior).
+
 ## Architecture Documentation
 
 After implementation is stable, update directly affected architecture
@@ -90,6 +101,11 @@ Expand only for a concrete dependency, contract, risk, or verification question.
 Reuse current context; reread only when new evidence invalidates it. Do not scan
 all of `For-Agent/Docs/` or read every architecture or reference document by default.
 
+For C++/Qt implementation, consult the relevant topic in the
+[Best Practices index](For-Agent/CPP_Qt6_Best_Practices_EN/README.md) for the
+specific ownership, interface, error, concurrency, testing or Qt question at
+hand. Current project instructions take precedence in every conflict.
+
 Project skills live under `.agents/skills/`. Stable guidance belongs in
 `For-Agent/Docs/`; review information belongs in `For-Agent/Review/`.
 
@@ -101,7 +117,8 @@ Project skills live under `.agents/skills/`. Stable guidance belongs in
 | C++ / QML explanation, research, or planning | `cpp-code-research` / `qml-code-research`; start at the smallest relevant symbol, screen, or binding, remain read-only, and stop before edits. |
 | Bounded C++ / QML review | `cpp-code-review` / `qml-code-review`; inspect the focused diff or explicitly identified existing target, expanding through relevant contracts or concrete risks. |
 | Whole-backend / whole-QML architecture review | `cpp-codebase-review` / `qml-codebase-review`; inventory the explicitly requested surface for architecture, responsibility, and duplication analysis. |
-| Architecture dependency or boundary | Read the matching domain under `For-Agent/Docs/architecture/`: `application.md` for startup/wiring, `boundaries.md`, `jobs.md`, `cvs.md`, `storage.md`, `threading.md`, `removal.md`, or `qml-contracts.md`. Use [overview.md](For-Agent/Docs/architecture/overview.md) only when routing is unclear or a system-wide map is requested. |
+| Architecture dependency or boundary | Read the matching domain under `For-Agent/Docs/architecture/`: `application.md` for startup/wiring, `boundaries.md`, `jobs.md`, `cvs.md`, `storage.md`, `logging.md`, `threading.md`, `removal.md`, or `qml-contracts.md`. Use [overview.md](For-Agent/Docs/architecture/overview.md) only when routing is unclear or a system-wide map is requested. |
+| Logging impact, event ownership, privacy, catalog extension, queue or log files | [logging.md](For-Agent/Docs/architecture/logging.md) governs application diagnostics. |
 | Selecting, writing, or assessing tests | [testing.md](For-Agent/Docs/testing.md): quality, isolation, scope, outcomes, and the compact target map. |
 | Specific suite, fixture, diagnostic log, or manual scenario | Read only the relevant section of [testing-reference.md](For-Agent/Docs/testing-reference.md); the full catalog is unnecessary for ordinary target selection. |
 | Build verification or build behavior | [build.md](For-Agent/Docs/build.md) owns shared action selection and the everyday workflow. Read [build-windows.md](For-Agent/Docs/build-windows.md) or [build-linux.md](For-Agent/Docs/build-linux.md) for the OS relevant to the task; `cmake-build-debug` owns execution, completion, and diagnosis. |

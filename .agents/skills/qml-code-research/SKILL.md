@@ -57,7 +57,7 @@ Before broad searching:
    - architecture or decomposition research;
    - implementation planning without edits.
 2. State the included boundary and intentional omissions. Preserve a narrow screen, component, or direct-contract boundary without turning it into a whole-QML audit.
-3. Run `git status --short --untracked-files=all`. Inspect focused diffs for in-scope files and account for pre-existing modified, deleted, or untracked work.
+3. When Git metadata exists, inspect `git status --short --untracked-files=all` and focused diffs for in-scope files. Otherwise inspect the files directly. Account for pre-existing work.
 4. Start from the smallest relevant entry point. Inventory the complete QML surface only when the requested scope requires it.
 
 ## Search And Stopping Policy
@@ -103,7 +103,7 @@ Use targeted `rg` searches for component definitions and instantiations, imports
 5. Cite the file and line for every non-trivial claim, risk, missing contract, and implementation recommendation.
 6. Distinguish relevant evidence levels when they affect the conclusion:
    - live source inspection;
-   - current worktree or diff inspection;
+   - current file inspection and any available worktree/diff evidence;
    - QML module registration inspection;
    - static instantiation and reachability inspection;
    - related test-source inspection;

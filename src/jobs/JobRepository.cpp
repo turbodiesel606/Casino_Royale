@@ -118,7 +118,7 @@ JobRepository::JobRepository(QSqlDatabase& database)
 {
 }
 
-QVector<JobApplication> JobRepository::findAll() const
+QVector<JobApplication> JobRepository::findAll(bool* allReadsComplete) const
 {
     QSqlQuery jobsQuery{database_};
     if (!jobsQuery.exec(baseJobSelect() + QStringLiteral(" ORDER BY jobs.created_at DESC"))) {
@@ -141,7 +141,7 @@ QVector<JobApplication> JobRepository::findAll() const
         applications.append(std::move(application));
     }
 
-    storage::sql::recordDatasetReadError(jobsQuery, LogFact::PersistJobs);
+    storage::sql::finishDatasetRead(jobsQuery, LogFact::PersistJobs, allReadsComplete);
     if (applications.isEmpty()) {
         return applications;
     }
@@ -166,10 +166,11 @@ QVector<JobApplication> JobRepository::findAll() const
                 technologiesQuery.value(QStringLiteral("technology")).toString());
         }
     }
-    storage::sql::recordDatasetReadError(technologiesQuery, LogFact::PersistTechnologies);
+    storage::sql::finishDatasetRead(technologiesQuery, LogFact::PersistTechnologies, allReadsComplete);
     if (badStatus || badFormat || badDate) {
         ApplicationLog::record({LogEventType::SavedFieldFallbacksApplied,
-            {LogValue::counts(badStatus, badFormat, badDate, 0)}});
+            {LogFallbackCounts{.jobStatus_ = badStatus, .workFormat_ = badFormat,
+                .requiredDate_ = badDate, .archiveTime_ = 0}}});
     }
     return applications;
 }

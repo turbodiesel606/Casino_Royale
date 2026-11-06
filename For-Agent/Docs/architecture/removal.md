@@ -52,6 +52,13 @@ archived CV updates its link count but does not restore or delete it. Controller
 batch summaries report deleted, archived, restored, skipped, failed, and canceled
 outcomes, including item-specific failure details.
 
+The service reports job batch totals from processed outcomes and retains the
+first technical stage/cause separately from missing records. Active-CV removal
+groups equivalent transaction-start or lookup errors before the archive/delete
+choice. An incomplete link cursor can return a prefix and the item can still
+commit. Its lookup diagnostic and its actual committed outcome are separate.
+See the [event ownership policy](logging.md#ownership-and-evidence).
+
 Job deletion, active-CV removal, archived-CV deletion, and manual restore share
 one exclusive admission category. Accepted queued imports/updates block this
 category; an active removal batch blocks every new persistence command and

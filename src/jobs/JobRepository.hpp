@@ -17,7 +17,7 @@ class JobRepository final
 public:
     explicit JobRepository(QSqlDatabase& database);
 
-    QVector<JobApplication> findAll() const;
+    QVector<JobApplication> findAll(bool* allReadsComplete = nullptr) const;
     std::optional<JobApplication> findById(const QString& applicationId) const;
     void insert(const JobApplication& application, LogFact* stage = nullptr) const;
     bool update(const JobApplication& application, LogFact* stage = nullptr) const;

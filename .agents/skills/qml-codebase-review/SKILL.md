@@ -17,7 +17,7 @@ Each worker need not repeat the whole-QML inventory or unrelated navigation mapp
 
 ## Context And Artifact Selection
 
-1. Apply `AGENTS.md` and record current worktree state.
+1. Apply `AGENTS.md`. Inspect status and scoped diffs when Git metadata exists. Otherwise inspect the current files directly.
 2. Read `For-Agent/Docs/qml-style.md` and
    `For-Agent/Docs/architecture/qml-contracts.md`. Load other architecture domain
    documents only as inspected QML contracts enter those domains.
@@ -63,7 +63,7 @@ extra exploration.
 
 Return:
 
-- reviewed scope, worktree state, and QML surfaces inventoried;
+- reviewed scope, available worktree evidence, and QML surfaces inventoried;
 - findings ordered by severity;
 - navigation, ownership, QML-to-C++ contract, and registration assessment;
 - component-duplication and responsibility-overlap map;

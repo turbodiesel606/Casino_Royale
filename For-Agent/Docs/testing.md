@@ -125,7 +125,7 @@ Scope above. Static test-source inspection does not establish a passing run.
 | Relation proxy and source-model mutations | `JobTrackerRelationProxyTests` | `common/RelationFilterProxyModelTest.cpp` |
 | Stable-ID and bulk selection | `JobTrackerSelectionTrackerTests` | `common/StableIdSelectionTrackerTest.cpp` |
 | FIFO, cancellation, worker lifecycle and shutdown | `JobTrackerAsyncInfrastructureTests` | `common/AsyncInfrastructureTest.cpp` |
-| All 62 event templates and line format | `JobTrackerLogCatalogTests` | `logging/LogCatalogTest.cpp` |
+| Catalog severity, payload shapes, message semantics and line format | `JobTrackerLogCatalogTests` | `logging/LogCatalogTest.cpp` |
 | Logging admission, concurrent producers, drain, rotation and retention | `JobTrackerLogWriterTests` | `logging/LogWriterTest.cpp` |
 | Jobs controller, roles, selection, preflight, updates and removal publication | `JobTrackerJobsTests` | `jobs/JobApplicationsControllerTest.cpp` |
 | CV controller, selection, import queue and archive/removal publication | `JobTrackerCvTests` | `cvs/CvLibraryControllerTest.cpp` |

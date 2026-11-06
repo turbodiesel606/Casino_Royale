@@ -10,7 +10,7 @@ Use this skill for QML and UI work in JobTracker.
 ## Workflow
 
 1. Apply `AGENTS.md` and read `For-Agent/Docs/qml-style.md`.
-2. Inspect `git status` and existing diffs for files in scope. Identify and preserve pre-existing changes.
+2. When Git metadata exists, inspect status and diffs for files in scope. Otherwise inspect those files directly. Identify and preserve pre-existing changes.
 3. Start from the target page or component under `qml/pages` or `qml/components`.
 4. Inspect `qml/Main.qml` only when the task affects the application shell, navigation, global actions, page creation, or reachability.
 5. Inspect the target component's definition, its direct parent or instantiation sites, and the properties, signals, bindings, imports, and model roles involved in the requested behavior. Do not inventory unrelated QML files.

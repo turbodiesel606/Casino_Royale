@@ -17,6 +17,7 @@ class RepositoryTest final : public QObject
 private slots:
     void queryErrorsIncludeOperationContext();
     void preparedQueryErrorsIncludeOperationContext();
+    void successfulCursorPreservesEarlierPartialRead();
     void sqlLeafConversionsPreserveValues();
     void transactionGuardRollsBackUntilCommitted();
     void persistsFavoriteAcrossDatabaseReopen();
@@ -72,6 +73,24 @@ void RepositoryTest::preparedQueryErrorsIncludeOperationContext()
 
     QVERIFY(errorMessage.contains(QStringLiteral("prepared query-helper test statement")));
     QVERIFY(errorMessage.contains(QStringLiteral("UNIQUE"), Qt::CaseInsensitive));
+}
+
+void RepositoryTest::successfulCursorPreservesEarlierPartialRead()
+{
+    testsupport::TemporaryDatabaseFixture fixture;
+    QVERIFY(fixture.isValid());
+    QSqlQuery query{fixture.database().connection()};
+    bool complete = true;
+    QVERIFY(query.exec(QStringLiteral("SELECT 1 UNION ALL SELECT abs(-9223372036854775808)")));
+    QVERIFY(query.next());
+    QCOMPARE(query.value(0).toInt(), 1);
+    QVERIFY(!query.next());
+    storage::sql::finishDatasetRead(query, LogFact::PersistJobs, &complete);
+    QVERIFY(!complete);
+    QVERIFY(query.exec(QStringLiteral("SELECT 1 WHERE 0")));
+    QVERIFY(!query.next());
+    storage::sql::finishDatasetRead(query, LogFact::PersistTechnologies, &complete);
+    QVERIFY(!complete);
 }
 
 void RepositoryTest::sqlLeafConversionsPreserveValues()

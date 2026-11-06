@@ -4,15 +4,16 @@
 #include <QByteArray>
 #include <QtGlobal>
 
+#include <algorithm>
 #include <array>
-#include <concepts>
-#include <cstdint>
+#include <string_view>
 #include <type_traits>
+#include <variant>
 
 enum class LogSeverity { Error, Warning, Info };
 enum class LogComponent {
 	Storage, Database, CvLibrary, Application, JobApplications,
-	ApplicationModel, BackgroundWork, DataRemoval
+	ApplicationModel, BackgroundWork, DataRemoval, Count
 };
 
 enum class LogEventType
@@ -33,43 +34,55 @@ enum class LogFact
 #undef LOG_FACT
 };
 
-// Codex Comment: Queue values own only bounded diagnostic facts. Producer arguments
-// follow the placeholder order of the event's descriptor in LogCatalog.inc.
-struct LogValue final
+// Codex Comment: Each grouped field has its own type. Required counts have no
+// default constructor so omitting a member is a compile-time error.
+struct LogCount final
 {
-	enum class Kind { Phrase, Number, Counts, JobUpdate };
-	Kind kind_ = Kind::Phrase;
-	LogFact fact_ = LogFact::Unknown;
-	std::array<qint64, 5> numbers_{};
-
-	constexpr LogValue() = default;
-	constexpr LogValue(LogFact fact) : fact_{ fact } {}
-
-	template<std::integral Number>
-	constexpr LogValue(Number value) : kind_{ Kind::Number }, numbers_{ static_cast<qint64>(value) } {}
-
-	template<std::integral... Numbers> requires (sizeof...(Numbers) <= 5)
-		static constexpr LogValue counts(Numbers... numbers) noexcept
-	{
-		LogValue value;
-		value.kind_ = Kind::Counts;
-		value.numbers_ = { static_cast<qint64>(numbers)... };
-		return value;
-	}
-
-	static constexpr LogValue jobUpdate(bool replacement, bool changed, LogFact disposition) noexcept
-	{
-		auto value = counts(replacement, changed);
-		value.kind_ = Kind::JobUpdate;
-		value.fact_ = disposition;
-		return value;
-	}
+    constexpr LogCount(qint64 value) noexcept : value_{value} {}
+    qint64 value_;
 };
+
+struct LogFallbackCounts final { LogCount jobStatus_, workFormat_, requiredDate_, archiveTime_; };
+struct LogRecoveryCounts final { LogCount restored_, removed_, quarantined_; };
+struct LogPendingCounts final { LogCount active_, queued_; };
+struct LogCompletionCounts final { LogCount processed_, unprocessed_; };
+struct LogDeletionTotals final { LogCount committed_, failed_; };
+
+struct LogRemovalCounts final
+{
+    qint64 deleted_ = 0;
+    qint64 archived_ = 0;
+    qint64 restored_ = 0;
+    qint64 missing_ = 0;
+    qint64 pending_ = 0;
+};
+
+struct LogJobUpdate final
+{
+    bool replacement_;
+    bool relationshipChanged_;
+    LogFact disposition_ = LogFact::None;
+};
+
+// Codex Comment: An unused slot is distinct from an explicitly absent detail (LogFact::None).
+using LogValue = std::variant<std::monostate, LogFact, qint64, LogFallbackCounts, LogRecoveryCounts,
+    LogPendingCounts, LogCompletionCounts, LogDeletionTotals, LogRemovalCounts, LogJobUpdate>;
+
+namespace logging_detail {
+
+// Codex Comment: Queue entries have fixed size for this build, sized to its widest catalog message.
+inline constexpr auto logFieldCapacity = static_cast<std::size_t>(std::ranges::max(std::array{
+#define LOG_EVENT(name, severity, component, message) std::ranges::count(std::string_view{message}, '{'),
+#include "LogCatalog.inc"
+#undef LOG_EVENT
+}));
+
+} // namespace logging_detail
 
 struct LogEvent final
 {
 	LogEventType type_;
-	std::array<LogValue, 5> fields_{};
+	std::array<LogValue, logging_detail::logFieldCapacity> fields_{};
 	quint64 operationId_ = 0;
 };
 

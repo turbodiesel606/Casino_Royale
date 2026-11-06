@@ -20,6 +20,7 @@
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QSignalSpy>
+#include <QSqlQuery>
 #include <QScopeGuard>
 #include <QTimer>
 #include <QtTest/QtTest>
@@ -195,15 +196,19 @@ void StorageMutationFeedbackTest::bootstrapOpensAndExits_data()
 {
     QTest::addColumn<bool>("startLogger");
     QTest::addColumn<bool>("blockOutput");
-    QTest::newRow("disabled") << false << false;
-    QTest::newRow("writable") << true << false;
-    QTest::newRow("unwritable") << true << true;
+    QTest::addColumn<bool>("partialCompanies");
+    QTest::newRow("disabled") << false << false << false;
+    QTest::newRow("writable") << true << false << false;
+    QTest::newRow("unwritable") << true << true << false;
+    QTest::newRow("partial read") << true << false << true;
+    QTest::newRow("partial read without logger") << false << false << true;
 }
 
 void StorageMutationFeedbackTest::bootstrapOpensAndExits()
 {
     QFETCH(bool, startLogger);
     QFETCH(bool, blockOutput);
+    QFETCH(bool, partialCompanies);
     testsupport::LogCapture capture;
     QVERIFY(capture.isValid());
     const auto data = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
@@ -211,6 +216,23 @@ void StorageMutationFeedbackTest::bootstrapOpensAndExits()
     const auto businessData = QDir{data}.filePath(QStringLiteral("Data"));
     QVERIFY(!QFileInfo::exists(businessData));
     const auto cleanup = qScopeGuard([&] { QDir{businessData}.removeRecursively(); });
+    QString stagedFile;
+    if (partialCompanies) {
+        StoragePaths paths;
+        SqliteDatabase seed{paths.databasePath()};
+        CompanyRepository companies{seed.connection()};
+        companies.findOrCreateByName(QStringLiteral("First"));
+        companies.findOrCreateByName(QStringLiteral("Second"));
+        QSqlQuery query{seed.connection()};
+        QVERIFY(query.exec(QStringLiteral("ALTER TABLE companies RENAME TO saved_companies")));
+        // Codex Comment: The normalized-name index delivers the first row before SQLite evaluates the second.
+        QVERIFY(query.exec(QStringLiteral("CREATE VIEW companies AS SELECT id, normalized_name, created_at, updated_at, "
+            "CASE WHEN normalized_name = 'second' THEN abs(-9223372036854775808) ELSE display_name END AS display_name "
+            "FROM saved_companies")));
+        stagedFile = QDir{paths.resumesDirectory()}.filePath(QStringLiteral("discard.part"));
+        QFile staged{stagedFile};
+        QVERIFY(staged.open(QIODevice::WriteOnly | QIODevice::NewOnly));
+    }
     if (blockOutput) {
         QFile obstruction{capture.directory()};
         QVERIFY(obstruction.open(QIODevice::WriteOnly | QIODevice::NewOnly));
@@ -221,9 +243,15 @@ void StorageMutationFeedbackTest::bootstrapOpensAndExits()
             session.emplace();
         AppBootstrap bootstrap{*qApp};
         bool closedWindow = false;
+        int visibleCompanyCount = -1;
         QTimer::singleShot(0, &bootstrap, [&] {
             for (auto* window : QGuiApplication::topLevelWindows()) {
                 if (window->title() == QStringLiteral("JobTracker") && window->isVisible()) {
+                    if (auto* context = QQmlEngine::contextForObject(window)) {
+                        const auto controller = context->contextProperty(QStringLiteral("companyDirectoryController")).value<QObject*>();
+                        if (auto* companies = qobject_cast<CompanyDirectoryController*>(controller))
+                            visibleCompanyCount = companies->companyCount();
+                    }
                     closedWindow = window->close();
                     break;
                 }
@@ -234,14 +262,23 @@ void StorageMutationFeedbackTest::bootstrapOpensAndExits()
         QTimer::singleShot(3000, &bootstrap, [] { QCoreApplication::exit(EXIT_FAILURE); });
         QCOMPARE(bootstrap.run(), EXIT_SUCCESS);
         QVERIFY(closedWindow);
+        QCOMPARE(visibleCompanyCount, partialCompanies ? 1 : 0);
     }
     QVERIFY(QFileInfo::exists(QDir{businessData}.filePath(QStringLiteral("database.sqlite"))));
+    if (partialCompanies)
+        QVERIFY(!QFileInfo::exists(stagedFile));
     const auto log = capture.contents();
     if (startLogger && !blockOutput) {
         const auto started = log.indexOf("Startup completed");
         const auto closing = log.indexOf("Controlled shutdown began");
         const auto completed = log.indexOf("Controlled shutdown and required background cleanup completed");
-        QVERIFY2(started >= 0 && closing > started && completed > closing, log.constData());
+        if (partialCompanies) {
+            QCOMPARE(started, -1);
+            QVERIFY(log.contains("ERROR | Storage | Message: Could not load companies."));
+        } else {
+            QVERIFY(started >= 0);
+        }
+        QVERIFY2(closing > started && completed > closing, log.constData());
     } else {
         QVERIFY(log.isEmpty());
     }

@@ -32,8 +32,8 @@ testing, build, and artifact bundle for a bounded review.
 ## Scope Gate
 
 1. Use the focused final diff or the user's existing-code target as the initial
-   boundary. Inspect worktree state and relevant diffs if present; their absence
-   is not an error or a reason to start a whole-codebase audit.
+   boundary. When Git metadata exists, inspect status and relevant diffs. Otherwise
+   inspect the target files directly.
 2. Inspect the target code first, then direct callers, callees, owners,
    consumers, tests, and directly affected public or QML contracts.
 3. Expand beyond that boundary only when a concrete finding or risk requires
@@ -56,12 +56,13 @@ narration already established in the active context.
 Inspect the target C++ files and nearby code before broad scans:
 
 - `src/app/` and `src/main.cpp` for bootstrap and dependency wiring.
+- `src/logging/` and the [logging policy](../../../For-Agent/Docs/architecture/logging.md) for diagnostics.
 - `src/common/` for shared filtering, validation, and utility behavior.
 - `src/jobs/`, `src/cvs/`, `src/dashboard/`, `src/directory/` for domain code.
 - `tests/` for matching Qt Test coverage.
 - `CMakeLists.txt` for added or removed C++ sources and tests.
 
-Use `git diff` and targeted `rg` searches for affected symbols, role names, properties, invokables, signal names, and test registrations.
+Use targeted `rg` searches for affected symbols, role names, properties, invokables, signal names, and test registrations.
 
 ## Review Priorities
 

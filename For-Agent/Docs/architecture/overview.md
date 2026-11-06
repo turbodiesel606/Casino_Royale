@@ -21,6 +21,10 @@ directly, while `CvLibraryController` currently persists favorite changes
 through `CvRepository` on the GUI thread. Tests consume production contracts
 from outside the production dependency chain.
 
+Application, persistence and worker owners submit bounded operational events
+to the [logging subsystem](logging.md). Its single consumer owns formatting,
+file writes and retention. Business results do not depend on its availability.
+
 ## Architecture Documents
 
 | Task evidence | Read |

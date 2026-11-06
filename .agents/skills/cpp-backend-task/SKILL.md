@@ -10,12 +10,16 @@ Use this skill for C++ backend work in JobTracker.
 ## Context Selection
 
 1. Apply `AGENTS.md`, then identify the affected backend subsystem from the
-   request, target code, and focused diff.
+   request, target code, and focused diff when available.
 2. Read only the matching domain documents under
    `For-Agent/Docs/architecture/`. Use
    `For-Agent/Docs/architecture/overview.md` only when the correct domain document
    is unclear.
-3. Read `For-Agent/Docs/coding-style.md` for C++ implementation conventions.
+3. Read `For-Agent/Docs/coding-style.md` for C++ conventions. Use the
+   [Best Practices index](../../../For-Agent/CPP_Qt6_Best_Practices_EN/README.md)
+   to select only relevant topics, such as types for payloads, error handling
+   for failure boundaries, or Qt ownership for worker lifetimes. Current
+   project instructions take precedence over conflicting reference advice.
 4. Read `For-Agent/Docs/testing.md` when the change affects business logic,
    storage, parsing, algorithms, Qt model behavior, signals, test registration,
    or another high-risk contract.
@@ -42,10 +46,13 @@ Use qt-qml-ui-task when implementation also changes QML files.
 1. When Git metadata exists, inspect `git status` and existing diffs for files in scope; otherwise inspect those files directly. Identify and preserve pre-existing changes.
 2. Start from the smallest affected model, controller, service, repository, storage class, utility, or startup surface. Use `cpp-code-research` first when ownership, data flow, or implementation direction is unclear.
 3. Define ownership, lifetime, public and QML-facing contracts, error behavior, thread boundaries, and storage or transaction boundaries from production requirements, then identify the tests required for those contracts.
-4. Make the smallest sufficient change. Preserve unrelated work and apply the canonical comment policy: use `// Codex Comment:` for added ordinary explanatory comments, preserve unmarked comments with unchanged code, update associated comments when code changes, and correct stale marked comments in scope. Comments never restrict necessary authorized code changes.
+4. For each changed behavior, assess its outcomes under the
+   [logging policy](../../../For-Agent/Docs/architecture/logging.md#policy-for-new-and-changed-behavior).
+   Implement missing events at the confirming owner and verify the business
+   result and diagnostic together. Make the smallest sufficient change. Preserve unrelated work and apply the canonical comment policy: use `// Codex Comment:` for added ordinary explanatory comments, preserve unmarked comments with unchanged code, update associated comments when code changes, and correct stale marked comments in scope. Comments never restrict necessary authorized code changes.
 5. Update `CMakeLists.txt` source and test registration when C++ files or test targets are added, removed, or renamed.
 6. Use `For-Agent/Docs/testing.md` to select meaningful regression coverage for changed business logic, storage, parsing, algorithms, Qt model behavior, signals, or high-risk contracts. Start from its verified subsystem-to-test map and expand for affected contracts and risk.
-7. After implementation is stable, complete one incremental `test-and-review` pass: inspect the final diff, execute the required build/tests through `cmake-build-debug`, and check documentation impact. Reuse established context. `test-and-review` owns integrated verification and independent-review criteria; `testing.md` owns test-scope expansion.
+7. After implementation is stable, complete one incremental `test-and-review` pass: inspect the changed files and available diff, execute the required build/tests through `cmake-build-debug`, and check documentation impact. Reuse established context. `test-and-review` owns integrated verification and independent-review criteria; `testing.md` owns test-scope expansion.
 
 Use [build.md](../../../For-Agent/Docs/build.md) for shared action selection and
 its relevant [Windows](../../../For-Agent/Docs/build-windows.md) or

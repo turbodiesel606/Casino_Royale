@@ -52,11 +52,19 @@ namespace storage::sql {
 		}
 	}
 
-    void recordDatasetReadError(const QSqlQuery& query, LogFact dataset) noexcept
+    LogFact cursorFailure(const QSqlQuery& query) noexcept
     {
         const auto error = query.lastError();
-        if (error.isValid()) {
-            ApplicationLog::record({LogEventType::SavedDatasetLoadFailed, {dataset, failureCause(error)}});
+        return error.isValid() ? failureCause(error) : LogFact::None;
+    }
+
+    void finishDatasetRead(const QSqlQuery& query, LogFact dataset, bool* allReadsComplete) noexcept
+    {
+        const auto cause = cursorFailure(query);
+        if (cause != LogFact::None) {
+            if (allReadsComplete)
+                *allReadsComplete = false;
+            ApplicationLog::record({LogEventType::SavedDatasetLoadFailed, {dataset, cause}});
         }
     }
 

@@ -82,7 +82,11 @@ private slots:
     void removingUnlinkedActiveCvDeletesRecordAndFile();
     void permanentDeletionSkipsLinkedArchivedCvAndDeletesEligibleCv();
     void restorePreservesIdentityMetadataFavoriteLinksAndFile();
+    void itemFailureDoesNotStopLaterItems_data();
     void itemFailureDoesNotStopLaterItems();
+    void activeCvRemovalReportsPersistenceStage_data();
+    void activeCvRemovalReportsPersistenceStage();
+    void incompleteCvLookupPreservesArchiveOutcome();
     void rejectsUnsafePathsAndDeletesRowsForMissingFiles();
     void restoresFileWhenDatabaseDeleteFails();
     void rollbackFailureRecordsRestoredFileAndUncertainDatabase();
@@ -236,28 +240,133 @@ void DataRemovalServiceTest::restorePreservesIdentityMetadataFavoriteLinksAndFil
     QVERIFY(QFileInfo::exists(managedPath));
 }
 
+void DataRemovalServiceTest::itemFailureDoesNotStopLaterItems_data()
+{
+    QTest::addColumn<bool>("technicalFailure");
+    QTest::newRow("missing only") << false;
+    QTest::newRow("missing and technical failure") << true;
+}
+
 void DataRemovalServiceTest::itemFailureDoesNotStopLaterItems()
+{
+    QFETCH(bool, technicalFailure);
+    testsupport::AddJobTestFixture fixture;
+    QVERIFY(fixture.isValid());
+    const auto created = fixture.service_.create(testsupport::validJobDraft(),
+        QUrl::fromLocalFile(fixture.storage_.createFile()));
+    QVERIFY(created.success_);
+    QVector<DataRemovalItemRequest> requests{{QStringLiteral("missing-job"), QStringLiteral("Missing")}};
+    if (technicalFailure) {
+        auto retained = created.application_;
+        retained.id_ = QStringLiteral("retained-job");
+        fixture.jobRepository_.insert(retained);
+        QSqlQuery trigger{fixture.database_.connection()};
+        QVERIFY(trigger.exec(QStringLiteral("CREATE TRIGGER block_one BEFORE DELETE ON jobs "
+            "WHEN OLD.id = 'retained-job' BEGIN SELECT RAISE(ABORT, 'private failure'); END")));
+        requests.append({retained.id_, retained.jobTitle_});
+    }
+    requests.append({created.application_.id_, created.application_.jobTitle_});
+    testsupport::LogCapture capture;
+    QVERIFY(capture.isValid());
+    {
+        ApplicationLogSession logging;
+        const auto result = removalService(fixture).process<DataRemovalKind::DeleteJobs>(requests, {}, 74);
+        QVERIFY(!result.cancelled_);
+        QCOMPARE(result.items_.size(), requests.size());
+        for (qsizetype i = 0; i < requests.size(); ++i) {
+            QCOMPARE(result.items_[i].id_, requests[i].id_);
+            QCOMPARE(result.items_[i].status_, i == requests.size() - 1
+                ? DataRemovalItemStatus::Deleted : DataRemovalItemStatus::Failed);
+        }
+    }
+    QCOMPARE(fixture.jobRepository_.findAll().size(), technicalFailure ? 1 : 0);
+    const auto log = capture.contents();
+    const QByteArray totals = technicalFailure ? "Committed: 1, failed: 2 (operation 74)." : "Committed: 1, failed: 1 (operation 74).";
+    QVERIFY(log.contains("Missing records during job deletion: 1. " + totals));
+    QCOMPARE(log.count("Job deletion failed at record deletion. Reason: database constraint violation. " + totals),
+             technicalFailure ? 1 : 0);
+    QVERIFY(!log.contains("private failure"));
+}
+
+void DataRemovalServiceTest::activeCvRemovalReportsPersistenceStage_data()
+{
+    QTest::addColumn<bool>("blockTransaction");
+    QTest::newRow("transaction already open") << true;
+    QTest::newRow("lookup query failed") << false;
+}
+
+void DataRemovalServiceTest::activeCvRemovalReportsPersistenceStage()
+{
+    QFETCH(bool, blockTransaction);
+    testsupport::AddJobTestFixture fixture;
+    QVERIFY(fixture.isValid());
+    const auto imported = importCv(fixture, QStringLiteral("preserved.pdf"));
+    QVERIFY(imported.success_);
+    auto& db = fixture.database_.connection();
+    QSqlQuery setup{db};
+    if (blockTransaction)
+        QVERIFY(db.transaction());
+    else
+        QVERIFY(setup.exec(QStringLiteral("CREATE TEMP TABLE jobs (id TEXT, cv_id TEXT)")));
+    const QVector<DataRemovalItemRequest> requests{{imported.document_.id_, {}}, {QStringLiteral("second"), {}}};
+    testsupport::LogCapture capture;
+    QVERIFY(capture.isValid());
+    {
+        ApplicationLogSession logging;
+        const auto result = removalService(fixture).process<DataRemovalKind::RemoveActiveCvs>(requests, {}, 75);
+        QVERIFY(!result.cancelled_);
+        QCOMPARE(result.items_.size(), 2);
+        for (const auto& item : result.items_)
+            QCOMPARE(item.status_, DataRemovalItemStatus::Failed);
+    }
+    if (blockTransaction)
+        QVERIFY(db.rollback());
+    else
+        QVERIFY(setup.exec(QStringLiteral("DROP TABLE temp.jobs")));
+    const auto retained = fixture.cvRepository_.findById(imported.document_.id_);
+    QVERIFY(retained && !retained->isArchived_);
+    QVERIFY(QFileInfo::exists(imported.completedFilePath_));
+    const auto log = capture.contents();
+    QCOMPARE(log.count("ERROR | CvLibrary | Message: Active CV removal could not complete "), 1);
+    QVERIFY(log.contains(blockTransaction ? "transaction start." : "record lookup."));
+    QVERIFY(log.contains("Reason: database operation failed. Affected items: 2 (operation 75)."));
+    QVERIFY(!log.contains("could not start") && !log.contains("Permanent CV deletion") && !log.contains("archive a linked"));
+}
+
+void DataRemovalServiceTest::incompleteCvLookupPreservesArchiveOutcome()
 {
     testsupport::AddJobTestFixture fixture;
     QVERIFY(fixture.isValid());
-    const auto created = fixture.service_.create(
-        testsupport::validJobDraft(),
+    const auto created = fixture.service_.create(testsupport::validJobDraft(),
         QUrl::fromLocalFile(fixture.storage_.createFile()));
     QVERIFY(created.success_);
-
-    auto service = removalService(fixture);
-    const QVector<DataRemovalItemRequest> requests{
-        {QStringLiteral("missing-job"), QStringLiteral("Missing")},
-        {created.application_.id_, created.application_.jobTitle_},
-    };
-    const auto result = service.process<DataRemovalKind::DeleteJobs>(
-        requests,
-        std::make_shared<CancellationState>());
-
-    QCOMPARE(result.items_.size(), 2);
-    QCOMPARE(result.items_.at(0).status_, DataRemovalItemStatus::Failed);
-    QCOMPARE(result.items_.at(1).status_, DataRemovalItemStatus::Deleted);
-    QVERIFY(fixture.jobRepository_.findAll().isEmpty());
+    auto later = created.application_;
+    later.id_ = QStringLiteral("late-link");
+    later.createdAt_ = later.createdAt_.addSecs(1);
+    fixture.jobRepository_.insert(later);
+    QSqlQuery setup{fixture.database_.connection()};
+    QVERIFY(setup.exec(QStringLiteral("CREATE INDEX ordered_links ON jobs(cv_id, created_at)")));
+    QVERIFY(setup.exec(QStringLiteral("CREATE TEMP VIEW jobs AS SELECT CASE WHEN id = 'late-link' "
+        "THEN abs(-9223372036854775808) ELSE id END AS id, cv_id, created_at FROM main.jobs")));
+    testsupport::LogCapture capture;
+    QVERIFY(capture.isValid());
+    {
+        ApplicationLogSession logging;
+        const auto result = removalService(fixture).process<DataRemovalKind::RemoveActiveCvs>(
+            requestFor(created.cvDocument_.id_), {}, 76);
+        QCOMPARE(result.items_.size(), 1);
+        QCOMPARE(result.items_[0].status_, DataRemovalItemStatus::Archived);
+        QCOMPARE(result.items_[0].document_.linkedApplicationIds_, QStringList{created.application_.id_});
+    }
+    QVERIFY(setup.exec(QStringLiteral("DROP VIEW temp.jobs")));
+    const auto stored = fixture.cvRepository_.findById(created.cvDocument_.id_);
+    QVERIFY(stored && stored->isArchived_);
+    QCOMPARE(stored->linkedApplicationIds_.size(), 2);
+    const auto log = capture.contents();
+    QVERIFY(log.contains("Active CV removal could not complete record lookup."));
+    QVERIFY(log.contains("Affected items: 1 (operation 76)."));
+    QVERIFY(log.contains("Archived 1 linked active CVs (operation 76)."));
+    QVERIFY(!log.contains("could not start") && !log.contains("missing records"));
 }
 
 void DataRemovalServiceTest::rejectsUnsafePathsAndDeletesRowsForMissingFiles()
