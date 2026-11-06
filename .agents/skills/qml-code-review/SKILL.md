@@ -85,12 +85,8 @@ Keep purely subjective design comments out unless they affect usability, consist
 
 ## Review Output
 
-For each material correctness finding, establish the trigger, relevant code path
-and source or contract evidence, violated contract or invariant, and observable
-consequence, with file and line references where available. A sufficient static
-argument is valid; a runtime reproducer is not mandatory. If the causal chain is
-incomplete, report a question, explicit assumption, or unverified risk instead of
-a confirmed defect. "No actionable findings" is a valid result.
+Apply the shared [review evidence standard](../test-and-review/SKILL.md#review-stance)
+when classifying findings, risks, and design suggestions.
 
 Use file and line references for findings. Include:
 
@@ -99,7 +95,7 @@ Use file and line references for findings. Include:
 - Required manual UI checks.
 - Build or runtime verification still needed.
 - Residual risk.
-- Final recommendation: accept, revise, or block.
+- Acceptance recommendation only when the review concerns an actual acceptance decision.
 
 Return findings to the active task by default. Only when a durable report is
 requested or required by the selected workflow, apply `For-Agent/Docs/artifacts.md`
@@ -114,7 +110,7 @@ For that saved artifact, use this shape:
 - Manual UI checks still needed.
 - Missing tests or unverified behavior.
 - Residual risks.
-- Final recommendation.
+- Acceptance recommendation, when applicable.
 
 The bounded review is complete when the requested target and necessary contracts
 have been assessed, actionable findings have current source evidence, and

@@ -56,7 +56,7 @@ narration already established in the active context.
 Inspect the target C++ files and nearby code before broad scans:
 
 - `src/app/` and `src/main.cpp` for bootstrap and dependency wiring.
-- `src/logging/` and the [logging policy](../../../For-Agent/Docs/architecture/logging.md) for diagnostics.
+- `src/logging/` and the [logging policy](../../../For-Agent/Docs/architecture/logging.md#policy-for-new-and-changed-behavior) for diagnostics.
 - `src/common/` for shared filtering, validation, and utility behavior.
 - `src/jobs/`, `src/cvs/`, `src/dashboard/`, `src/directory/` for domain code.
 - `tests/` for matching Qt Test coverage.
@@ -114,12 +114,8 @@ For every duplication finding:
 
 ## Review Output
 
-For each material correctness finding, establish the trigger, relevant code path
-and source or contract evidence, violated contract or invariant, and observable
-consequence, with file and line references where available. A sufficient static
-argument is valid; a runtime reproducer is not mandatory. If the causal chain is
-incomplete, report a question, explicit assumption, or unverified risk instead of
-a confirmed defect. "No actionable findings" is a valid result.
+Apply the shared [review evidence standard](../test-and-review/SKILL.md#review-stance)
+when classifying findings, risks, and design suggestions.
 
 Use file and line references for findings. Include:
 
@@ -127,7 +123,7 @@ Use file and line references for findings. Include:
 - Open questions or assumptions.
 - Verification performed or still needed.
 - Residual risk.
-- Final recommendation: accept, revise, or block.
+- Acceptance recommendation only when the review concerns an actual acceptance decision.
 
 For an in-scope duplication finding, include its classification, canonical
 responsibility, concrete drift risk, and recommended outcome. Do not emit a
@@ -145,7 +141,7 @@ For that saved artifact, use this shape:
 - Verification performed.
 - Missing tests, manual checks, or unverified areas.
 - Residual risks.
-- Final recommendation.
+- Acceptance recommendation, when applicable.
 
 The bounded review is complete when the requested target and necessary contracts
 have been assessed, actionable findings have current source evidence, and

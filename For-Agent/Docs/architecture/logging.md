@@ -22,8 +22,8 @@ that briefly in the final review.
 ### Ownership and evidence
 
 - The admission gate or accepting controller owns an explicit rejection or
-  acceptance. Acceptance means work entered processing. The worker that cannot
-  actually start accepted work reports the startup failure.
+  acceptance. Acceptance confirms admission or enqueueing; execution may not
+  have started. The worker reports any subsequent failure to start accepted work.
 - The service that owns the transaction reports persistence after commit or
   after failure handling. A repository reports a dataset failure where the
   cursor result is known. A failed read during an executing batch belongs to
@@ -76,11 +76,30 @@ names, contact details, CV contents, URLs and other user-entered data out of
 events. Queue entries own bounded values and carry no QObject, pointer or
 borrowed view into producer state.
 
-Verify severity, rendered wording, partial/optional fields, correlation and
-privacy in the catalog suite. Exercise the real failure or completion boundary
-in the owning subsystem's tests, including the durable result and publication
-when relevant. Check that a failed, partial or cancelled operation cannot emit
-an unqualified success. For writer or admission changes, use the writer suite.
+### Semantic verification
+
+For a new or changed event producer, exercise the production path at the boundary
+that confirms the business outcome. In the owning subsystem's tests, compare the
+emitted diagnostic with independently expected values for the operation, stage,
+cause, counts, and correlation as applicable. Confirm the event reports the actual
+committed, failed, partial, cancelled, or rejected result. Check durable state
+and publication where relevant. A failed, partial, or cancelled operation must
+never emit an unqualified success. Reuse sufficient existing coverage and focus
+new checks on the affected paths.
+
+A synthetic `LogEvent` passed directly to the formatter verifies rendering only.
+Schema and type checks cannot establish the meaning or order of fields that
+share a type. Choose distinguishable values wherever a swap could go unnoticed,
+such as different processed and pending counts.
+
+In the catalog suite, register exactly one primary semantic formatting example
+for every event. Derive the required event IDs from the canonical catalog. Fail
+the coverage check for a missing event, a duplicate primary example, or an unknown
+ID in any example. Allow additional boundary or payload-variant examples for
+known IDs. Do not use fixed per-severity totals or a separate membership list.
+Specify the expected semantic values and rendered facts independently of the
+production formatter. Verify severity, wording, partial or optional fields,
+correlation, and privacy. For writer or admission changes, use the writer suite.
 See the [suite reference](../testing-reference.md#test-suite-responsibilities).
 
 ## Queue and lifetime

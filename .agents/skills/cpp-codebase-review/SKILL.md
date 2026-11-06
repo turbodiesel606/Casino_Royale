@@ -23,7 +23,8 @@ Each worker need not repeat the whole-backend inventory or unrelated domain read
    A partition worker starts with its assigned domain and uses the overview only
    when needed to establish a boundary.
 3. Read `For-Agent/Docs/coding-style.md`. Read testing, build, extraction, and
-   artifact guidance only when their concerns enter the requested review.
+   artifact guidance only when their concerns enter the requested review. For event
+   producers or catalog changes, apply the [logging policy](../../../For-Agent/Docs/architecture/logging.md#policy-for-new-and-changed-behavior).
 4. Inventory prior artifact filenames and metadata before opening any artifact.
    Read only the newest broad artifact that overlaps the review and any newer
    narrow artifact that materially updates it.
@@ -62,6 +63,9 @@ data-integrity risks even when prior research exists.
 
 ## Evidence And Output
 
+Apply the shared [review evidence standard](../test-and-review/SKILL.md#review-stance)
+when classifying findings, risks, and design suggestions.
+
 Use source, symbol, and tight line references for every material finding,
 architecture claim, ownership or concurrency conclusion, and recommendation that
 requires code changes. Routine inventory narration may reuse active verified
@@ -76,8 +80,9 @@ Return:
 - justified similarities that should remain separate;
 - consolidation recommendations with ownership, dependency, contract, test, and
   migration consequences;
-- verification performed, missing tests, manual checks, residual risks, and a
-  final accept, revise, or block recommendation.
+- verification performed, missing tests, manual checks, and residual risks.
+
+Give an acceptance recommendation only when reviewing an actual acceptance decision.
 
 When saving a durable review, follow `For-Agent/Docs/artifacts.md` and write it
 under `For-Agent/Review/`.

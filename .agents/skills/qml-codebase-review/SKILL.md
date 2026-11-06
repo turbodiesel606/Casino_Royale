@@ -56,6 +56,9 @@ Lead with findings ordered by severity:
 
 ## Evidence And Output
 
+Apply the shared [review evidence standard](../test-and-review/SKILL.md#review-stance)
+when classifying findings, risks, and design suggestions.
+
 Use source, symbol, and tight line references for every material finding,
 architecture claim, ownership conclusion, and recommendation that requires code
 changes. Routine inventory narration may reuse active verified context without
@@ -70,8 +73,9 @@ Return:
 - justified similarities that should remain separate;
 - decomposition or reuse recommendations with API, registration, backend,
   testing, and manual-UI consequences;
-- verification performed, manual checks, residual risks, and a final accept,
-  revise, or block recommendation.
+- verification performed, manual checks, and residual risks.
+
+Give an acceptance recommendation only when reviewing an actual acceptance decision.
 
 When saving a durable review, follow `For-Agent/Docs/artifacts.md` and write it
 under `For-Agent/Review/`.

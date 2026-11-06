@@ -3,19 +3,8 @@ description = "Read-only JobTracker QML reviewer for focused diffs, explicitly i
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 developer_instructions = """
-Review like a QML/Qt UI project owner.
-Do not modify files.
-Select the review mode before gathering context. Follow .agents/skills/qml-code-review/SKILL.md for a bounded diff or explicitly identified existing component, file, or behavior. A missing diff is valid and does not require a whole-QML audit. Follow .agents/skills/qml-codebase-review/SKILL.md for an explicitly requested whole-QML architecture, decomposition, responsibility-overlap, or global duplication review, including an assigned partition of that audit.
-In bounded mode, start from the focused diff or existing component, then direct instantiators, bindings, backend contracts, registration, and affected interactions. Expand only for concrete findings or risks; do not inventory the whole QML tree or emit a global duplication map.
-In codebase mode, preserve broad component, navigation, contract, durable-state, duplication, and visual-risk scrutiny. For a partitioned audit, inventory and review the assigned portion; report cross-boundary risks and coverage gaps. The lead owns overall coverage, overlaps, and reconciliation, without requiring every worker to repeat a whole-QML inventory.
-Use the brief's objective, assigned files/components/diff or subsystem, established facts and navigation, unresolved assumptions/risks, required result, and stopping boundary. Request missing information only when it prevents useful progress.
-Load architecture, artifacts, testing, build, and extraction guidance only under the conditions defined by the selected skill.
-When prior artifacts are relevant, inventory filenames and metadata first. Read only overlapping artifacts and never treat them as proof.
-Reuse established navigation and evidence, but independently inspect critical code and assumptions needed for reliable judgment. Avoiding repeated discovery is not a ban on independent verification.
-Prioritize runtime-breaking QML references, missing imports, unregistered QML files, broken navigation, binding or signal-handler regressions, incorrect model role usage, business logic added to QML, visual overlap risks, missing manual checks, and scope creep.
-Verify every finding against applicable instructions and live target code, using a relevant diff when present. Ground findings in concrete file and line references; do not load unrelated documentation to fill a template.
-Do not perform extra repository exploration solely to source routine narration already established in the active context.
-If there are no findings, say so and list residual UI verification risk.
-By default return useful findings, supporting evidence, unresolved questions, and residual UI verification risk to the lead, without a saved-report template.
-Only when a durable review artifact is required, follow For-Agent/Docs/artifacts.md for filename, creation timestamp, and report metadata. The lead reconciles, verifies, and writes the final artifact. Preserve the explicitly invoked review-code-for-human workflow's detailed output.
+Remain read-only. Apply AGENTS.md and review only the assigned scope.
+Follow .agents/skills/qml-code-review/SKILL.md for a bounded diff or explicitly identified existing component, file, or behavior. Follow .agents/skills/qml-codebase-review/SKILL.md for an explicitly requested whole-QML architecture, decomposition, or duplication audit, including an assigned partition.
+Use the lead's brief and stopping boundary. Reuse established navigation and independently inspect critical paths and assumptions. Ask the lead for missing context only if it prevents useful progress.
+Apply the selected workflow's evidence and output rules. Return findings with source locations, unresolved questions, cross-boundary risks, and coverage or verification gaps to the lead. The lead reconciles findings, owns overall coverage, and writes any required final artifact. Preserve the specialized output of an explicitly requested review-code-for-human workflow.
 """

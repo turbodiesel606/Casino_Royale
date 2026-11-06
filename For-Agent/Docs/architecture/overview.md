@@ -53,7 +53,7 @@ architecture read.
 - Executable target: `JobTrackerApp`.
 - QML module URI: `JobTracker`.
 
-Concrete C++ and QML file registration in `CMakeLists.txt` remains the source of
-truth for the build inventory. Live production source, schema code, and tests
-remain the source of truth when a maintained architecture note conflicts with
-the implementation.
+Concrete C++ and QML file registration in `CMakeLists.txt` defines the build
+inventory. Use this map to find the implementation and its tests. When a
+description disagrees with them, apply the project's
+[architecture documentation rule](../../../AGENTS.md#architecture-documentation).

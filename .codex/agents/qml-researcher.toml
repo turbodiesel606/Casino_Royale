@@ -3,19 +3,7 @@ description = "Read-only JobTracker QML researcher for component questions, navi
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 developer_instructions = """
-Stay in QML research mode.
-Read and follow .agents/skills/qml-code-research/SKILL.md as the canonical workflow, including only the conditional references required by the request.
-Do not modify files.
-When Git metadata exists, inspect status and focused diffs read-only. Otherwise inspect the files directly. Report relevant pre-existing work and verify current claims against live source.
-Keep the user's requested stopping boundary. Do not broaden a narrow screen, event-flow, component, or QML contract check into whole-codebase research.
-Use the brief's precise objective, assigned files/components/subsystem, established facts and navigation, unresolved risks or assumptions, and required result. Ask the lead only for missing information that prevents useful progress; do not impose a long form on trivial work.
-For a partitioned broad investigation, inspect the assigned portion and report boundary dependencies or coverage gaps. The lead owns overall coverage and reconciliation; each worker need not repeat a whole-QML inventory.
-For local decomposition, inspect the target, direct instantiators/consumers, properties, signals, bindings, state, ownership, registration, reuse, and affected interaction/visual invariants. Whole-QML requests retain full inventory and navigation mapping; local requests do not require them.
-Start from the smallest known screen, component, binding, handler, or exposed backend contract. Prefer precise searches and direct instantiators or consumers, follow only relevant dependency chains, and stop as soon as the requested conclusion is sufficiently grounded.
-Reuse established navigation and evidence. Independently verify critical or disputed assumptions when needed; avoiding repeated discovery does not prohibit useful independent verification.
-When prior artifacts are relevant, inventory names and metadata before opening them. Load only overlapping artifacts and never treat them as stronger evidence than live source.
-Return the requested answer with source locations and material uncertainty. Include implementation direction when requested or necessary, and distinguish static source, registration, reachability, test source, builds, and runtime evidence when relevant. Do not require a research bundle or evidence table for one factual question.
-Do not reproduce large QML or C++ bodies when file, symbol, and line references are sufficient.
-Stop at the QML-facing controller or model contract unless deeper backend research is necessary to answer the request.
-Do not propose unrelated visual redesigns.
+Remain read-only. Apply AGENTS.md and .agents/skills/qml-code-research/SKILL.md for QML research, including its scope, evidence, and proportionate output rules.
+Follow the lead's objective and stopping boundary. For partitioned work, stay within the assigned portion and its necessary boundary dependencies. Reuse established navigation and independently check critical or disputed assumptions.
+Return the requested answer with supporting source locations, material uncertainty, and coverage or verification gaps. Flag cross-boundary dependencies for the lead, who owns overall coverage and reconciliation. Ask for missing context only when it prevents useful progress.
 """

@@ -30,7 +30,8 @@ Mock data can stay in QML only for short-lived prototypes. Move it behind C++ mo
 
 1. Inspect the QML owner first, then related pages and components.
 2. Classify each JavaScript function, inline array, property binding, and state mutation as UI-only or durable behavior.
-3. Define the QML/C++ contract before moving code:
+3. Define the QML/C++ contract and the [behavior to preserve](#behavioral-equivalence)
+   before moving code. Trace producers and consumers for each affected part.
    - values QML reads;
    - commands QML can invoke;
    - signals QML reacts to;
@@ -42,10 +43,32 @@ Mock data can stay in QML only for short-lived prototypes. Move it behind C++ mo
    - storage classes for persistence and file access.
 5. Expose only the smallest useful API to QML.
 6. Replace QML business logic with bindings, signal handlers, and calls into the exposed C++ API.
-7. Add or update tests for validation, parsing, algorithms, storage, model roles, and signal behavior.
-8. Run the applicable build and tests from the repository root.
+7. Reuse existing coverage for the chosen examples. Add or extend tests only for uncovered behavior.
+8. Run the applicable build and tests from the repository root and compare the examples using the chosen checks. After verification and any review fixes, follow the [architecture documentation rule](../../AGENTS.md#architecture-documentation).
 
 Define the extraction boundary and production API from product responsibilities. Do not move behavior, expose internals, add commands or signals, or widen a QML/C++ contract solely to accommodate tests; tests must exercise the production contract that the feature requires.
+
+## Behavioral Equivalence
+
+Matching properties, commands, signals, and model roles establishes only the API
+shape. Before moving behavior, trace where each affected value or notification
+originates and how its consumers use it. Identify any behavior changes the task
+explicitly authorizes. For the behavior to preserve, choose a few observable
+examples from the current path and record their expected outcomes in the active
+task context. Do not introduce incidental behavior changes during translation.
+
+Choose examples that could distinguish the two implementations. For value
+handling, consider empty, missing, or invalid input, normalization and
+comparison, sort order and equal-key tie-breaking, or validation errors. For
+event-driven behavior, consider synchronous versus queued delivery, notification
+timing and order, repeated actions while work is pending, and draft or selection
+state after rejection or completion. Where a user can enter new input while a
+request is pending, capture whether that input survives the older completion.
+
+For each chosen example, identify an existing test that checks the outcome or a
+focused runtime or manual check with an expected result. Establish the baseline
+before the move and compare after it. State what was observed and what remains
+unverified. Keep the examples proportionate to the change.
 
 ## C++ Backend Shape
 
@@ -95,7 +118,7 @@ When wiring grows beyond simple setup, move object construction into a focused b
 
 ## Testing Expectations
 
-Add or update tests when extraction moves:
+Check existing coverage first. Add or update tests for gaps in these behaviors.
 
 - Validation rules.
 - Filtering, sorting, grouping, search, or computed state.

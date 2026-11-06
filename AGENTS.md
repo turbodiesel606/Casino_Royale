@@ -27,6 +27,12 @@ maintainability, readability, and Windows/Linux compatibility.
 
 ## Task Boundaries
 
+Before implementation, translate the request into short, observable acceptance
+conditions in the active task context. Identify the requested behavior, behavior
+to preserve, explicit scope exclusions, and how to verify each significant
+outcome. Record only material assumptions. One or two sentences may suffice for
+a small correction. This requires no separate document or approval step.
+
 - Make the smallest sufficient change; do not expand scope without explicit
   user approval or change existing behavior unless the task requires it.
 - Prefer simple, explicit solutions. Avoid temporary hacks, fragile hidden
@@ -83,8 +89,25 @@ the final response. Apply the [logging policy](For-Agent/Docs/architecture/loggi
 
 ## Architecture Documentation
 
-After implementation is stable, update directly affected architecture
-documentation. When a new domain, subsystem, or entity introduces an architectural
+Use architecture descriptions to locate responsibilities, owners, dependencies,
+and execution paths. Inspect the relevant current implementation and tests.
+Evaluate behavior against the user's requirements and explicit project policies.
+Those policies apply wherever they are stated, including the
+[logging policy](For-Agent/Docs/architecture/logging.md#policy-for-new-and-changed-behavior).
+
+A discrepancy with descriptive prose alone never authorizes changing production
+code or tests. Do not weaken tests or rewrite assertions to fit a description or
+an incorrect implementation. Where correctness cannot be established, report the
+uncertainty and the missing verification. Keep unverified assumptions out of
+descriptions of established behavior.
+
+Complete the implementation and applicable verification. Resolve and verify
+necessary fixes from checks or review. Then update directly affected architecture
+descriptions to reflect the final verified implementation, and check their
+consistency and references before reporting completion. If a later change
+invalidates a description or a check, revisit the affected part.
+
+When a new domain, subsystem, or entity introduces an architectural
 responsibility that no existing document under `For-Agent/Docs/architecture/`
 appropriately covers, create a focused document named for that domain or
 responsibility. Describe its purpose, main components, ownership, dependencies,
@@ -106,8 +129,12 @@ For C++/Qt implementation, consult the relevant topic in the
 specific ownership, interface, error, concurrency, testing or Qt question at
 hand. Current project instructions take precedence in every conflict.
 
-Project skills live under `.agents/skills/`. Stable guidance belongs in
-`For-Agent/Docs/`; review information belongs in `For-Agent/Review/`.
+This file owns mandatory project constraints, general obligations, and routing.
+Project skills under `.agents/skills/` own task-specific workflows.
+`For-Agent/Docs/` owns engineering policies, procedures, and descriptive
+architecture. The Best Practices collection supplies general reference material.
+`.codex/agents/*.toml` defines role settings, access restrictions, workflow
+selection, and handoff to the lead. Review information belongs in `For-Agent/Review/`.
 
 | Task or concern | Relevant document or skill and reading boundary |
 | --- | --- |
@@ -123,7 +150,7 @@ Project skills live under `.agents/skills/`. Stable guidance belongs in
 | Specific suite, fixture, diagnostic log, or manual scenario | Read only the relevant section of [testing-reference.md](For-Agent/Docs/testing-reference.md); the full catalog is unnecessary for ordinary target selection. |
 | Build verification or build behavior | [build.md](For-Agent/Docs/build.md) owns shared action selection and the everyday workflow. Read [build-windows.md](For-Agent/Docs/build-windows.md) or [build-linux.md](For-Agent/Docs/build-linux.md) for the OS relevant to the task; `cmake-build-debug` owns execution, completion, and diagnosis. |
 | Staging, packaging, or installer verification | Use the relevant existing guide via [Installer/README.md](Installer/README.md) only for that task. |
-| Final implementation validation | `test-and-review` owns sufficient verification, independent-review criteria, documentation impact, and reporting; start from the final changes and current evidence. |
+| Final implementation validation | `test-and-review` owns sufficient verification, independent-review criteria, documentation impact, and reporting. Start from the requested outcomes, final changes, and current evidence. |
 | Durable artifact creation or reuse | [artifacts.md](For-Agent/Docs/artifacts.md) owns naming, timestamps, and selective reuse; read it only when creating/reusing an artifact or consulting an artifact index. |
 | C++/QML explanatory comments | Apply the [comment policy](For-Agent/Docs/coding-style.md#explanatory-comments-in-c-and-qml) when adding or handling comments. |
 
@@ -143,7 +170,7 @@ Give each delegate a precise objective, files/symbols/diff or subsystem, establi
 facts and navigation, unresolved risks, expected result, and stopping boundary.
 The lead owns coverage, overlaps, gaps, and reconciliation. Reuse discovery, but
 independently inspect critical code and assumptions when reliable judgment requires
-it. Follow [test-and-review](.agents/skills/test-and-review/SKILL.md#full-independent-review)
+it. Follow [test-and-review](.agents/skills/test-and-review/SKILL.md#independent-review)
 for necessary independent-review criteria. Role names do not establish comparative
 capability; check configured execution settings when relevant.
 
@@ -170,10 +197,7 @@ no build, tests, deployment, or application launch.
 
 ## Final Response Format
 
-Use this format after making changes:
-
-1. What did you do?
-2. Which files changed?
-3. What should be checked manually?
-4. Risks, limitations, and unverified areas.
-5. Improvement ideas, if relevant.
+For ordinary implementation work, use the
+[completion report](.agents/skills/test-and-review/SKILL.md#completion-report).
+Follow any explicitly requested specialized format. Keep research answers and
+ordinary explanations proportionate to the question.

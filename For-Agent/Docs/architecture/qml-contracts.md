@@ -10,7 +10,7 @@ exposure and page reachability are documented in [application.md](application.md
 
 ## Selection Contracts
 
-`StableIdSelectionTracker` is the shared selection contract for the jobs, CV,
+`StableIdSelectionTracker` is the shared preview selection contract for the jobs, CV,
 company, and contact controllers. Each controller composes one tracker with its
 proxy model and ID role. The tracker owns the selected domain ID and derived
 proxy row plus the visible row count, reconciles proxy insert, remove, move,
@@ -27,8 +27,11 @@ selected ID changes.
 
 `BulkIdSelectionTracker` is the separate checkbox-selection contract for Job
 Applications and CV Library. It stores a set of domain IDs, derives all-visible
-and partial-visible states from the current proxy, and reconciles source removal
-and proxy layout changes without coupling checkbox selection to preview state.
+and partial-visible states from the current proxy, and selects only visible
+rows on Select All. The tracker drops IDs that leave the visible set. The
+controllers clear all checked IDs when a filter changes or an active filter is
+cleared. Switching the CV Library between Active and Archived also clears the
+checkboxes. Sorting preserves the checked IDs. Preview selection is independent.
 
 ## Controller And Proxy Contracts
 
@@ -123,7 +126,8 @@ and accounting and [removal.md](removal.md) for the exclusive operation category
 - Emit `Q_PROPERTY` notify signals whenever exposed state changes, and avoid
   emitting change notifications when the value is unchanged unless the contract
   requires a refresh.
-- Preserve selection by stable domain ID across filtering and sorting instead of
-  relying on proxy row numbers.
+- Identify selected items by stable domain ID. A proxy row gives the current
+  position. Apply the [selection contracts](#selection-contracts) for preview
+  fallback and for checkbox selection when the view changes.
 - Update matching tests whenever properties, signals, model roles, transaction
   behavior, or QML-facing commands change.

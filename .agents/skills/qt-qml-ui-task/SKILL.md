@@ -9,18 +9,18 @@ Use this skill for QML and UI work in JobTracker.
 
 ## Workflow
 
-1. Apply `AGENTS.md` and read `For-Agent/Docs/qml-style.md`.
+1. Apply `AGENTS.md` and identify the [acceptance conditions and scope exclusions](../../../AGENTS.md#task-boundaries) for the requested interaction or visual result, including how to verify it. Apply `For-Agent/Docs/qml-style.md`.
 2. When Git metadata exists, inspect status and diffs for files in scope. Otherwise inspect those files directly. Identify and preserve pre-existing changes.
 3. Start from the target page or component under `qml/pages` or `qml/components`.
 4. Inspect `qml/Main.qml` only when the task affects the application shell, navigation, global actions, page creation, or reachability.
 5. Inspect the target component's definition, its direct parent or instantiation sites, and the properties, signals, bindings, imports, and model roles involved in the requested behavior. Do not inventory unrelated QML files.
-6. Inspect related C++ only at the QML-facing controller or model contract consumed by the target. Read `For-Agent/Docs/architecture/qml-contracts.md` and the affected architecture domain document only when this boundary is involved. Use the architecture overview only if routing is unclear.
+6. Inspect related C++ only at the QML-facing controller or model contract consumed by the target. Use `For-Agent/Docs/architecture/qml-contracts.md` and the affected domain description to locate the owning code and tests when this boundary is involved. Verify the consumed contract there. Use the architecture overview only if routing is unclear.
 7. Use `cpp-backend-task` if implementing the request requires C++ changes. Read `For-Agent/Docs/testing.md` only when durable behavior or a high-risk contract requires test changes.
-8. Preserve existing backend contracts and QML imports.
+8. Preserve existing backend contracts and QML imports unless the request authorizes a change.
 9. Keep durable business logic out of QML unless the task explicitly asks for a UI-only prototype.
 10. Extract a reusable component only when repetition or readability justifies it.
 11. If adding QML files, update `qt_add_qml_module` in `CMakeLists.txt`.
-12. After implementation is stable, finish with one incremental `test-and-review` pass, including applicable runtime and visual evidence below before its completion report. Use `cmake-build-debug` for required build/tests, `testing.md` for test selection and expansion, and perform one documentation-impact check.
+12. Complete the [test-and-review pass](../test-and-review/SKILL.md) against the requested outcomes, including the applicable runtime and visual checks below. Use `cmake-build-debug` for required build/tests and `testing.md` for test selection and expansion. Synchronize affected descriptions after verification and any review fixes.
 
 ## Runtime And Manual UI Evidence
 

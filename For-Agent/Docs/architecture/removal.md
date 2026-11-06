@@ -7,10 +7,9 @@ managed paths, tombstones, or startup recovery.
 
 Jobs and CVs share one canonical database and one managed `Resumes` store; the
 Library and Job Applications never create separate CV copies. Both controllers
-use `BulkIdSelectionTracker` for checkbox selection by stable domain ID. Select
-all affects only visible proxy rows, filters and CV Active/Archived view changes
-clear checkbox selection, sorting preserves it, and preview selection remains a
-separate `StableIdSelectionTracker` concern.
+use the checked domain IDs for bulk removal. The
+[selection contracts](qml-contracts.md#selection-contracts) describe which rows
+remain checked after filter, view, and sort changes and how preview selection works.
 
 Each removal batch is best-effort and processes selected IDs independently with
 one transaction per item. Deleting a job removes only that job and its cascaded

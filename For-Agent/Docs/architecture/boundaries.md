@@ -39,8 +39,7 @@ form visibility, local hover/selection styling, layout geometry, popup state,
 custom scroll visuals, and display-only table column metadata.
 
 Backend-owned behavior should remain in C++ when it affects validation,
-persistence, import, filtering, sorting, search, grouping, cross-screen data, or
-behavior that should be tested.
+persistence, import, filtering, sorting, search, grouping, or cross-screen data.
 
 ## Backend Responsibilities
 

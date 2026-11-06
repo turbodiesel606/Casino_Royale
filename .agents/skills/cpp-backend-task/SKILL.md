@@ -5,7 +5,9 @@ description: Work on JobTracker C++ backend tasks. Use when Codex needs to add o
 
 # C++ Backend Task
 
-Use this skill for C++ backend work in JobTracker.
+Use this skill for C++ backend work in JobTracker. Before editing, identify the
+[acceptance conditions and scope exclusions](../../../AGENTS.md#task-boundaries)
+for the requested backend behavior and how to verify each significant outcome.
 
 ## Context Selection
 
@@ -37,8 +39,9 @@ Use qt-qml-ui-task when implementation also changes QML files.
 
 1. Apply `For-Agent/Docs/coding-style.md` for canonical reuse/generalization,
    C++ conventions, template placement, compile-time decisions, and comments.
-   Inspect suitable existing entities before adding an owner, and preserve the
-   contracts in the affected architecture documents.
+   Inspect suitable existing entities before adding an owner. Use architecture
+   descriptions for orientation and verify the relevant contracts in current
+   code and tests under [Architecture Documentation](../../../AGENTS.md#architecture-documentation).
 2. Keep the test dependency one-way. Do not add or widen production APIs, expose internals, weaken access control, add test-only hooks or compile definitions, or alter production ownership, lifetime, threading, behavior, or architecture solely for tests. Keep fixtures, mocks, fakes, and helpers under `tests/`.
 
 ## Workflow
@@ -52,7 +55,7 @@ Use qt-qml-ui-task when implementation also changes QML files.
    result and diagnostic together. Make the smallest sufficient change. Preserve unrelated work and apply the canonical comment policy: use `// Codex Comment:` for added ordinary explanatory comments, preserve unmarked comments with unchanged code, update associated comments when code changes, and correct stale marked comments in scope. Comments never restrict necessary authorized code changes.
 5. Update `CMakeLists.txt` source and test registration when C++ files or test targets are added, removed, or renamed.
 6. Use `For-Agent/Docs/testing.md` to select meaningful regression coverage for changed business logic, storage, parsing, algorithms, Qt model behavior, signals, or high-risk contracts. Start from its verified subsystem-to-test map and expand for affected contracts and risk.
-7. After implementation is stable, complete one incremental `test-and-review` pass: inspect the changed files and available diff, execute the required build/tests through `cmake-build-debug`, and check documentation impact. Reuse established context. `test-and-review` owns integrated verification and independent-review criteria; `testing.md` owns test-scope expansion.
+7. Complete the [test-and-review pass](../test-and-review/SKILL.md) against the requested outcomes. Use `cmake-build-debug` for required build/tests and `testing.md` for test selection and expansion. Synchronize affected descriptions after verification and any review fixes.
 
 Use [build.md](../../../For-Agent/Docs/build.md) for shared action selection and
 its relevant [Windows](../../../For-Agent/Docs/build-windows.md) or
@@ -63,6 +66,6 @@ Substitute verified presets, targets, and CTest selections; do not invent comman
 
 Keep `src/main.cpp` minimal and place non-trivial construction or QML wiring in focused application or bootstrap classes.
 
-Keep QML-facing controllers and models small. Delegate durable behavior to services, repositories, and storage classes according to the selected architecture domain documents.
+Keep QML-facing controllers and models small. Delegate durable behavior to services, repositories, and storage classes according to their product responsibilities and the project's ownership rules.
 
 Do not broaden a backend task into unrelated refactoring, visual changes, or cleanup.
