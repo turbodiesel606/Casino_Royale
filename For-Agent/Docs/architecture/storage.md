@@ -69,12 +69,11 @@ technologies from `job_technologies` in `position` order.
 SQL text as a `QString` backed by static UTF-16 storage. The repository binds
 runtime values, such as the CV ID, as query parameters.
 
-Repositories translate the schema's existing ISO text representation into typed
-domain values. Job applied dates use `QDate`; job, CV, and company
-creation/update timestamps use `QDateTime`; job and company URLs use `QUrl`; and
-job status/work format use closed enum values. Writes serialize those values back
-to schema text columns. CV archival uses the same ISO timestamp representation in
-schema version 4.
+Repositories map job applied dates to `QDate` and job, CV, and company
+timestamps to `QDateTime`. Both use ISO text in SQLite, including the CV archive
+timestamp. Job URLs map to `QUrl`, and job status and work format map to closed
+enums. Writes serialize these values back to text. `Company::website_` is an
+in-memory `QUrl`. The `companies` table stores identity, names, and timestamps.
 
 `CvDocument::isArchived_` records archive membership independently of timestamp
 parsing. Repository reads derive it from whether `archived_at` is SQL `NULL`:
@@ -96,11 +95,13 @@ workflow.
 
 ## Managed CV Path And File Boundary
 
-`CvManagedPathResolver` is the shared canonical path boundary used by file open
-and permanent deletion. It accepts only a top-level regular file beneath the
-managed `Resumes` directory and rejects absolute, traversal, nested, mismatched,
-and symbolic-link paths. `CvFileAccessService` delegates valid local-file URLs to
-the platform desktop opener.
+File open and permanent deletion share `CvManagedPathResolver`. It requires
+the stored name to match a top-level path under `Resumes` and rejects absolute,
+traversal, nested, mismatched, and symbolic-link paths. An existing target must
+be a regular file. A valid reference can also point to a missing file.
+`CvFileAccessService` requires a readable file before calling the platform
+desktop opener. Permanent deletion can still remove an unlinked row whose file
+is missing.
 
 `CvManagedFileStore` owns the managed CV filesystem boundary. It validates local
 PDF, DOC, and DOCX inputs and reads the complete source into the preparation's
@@ -118,19 +119,28 @@ only after successful rename so callers can compensate even if CV insertion
 throws. No product size limit or streaming fallback is imposed: peak memory
 includes the complete selected CV.
 
-Permanent deletion first renames an existing managed file to a `.delete`
-tombstone, deletes the guarded database row, then removes the tombstone. A failed
-database operation restores the original filename. Startup reconciliation
-restores tombstones still referenced by `cvs`, removes tombstones whose row was
-committed as deleted, removes stale `.part` files, and moves any completed
-top-level managed file without a matching `cvs.stored_file_name` row into
-`Resumes/Quarantine`; completed orphaned user files are never silently deleted.
+### Permanent Deletion And Startup Recovery
 
-Bootstrap loads CV documents once, reconciles the managed store against that
-snapshot, and passes the same document values to `CvLibraryController`. Jobs,
-technologies, CV links and companies all contribute to bootstrap's cumulative
-read status. A terminal cursor error preserves the rows already read and
-prevents a startup-success event. See [logging.md](logging.md).
+Permanent deletion renames an existing managed file to a `.delete` tombstone
+before deleting its unlinked database row. If the database operation fails and
+the original path is vacant, the store attempts to rename the tombstone back.
+A failed rename leaves it for startup recovery. After commit, the store tries
+to remove the tombstone. If cleanup fails, the service reports the row as
+deleted with file cleanup pending.
+
+Bootstrap calls `CvRepository::findAll()` once and passes the same CV snapshot
+to `CvManagedFileStore::reconcile()` and then to `CvLibraryController`. Recovery
+restores a tombstone when the snapshot contains its original filename and the
+original path is absent. Otherwise it removes the tombstone. It removes stale
+`.part` files and moves completed top-level files whose names are absent from
+the snapshot to `Resumes/Quarantine`. A failed rename or removal aborts recovery.
+
+Bootstrap tracks whether it finished reading jobs, technologies, CVs with their
+job links, and companies. A terminal cursor error preserves the rows already
+read and suppresses the `ApplicationStarted` event. Recovery still runs on a
+partial CV snapshot. If the cursor omitted a CV row, recovery can quarantine
+its file or remove its tombstone while that row still exists. See
+[logging.md](logging.md).
 
 ## Storage And Transaction Rules
 
@@ -140,10 +150,9 @@ prevents a startup-success event. See [logging.md](logging.md).
   new databases and every supported prior version.
 - Verify foreign-key state and required invariants before committing schema
   migrations.
-- When one operation changes both SQLite and managed files, rename the managed
-  file to a recoverable tombstone before the database delete, compensate on
-  transaction failure, and reconcile committed or referenced tombstones at
-  startup.
+- For permanent CV deletion, rename an existing file to a tombstone before the
+  database delete. Attempt restoration on transaction failure and account for
+  pending file cleanup after commit. Reconcile remaining tombstones at startup.
 
 Read [removal.md](removal.md) for the product behavior built on the guarded
 repository and tombstone operations. Read [threading.md](threading.md) when a

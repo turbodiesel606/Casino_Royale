@@ -53,6 +53,14 @@
       }
     },
     {
+      "name": "linux-relwithdebinfo",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/build/qt-6.10.3/linux-relwithdebinfo",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
       "name": "linux-deb-local-test",
       "inherits": "linux-release",
       "binaryDir": "${sourceDir}/build/qt-6.10.3/linux-deb-local-test",
@@ -136,6 +144,10 @@
     {
       "name": "linux-release",
       "configurePreset": "linux-release"
+    },
+    {
+      "name": "linux-relwithdebinfo",
+      "configurePreset": "linux-relwithdebinfo"
     },
     {
       "name": "linux-deb-local-test",

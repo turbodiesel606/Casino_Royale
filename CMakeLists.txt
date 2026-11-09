@@ -5,6 +5,30 @@ project(JobTracker
     LANGUAGES CXX
 )
 
+# Match Release optimizations in RelWithDebInfo and add debug symbols.
+# Keep this after project(): CMake initializes compiler and linker defaults there.
+if(MSVC)
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO
+        "${CMAKE_CXX_FLAGS_RELEASE} /Zi"
+    )
+
+    foreach(_linker_kind IN ITEMS EXE SHARED MODULE)
+        set(CMAKE_${_linker_kind}_LINKER_FLAGS_RELWITHDEBINFO
+            "${CMAKE_${_linker_kind}_LINKER_FLAGS_RELEASE} /DEBUG:FULL /OPT:REF /OPT:ICF /INCREMENTAL:NO"
+        )
+    endforeach()
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO
+        "${CMAKE_CXX_FLAGS_RELEASE} -g"
+    )
+
+    foreach(_linker_kind IN ITEMS EXE SHARED MODULE)
+        set(CMAKE_${_linker_kind}_LINKER_FLAGS_RELWITHDEBINFO
+            "${CMAKE_${_linker_kind}_LINKER_FLAGS_RELEASE}"
+        )
+    endforeach()
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)

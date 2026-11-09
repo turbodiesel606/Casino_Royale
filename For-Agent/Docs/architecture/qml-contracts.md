@@ -37,10 +37,9 @@ checkboxes. Sorting preserves the checked IDs. Preview selection is independent.
 
 Controller model-pointer properties are constant because their model objects do
 not change after construction. Model content changes are published through the
-models' row, reset, layout, and data signals. Scalar controller properties use
-semantic notify signals: selected ID, selected proxy index, selected data,
-individual filters, visible counts, result summaries, and the CV category summary
-notify only for their own contract changes.
+models' row, reset, layout, and data signals. Controllers expose separate
+notify signals for selected ID, selected proxy index, selected data, individual
+filters, visible counts, and result summaries.
 
 `RelationFilterProxyModel` is the shared linked-view contract for CV
 applications, company jobs, and company contacts. Each controller configures the
@@ -60,9 +59,11 @@ The CV category summary computes its total and sorted category counts from
 source documents in the current Active or Archived view. Text and language
 filters do not limit those counts. The first row is always `All CVs`. An empty
 category is its own bucket. Switching the category filter between empty and
-`All` changes that bucket's selected flag without emitting
-`categorySummaryChanged`. Row insertions, removals, resets, and changes to the
-category or archived roles notify the summary.
+`All` can change that bucket's selected flag without emitting
+`categorySummaryChanged`. Source row insertions, removals, resets, and changes
+to the category or archived roles tell consumers to reread the summary. For
+example, inserting an active CV emits the signal even while the Archived
+view shows the same counts.
 
 ## Domain Values And Public Roles
 
@@ -103,8 +104,9 @@ signal. Bootstrap consumes these signals for [application logging](logging.md).
 `StorageMutationFeedback` renders one modal dialog and a persistent banner. The
 gate tracks which categories were attempted, announces availability after their
 blocking work finishes, and keeps an announced notice current when work resumes.
-Dismissal or actual admission clears the corresponding interest; rejected
-payloads are never queued. The shell positions ordinary completion notifications
+Dismissing the banner clears retry interest in both operation categories.
+Admission clears interest only in the admitted category. Retrying requires a
+new command. The shell positions ordinary completion notifications
 below the banner. Repeated attempts reopen or focus the same dialog, and an open
 dialog updates when the blocker changes or finishes.
 

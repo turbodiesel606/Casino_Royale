@@ -24,11 +24,12 @@ before operation-ID allocation, queue mutation, pending-state publication, or
 worker startup.
 
 Validation takes precedence over an active removal conflict. Valid create and
-update requests use the shared import/update admission counter. A denied request
-produces the gate's global blocked dialog without allocating an operation ID or
-changing the current form. Updates additionally emit `applicationUpdateBlocked`
-to cancel a pending protected action and retain the editing session; validation
-and other update rejection still use `applicationUpdateRejected`.
+update requests use the shared import/update admission counter. During normal
+operation, a conflict opens the gate's global blocked dialog before operation-ID
+allocation and preserves the current form. Updates additionally emit
+`applicationUpdateBlocked` to cancel a pending protected action and retain the
+editing session. A missing application, an already-pending update, or invalid
+fields trigger `applicationUpdateRejected` before enqueueing.
 
 For valid input, the controller reserves job-save admission and enqueues the
 normalized create or update payload in its composed
@@ -66,28 +67,32 @@ The worker executes the complete durable pipeline in order:
    still holding the lock; retain the quarantine warning if removal fails.
 7. Queue one value-only `AddJobSaveOutcome` to the GUI facade.
 
-Every failure after queueing, including cancellation, worker initialization, CV
-processing, or SQLite failure, is returned as a final value outcome. Creates are
-reported through `applicationSaveCompleted`; updates use
-`applicationUpdateCompleted`. The controller retains the active slot until this
-final outcome, then releases it and advances the FIFO. It ignores stale outcomes
-unless both operation ID and cancellation identity match the active request.
+Failures during worker initialization, CV processing, or SQLite operations
+produce value outcomes, as does observed cancellation. If Qt cannot post a
+request or its result, the facade logs `BackgroundWorkDeliveryFailed` and the
+controller can remain waiting for that save. The controller accepts a delivered
+outcome only when its operation ID and cancellation token match the active
+request. Updates must also match the pending application ID. The controller
+emits `applicationSaveCompleted` for creates or `applicationUpdateCompleted`
+for updates when completion is enabled, then releases the active slot and
+advances the FIFO.
 
 The gate reservation outlasts the FIFO slot until completion signals, related
 model publication, update-state changes, and pending/drained notifications have
 returned. Accepted waiters retain their own reservations across advancement.
 
 Only the GUI controller mutates Qt models or publishes cross-screen signals. On
-a successful final result it appends the job, refreshes sorting, and emits
+a successful create outcome it appends the job, refreshes sorting, and emits
 `applicationCreated`, `companyResolved`, and `cvUsed`. The worker transports no
 model, repository, SQL handle/query, or staged-file object across threads.
 
 `CancellationState` protects only its boolean with a mutex. Cancellation checks
 never hold that mutex during file I/O, SQL, signal emission, or queued delivery.
 `cancelCreateApplication()` cancels only an active create request and then
-continues the shared FIFO. `cancelAllJobSaves()` removes normalized create and
-update waiters, cancels the active request, suppresses exit-time notifications,
-and emits `saveQueueDrained` only after active cleanup.
+continues the shared FIFO. `cancelAllJobSaves()` drops waiting creates and
+updates before they execute. It requests cancellation of the active save and
+suppresses its completion signal. The controller emits `saveQueueDrained`
+when the pending count reaches zero.
 
 Cancellation remains effective during source buffering and at the explicit
 checks before persistence. Waiting for `CvLockWrapper` itself is a blocking
@@ -139,14 +144,15 @@ selected source file.
 `Main.qml` owns presentation-only completion notifications, a single protected
 action guard for Job Description edits, and close confirmation shared by Add
 Job, Add CV, and removal work. Notifications are non-modal, display one at a time
-for 15 seconds, and queue later outcomes. A close request while any controller
-has pending work is rejected and offers only Wait or Interrupt and Exit. Wait
-resumes hidden notifications without affecting work. Interrupt and Exit discards
-notifications, cancels both add queues, requests removal cancellation between
-items, and closes only after all pending counts reach zero. Already committed
-removals remain committed, and the current item finishes or compensates safely.
-If the work drains naturally while the confirmation is open, the confirmation
-closes and the app remains open.
+for 15 seconds, and queue later outcomes. Closing first checks the job editor.
+An update in progress defers the close request. Success resumes it, and failure
+abandons it. A dirty edit prompts for Save, Don't Save, or Cancel. If close
+proceeds and work is still pending, the shell offers Wait or Interrupt and Exit.
+Wait resumes hidden notifications while work continues. Interrupt and Exit
+discards notifications, cancels both add queues, requests removal cancellation,
+and closes only after all pending counts reach zero. An in-progress removal item
+reaches commit or failure handling before the batch stops. If work drains while
+the confirmation is open, the dialog closes and the app stays open.
 
 The shell hosts `StorageMutationFeedback` for the gate's repeated-attempt dialog
 and persistent availability banner. That banner bypasses the ordinary outcome
@@ -158,12 +164,12 @@ state only on `applicationUpdateQueued`.
 
 ## Update Job Flow
 
-`JobDescriptionPane.qml` has explicit read-only, editing, and saving states. It
-copies the selected application's editable values into local controls only when
-Edit is requested, compares an exact snapshot of those values plus the optional
-replacement-CV URL to determine dirtiness, and shows Save Changes and Discard
-only during the edit session. Read-only tech values are chips, and editing uses a
-comma-separated field.
+`JobDescriptionPane.qml` has explicit read-only, editing, and saving states.
+It loads the selected application's saved values on component completion and
+when the selection data changes outside edit mode. Edit reloads the values and
+captures the baseline for comparing the fields and optional replacement-CV URL.
+Save Changes and Discard appear only during the edit session. Read-only tech
+values are chips, and editing uses a comma-separated field.
 
 Explicit Save Changes opens the apply confirmation in the pane. Submission calls
 `JobApplicationsController::updateApplication(applicationId, formValues,
@@ -193,19 +199,23 @@ existing case-sensitive `(sha256, original_file_name)` identity is preserved.
 The service updates the job row, replaces ordered technology rows, and commits
 one SQLite transaction. The job ID and `created_at` remain stable; `updated_at`
 is refreshed. Archived exact CV duplicates restore, and the previous CV row and
-managed file remain in the Library. A failed transaction keeps the original
-job/CV relationship and uses the managed-file cleanup and startup reconciliation
-guarantees.
+managed file remain in the Library. A successful rollback preserves the
+original job/CV relationship. If the replacement file was finalized before
+failure, the service attempts cleanup under the shared lock. See
+[managed-file recovery](storage.md#permanent-deletion-and-startup-recovery).
 
-After commit, the GUI controller updates `JobApplicationListModel` in place and
-emits only the changed roles. Company-role changes refresh directory counts,
-status changes refresh dashboard metrics, and CV changes remove the application
-link from the previous CV before adding it to the replacement CV.
-`CvLibraryController` centralizes publication: restored archive roles update
-before links move. A committed replacement is published even when its CV ID
-equals the previous ID, allowing a same-ID archived selection to restore.
-Failures leave the source model unchanged and return structured field/global
-errors to the editor.
+After commit, the GUI controller looks up the job in `JobApplicationListModel`.
+If the row is missing, it records `CommittedChangePublicationFailed` and skips
+company and CV publication. When completion is enabled, the editor receives a
+failure explaining that the update was saved but the view could not refresh.
+If the row is present, the model updates it in place and emits only the changed
+roles. Company-role changes refresh directory counts, status changes refresh
+dashboard metrics, and CV changes move the application link from the previous
+CV to the replacement.
+`CvLibraryController` updates restored archive roles before moving links. It
+also publishes a replacement whose CV ID equals the previous ID, so an archived
+CV can be restored in place. Validation and persistence failures return field
+errors or a message to the editor.
 
 `Main.qml::requestProtectedAction()` guards the Job Applications tab, sidebar
 navigation, Add Job, the global Add CV picker, extensible app-owned actions, and

@@ -11,11 +11,13 @@ ownership, context-property exposure, module inventory, or QML reachability.
 `src/app/App.hpp` and `src/app/App.cpp` own the process-level startup boundary.
 `App::start()` creates `QGuiApplication`, sets the application name and starts
 the asynchronous log session before constructing `AppBootstrap`. The session
-outlives bootstrap teardown. Startup failures retain their non-zero exit code
-and the responsible subsystem records the specific cause. A dataset cursor
-failure can return partial rows and still allow the window to open. Bootstrap
-records startup success only when the cumulative read status is complete,
-managed-file recovery has returned and the QML root is a window.
+outlives bootstrap teardown. `App::start()` returns `EXIT_FAILURE` when startup
+throws, including when QML creates no root object. A root object that fails the
+`QWindow` cast triggers `MainWindowCreationFailed`, then bootstrap proceeds
+to the event loop. A dataset cursor failure can return partial rows
+and still allow the window to open. Bootstrap records `ApplicationStarted` only
+when the cumulative read status is complete, managed-file recovery has returned,
+and the QML root is a window.
 See [application logging](logging.md).
 
 `src/app/AppBootstrap.hpp` and `src/app/AppBootstrap.cpp` own the application

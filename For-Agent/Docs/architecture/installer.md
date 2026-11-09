@@ -79,12 +79,16 @@ data-cleanup result is not undone by a later program failure.
 
 ## Shared Personal Data Contract
 
-The application still resolves `%LOCALAPPDATA%\JobTracker\Data` per Windows
-account. Install/repair/update/cancel/failure never opens, migrates, resets,
-restores, or deletes it. Binaries copied between machines do not transfer this
-data, and binaries launched by another account retain existing per-user
-behavior. Separate installation folders do not isolate databases or add
-cross-version/concurrent-access guarantees.
+The application resolves `%LOCALAPPDATA%\JobTracker\Data` per Windows account.
+During install, repair, or update, Setup checks the destination against the
+execution and target accounts' data paths. It opens each `Data` directory or
+its nearest existing ancestor for file attributes to resolve the canonical
+path. A failed path check blocks installation. Setup's access to personal data
+ends with this directory check, including on cancellation or failure. Database
+access, migration, and recovery belong to the application. Binaries copied
+between machines do not transfer this data, and binaries launched by another
+account retain existing per-user behavior. Separate installation folders do not
+isolate databases or add cross-version/concurrent-access guarantees.
 
 Interactive uninstall defaults to keeping data and asks at the start of program
 removal. Confirmation names the intended account/SID/profile, exact `Data` path,

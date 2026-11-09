@@ -13,11 +13,13 @@ remain checked after filter, view, and sort changes and how preview selection wo
 
 Each removal batch is best-effort and processes selected IDs independently with
 one transaction per item. Deleting a job removes only that job and its cascaded
-technology rows. Removing an active linked CV archives it without touching the
-file; removing an active unlinked CV permanently deletes its row and managed
-file. Archived CVs can be restored. Permanent deletion of an archived mixed
-selection deletes unlinked items and reports linked items as skipped. Successful
-IDs leave checkbox selection; failed and skipped IDs remain selected.
+technology rows. Removing an active linked CV archives it and preserves its
+file. Removing an active unlinked CV deletes its database row. Archived CVs can
+be restored. Permanent deletion of an archived mixed selection deletes unlinked
+items and reports linked items as skipped. For either kind of permanent
+deletion, `Deleted` confirms the row deletion committed. The item message also
+reports an already-missing file or tombstone cleanup pending for startup.
+Successful IDs leave checkbox selection. Failed and skipped IDs stay selected.
 
 `DataRemovalTypes.hpp` defines the shared removal protocol. The four supported
 `DataRemovalKind` values are template arguments of `DataRemovalRequest<Kind>`
@@ -60,10 +62,12 @@ See the [event ownership policy](logging.md#ownership-and-evidence).
 
 Job deletion, active-CV removal, archived-CV deletion, and manual restore share
 one exclusive admission category. Accepted queued imports/updates block this
-category; an active removal batch blocks every new persistence command and
+category. An active removal batch blocks new persistence commands, including
 another removal batch. Eligibility errors are separate from admission conflicts.
-Rejected batches emit blocked feedback rather than completion outcomes and keep
-their selections. They never enter a queue or interrupt current work.
+During normal operation the gate reports conflicting requests through blocked
+feedback. Once shutdown begins it rejects new requests silently. Both paths
+preserve the selection. Only admitted batches reach the worker and can emit a
+completion outcome.
 
 Eligible buttons remain clickable during conflicting work. Deletion confirmation
 checks availability without reserving it, and its confirmed command checks again.

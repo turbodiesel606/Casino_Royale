@@ -61,13 +61,14 @@ The enum, descriptor table, severity lookup, maximum payload width and
 structural checks all derive from those rows. Use existing components and payload forms where they fit.
 
 A plain `{name}` consumes a fixed `LogFact`. `{name:number}` consumes an integer.
-Other explicit forms cover optional details, grouped counts and application
-version/platform. The latter two are supplied by the formatter. Pass fields in
-template order and use the named members of grouped payloads in
-[LogEvent.hpp](../../../src/logging/LogEvent.hpp). Omitted grouped counts,
-incompatible field types, extra fields and malformed templates must be caught
-by the type, descriptor or formatting checks. Extend formatting only for a
-genuinely new form. Keep each complete line within the existing format.
+The formatter supplies the application version and platform. Producers supply
+optional details and grouped counts in template order using the named members
+in [LogEvent.hpp](../../../src/logging/LogEvent.hpp). Members of type `LogCount`
+require explicit values. Omitted members of `LogRemovalCounts` default to zero
+so the removal service can accumulate outcomes. Type, descriptor or formatting
+checks must reject missing required counts, incompatible field types, extra
+fields and malformed templates. Extend formatting only for a genuinely new
+form. Keep each complete line within the existing format.
 
 Permitted facts include enum-backed stages and causes, counts, flags, the
 application version/platform and an existing technical operation number.
@@ -101,6 +102,12 @@ Specify the expected semantic values and rendered facts independently of the
 production formatter. Verify severity, wording, partial or optional fields,
 correlation, and privacy. For writer or admission changes, use the writer suite.
 See the [suite reference](../testing-reference.md#test-suite-responsibilities).
+
+The current [catalog test](../../../tests/logging/LogCatalogTest.cpp) has one
+primary formatting example per catalog event. `rendersExpectedMessages()`
+checks the examples it is given. `catalogDeterminesSeverity()` visits every
+catalog row for a separate severity check. Because these checks run
+independently, removing or duplicating a valid primary example can pass.
 
 ## Queue and lifetime
 

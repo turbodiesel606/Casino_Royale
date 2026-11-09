@@ -73,9 +73,11 @@ This lock has no condition variable, ticket FIFO, cancellation-aware wait, or
 custom lease type. Acquisition order is the platform mutex's unspecified order,
 and a worker blocked in `lock()` cannot observe cancellation until it acquires
 the mutex. Create, replacement-CV, and standalone import paths then recheck the
-token before starting their transaction. All job updates currently take the
-lock, including metadata-only updates; the metadata-only path has no second
-post-acquisition cancellation check.
+token before starting their transaction. A metadata-only update also takes the
+lock and proceeds to its transaction even if cancellation was requested while
+it waited. Immediately before commit, `UpdateJobService` samples the token for
+diagnostics. If it observes a request and commit succeeds, it records
+`OperationCommittedAfterCancellationRequest`.
 
 The `std::unique_lock` spans identity lookup when applicable, transaction commit
 or rollback, and catch-path file cleanup. Bootstrap declares `CvLockWrapper`
@@ -143,5 +145,7 @@ The offscreen QML feedback suite covers dialog reopening and live banner state.
   controller. Destroy the worker persistence graph on its own thread before
   quitting and waiting for that thread; never terminate it.
 - Run deletion/archive batches on the dedicated removal executor with its own
-  SQLite connection. Check cooperative cancellation only between items and
-  return value outcomes for all GUI-thread model mutations.
+  SQLite connection. Stop before starting the next item when cancellation is
+  requested. The current item also samples the token immediately before commit
+  so the service can report work committed after a request. Return value
+  outcomes for GUI-thread model mutations.
