@@ -48,8 +48,8 @@ void SchemaMigrator::migrate(QSqlDatabase& database)
 	try {
 		version = schemaVersion(database);
 	} catch (...) {
-		ApplicationLog::record({LogEventType::DatabaseSchemaVersionCheckFailed,
-			{LogFact::SchemaVersionRead, LogFact::Unknown, latestSchemaVersion, storage::sql::currentFailureCause()}});
+		ApplicationLog::record(LogEventType::DatabaseSchemaVersionCheckFailed,
+			LogFact::SchemaVersionRead, LogFact::Unknown, latestSchemaVersion, storage::sql::currentFailureCause());
 		throw;
 	}
 
@@ -59,15 +59,15 @@ void SchemaMigrator::migrate(QSqlDatabase& database)
 
 	// Reject databases created by a newer application version to avoid unsafe schema changes.
 	if (version > latestSchemaVersion) {
-		ApplicationLog::record({LogEventType::DatabaseSchemaVersionCheckFailed,
-			{LogFact::SchemaCompatibility, version, latestSchemaVersion, LogFact::SchemaUnsupported}});
+		ApplicationLog::record(LogEventType::DatabaseSchemaVersionCheckFailed,
+			LogFact::SchemaCompatibility, version, latestSchemaVersion, LogFact::SchemaUnsupported);
 		throw std::runtime_error(
 			"The JobTracker database schema is newer than this application supports.");
 	}
 
 	const auto initialVersion = version;
 	if (initialVersion > 0) {
-		ApplicationLog::record({LogEventType::DatabaseUpgradeStarted, {initialVersion, latestSchemaVersion}});
+		ApplicationLog::record(LogEventType::DatabaseUpgradeStarted, initialVersion, latestSchemaVersion);
 	}
 	auto stage = LogFact::TransactionBegin;
 	auto rollback = LogFact::NotAttempted;
@@ -121,17 +121,17 @@ void SchemaMigrator::migrate(QSqlDatabase& database)
 		transaction.commit();
 	} catch (...) {
 		if (stage == LogFact::SchemaCompatibility) {
-			ApplicationLog::record({LogEventType::DatabaseSchemaVersionCheckFailed,
-				{stage, initialVersion, latestSchemaVersion, LogFact::SchemaUnsupported}});
+			ApplicationLog::record(LogEventType::DatabaseSchemaVersionCheckFailed,
+				stage, initialVersion, latestSchemaVersion, LogFact::SchemaUnsupported);
 		} else {
-			ApplicationLog::record({LogEventType::DatabaseSchemaMigrationFailed,
-				{initialVersion, latestSchemaVersion, stage, storage::sql::currentFailureCause(), rollback}});
+			ApplicationLog::record(LogEventType::DatabaseSchemaMigrationFailed,
+				initialVersion, latestSchemaVersion, stage, storage::sql::currentFailureCause(), rollback);
 		}
 		throw;
 	}
 	if (initialVersion == 0) {
-		ApplicationLog::record({LogEventType::DatabaseSchemaInitialized, {latestSchemaVersion}});
+		ApplicationLog::record(LogEventType::DatabaseSchemaInitialized, latestSchemaVersion);
 	} else {
-		ApplicationLog::record({LogEventType::DatabaseUpgradeCompleted, {initialVersion, latestSchemaVersion}});
+		ApplicationLog::record(LogEventType::DatabaseUpgradeCompleted, initialVersion, latestSchemaVersion);
 	}
 }

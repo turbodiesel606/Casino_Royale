@@ -48,8 +48,8 @@ QVector<Company> CompanyRepository::findAll(bool* allReadsComplete) const
     if (!query.exec(
             companySelectProjection
             + QStringLiteral("FROM companies ORDER BY normalized_name"))) {
-        ApplicationLog::record({LogEventType::SavedDatasetLoadFailed,
-            {LogFact::Companies, storage::sql::failureCause(query.lastError())}});
+        ApplicationLog::record(LogEventType::SavedDatasetLoadFailed,
+            LogFact::Companies, storage::sql::failureCause(query.lastError()));
         storage::sql::throwQueryError(query, QStringLiteral("load companies"));
     }
 
@@ -63,9 +63,9 @@ QVector<Company> CompanyRepository::findAll(bool* allReadsComplete) const
     }
     storage::sql::finishDatasetRead(query, LogFact::Companies, allReadsComplete);
     if (invalidRequiredTime)
-        ApplicationLog::record({LogEventType::SavedFieldFallbacksApplied,
-            {LogFallbackCounts{.jobStatus_ = 0, .workFormat_ = 0,
-                .requiredDate_ = invalidRequiredTime, .archiveTime_ = 0}}});
+        ApplicationLog::record(LogEventType::SavedFieldFallbacksApplied,
+            LogFallbackCounts{.jobStatus_ = 0, .workFormat_ = 0,
+                .requiredDate_ = invalidRequiredTime, .archiveTime_ = 0});
     return companies;
 }
 

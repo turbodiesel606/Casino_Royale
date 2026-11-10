@@ -508,7 +508,7 @@ void CvLibraryController::toggleFavorite(const QString& cvId)
 	}
 	const auto* cv = cvModel_.cvById(cvId);
 	if (cv == nullptr) {
-		ApplicationLog::record({LogEventType::RequestedRecordStateMismatch, {LogFact::FavoriteChange, LogFact::Missing}});
+		ApplicationLog::record(LogEventType::RequestedRecordStateMismatch, LogFact::FavoriteChange, LogFact::Missing);
 		emit operationFailed(QStringLiteral("CV was not found."));
 		return;
 	}
@@ -526,26 +526,26 @@ void CvLibraryController::toggleFavorite(const QString& cvId)
 	try {
 		updatedAt = repository_.updateFavorite(cvId, isFavorite);
 		if (!updatedAt) {
-			ApplicationLog::record({LogEventType::RequestedRecordStateMismatch, {LogFact::FavoriteChange, LogFact::Missing}});
+			ApplicationLog::record(LogEventType::RequestedRecordStateMismatch, LogFact::FavoriteChange, LogFact::Missing);
 			emit operationFailed(QStringLiteral("CV was not found."));
 			return;
 		}
 	}
 	catch (const std::exception& error) {
-		ApplicationLog::record({LogEventType::CvFavoriteSaveFailed, {storage::sql::currentFailureCause()}});
+		ApplicationLog::record(LogEventType::CvFavoriteSaveFailed, storage::sql::currentFailureCause());
 		emit operationFailed(QStringLiteral("The favorite state could not be saved: %1")
 			.arg(QString::fromUtf8(error.what())));
 		return;
 	}
 	catch (...) {
-		ApplicationLog::record({LogEventType::CvFavoriteSaveFailed, {LogFact::CauseUnavailable}});
+		ApplicationLog::record(LogEventType::CvFavoriteSaveFailed, LogFact::CauseUnavailable);
 		emit operationFailed(QStringLiteral("The favorite state could not be saved."));
 		return;
 	}
 
 	if (!cvModel_.setFavorite(cvId, isFavorite, *updatedAt)) {
-		ApplicationLog::record({LogEventType::CommittedChangePublicationFailed,
-			{LogFact::FavoriteChange, LogFact::ModelRecordUnavailable}});
+		ApplicationLog::record(LogEventType::CommittedChangePublicationFailed,
+			LogFact::FavoriteChange, LogFact::ModelRecordUnavailable);
 		emit operationFailed(QStringLiteral("The favorite state was saved but the CV model could not be updated."));
 		return;
 	}
@@ -555,7 +555,7 @@ void CvLibraryController::openCv(const QString& cvId)
 {
 	const auto* cv = cvModel_.cvById(cvId);
 	if (cv == nullptr) {
-		ApplicationLog::record({LogEventType::RequestedRecordStateMismatch, {LogFact::OpenDocument, LogFact::Missing}});
+		ApplicationLog::record(LogEventType::RequestedRecordStateMismatch, LogFact::OpenDocument, LogFact::Missing);
 		emit operationFailed(QStringLiteral("CV was not found."));
 		return;
 	}
@@ -591,7 +591,7 @@ bool CvLibraryController::addCvs(const QList<QUrl>& sourceUrls)
 		}
 	}
 
-	ApplicationLog::record({LogEventType::BackgroundSaveOrImportAccepted, {LogFact::CvImport, validUrlCount}});
+	ApplicationLog::record(LogEventType::BackgroundSaveOrImportAccepted, LogFact::CvImport, validUrlCount);
 	publishPendingImportStateChange(previousCount);
 	startNextCvImport();
 	return true;
@@ -691,8 +691,8 @@ void CvLibraryController::permanentlyDeleteCheckedCvs()
     mixed selection is allowed. worker will skip linked members.*/
 	if (checkedUnlinkedCvCount() == 0) {
 		const int protectedCount = checkedCvCount();
-		ApplicationLog::record({LogEventType::LinkedCvPermanentDeletionSkipped,
-			{LogFact::SelectionDeclined, protectedCount, protectedCount}});
+		ApplicationLog::record(LogEventType::LinkedCvPermanentDeletionSkipped,
+			LogFact::SelectionDeclined, protectedCount, protectedCount);
 		emit operationFailed(
 			QStringLiteral("Every selected CV is still used by a job application."));
 		return;
@@ -829,8 +829,8 @@ void CvLibraryController::handleCvImport(const CvImportSaveOutcome& outcome)
 	if (shuttingDown_
 		|| !importQueue_.matches(outcome.operationId_, outcome.cancellation_)) {
 		if (!shuttingDown_ && (!mutationGate_ || !mutationGate_->shuttingDown())) {
-			ApplicationLog::record({LogEventType::UnexpectedBackgroundResultDiscarded,
-				{LogFact::CvImport, importQueue_.hasActive() ? LogFact::CorrelationMismatch : LogFact::NoActiveOperation}});
+			ApplicationLog::record(LogEventType::UnexpectedBackgroundResultDiscarded,
+				LogFact::CvImport, importQueue_.hasActive() ? LogFact::CorrelationMismatch : LogFact::NoActiveOperation);
 		}
 		return;
 	}

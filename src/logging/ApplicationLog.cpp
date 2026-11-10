@@ -3,17 +3,16 @@
 #include "LogFileWriter.hpp"
 #include "LogInbox.hpp"
 
-#include <QDateTime>
 #include <QDir>
 #include <QStandardPaths>
 
-namespace {
-
-logging_detail::LogInbox& inbox()
+logging_detail::LogInbox& logging_detail::inbox()
 {
-    static logging_detail::LogInbox instance;
+    static LogInbox instance;
     return instance;
 }
+
+namespace {
 
 void consume(logging_detail::LogInbox& source, const QString& directory)
 {
@@ -43,23 +42,13 @@ void consume(logging_detail::LogInbox& source, const QString& directory)
 
 }
 
-void ApplicationLog::record(LogEvent event) noexcept
-{
-    try {
-        const auto timestamp = QDateTime::currentMSecsSinceEpoch();
-        inbox().submit({std::move(event), timestamp});
-    } catch (...) {
-        // Codex Comment: Queue allocation must never affect the operation being recorded.
-    }
-}
-
 ApplicationLogSession::ApplicationLogSession() noexcept
 {
     try {
         const auto state = QStandardPaths::writableLocation(QStandardPaths::StateLocation);
         if (state.isEmpty())
             return;
-        auto& source = inbox();
+        auto& source = logging_detail::inbox();
         source.start(consumer_, [&source, directory = QDir{state}.filePath(QStringLiteral("Logs"))] {
             consume(source, directory);
         });
@@ -71,5 +60,5 @@ ApplicationLogSession::ApplicationLogSession() noexcept
 ApplicationLogSession::~ApplicationLogSession()
 {
     if (consumer_.joinable())
-        inbox().closeAndJoin(consumer_);
+        logging_detail::inbox().closeAndJoin(consumer_);
 }

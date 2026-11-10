@@ -39,8 +39,8 @@ void DataRemovalService::ItemFacts::commit(SqlTransaction& transaction)
 void DataRemovalService::BatchFacts::reportActiveCvFailures(quint64 id) const noexcept
 {
 	if (activeCvFailures_)
-		ApplicationLog::record({LogEventType::ActiveCvRemovalStageFailed,
-			{activeCvFailureStage_, activeCvFailureCause_, activeCvFailures_}, id});
+		ApplicationLog::record(id, LogEventType::ActiveCvRemovalStageFailed,
+			activeCvFailureStage_, activeCvFailureCause_, activeCvFailures_);
 }
 
 void DataRemovalService::BatchFacts::observeActiveCvFailure(LogFact stage, LogFact cause, quint64 id) noexcept
@@ -79,19 +79,19 @@ void DataRemovalService::BatchFacts::observe(const ItemFacts& item, DataRemovalI
 		}
 	} else if (item.mismatch_ != LogFact::None) {
 		if (item.mismatch_ != LogFact::Missing || item.lookupReadFailure_ == LogFact::None)
-			ApplicationLog::record({LogEventType::RequestedRecordStateMismatch, {item.operation_, item.mismatch_}, item.id_});
+			ApplicationLog::record(item.id_, LogEventType::RequestedRecordStateMismatch, item.operation_, item.mismatch_);
 	} else if (item.invalidReference_ != LogFact::None) {
-		ApplicationLog::record({LogEventType::InvalidManagedCvReferenceRejected,
-			{LogFact::DeleteCv, item.invalidReference_}, item.id_});
+		ApplicationLog::record(item.id_, LogEventType::InvalidManagedCvReferenceRejected,
+			LogFact::DeleteCv, item.invalidReference_);
 	} else if (item.operation_ == LogFact::CvArchive) {
-		ApplicationLog::record({LogEventType::LinkedCvArchiveFailed, {item.cause_}, item.id_});
+		ApplicationLog::record(item.id_, LogEventType::LinkedCvArchiveFailed, item.cause_);
 	} else if (item.operation_ == LogFact::CvRestore) {
-		ApplicationLog::record({LogEventType::ArchivedCvRestoreFailed, {item.stage_, item.cause_}, item.id_});
+		ApplicationLog::record(item.id_, LogEventType::ArchivedCvRestoreFailed, item.stage_, item.cause_);
 	} else if (item.operation_ == LogFact::ActiveCvRemoval) {
 		observeActiveCvFailure(item.stage_, item.cause_, item.id_);
 	} else {
-		ApplicationLog::record({LogEventType::PermanentCvDeletionFailed,
-			{item.stage_, item.cause_, item.restoration_}, item.id_});
+		ApplicationLog::record(item.id_, LogEventType::PermanentCvDeletionFailed,
+			item.stage_, item.cause_, item.restoration_);
 	}
 }
 
@@ -99,7 +99,7 @@ void DataRemovalService::BatchFacts::report(LogFact operation, quint64 id, qint6
 	const DataRemovalBatchResult& result) const noexcept
 {
 	const auto recordCount = [id](LogEventType type, qint64 count) {
-		if (count) ApplicationLog::record({type, {count}, id});
+		if (count) ApplicationLog::record(id, type, count);
 	};
 	reportActiveCvFailures(id);
 	if (operation == LogFact::JobDeletion && (missingJobs_ || firstJobFailureStage_ != LogFact::Unknown)) {
@@ -107,14 +107,14 @@ void DataRemovalService::BatchFacts::report(LogFact operation, quint64 id, qint6
 			.committed_ = ordinary_.deleted_ + afterCancellation_.deleted_,
 			.failed_ = std::ranges::count(result.items_, DataRemovalItemStatus::Failed, &DataRemovalItemOutcome::status_)};
 		if (missingJobs_)
-			ApplicationLog::record({LogEventType::JobDeletionRecordsMissing, {missingJobs_, totals}, id});
+			ApplicationLog::record(id, LogEventType::JobDeletionRecordsMissing, missingJobs_, totals);
 		if (firstJobFailureStage_ != LogFact::Unknown)
-			ApplicationLog::record({LogEventType::JobApplicationDeletionFailed,
-				{firstJobFailureStage_, firstJobFailureCause_, totals}, id});
+			ApplicationLog::record(id, LogEventType::JobApplicationDeletionFailed,
+				firstJobFailureStage_, firstJobFailureCause_, totals);
 	}
 	if (protected_) {
-		ApplicationLog::record({LogEventType::LinkedCvPermanentDeletionSkipped,
-			{protected_ == selected ? LogFact::RemovalAllProtected : LogFact::RemovalSkipped, protected_, protected_}, id});
+		ApplicationLog::record(id, LogEventType::LinkedCvPermanentDeletionSkipped,
+			protected_ == selected ? LogFact::RemovalAllProtected : LogFact::RemovalSkipped, protected_, protected_);
 	}
 	if (operation == LogFact::JobDeletion)
 		recordCount(LogEventType::JobApplicationsDeleted, ordinary_.deleted_);
@@ -127,13 +127,13 @@ void DataRemovalService::BatchFacts::report(LogFact operation, quint64 id, qint6
 	recordCount(LogEventType::DeletedCvFileAlreadyMissing, ordinary_.missing_ + after.missing_);
 	recordCount(LogEventType::DeletedCvFileCleanupPending, ordinary_.pending_ + after.pending_);
 	if (after.deleted_ || after.archived_ || after.restored_) {
-		ApplicationLog::record({LogEventType::OperationCommittedAfterCancellationRequest,
-			{operation, after}, id});
+		ApplicationLog::record(id, LogEventType::OperationCommittedAfterCancellationRequest,
+			operation, after);
 	}
 	if (result.cancelled_) {
-		ApplicationLog::record({LogEventType::OperationStoppedByCancellation,
-			{operation, LogFact::RemovalBetweenItems, LogCompletionCounts{
-				.processed_ = result.items_.size(), .unprocessed_ = selected - result.items_.size()}}, id});
+		ApplicationLog::record(id, LogEventType::OperationStoppedByCancellation,
+			operation, LogFact::RemovalBetweenItems, LogCompletionCounts{
+				.processed_ = result.items_.size(), .unprocessed_ = selected - result.items_.size()});
 	}
 }
 

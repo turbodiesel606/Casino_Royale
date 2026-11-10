@@ -14,11 +14,12 @@ identity on the same worker thread. Active rows return unchanged; archived rows
 always restore, reporting `RestoredArchived`. Neither duplicate path creates a
 managed name or file. Only a missing identity stages and inserts a CV.
 
-Preparation and stage failures are structured results; SQL failures propagate to
-the workflow transaction boundary, which rolls back before file cleanup. Add
-Job, Add CV, and replacement updates all hold the shared mutex through that
-cleanup. Their catch paths pass the completed path, cleanup fact and existing
-error message to `CvImportService::compensateCompletedFile()`. The file store
+Expected preparation and staging failures return structured results. On a SQL
+failure during import, the transaction guard attempts rollback before the
+workflow cleans up any finalized file. Add Job, Add CV, and replacement updates
+hold the shared mutex through that cleanup. Their exception handlers pass the
+file path, cleanup fact, and error message to
+`CvImportService::compensateCompletedFile()`. The file store
 sets the cleanup fact when it attempts removal. An empty or absent path leaves
 the prior fact intact. A failed removal appends the quarantine warning to the
 caller's message. Cancellation is observed while preparing the source and at
@@ -45,8 +46,9 @@ suppression, correlation checks, and drained transitions. The controller keeps
 domain admission, worker submission, mutation-gate coordination, signals, and
 model publication. `pendingImportCount` is the active-plus-waiting total,
 `importing` is true exactly while it is non-zero, and later picker batches append
-behind existing work. Duplicate or failed requests release only their own active
-slot and never block later imports.
+behind existing work. A matching result releases the active slot and advances
+the FIFO, including when the worker reports a duplicate or failure. A
+[delivery failure](threading.md#worker-topology) can leave the queue pending.
 
 For each active request, the serial queue creates a shared `CancellationState`,
 and the controller submits it to `CvImportWorker`. The worker performs validation
@@ -69,9 +71,11 @@ operation, suppresses its exit-time notification, and emits
 `importQueueDrained` after cleanup. Buffering observes cancellation between read
 chunks. A worker already blocked on `CvLockWrapper` cannot be awakened by the
 token, but checks it after acquiring the mutex and returns before the
-transaction. Staging and import persistence currently ignore later cancellation
-and must complete or roll back and compensate. Worker shutdown destroys its SQL
-graph on the worker thread before quitting and waiting.
+transaction. Once persistence starts, the executor samples cancellation just
+before commit for diagnostics. The controller publishes a matching successful
+result to the Library even when cancellation suppresses `cvImportCompleted`.
+During shutdown the executor destroys its SQL context on the worker thread
+before the facade joins that thread.
 
 ## Library Document Icon
 

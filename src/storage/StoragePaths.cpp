@@ -10,11 +10,11 @@ namespace {
 void reportUnavailableStorage(LogFact operation, qint64 count, LogFact area, LogFact stage) noexcept
 {
     if (operation == LogFact::Startup) {
-        ApplicationLog::record({LogEventType::ApplicationStorageSetupFailed,
-                                {area, stage, LogFact::StorageUnavailable}});
+        ApplicationLog::record(LogEventType::ApplicationStorageSetupFailed,
+                               area, stage, LogFact::StorageUnavailable);
     } else {
-        ApplicationLog::record({LogEventType::BackgroundWorkStartFailed,
-                                {operation, stage, LogFact::StorageUnavailable, count}});
+        ApplicationLog::record(LogEventType::BackgroundWorkStartFailed,
+                               operation, stage, LogFact::StorageUnavailable, count);
     }
 }
 }

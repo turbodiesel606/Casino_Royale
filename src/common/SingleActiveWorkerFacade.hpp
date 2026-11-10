@@ -158,8 +158,8 @@ private:
 				request.cancellation_);
 		}
 		catch (...) {
-			ApplicationLog::record({LogEventType::BackgroundWorkStartFailed,
-				{Traits::operation, LogFact::WorkerInitialization, LogFact::CauseUnavailable, Traits::itemCount(request)}, operationId});
+			ApplicationLog::record(operationId, LogEventType::BackgroundWorkStartFailed,
+				Traits::operation, LogFact::WorkerInitialization, LogFact::CauseUnavailable, Traits::itemCount(request));
 			//Convert executor / runtime initialization exceptions into
 			// an asynchronous domain result instead of crossing the Qt boundary.
 			queueUnavailableOutcome(
@@ -171,8 +171,8 @@ private:
 		}
 
 		if (admission == SingleActiveWorkerAdmission::ShuttingDown) {
-			ApplicationLog::record({LogEventType::BackgroundWorkStartFailed,
-				{Traits::operation, LogFact::WorkerAdmission, LogFact::WorkerShuttingDown, Traits::itemCount(request)}, operationId});
+			ApplicationLog::record(operationId, LogEventType::BackgroundWorkStartFailed,
+				Traits::operation, LogFact::WorkerAdmission, LogFact::WorkerShuttingDown, Traits::itemCount(request));
 			queueUnavailableOutcome(
 				request,
 				Traits::shuttingDownMessage);
@@ -182,8 +182,8 @@ private:
 		//Only one executor request may run at a time.
 		// The controller FIFO should normally prevent this branch.
 		if (admission == SingleActiveWorkerAdmission::Busy) {
-			ApplicationLog::record({LogEventType::BackgroundWorkInvariantViolated,
-				{Traits::operation, LogFact::UnexpectedBusy, LogFact::WorkerAdmission}, operationId});
+			ApplicationLog::record(operationId, LogEventType::BackgroundWorkInvariantViolated,
+				Traits::operation, LogFact::UnexpectedBusy, LogFact::WorkerAdmission);
 			queueUnavailableOutcome(
 				request,
 				Traits::busyMessage);
@@ -212,13 +212,13 @@ private:
 					},
 					Qt::QueuedConnection);
 				if (!posted)
-					ApplicationLog::record({LogEventType::BackgroundWorkDeliveryFailed,
-						{Traits::operation, LogFact::ResultPosting, verified}, operationId});
+					ApplicationLog::record(operationId, LogEventType::BackgroundWorkDeliveryFailed,
+						Traits::operation, LogFact::ResultPosting, verified);
 			},
 			Qt::QueuedConnection);
 		if (!dispatched)
-			ApplicationLog::record({LogEventType::BackgroundWorkDeliveryFailed,
-				{Traits::operation, LogFact::RequestDispatch, LogFact::RequestNotDelivered}, operationId});
+			ApplicationLog::record(operationId, LogEventType::BackgroundWorkDeliveryFailed,
+				Traits::operation, LogFact::RequestDispatch, LogFact::RequestNotDelivered);
 	}
 
 	template<typename Request> // Maybe Concept needed
@@ -245,8 +245,8 @@ private:
 			},
 			Qt::QueuedConnection);
 		if (!posted)
-			ApplicationLog::record({LogEventType::BackgroundWorkDeliveryFailed,
-				{Traits::operation, LogFact::ResultPosting, LogFact::RequestNotDelivered}, request.operationId_});
+			ApplicationLog::record(request.operationId_, LogEventType::BackgroundWorkDeliveryFailed,
+				Traits::operation, LogFact::ResultPosting, LogFact::RequestNotDelivered);
 	}
 
 	void deliverOutcome(Outcome outcome, LogFact operation)
@@ -263,8 +263,8 @@ private:
 
 		if (!isActive) {
 			if (!runtime_.isShuttingDown())
-				ApplicationLog::record({LogEventType::UnexpectedBackgroundResultDiscarded,
-					{operation, runtime_.isBusy() ? LogFact::CorrelationMismatch : LogFact::NoActiveOperation}});
+				ApplicationLog::record(LogEventType::UnexpectedBackgroundResultDiscarded,
+					operation, runtime_.isBusy() ? LogFact::CorrelationMismatch : LogFact::NoActiveOperation);
 			return;
 		}
 

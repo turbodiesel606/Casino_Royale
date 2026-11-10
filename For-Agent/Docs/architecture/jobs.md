@@ -63,8 +63,9 @@ The worker executes the complete durable pipeline in order:
    cancellation after acquiring it.
 5. Begin the transaction and resolve/import the CV, then resolve the company.
 6. Insert the job and commit through `AddJobService::complete()` on the worker
-   thread. On failure, roll back first and remove any newly finalized CV while
-   still holding the lock; retain the quarantine warning if removal fails.
+   thread. On failure, the transaction's rollback attempt precedes cleanup of
+   any newly finalized CV under the same lock. Failed cleanup adds a quarantine
+   warning to the outcome.
 7. Queue one value-only `AddJobSaveOutcome` to the GUI facade.
 
 Failures during worker initialization, CV processing, or SQLite operations
@@ -81,9 +82,9 @@ The gate reservation outlasts the FIFO slot until completion signals, related
 model publication, update-state changes, and pending/drained notifications have
 returned. Accepted waiters retain their own reservations across advancement.
 
-Only the GUI controller mutates Qt models or publishes cross-screen signals. On
-a successful create outcome it appends the job, refreshes sorting, and emits
-`applicationCreated`, `companyResolved`, and `cvUsed`. The worker transports no
+`JobApplicationsController` publishes a successful create on the GUI thread. It
+appends the job, emits `companyResolved`, reapplies the current sort, and then
+emits `cvUsed` followed by `applicationCreated`. The worker transports no
 model, repository, SQL handle/query, or staged-file object across threads.
 
 `CancellationState` protects only its boolean with a mutex. Cancellation checks
@@ -105,9 +106,10 @@ compensation.
 
 `JobApplicationFactory` owns draft trimming, status/date defaults,
 case-insensitive technology deduplication, typed conversion, and final job
-domain-object construction. `JobApplicationValidator` owns the one canonical
-preflight result and validation path shared by creation, updates, and stored
-application validation. It returns field-addressable errors for required values,
+domain-object construction. `JobApplicationValidator::preflight()` uses the
+factory to normalize create and update drafts, then checks their fields. The
+validator checks stored `JobApplication` values directly using the same field
+rules. It returns field-addressable errors for required values,
 optional HTTP/HTTPS URLs with a required host, ISO dates, and allowed
 status/work-format choices.
 
@@ -125,11 +127,11 @@ The worker-owned `AddJobService` owns durable Add Job orchestration:
 The shared `CvImportService` identity, restore, staging, and cleanup contract is
 defined in [cvs.md](cvs.md#shared-cv-import-service).
 
-After successful job creation or update, `AppBootstrap` forwards the resolved
-company plus CV-use or CV-replacement signals to the relevant directory
-controllers, so those projections update immediately. It also forwards deleted
-job IDs to remove their CV links. On restart, CV and company links are
-reconstructed from persisted jobs.
+`AppBootstrap` connects `companyResolved` to
+`CompanyDirectoryController::publishCompany()`. It connects `cvUsed`,
+`cvReplaced`, and `applicationsDeleted` to `CvLibraryController` to keep each
+CV's job links current. On restart, CV and company links are reconstructed
+from persisted jobs.
 
 `JobFormPage.qml` keeps unsaved form values and the selected CV while the user
 navigates between pages. Synchronous `saveFailed` preserves the entered values
@@ -185,11 +187,11 @@ When the update becomes active, `JobSaveWorker` calls
 through `JobRepository::findById()`, trusts the controller-preflighted normalized
 draft, and optionally buffers a PDF, DOC, or DOCX replacement. The separate
 checked `prepare()` entry point retains service-level validation for callers that
-do not already hold a preflight result. Both entry points instantiate private
-compile-time validation modes defined in `UpdateJobService.hpp`. Both look up the job
-before draft validation, so a missing job takes precedence over field errors.
-Every update currently acquires the
-shared `CvLockWrapper` mutex before starting its transaction, including
+do not already hold a preflight result. Both entry points use the private
+`prepareImpl` template in `UpdateJobService.hpp` to look up the job. The
+checked path validates the draft after that lookup, so a missing job takes
+precedence over field errors there. Every update acquires the shared
+`CvLockWrapper` mutex before starting its transaction, including
 metadata-only updates. Replacement updates recheck cancellation after
 acquisition, resolve/import the CV, then resolve the company and update the job.
 Metadata-only updates do not perform CV identity or file work, but they still

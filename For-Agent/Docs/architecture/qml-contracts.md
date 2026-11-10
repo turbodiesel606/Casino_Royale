@@ -22,8 +22,9 @@ Controller-owned filter and sort updates reconcile selection and visible count
 as one completed model update so transient proxy batches do not publish
 intermediate fallback selections or counts. Controllers translate the tracker's
 generic visible-count change into their domain-specific count and summary
-notifications. Linked selection-dependent models refresh only when the effective
-selected ID changes.
+notifications. The CV and company controllers change their linked views' filter
+only when the selected ID changes. The views also update when a source row is
+added, removed, or assigned to a different CV or company.
 
 `BulkIdSelectionTracker` is the separate checkbox-selection contract for Job
 Applications and CV Library. It stores a set of domain IDs, derives all-visible
@@ -52,8 +53,8 @@ selected ID produces an empty linked view.
 applications expose the five newest jobs by typed creation timestamp; recent CVs
 expose the five newest active CVs by typed update timestamp. Both projections use
 the domain ID as a deterministic tie-break and rebuild after relevant source
-structure or data changes. The dashboard's existing QML role names remain
-available, including the `appliedDateLabel` alias.
+structure or data changes. Recent applications expose the job model's
+`dateLabel` role to dashboard delegates as `appliedDateLabel`.
 
 The CV category summary computes its total and sorted category counts from
 source documents in the current Active or Archived view. Text and language

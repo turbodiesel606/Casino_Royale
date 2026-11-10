@@ -30,8 +30,8 @@ SqlTransaction::~SqlTransaction()
     const bool rolledBack = database_.rollback();
     if (rollback_) *rollback_ = rolledBack ? LogFact::Succeeded : LogFact::Failed;
     if (!rolledBack) {
-        ApplicationLog::record({LogEventType::DatabaseRollbackFailed,
-            {operation_, storage::sql::failureCause(database_.lastError())}, operationId_});
+        ApplicationLog::record(operationId_, LogEventType::DatabaseRollbackFailed,
+            operation_, storage::sql::failureCause(database_.lastError()));
     }
 }
 

@@ -7,15 +7,18 @@ transactions, managed CV files, path safety, hydration, or startup recovery.
 
 Jobs, CVs, and company identities are currently backed by SQLite.
 
-`StoragePaths` resolves the application data location, creates the managed resume
-folder, and provides the database path.
+`StoragePaths` defaults to the `Data` directory under Qt's `AppLocalDataLocation`.
+The database (`database.sqlite`) and managed CV directory (`Resumes`) are siblings
+under the selected data directory. Bootstrap passes that directory to all three
+persistence workers.
 
 `SqliteDatabase` owns the Qt SQL connection lifetime and schema migration.
 Storage-specific SQL helpers execute standalone statements and translate Qt SQL
 failures into exceptions that identify the failed operation. Repositories use the
 same contextual error boundary for prepared queries. `SqlTransaction` starts one
-transaction, requires an explicit successful commit, and automatically rolls
-back while still active.
+transaction and requires an explicit commit. If it is still active at destruction,
+it attempts rollback. A failed rollback records `DatabaseRollbackFailed` because
+the database state is uncertain.
 
 The current SQLite schema is version 4 and contains:
 
@@ -30,11 +33,13 @@ The current SQLite schema is version 4 and contains:
   `(job_id, position)` primary key preserves ordering, and its `job_id` foreign
   key references `jobs.id` with `ON DELETE CASCADE`.
 
-`SchemaMigrator` reads `PRAGMA user_version`, rejects unsupported newer
-databases, selects the direct version-4 initialization or applies each forward
-migration sequentially, verifies foreign keys, and commits through
-`SqlTransaction`. The explicit initialization, `v1 -> v2`, `v2 -> v3`, and
-`v3 -> v4` SQL live in separate version-specific implementation units.
+Every `SqliteDatabase` connection enables foreign-key enforcement.
+`SchemaMigrator` reads `PRAGMA user_version` and returns immediately for version
+4. It rejects newer versions, initializes version 0 directly at version 4, and
+applies the remaining migrations in order for versions 1 through 3.
+Initialization and upgrades run `PRAGMA foreign_key_check` before committing
+their transaction. The SQL for initialization and each upgrade step lives in a
+separate C++ source file.
 
 Version 1 databases first receive the CV identity migration to version 2, then
 continue through the company identity migration. The `v2 -> v3` step trims and
@@ -42,8 +47,7 @@ case-folds existing job company names, creates one company per normalized
 identity, rebuilds jobs with required company foreign keys, and preserves
 technology rows. Blank legacy company names abort the transaction with a clear
 error. The `v3 -> v4` step adds nullable `cvs.archived_at`, so every existing CV
-remains active. Initialization and all upgrades run transactionally and verify
-foreign keys before commit.
+remains active.
 
 ## Repositories And Typed Values
 
@@ -103,12 +107,12 @@ be a regular file. A valid reference can also point to a missing file.
 desktop opener. Permanent deletion can still remove an unlinked row whose file
 is missing.
 
-`CvManagedFileStore` owns the managed CV filesystem boundary. It validates local
-PDF, DOC, and DOCX inputs and reads the complete source into the preparation's
-`QByteArray`. Size and SHA-256 describe those exact bytes. Buffering creates no
-managed filename, `.part`, or final file. Only an identity miss calls
-`stageAndFinalize()`, which generates a unique name, writes bounded chunks with
-partial-write handling, flushes/closes the `.part`, and renames it.
+`CvManagedFileStore` checks that the source is a readable local file with a
+PDF, DOC, or DOCX filename extension. It buffers the entire file in a
+`QByteArray` and derives the size and SHA-256 from those bytes. Only an identity
+miss reaches `stageAndFinalize()`, which generates a managed filename and writes
+a `.part` file in bounded chunks. It handles partial writes, then flushes,
+closes, and renames the file.
 
 Source preparation observes cancellation before inspection, between one-megabyte
 read chunks, and after the final read. After the caller's pre-persistence check,
@@ -122,11 +126,11 @@ includes the complete selected CV.
 ### Permanent Deletion And Startup Recovery
 
 Permanent deletion renames an existing managed file to a `.delete` tombstone
-before deleting its unlinked database row. If the database operation fails and
-the original path is vacant, the store attempts to rename the tombstone back.
-A failed rename leaves it for startup recovery. After commit, the store tries
-to remove the tombstone. If cleanup fails, the service reports the row as
-deleted with file cleanup pending.
+before deleting its unlinked database row. On a database failure, the service
+asks the store to restore the tombstone to a vacant original path before the
+transaction guard attempts rollback. A failed rename leaves the tombstone for
+startup recovery. After commit, the store tries to remove the tombstone. If
+cleanup fails, the service reports the row as deleted with file cleanup pending.
 
 Bootstrap calls `CvRepository::findAll()` once and passes the same CV snapshot
 to `CvManagedFileStore::reconcile()` and then to `CvLibraryController`. Recovery

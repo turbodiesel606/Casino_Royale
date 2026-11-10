@@ -123,16 +123,16 @@ bool SingleActiveWorkerRuntime::shutdown()
             Qt::BlockingQueuedConnection);
         if (!invoked) {
             cleanupCompleted_ = false;
-            ApplicationLog::record({LogEventType::BackgroundShutdownCleanupFailed,
-                {LogFact::ShutdownContextDispatch, executorLifecycle_.storageArea_, LogFact::RequestDispatch}});
+            ApplicationLog::record(LogEventType::BackgroundShutdownCleanupFailed,
+                LogFact::ShutdownContextDispatch, executorLifecycle_.storageArea_, LogFact::RequestDispatch);
         }
         Q_ASSERT(invoked);
 
         workerThread_.quit();
         if (!workerThread_.wait()) {
             cleanupCompleted_ = false;
-            ApplicationLog::record({LogEventType::BackgroundShutdownCleanupFailed,
-                {LogFact::WorkerThreadJoin, executorLifecycle_.storageArea_, LogFact::CauseUnavailable}});
+            ApplicationLog::record(LogEventType::BackgroundShutdownCleanupFailed,
+                LogFact::WorkerThreadJoin, executorLifecycle_.storageArea_, LogFact::CauseUnavailable);
         }
         executor_ = nullptr;
     }

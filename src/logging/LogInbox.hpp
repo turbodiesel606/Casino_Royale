@@ -34,7 +34,7 @@ public:
         closing_ = false;
     }
 
-    void submit(LogEntry entry);
+    void submit(LogEntry&& entry);
     std::optional<LogEntry> tryTake();
     std::optional<LogEntry> waitAndTake();
     void closeAndJoin(std::jthread& thread);
@@ -48,6 +48,8 @@ private:
     bool consumerAttached_ = false;
     bool closing_ = true;
 };
+
+LogInbox& inbox();
 
 }
 

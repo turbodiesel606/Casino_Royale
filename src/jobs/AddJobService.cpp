@@ -146,10 +146,10 @@ AddJobResult AddJobService::complete(
         result.success_ = true;
         const auto disposition = cvDispositionFact(result.cvImportDisposition_);
         if (cancellationRequested) {
-            ApplicationLog::record({LogEventType::OperationCommittedAfterCancellationRequest,
-                {observation.operation_, disposition}, observation.operationId_});
+            ApplicationLog::record(observation.operationId_, LogEventType::OperationCommittedAfterCancellationRequest,
+                observation.operation_, disposition);
         } else {
-            ApplicationLog::record({LogEventType::JobApplicationCreated, {disposition}, observation.operationId_});
+            ApplicationLog::record(observation.operationId_, LogEventType::JobApplicationCreated, disposition);
         }
 	}
 	catch (...) {

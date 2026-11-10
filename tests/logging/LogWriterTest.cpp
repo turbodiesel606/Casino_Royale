@@ -11,6 +11,7 @@
 #include <barrier>
 #include <filesystem>
 #include <latch>
+#include <utility>
 #include <vector>
 
 #ifdef Q_OS_WIN
@@ -22,6 +23,23 @@ namespace {
 constexpr qint64 fiveMiB = 5 * 1024 * 1024;
 using logging_detail::LogFileWriter;
 using logging_detail::LogInbox;
+
+constexpr auto canRecord = []<typename... Args>() {
+    return requires(Args&&... args) {
+        { ApplicationLog::record(std::forward<Args>(args)...) } noexcept;
+    };
+};
+
+static_assert(canRecord.operator()<LogEventType>());
+static_assert(canRecord.operator()<quint64, LogEventType>());
+static_assert(canRecord.operator()<LogEventType, const LogFact&, int, LogPendingCounts>());
+static_assert(canRecord.operator()<quint64, LogEventType, const LogFact&, int, LogPendingCounts>());
+static_assert(!canRecord.operator()<LogEventType, QString>());
+static_assert(!canRecord.operator()<quint64, LogEventType, QString>());
+static_assert([]<qint64... Counts>(std::integer_sequence<qint64, Counts...>) {
+    return !canRecord.operator()<LogEventType, decltype(Counts)...>()
+        && !canRecord.operator()<quint64, LogEventType, decltype(Counts)...>();
+}(std::make_integer_sequence<qint64, logging_detail::logFieldCapacity + 1>{}));
 
 bool seedSegment(const QString& path, qint64 size)
 {
@@ -61,6 +79,7 @@ class LogWriterTest final : public QObject
 private slots:
     void capacityDropsIncomingRecordsAtEverySeverity();
     void admissionClosureDrainsAcceptedPrefix();
+    void recordsOperationIdWithoutFields();
     void concurrentProducersWriteCompleteOrderedLines();
     void restartAppendsAndRotatesAtTheExactByteLimit();
     void incompleteTailIsRetired();
@@ -122,11 +141,28 @@ void LogWriterTest::admissionClosureDrainsAcceptedPrefix()
         QCOMPARE(processed[i], static_cast<qint64>(i));
 }
 
+void LogWriterTest::recordsOperationIdWithoutFields()
+{
+    testsupport::LogCapture capture;
+    QVERIFY(capture.isValid());
+    {
+        ApplicationLogSession session;
+        for (const auto type : {LogEventType::StandaloneCvImported, LogEventType::ActiveCvReusedOnImport})
+            ApplicationLog::record(quint64{4'294'967'297}, type);
+    }
+
+    const auto lines = capture.contents().split('\n');
+    QCOMPARE(lines.size(), 3);
+    QVERIFY(lines.at(0).endsWith("Standalone import committed a new managed CV (operation 4294967297)."));
+    QVERIFY(lines.at(1).endsWith("Standalone import reused an existing active CV without adding another copy (operation 4294967297)."));
+    QVERIFY(lines.at(2).isEmpty());
+}
+
 void LogWriterTest::concurrentProducersWriteCompleteOrderedLines()
 {
     testsupport::LogCapture capture;
     QVERIFY(capture.isValid());
-    ApplicationLog::record({LogEventType::ApplicationStarted});
+    ApplicationLog::record(LogEventType::ApplicationStarted);
     {
         ApplicationLogSession idle;
     }
@@ -135,17 +171,17 @@ void LogWriterTest::concurrentProducersWriteCompleteOrderedLines()
     constexpr int perProducer = 100;
     {
         ApplicationLogSession session;
-        ApplicationLog::record({LogEventType::ApplicationStarted});
+        ApplicationLog::record(LogEventType::ApplicationStarted);
         QTRY_VERIFY_WITH_TIMEOUT(capture.contents().endsWith("available.\n"), 5000);
         std::array<std::jthread, producerCount> producers;
         for (int i = 0; i < producerCount; ++i) {
             producers[i] = std::jthread{[i] {
                 for (int n = 0; n < perProducer; ++n)
-                    ApplicationLog::record({LogEventType::JobApplicationsDeleted, {1 + i * perProducer + n}});
+                    ApplicationLog::record(LogEventType::JobApplicationsDeleted, 1 + i * perProducer + n);
             }};
         }
     }
-    ApplicationLog::record({LogEventType::ControlledShutdownCompleted});
+    ApplicationLog::record(LogEventType::ControlledShutdownCompleted);
     auto lines = capture.contents().split('\n');
     QVERIFY(lines.takeFirst().endsWith("available."));
     QVERIFY(lines.takeLast().isEmpty());

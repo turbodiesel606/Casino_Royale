@@ -100,7 +100,7 @@ AppBootstrap::~AppBootstrap()
 	const bool importsClean = cvImportWorker_.shutdown();
 	const bool removalClean = dataRemovalWorker_.shutdown();
 	if (normalExit_ && jobsClean && importsClean && removalClean)
-		ApplicationLog::record({LogEventType::ControlledShutdownCompleted});
+		ApplicationLog::record(LogEventType::ControlledShutdownCompleted);
 }
 
 int AppBootstrap::run()
@@ -120,8 +120,8 @@ void AppBootstrap::beginShutdown()
 		const auto active = jobApplicationsController_.activeWorkCount() + cvLibraryController_.activeWorkCount();
 		const auto pending = jobApplicationsController_.pendingSaveCount() + cvLibraryController_.pendingImportCount()
 			+ jobApplicationsController_.pendingDeletionCount() + cvLibraryController_.pendingDeletionCount();
-		ApplicationLog::record({LogEventType::ControlledShutdownStarted,
-			{LogPendingCounts{.active_ = active, .queued_ = pending - active}}});
+		ApplicationLog::record(LogEventType::ControlledShutdownStarted,
+			LogPendingCounts{.active_ = active, .queued_ = pending - active});
 		shutdownReported_ = true;
 	}
 	storageMutationGate_.beginShutdown();
@@ -129,13 +129,13 @@ void AppBootstrap::beginShutdown()
 
 void AppBootstrap::recordCloseWait()
 {
-	ApplicationLog::record({LogEventType::CloseDeferredByUser});
+	ApplicationLog::record(LogEventType::CloseDeferredByUser);
 }
 
 void AppBootstrap::recordInterruptAndExit()
 {
-	ApplicationLog::record({LogEventType::InterruptAndExitSelected,
-		{storageMutationGate_.shutdownQueuedCancellationCount(), storageMutationGate_.shutdownActiveCancellationCount()}});
+	ApplicationLog::record(LogEventType::InterruptAndExitSelected,
+		storageMutationGate_.shutdownQueuedCancellationCount(), storageMutationGate_.shutdownActiveCancellationCount());
 	shutdownReported_ = true;
 }
 
@@ -166,8 +166,8 @@ void AppBootstrap::loadMainQml()
 	const auto roots = engine_.rootObjects();
 	auto* const root = roots.isEmpty() ? nullptr : qobject_cast<QWindow*>(roots.constFirst());
 	if (!root) {
-		ApplicationLog::record({LogEventType::MainWindowCreationFailed,
-			{LogFact::InterfaceLoading, LogFact::RootWindowUnavailable}});
+		ApplicationLog::record(LogEventType::MainWindowCreationFailed,
+			LogFact::InterfaceLoading, LogFact::RootWindowUnavailable);
 		if (roots.isEmpty())
 			throw std::runtime_error("Failed to load "
 				"qrc:/JobTracker/qml/Main.qml");
@@ -176,5 +176,5 @@ void AppBootstrap::loadMainQml()
 	QObject::connect(root, SIGNAL(closeWaitSelected()), this, SLOT(recordCloseWait()));
 	QObject::connect(root, SIGNAL(interruptAndExitSelected()), this, SLOT(recordInterruptAndExit()));
 	if (savedDataComplete_)
-		ApplicationLog::record({LogEventType::ApplicationStarted});
+		ApplicationLog::record(LogEventType::ApplicationStarted);
 }

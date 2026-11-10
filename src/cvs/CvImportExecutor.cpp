@@ -144,13 +144,13 @@ CvImportSaveOutcome CvImportExecutor::process(CvImportRequest request)
         const bool cancellationRequested = cancellationObservedBeforeCommit(request.cancellation_);
         transaction.commit();
         if (cancellationRequested) {
-            ApplicationLog::record({LogEventType::OperationCommittedAfterCancellationRequest,
-                {LogFact::CvImport, cvDispositionFact(result.disposition_)}, request.operationId_});
+            ApplicationLog::record(request.operationId_, LogEventType::OperationCommittedAfterCancellationRequest,
+                LogFact::CvImport, cvDispositionFact(result.disposition_));
         } else {
             const auto type = result.disposition_ == CvImportDisposition::Inserted ? LogEventType::StandaloneCvImported :
                 result.disposition_ == CvImportDisposition::ExistingActive ? LogEventType::ActiveCvReusedOnImport :
                 LogEventType::ArchivedCvRestoredOnImport;
-            ApplicationLog::record({type, {}, request.operationId_});
+            ApplicationLog::record(request.operationId_, type);
         }
 		return outcome;
 	}

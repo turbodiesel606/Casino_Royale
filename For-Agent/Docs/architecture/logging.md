@@ -1,10 +1,13 @@
 # Application logging
 
-JobTracker records operational outcomes through a bounded queue. Producers pass
-owned values to `ApplicationLog::record(LogEvent) noexcept`. A single consumer
-formats and writes each entry. Business decisions, transaction handling, result
-delivery and shutdown proceed independently of logger availability, admission
-and write success.
+Producers call `ApplicationLog::record(type, fields...)` or
+`ApplicationLog::record(operationId, type, fields...)`. Both overloads are
+`noexcept` and take a `LogEventType` and zero to `logFieldCapacity` fields
+implicitly convertible to `LogValue`. Omitting the `quint64` operation ID
+supplies zero, which the formatter omits from the line. A single consumer
+formats and writes accepted entries. Business decisions, transaction handling,
+result delivery and shutdown proceed independently of logger availability,
+admission and write success.
 
 ## Policy for new and changed behavior
 
@@ -70,6 +73,11 @@ checks must reject missing required counts, incompatible field types, extra
 fields and malformed templates. Extend formatting only for a genuinely new
 form. Keep each complete line within the existing format.
 
+The producer overloads check the catalog-wide field limit and conversion to
+`LogValue` at compile time. On the consumer thread, `formatLogLine()` checks
+the fields against the selected event. A missing required value, an incompatible
+type, or an extra populated field yields an empty result that `LogFileWriter` skips.
+
 Permitted facts include enum-backed stages and causes, counts, flags, the
 application version/platform and an existing technical operation number.
 Keep raw driver errors, exception text, SQL, paths and filenames, record IDs,
@@ -112,10 +120,13 @@ independently, removing or duplicating a valid primary example can pass.
 ## Queue and lifetime
 
 `App::start` creates the session after naming the application and before
-constructing `AppBootstrap`. Each producer timestamps its entry in UTC and
-briefly acquires the inbox mutex. The deque holds up to 4,096 entries. A full
-or closed inbox discards incoming records at every severity. The consumer takes
-one entry in enqueue order and releases the mutex before accessing a file.
+constructing `AppBootstrap`. On the producer thread, `record` captures the UTC
+timestamp and constructs one `LogEntry` that owns the forwarded field values
+before `LogInbox::submit` takes the inbox mutex. Under the mutex, `submit`
+discards an incoming entry of any severity when the inbox is closed or its
+deque already holds 4,096 entries. On acceptance, it moves the entry into the
+deque, releases the mutex and notifies the consumer. The consumer takes one
+entry in enqueue order and releases the mutex before accessing a file.
 Timestamps from different producers can appear out of order.
 
 The session outlives the controllers and workers. Session teardown closes

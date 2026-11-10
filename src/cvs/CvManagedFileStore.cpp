@@ -82,8 +82,8 @@ CvManagedFilePreparation::~CvManagedFilePreparation()
 {
 	// An unfinalized .part file is removed when preparation ownership ends.
     if (!stagedFilePath_.isEmpty() && !QFile::remove(stagedFilePath_)) {
-        ApplicationLog::record({LogEventType::FailedOperationFileCleanupIncomplete,
-            {cleanupOperation_, LogFact::PersistPartialFile, LogFact::FileError}, cleanupOperationId_});
+        ApplicationLog::record(cleanupOperationId_, LogEventType::FailedOperationFileCleanupIncomplete,
+            cleanupOperation_, LogFact::PersistPartialFile, LogFact::FileError);
     }
 }
 
@@ -103,8 +103,8 @@ LogFact CvManagedFileRemovalPreparation::restoreRetainedFile() noexcept
 		&& !QFileInfo::exists(originalFilePath_)) {
 		if (QFile::rename(tombstoneFilePath_, originalFilePath_))
 			return LogFact::Succeeded;
-		ApplicationLog::record({LogEventType::RetainedCvFileRestoreFailed,
-			{LogFact::RemovalRenamingFailed}, operationId_});
+		ApplicationLog::record(operationId_, LogEventType::RetainedCvFileRestoreFailed,
+			LogFact::RemovalRenamingFailed);
 		return LogFact::Failed;
 	}
 	return LogFact::NotAttempted;
@@ -401,11 +401,11 @@ CvManagedFileRecoveryReport CvManagedFileStore::reconcile(
     bool finished = false;
     const auto reportFailure = qScopeGuard([&] {
         if (!finished) {
-            ApplicationLog::record({LogEventType::ManagedCvRecoveryFailed,
-                {stage, LogFact::CauseUnavailable,
-                 LogRecoveryCounts{.restored_ = report.restoredDeletionFileCount_,
+            ApplicationLog::record(LogEventType::ManagedCvRecoveryFailed,
+                stage, LogFact::CauseUnavailable,
+                LogRecoveryCounts{.restored_ = report.restoredDeletionFileCount_,
                     .removed_ = report.removedStagedFileCount_ + report.removedDeletionFileCount_,
-                    .quarantined_ = quarantined}}});
+                    .quarantined_ = quarantined});
         }
     });
 	QSet<QString> referencedStoredNames;
@@ -486,11 +486,11 @@ CvManagedFileRecoveryReport CvManagedFileStore::reconcile(
     finished = true;
     const int removed = report.removedStagedFileCount_ + report.removedDeletionFileCount_;
     if (quarantined > 0) {
-        ApplicationLog::record({LogEventType::UnreferencedCvFilesQuarantined,
-            {quarantined, report.restoredDeletionFileCount_, removed}});
+        ApplicationLog::record(LogEventType::UnreferencedCvFilesQuarantined,
+            quarantined, report.restoredDeletionFileCount_, removed);
     } else if (removed || report.restoredDeletionFileCount_) {
-        ApplicationLog::record({LogEventType::ManagedCvFilesRecovered,
-            {report.restoredDeletionFileCount_, removed}});
+        ApplicationLog::record(LogEventType::ManagedCvFilesRecovered,
+            report.restoredDeletionFileCount_, removed);
     }
     return report;
 }

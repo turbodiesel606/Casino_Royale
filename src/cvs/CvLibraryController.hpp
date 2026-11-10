@@ -225,7 +225,7 @@ private:
 
 		activeMutationOperationId_ = ++nextMutationOperationId_;
 		activeMutationCancellation_ = std::make_shared<CancellationState>();
-		ApplicationLog::record({ LogEventType::RemovalOperationAccepted, {removalLogOperation(Kind), items.size()} });
+		ApplicationLog::record(LogEventType::RemovalOperationAccepted, removalLogOperation(Kind), items.size());
 
 		/*
 		Publish pending state before dispatch so the UI and
@@ -251,8 +251,8 @@ private:
 			|| outcome.operationId_ != activeMutationOperationId_
 			|| outcome.cancellation_ != activeMutationCancellation_) {
 			if (!shuttingDown_ && (!mutationGate_ || !mutationGate_->shuttingDown())) {
-				ApplicationLog::record({ LogEventType::UnexpectedBackgroundResultDiscarded,
-					{removalLogOperation(Kind), activeMutationCancellation_ ? LogFact::CorrelationMismatch : LogFact::NoActiveOperation} });
+				ApplicationLog::record(LogEventType::UnexpectedBackgroundResultDiscarded,
+					removalLogOperation(Kind), activeMutationCancellation_ ? LogFact::CorrelationMismatch : LogFact::NoActiveOperation);
 			}
 			return;
 		}

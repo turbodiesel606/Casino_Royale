@@ -32,7 +32,7 @@ int App::start(int argc, char* argv[])
 		QGuiApplication app{ argc, argv };
 		QCoreApplication::setApplicationName(QStringLiteral("JobTracker"));
 		ApplicationLogSession logging;
-		ApplicationLog::record({LogEventType::ApplicationStartupBegan});
+		ApplicationLog::record(LogEventType::ApplicationStartupBegan);
 		try {
 			AppBootstrap bootstrap{ app };
 			return bootstrap.run();

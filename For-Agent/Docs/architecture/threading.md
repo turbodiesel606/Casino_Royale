@@ -56,10 +56,12 @@ for publication and must never complete or replace another active operation.
 Controller correlation and GUI publication still precede release of removal
 admission.
 
-The facade observes the return values of request and result posting. A failed
-post records the delivery stage and the persistence outcome known at that
-point. Shutdown reports whether executor-context cleanup and thread joins
-completed. Bootstrap uses those results before the independent log consumer
+The facade checks whether Qt posted each request and result. A failed post
+records `BackgroundWorkDeliveryFailed` with the stage and the persistence
+outcome known at that point. The controller can continue to report pending work
+and hold its storage reservation, even after a worker commit. Shutdown reports
+whether executor-context cleanup and thread joins completed. Bootstrap uses
+those results before the independent log consumer
 drains its inbox. See [application logging](logging.md).
 
 ## Cross-Worker Mutation Coordination
@@ -75,8 +77,9 @@ and a worker blocked in `lock()` cannot observe cancellation until it acquires
 the mutex. Create, replacement-CV, and standalone import paths then recheck the
 token before starting their transaction. A metadata-only update also takes the
 lock and proceeds to its transaction even if cancellation was requested while
-it waited. Immediately before commit, `UpdateJobService` samples the token for
-diagnostics. If it observes a request and commit succeeds, it records
+it waited. Job creation, job updates, and standalone CV imports all sample the
+token immediately before commit for diagnostics. If the owner observes a
+cancellation request and commit succeeds, it records
 `OperationCommittedAfterCancellationRequest`.
 
 The `std::unique_lock` spans identity lookup when applicable, transaction commit

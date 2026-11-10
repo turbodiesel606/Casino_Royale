@@ -122,8 +122,8 @@ QVector<JobApplication> JobRepository::findAll(bool* allReadsComplete) const
 {
     QSqlQuery jobsQuery{database_};
     if (!jobsQuery.exec(baseJobSelect() + QStringLiteral(" ORDER BY jobs.created_at DESC"))) {
-        ApplicationLog::record({LogEventType::SavedDatasetLoadFailed,
-            {LogFact::PersistJobs, storage::sql::failureCause(jobsQuery.lastError())}});
+        ApplicationLog::record(LogEventType::SavedDatasetLoadFailed,
+            LogFact::PersistJobs, storage::sql::failureCause(jobsQuery.lastError()));
         storage::sql::throwQueryError(
             jobsQuery,
             QStringLiteral("load job applications"));
@@ -151,8 +151,8 @@ QVector<JobApplication> JobRepository::findAll(bool* allReadsComplete) const
             "SELECT job_id, technology "
             "FROM job_technologies "
             "ORDER BY job_id, position"))) {
-        ApplicationLog::record({LogEventType::SavedDatasetLoadFailed,
-            {LogFact::PersistTechnologies, storage::sql::failureCause(technologiesQuery.lastError())}});
+        ApplicationLog::record(LogEventType::SavedDatasetLoadFailed,
+            LogFact::PersistTechnologies, storage::sql::failureCause(technologiesQuery.lastError()));
         storage::sql::throwQueryError(
             technologiesQuery,
             QStringLiteral("load job application technologies"));
@@ -168,9 +168,9 @@ QVector<JobApplication> JobRepository::findAll(bool* allReadsComplete) const
     }
     storage::sql::finishDatasetRead(technologiesQuery, LogFact::PersistTechnologies, allReadsComplete);
     if (badStatus || badFormat || badDate) {
-        ApplicationLog::record({LogEventType::SavedFieldFallbacksApplied,
-            {LogFallbackCounts{.jobStatus_ = badStatus, .workFormat_ = badFormat,
-                .requiredDate_ = badDate, .archiveTime_ = 0}}});
+        ApplicationLog::record(LogEventType::SavedFieldFallbacksApplied,
+            LogFallbackCounts{.jobStatus_ = badStatus, .workFormat_ = badFormat,
+                .requiredDate_ = badDate, .archiveTime_ = 0});
     }
     return applications;
 }

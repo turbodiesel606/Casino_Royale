@@ -39,8 +39,8 @@ public:
 
         constexpr auto operation = removalLogOperation(Kind);
         if (QThread::currentThread() != thread()) {
-            ApplicationLog::record({LogEventType::BackgroundWorkInvariantViolated,
-                {operation, LogFact::RemovalWrongThread, LogFact::RemovalExecution}, request.operationId_});
+            ApplicationLog::record(request.operationId_, LogEventType::BackgroundWorkInvariantViolated,
+                operation, LogFact::RemovalWrongThread, LogFact::RemovalExecution);
         }
         Q_ASSERT(QThread::currentThread() == thread());
 

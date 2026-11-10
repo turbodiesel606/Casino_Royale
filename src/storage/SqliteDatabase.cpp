@@ -47,7 +47,7 @@ SqliteDatabase::SqliteDatabase(const QString& databasePath, LogFact operation, q
 		if (stage != LogFact::SchemaMigration) {
 			const auto cause = database_.isValid() ? storage::sql::currentFailureCause() : LogFact::DbDriverUnavailable;
 			const LogValue affected = operation == LogFact::Startup ? LogValue{LogFact::None} : LogValue{affectedCount};
-			ApplicationLog::record({LogEventType::DatabaseConnectionSetupFailed, {stage, operation, cause, affected}});
+			ApplicationLog::record(LogEventType::DatabaseConnectionSetupFailed, stage, operation, cause, affected);
 		}
 		closeAndRemoveConnection();
 		throw;

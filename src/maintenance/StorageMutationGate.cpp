@@ -15,8 +15,8 @@ bool StorageMutationGate::reserveImportOrUpdate(int count, LogFact action)
 {
 	assertGuiThread();
 	if (count < 0 || count > std::numeric_limits<int>::max() - pendingImportsOrUpdates_) {
-		ApplicationLog::record({LogEventType::BackgroundWorkInvariantViolated,
-			{action, LogFact::InvalidPendingCount, LogFact::PendingAccounting}});
+		ApplicationLog::record(LogEventType::BackgroundWorkInvariantViolated,
+			action, LogFact::InvalidPendingCount, LogFact::PendingAccounting);
 		Q_ASSERT(count >= 0 && count <= std::numeric_limits<int>::max() - pendingImportsOrUpdates_);
 		return false;
 	}
@@ -36,8 +36,8 @@ void StorageMutationGate::releaseImportOrUpdate(int count)
 {
 	assertGuiThread();
 	if (count < 0 || count > pendingImportsOrUpdates_) {
-		ApplicationLog::record({LogEventType::BackgroundWorkInvariantViolated,
-			{LogFact::ImportOrUpdate, LogFact::InvalidPendingCount, LogFact::PendingAccounting}});
+		ApplicationLog::record(LogEventType::BackgroundWorkInvariantViolated,
+			LogFact::ImportOrUpdate, LogFact::InvalidPendingCount, LogFact::PendingAccounting);
 		Q_ASSERT(count >= 0 && count <= pendingImportsOrUpdates_);
 	}
 	if (count <= 0 || count > pendingImportsOrUpdates_) {
@@ -86,7 +86,7 @@ void StorageMutationGate::recordCancellation(StorageMutationGate* gate, int acti
 		gate->shutdownQueuedCancellationCount_ += queued;
 		return;
 	}
-	ApplicationLog::record({LogEventType::PendingWorkCancellationRequested, {active, queued}});
+	ApplicationLog::record(LogEventType::PendingWorkCancellationRequested, active, queued);
 }
 
 bool StorageMutationGate::checkImportOrUpdateAllowed()
@@ -122,10 +122,10 @@ bool StorageMutationGate::checkArchivedCvDeletionAllowed()
 void StorageMutationGate::recordBlockedAttempt(LogFact action, OperationCategory category, BlockReason reason) const noexcept
 {
 	if (category == OperationCategory::ImportOrUpdate) {
-		ApplicationLog::record({LogEventType::MutationBlockedByRemoval, {action, activeRemovalAction_, LogFact::None}});
+		ApplicationLog::record(LogEventType::MutationBlockedByRemoval, action, activeRemovalAction_, LogFact::None);
 	} else {
 		const auto blocker = reason == BlockReason::RemovalActive ? activeRemovalAction_ : LogFact::ImportOrUpdate;
-		ApplicationLog::record({LogEventType::RemovalBlockedByPendingWork, {action, blocker}});
+		ApplicationLog::record(LogEventType::RemovalBlockedByPendingWork, action, blocker);
 	}
 }
 

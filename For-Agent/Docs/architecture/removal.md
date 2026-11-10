@@ -15,8 +15,10 @@ Each removal batch is best-effort and processes selected IDs independently with
 one transaction per item. Deleting a job removes only that job and its cascaded
 technology rows. Removing an active linked CV archives it and preserves its
 file. Removing an active unlinked CV deletes its database row. Archived CVs can
-be restored. Permanent deletion of an archived mixed selection deletes unlinked
-items and reports linked items as skipped. For either kind of permanent
+be restored. If every checked archived CV is linked, the UI disables permanent
+deletion and the controller rejects a direct call before worker admission. For
+a mixed selection, the worker rechecks each CV, deletes eligible unlinked items,
+and reports linked items as skipped. For either kind of permanent
 deletion, `Deleted` confirms the row deletion committed. The item message also
 reports an already-missing file or tombstone cleanup pending for startup.
 Successful IDs leave checkbox selection. Failed and skipped IDs stay selected.

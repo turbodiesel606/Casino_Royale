@@ -64,7 +64,7 @@ namespace storage::sql {
         if (cause != LogFact::None) {
             if (allReadsComplete)
                 *allReadsComplete = false;
-            ApplicationLog::record({LogEventType::SavedDatasetLoadFailed, {dataset, cause}});
+            ApplicationLog::record(LogEventType::SavedDatasetLoadFailed, dataset, cause);
         }
     }
 

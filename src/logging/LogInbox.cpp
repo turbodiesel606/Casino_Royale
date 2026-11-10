@@ -2,7 +2,7 @@
 
 namespace logging_detail {
 
-void LogInbox::submit(LogEntry entry)
+void LogInbox::submit(LogEntry&& entry)
 {
     {
         std::lock_guard lock{mutex_};

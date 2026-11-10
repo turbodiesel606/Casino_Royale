@@ -109,8 +109,8 @@ QVector<CvDocument> CvRepository::findAll(bool* allReadsComplete) const
     try {
         storage::sql::execute(query, QStringLiteral("load CVs and linked job applications"));
     } catch (...) {
-        ApplicationLog::record({LogEventType::SavedDatasetLoadFailed,
-            {LogFact::PersistCvsAndLinks, storage::sql::currentFailureCause()}});
+        ApplicationLog::record(LogEventType::SavedDatasetLoadFailed,
+            LogFact::PersistCvsAndLinks, storage::sql::currentFailureCause());
         throw;
     }
     auto documents = readJoinedDocuments(query);
@@ -121,9 +121,9 @@ QVector<CvDocument> CvRepository::findAll(bool* allReadsComplete) const
         badDate += !document.createdAt_.isValid() || !document.updatedAt_.isValid();
     }
     if (badArchive || badDate) {
-        ApplicationLog::record({LogEventType::SavedFieldFallbacksApplied,
-            {LogFallbackCounts{.jobStatus_ = 0, .workFormat_ = 0,
-                .requiredDate_ = badDate, .archiveTime_ = badArchive}}});
+        ApplicationLog::record(LogEventType::SavedFieldFallbacksApplied,
+            LogFallbackCounts{.jobStatus_ = 0, .workFormat_ = 0,
+                .requiredDate_ = badDate, .archiveTime_ = badArchive});
     }
     return documents;
 }
